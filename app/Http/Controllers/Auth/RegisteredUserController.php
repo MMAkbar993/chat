@@ -27,18 +27,16 @@ class RegisteredUserController extends Controller
 {
     protected $encryptionService;
     protected $firebase;
-    private $database;
 
     public function __construct(EncryptionService $encryptionService, FirebaseService $firebase)
     {
         $this->encryptionService = $encryptionService;
         $this->firebase = $firebase;
-        $this->database = $this->firebase->getDatabase(); // This should work now
     }
 
     public function getDatabase()
     {
-        return $this->database;
+        return $this->firebase->getDatabase();
     }
 
     public function index()
@@ -232,17 +230,19 @@ class RegisteredUserController extends Controller
     
     protected function saveDeviceInfo($uid, $firebaseUser)
     {
-        // Prepare device information
-        $deviceInfo = [
-            'device_name' => $this->getUserDeviceInfo(), // Implement this method to get device details
-            'last_used' => now()->toDateTimeString()
-        ];
-    
-        // Assuming you have a Firebase service for database interaction
-        $deviceRef = $this->firebase->getDatabase()->getReference("users/{$uid}/devices")->push($deviceInfo);
-        
-        // You can also log the device information for debugging
-        Log::info('Device info saved', [$deviceInfo]);
+        if (!$this->firebase->hasDatabase()) {
+            return;
+        }
+        try {
+            $deviceInfo = [
+                'device_name' => $this->getUserDeviceInfo(),
+                'last_used' => now()->toDateTimeString()
+            ];
+            $this->firebase->getDatabase()->getReference("users/{$uid}/devices")->push($deviceInfo);
+            Log::info('Device info saved', [$deviceInfo]);
+        } catch (\Throwable $e) {
+            Log::warning('Firebase device info save failed', ['uid' => $uid, 'message' => $e->getMessage()]);
+        }
     }
     
 

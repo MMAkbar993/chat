@@ -28,7 +28,7 @@ class FirebaseService
     protected $auth;
 
     /**
-     * @var \Kreait\Firebase\Database  <-- ADD THIS PROPERTY
+     * @var \Kreait\Firebase\Database|null
      */
     protected $database;
 
@@ -36,6 +36,7 @@ class FirebaseService
      * FirebaseService constructor.
      * Credentials: use FIREBASE_CREDENTIALS path from .env, or fall back to config/firebase_credentials.json.
      * For Option A (single project): put your project's service account JSON at storage/firebase/firebase_credentials.json and set FIREBASE_CREDENTIALS=storage/firebase/firebase_credentials.json in .env.
+     * Database: set FIREBASE_DATABASE_URL in .env (e.g. https://PROJECT_ID-default-rtdb.firebaseio.com) for Realtime Database features.
      */
     public function __construct()
     {
@@ -47,13 +48,18 @@ class FirebaseService
             throw new \RuntimeException('Firebase credentials file not found: ' . $credentialsPath . '. Set FIREBASE_CREDENTIALS in .env or add config/firebase_credentials.json');
         }
 
-        $factory = (new Factory)
-            ->withServiceAccount($credentialsPath)
-            ->withDatabaseUri(env('FIREBASE_DATABASE_URL'));
+        $factory = (new Factory)->withServiceAccount($credentialsPath);
+
+        $dbUrl = env('FIREBASE_DATABASE_URL');
+        if ($dbUrl !== null && $dbUrl !== '') {
+            $factory = $factory->withDatabaseUri($dbUrl);
+            $this->database = $factory->createDatabase();
+        } else {
+            $this->database = null;
+        }
 
         $this->messaging = $factory->createMessaging();
         $this->auth = $factory->createAuth();
-        $this->database = $factory->createDatabase();
     }
     
     // --- ADD THE TWO MISSING GETTER METHODS ---
@@ -69,12 +75,24 @@ class FirebaseService
     }
 
     /**
+     * Check if Firebase Realtime Database is configured.
+     */
+    public function hasDatabase(): bool
+    {
+        return $this->database !== null;
+    }
+
+    /**
      * Get the Firebase Realtime Database instance.
      *
      * @return \Kreait\Firebase\Database
+     * @throws \RuntimeException if FIREBASE_DATABASE_URL is not set in .env
      */
     public function getDatabase(): Database
     {
+        if ($this->database === null) {
+            throw new \RuntimeException('Firebase Realtime Database is not configured. Set FIREBASE_DATABASE_URL in .env (e.g. https://PROJECT_ID-default-rtdb.firebaseio.com).');
+        }
         return $this->database;
     }
     
@@ -140,9 +158,14 @@ class FirebaseService
 
     /**
      * Write user data to Firebase Realtime Database at data/users/{uid} so the chat app finds them on login.
+     * No-op if FIREBASE_DATABASE_URL is not configured.
      */
     public function syncUserToRealtimeDatabase(string $uid, array $data): void
     {
+        if ($this->database === null) {
+            Log::warning('Firebase RTDB sync skipped: FIREBASE_DATABASE_URL not set in .env');
+            return;
+        }
         try {
             $ref = $this->database->getReference('data/users/' . $uid);
             $ref->set($data);
