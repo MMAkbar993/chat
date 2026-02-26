@@ -15,7 +15,7 @@ return [
     |
     */
 
-    'default' => env('BROADCAST_DRIVER', 'pusher'),
+    'default' => env('BROADCAST_DRIVER', 'log'),
 
 
     /*
@@ -30,6 +30,12 @@ return [
     */
 
     'connections' => [
+        'log' => [
+            'driver' => 'log',
+        ],
+        'null' => [
+            'driver' => 'null',
+        ],
         'pusher' => [
             'driver' => 'pusher',
             'key' => env('PUSHER_APP_KEY'),
