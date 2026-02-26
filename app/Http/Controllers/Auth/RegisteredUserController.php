@@ -56,11 +56,37 @@ class RegisteredUserController extends Controller
     public function loginSubmit(Request $request)
     {
         $firebaseToken = $request->input('firebase_token');
-        if (!$firebaseToken) {
-            return response()->json(['message' => 'Firebase token is required'], 400);
+        if ($firebaseToken) {
+            return $this->firebaseLogin($firebaseToken);
         }
 
-        return $this->firebaseLogin($firebaseToken);
+        // Fallback: form submitted with email+password (e.g. when Firebase JS fails to load)
+        $email = trim($request->input('email', ''));
+        $password = $request->input('password', '');
+        if ($email && $password) {
+            $result = $this->attemptLaravelLogin($email, $password);
+            if ($result['success']) {
+                return response()->view('auth.login-complete', [
+                    'customToken' => $result['token'],
+                    'firebaseConfig' => [
+                        'apiKey' => env('FIREBASE_API_KEY'),
+                        'authDomain' => env('FIREBASE_AUTH_DOMAIN'),
+                        'databaseURL' => env('FIREBASE_DATABASE_URL'),
+                        'projectId' => env('FIREBASE_PROJECT_ID'),
+                        'storageBucket' => env('FIREBASE_STORAGE_BUCKET'),
+                        'messagingSenderId' => env('FIREBASE_MESSAGING_SENDER_ID'),
+                        'appId' => env('FIREBASE_APP_ID'),
+                    ],
+                    'chatUrl' => route('chat'),
+                ]);
+            }
+            if ($result['json_error']) {
+                return $result['json_error'];
+            }
+            return redirect()->route('login')->withErrors(['email' => $result['message'] ?? 'Invalid credentials.'])->withInput($request->only('email'));
+        }
+
+        return response()->json(['message' => 'Firebase token is required'], 400);
     }
 
     /**
@@ -75,16 +101,31 @@ class RegisteredUserController extends Controller
             'password' => 'required',
         ]);
 
-        $email = trim($request->input('email'));
-        $password = trim($request->input('password'));
+        $result = $this->attemptLaravelLogin(
+            trim($request->input('email')),
+            trim($request->input('password'))
+        );
 
-        // Case-insensitive email lookup so "Gmail@gmail.com" and "gmail@gmail.com" match
+        if ($result['success']) {
+            return response()->json(['firebase_custom_token' => $result['token']]);
+        }
+        if ($result['json_error']) {
+            return $result['json_error'];
+        }
+        return response()->json(['message' => $result['message'] ?? 'Invalid credentials.'], 401);
+    }
+
+    /**
+     * Attempt Laravel + Firebase login. Returns ['success' => true, 'token' => '...'] or
+     * ['success' => false, 'message' => '...', 'json_error' => Response|null].
+     */
+    protected function attemptLaravelLogin(string $email, string $password): array
+    {
         $user = User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
         if (!$user) {
-            return response()->json(['message' => 'Invalid credentials.'], 401);
+            return ['success' => false, 'message' => 'Invalid credentials.'];
         }
 
-        // Support both hashed (web registration) and encrypted (API registration) passwords
         $passwordValid = Hash::check($password, $user->password);
         if (!$passwordValid) {
             try {
@@ -95,10 +136,9 @@ class RegisteredUserController extends Controller
             }
         }
         if (!$passwordValid) {
-            return response()->json(['message' => 'Invalid credentials.'], 401);
+            return ['success' => false, 'message' => 'Invalid credentials.'];
         }
 
-        // Use the same credentials path as FirebaseService (from .env or fallback)
         $credentialsPath = env('FIREBASE_CREDENTIALS')
             ? base_path(env('FIREBASE_CREDENTIALS'))
             : base_path('config/firebase_credentials.json');
@@ -112,15 +152,23 @@ class RegisteredUserController extends Controller
                     'credentials_project' => $credentialsProjectId,
                     'env_project' => $envProjectId,
                 ]);
-                return response()->json([
-                    'message' => 'Firebase project mismatch. Backend uses project "' . $credentialsProjectId . '" (' . $credentialsPathLabel . ') but .env has FIREBASE_PROJECT_ID="' . $envProjectId . '". Use one project: replace ' . $credentialsPathLabel . ' with the service account for "' . $envProjectId . '" (Firebase Console → Project settings → Service accounts → Generate new private key), or set all .env FIREBASE_* to the values for "' . $credentialsProjectId . '".',
-                ], 503);
+                return [
+                    'success' => false,
+                    'message' => 'Firebase project mismatch.',
+                    'json_error' => response()->json([
+                        'message' => 'Firebase project mismatch. Backend uses project "' . $credentialsProjectId . '" (' . $credentialsPathLabel . ') but .env has FIREBASE_PROJECT_ID="' . $envProjectId . '". Use one project: replace ' . $credentialsPathLabel . ' with the service account for "' . $envProjectId . '" (Firebase Console → Project settings → Service accounts → Generate new private key), or set all .env FIREBASE_* to the values for "' . $credentialsProjectId . '".',
+                    ], 503),
+                ];
             }
         }
 
         $firebaseUid = $this->firebase->createAuthUser($user->email, $password, $user->full_name ?? trim($user->first_name . ' ' . $user->last_name));
         if ($firebaseUid === null) {
-            return response()->json(['message' => 'Unable to sign in. Please try again later.'], 503);
+            return [
+                'success' => false,
+                'message' => 'Unable to sign in.',
+                'json_error' => response()->json(['message' => 'Unable to sign in. Please try again later.'], 503),
+            ];
         }
 
         $nameParts = [$user->first_name ?? '', $user->last_name ?? ''];
@@ -148,10 +196,14 @@ class RegisteredUserController extends Controller
         try {
             $customToken = $this->firebase->createCustomToken($firebaseUid);
             $tokenString = is_string($customToken) ? trim($customToken) : trim($customToken->toString());
-            return response()->json(['firebase_custom_token' => $tokenString]);
+            return ['success' => true, 'token' => $tokenString];
         } catch (\Throwable $e) {
             Log::error('Firebase createCustomToken failed', ['uid' => $firebaseUid, 'message' => $e->getMessage()]);
-            return response()->json(['message' => 'Could not create sign-in token. Check Firebase credentials and that FIREBASE_PROJECT_ID in .env matches config/firebase_credentials.json project_id.'], 503);
+            return [
+                'success' => false,
+                'message' => 'Could not create sign-in token.',
+                'json_error' => response()->json(['message' => 'Could not create sign-in token. Check Firebase credentials and that FIREBASE_PROJECT_ID in .env matches config/firebase_credentials.json project_id.'], 503),
+            ];
         }
     }
 
