@@ -45,10 +45,9 @@ class IdenfyController extends Controller
             $user->update([
                 'kyc_verified_at' => now(),
                 'kyc_provider_id' => 'TEST_MODE',
-                'subscription_status' => 'active',
             ]);
-            return redirect()->route('register.kyc', ['status' => 'success'])
-                ->with('success', __('[TEST MODE] Identity verified automatically.'));
+            return redirect()->route('register.payment')
+                ->with('success', __('[TEST MODE] Identity verified automatically. Please complete your payment.'));
         }
 
         $result = $this->idenfy->createVerificationSession($user);

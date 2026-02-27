@@ -19,17 +19,7 @@
 </head>
 
 <body>
-<div id="global-loader">
-<div class="loader">
-  <p class="heading">Loading</p>
-  <div class="loading">
-    <div class="load"></div>
-    <div class="load"></div>
-    <div class="load"></div>
-    <div class="load"></div>
-  </div>
-</div>
-</div>
+
     @if (!Route::is(['signup', 'signin', 'success', 'reset-password', 'otp', 'forgot-password','login','register.payment']))
         <div class="main-wrapper">
     @endif

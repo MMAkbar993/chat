@@ -52,12 +52,7 @@
         $('#' + tabId).addClass('active show');
     }
 
-    function hideLoader() {
-        var loader = document.getElementById('global-loader');
-        if (loader) {
-            loader.style.display = 'none';
-        }
-    }
+
 
     function reinitPlugins() {
         if ($.fn.slimScroll) {
@@ -258,7 +253,6 @@
                 $(window).trigger('resize');
 
                 isNavigating = false;
-                hideLoader();
             },
             error: function () {
                 console.warn('SPA: AJAX failed, falling back to full navigation');

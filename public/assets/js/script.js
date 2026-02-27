@@ -198,13 +198,6 @@ Version      : 2.7.6
 
 	});
 
-	// Loader
-	setTimeout(function () {
-		$('#global-loader');
-		setTimeout(function () {
-			$("#global-loader").fadeOut("slow");
-		}, 1000);
-	}, 1000);
 
 	// Emoj Add
 

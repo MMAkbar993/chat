@@ -27,17 +27,7 @@
 
     <body class="login-form">
 @endif
-<div id="global-loader">
-<div class="loader">
-  <p class="heading">Loading</p>
-  <div class="loading">
-    <div class="load"></div>
-    <div class="load"></div>
-    <div class="load"></div>
-    <div class="load"></div>
-  </div>
-</div>
-</div>
+
 @if (!Route::is(['admin.login', 'admin.success', 'admin.reset-password','admin.reset-password-success', 'admin.forgot-password','admin.send-otp.submit']))
     <div class="main-wrapper">
 @endif

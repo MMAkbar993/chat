@@ -55,7 +55,7 @@
                                         <span class="badge bg-success ms-2">{{ __('ID Verified') }}</span>
                                     </div>
                                     <div class="mt-3">
-                                        <a href="{{ route('signin') }}" class="btn btn-primary w-100 justify-content-center">{{ __('Go to Sign In') }}</a>
+                                        <a href="{{ route('register.payment') }}" class="btn btn-primary w-100 justify-content-center">{{ __('Proceed to Payment') }}</a>
                                     </div>
                                 @else
                                     <div class="border rounded p-3 mb-4">

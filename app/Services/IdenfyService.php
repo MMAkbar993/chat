@@ -95,7 +95,6 @@ class IdenfyService
             $user->update([
                 'kyc_verified_at' => now(),
                 'kyc_provider_id' => $scanRef,
-                'subscription_status' => 'active',
             ]);
             return true;
         }

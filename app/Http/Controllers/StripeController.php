@@ -58,7 +58,7 @@ class StripeController extends Controller
             $userId = $session->metadata->user_id ?? $session->client_reference_id;
             $request->session()->put('registered_user_id', $userId);
 
-            return redirect()->route('register.kyc')->with('success', __('Payment successful! Please verify your identity.'));
+            return redirect()->route('signin')->with('success', __('Payment successful! You can now log in.'));
         } catch (\Throwable $e) {
             Log::error('Stripe success callback failed', ['error' => $e->getMessage()]);
             return redirect()->route('register.payment')->withErrors('Could not verify payment. Please contact support.');

@@ -74,7 +74,7 @@ Version      : 1.0
 	}
 
 
-	
+
 
 
 	$(document).ready(function () {
@@ -105,17 +105,17 @@ Version      : 1.0
 		}
 	});
 
-		// Select 2	
-		if ($('.select2').length > 0) {
-			$(".select2").select2();
-	   }
-	   
-	   if ($('.select').length > 0) {
-		   $('.select').select2({
-			   minimumResultsForSearch: -1,
-			   width: '100%'
-		   });
-	   }
+	// Select 2	
+	if ($('.select2').length > 0) {
+		$(".select2").select2();
+	}
+
+	if ($('.select').length > 0) {
+		$('.select').select2({
+			minimumResultsForSearch: -1,
+			width: '100%'
+		});
+	}
 
 	// Custom Country Code Selector
 
@@ -130,7 +130,7 @@ Version      : 1.0
 
 	var selectAllItems = "#select-all";
 	var checkboxItem = ":checkbox";
-	$(selectAllItems).on('click', function() {
+	$(selectAllItems).on('click', function () {
 
 		if (this.checked) {
 			$(checkboxItem).each(function () {
@@ -144,11 +144,11 @@ Version      : 1.0
 
 	});
 
-	setTimeout(function(){
-		$(".rating-select").on('click', function() {
+	setTimeout(function () {
+		$(".rating-select").on('click', function () {
 			$(this).toggleClass("filled");
 		});
-	},100);
+	}, 100);
 
 	// Datatable
 
@@ -235,54 +235,54 @@ Version      : 1.0
 
 	// Summernote
 
-	if($('#summernote').length > 0) {
+	if ($('#summernote').length > 0) {
 		$('#summernote').summernote({
-		height: 300,                 // set editor height
-		minHeight: null,             // set minimum height of editor
-		maxHeight: null,             // set maximum height of editor
-		focus: false                 // set focus to editable area after initializing summernote
+			height: 300,                 // set editor height
+			minHeight: null,             // set minimum height of editor
+			maxHeight: null,             // set maximum height of editor
+			focus: false                 // set focus to editable area after initializing summernote
 		});
 	}
-	
+
 	// Summernote
 
-	if($('#summernote2').length > 0) {
+	if ($('#summernote2').length > 0) {
 		$('#summernote2').summernote({
-		height: 300,                 // set editor height
-		minHeight: null,             // set minimum height of editor
-		maxHeight: null,             // set maximum height of editor
-		focus: true                  // set focus to editable area after initializing summernote
+			height: 300,                 // set editor height
+			minHeight: null,             // set minimum height of editor
+			maxHeight: null,             // set maximum height of editor
+			focus: true                  // set focus to editable area after initializing summernote
 		});
 	}
 
-	if($('#summernote3').length > 0) {
+	if ($('#summernote3').length > 0) {
 		$('#summernote3').summernote({
-		placeholder: 'Type your message',
-		height: 300,                 // set editor height
-		minHeight: null,             // set minimum height of editor
-		maxHeight: null,             // set maximum height of editor
-		focus: true                  // set focus to editable area after initializing summernote
+			placeholder: 'Type your message',
+			height: 300,                 // set editor height
+			minHeight: null,             // set minimum height of editor
+			maxHeight: null,             // set maximum height of editor
+			focus: true                  // set focus to editable area after initializing summernote
 		});
 	}
-	if($('#summernote5').length > 0) {
+	if ($('#summernote5').length > 0) {
 		$('#summernote5').summernote({
-		height: 300,                 // set editor height
-		minHeight: null,             // set minimum height of editor
-		maxHeight: null,             // set maximum height of editor
-		focus: true                
+			height: 300,                 // set editor height
+			minHeight: null,             // set minimum height of editor
+			maxHeight: null,             // set maximum height of editor
+			focus: true
 		});
 	}
 
-	if($('.summernote').length > 0) {
+	if ($('.summernote').length > 0) {
 		$('.summernote').summernote({
-		minHeight: 100,           
-		maxHeight: null,      
-		focus: true,
-		toolbar: [
-			['fontsize', ['fontsize']],
-			['font', ['bold', 'italic', 'underline', 'clear', 'strikethrough']],
-			['insert', ['picture']]
-		  ],          
+			minHeight: 100,
+			maxHeight: null,
+			focus: true,
+			toolbar: [
+				['fontsize', ['fontsize']],
+				['font', ['bold', 'italic', 'underline', 'clear', 'strikethrough']],
+				['insert', ['picture']]
+			],
 		});
 	}
 
@@ -322,14 +322,14 @@ Version      : 1.0
 	}
 
 	// Counter 
-	if($('.counter').length > 0) {
+	if ($('.counter').length > 0) {
 		$('.counter').counterUp({
 			delay: 20,
 			time: 2000
 		});
 	}
-	if($('#timer-countdown').length > 0) {
-		$( '#timer-countdown' ).countdown( {
+	if ($('#timer-countdown').length > 0) {
+		$('#timer-countdown').countdown({
 			from: 180, // 3 minutes (3*60)
 			to: 0, // stop at zero
 			movingUnit: 1000, // 1000 for 1 second increment/decrements
@@ -338,39 +338,39 @@ Version      : 1.0
 			autostart: true
 		});
 	}
-	
-	if($('#timer-countup').length > 0) {
-		$( '#timer-countup' ).countdown( {
+
+	if ($('#timer-countup').length > 0) {
+		$('#timer-countup').countdown({
 			from: 0,
-			to: 180 
+			to: 180
 		});
 	}
-	
-	if($('#timer-countinbetween').length > 0) {
-		$( '#timer-countinbetween' ).countdown( {
+
+	if ($('#timer-countinbetween').length > 0) {
+		$('#timer-countinbetween').countdown({
 			from: 30,
-			to: 20 
+			to: 20
 		});
 	}
-	
-	if($('#timer-countercallback').length > 0) {
-		$( '#timer-countercallback' ).countdown( {
+
+	if ($('#timer-countercallback').length > 0) {
+		$('#timer-countercallback').countdown({
 			from: 10,
 			to: 0,
-			timerEnd: function() {
-				this.css( { 'text-decoration':'line-through' } ).animate( { 'opacity':.5 }, 500 );
-			} 
+			timerEnd: function () {
+				this.css({ 'text-decoration': 'line-through' }).animate({ 'opacity': .5 }, 500);
+			}
 		});
 	}
-	
-	if($('#timer-outputpattern').length > 0) {
-		$( '#timer-outputpattern' ).countdown( {
+
+	if ($('#timer-outputpattern').length > 0) {
+		$('#timer-outputpattern').countdown({
 			outputPattern: '$day Days $hour Hour $minute Min $second Sec..',
 			from: 60 * 60 * 24 * 3
 		});
 	}
 
-	
+
 	// Password
 
 	if ($('.toggle-password').length > 0) {
@@ -433,9 +433,9 @@ Version      : 1.0
 	}
 
 	// Datatable
-	if($('.datatable').length > 0) {
+	if ($('.datatable').length > 0) {
 		$('.datatable').DataTable({
-			"bFilter": true, 
+			"bFilter": true,
 			"ordering": true,
 			"info": true,
 			"language": {
@@ -447,9 +447,9 @@ Version      : 1.0
 					next: '<i class="ti ti-chevron-right"></i>',
 					previous: '<i class="ti ti-chevron-left"></i> '
 				},
-			 }
+			}
 		});
-	}	
+	}
 
 	// Check all email
 
@@ -605,28 +605,21 @@ Version      : 1.0
 		prevTab.show();
 	});
 
-	if($('.custom-file-container').length > 0) {
+	if ($('.custom-file-container').length > 0) {
 		//First upload
 		var firstUpload = new FileUploadWithPreview('myFirstImage')
 		//Second upload
 		var secondUpload = new FileUploadWithPreview('mySecondImage')
 	}
 
-	// Loader
-	setTimeout(function () {
-		$('#global-loader');
-		setTimeout(function () {
-			$("#global-loader").fadeOut("slow");
-		}, 900);
-	}, 900);
 
 })(jQuery);
 
 //Darkmode-Toggle
 const toggleMode = (isDarkMode) => {
-    document.documentElement.classList.toggle('dark', isDarkMode);
-    localStorage.setItem('darkMode', isDarkMode ? 'enabled' : 'disabled');
-    updateToggleButtons(isDarkMode);
+	document.documentElement.classList.toggle('dark', isDarkMode);
+	localStorage.setItem('darkMode', isDarkMode ? 'enabled' : 'disabled');
+	updateToggleButtons(isDarkMode);
 };
 
 
@@ -643,38 +636,38 @@ if ($('.toggle-passwords-login').length > 0) {
 		}
 	});
 }
-$(function() {
+$(function () {
 
-	$(".circle-progress").each(function() {
-  
-	  var value = $(this).attr('data-value');
-	  var left = $(this).find('.progress-left .progress-bar');
-	  var right = $(this).find('.progress-right .progress-bar');
-  
-	  if (value > 0) {
-		if (value <= 50) {
-		  right.css('transform', 'rotate(' + percentageToDegrees(value) + 'deg)')
-		} else {
-		  right.css('transform', 'rotate(180deg)')
-		  left.css('transform', 'rotate(' + percentageToDegrees(value - 50) + 'deg)')
+	$(".circle-progress").each(function () {
+
+		var value = $(this).attr('data-value');
+		var left = $(this).find('.progress-left .progress-bar');
+		var right = $(this).find('.progress-right .progress-bar');
+
+		if (value > 0) {
+			if (value <= 50) {
+				right.css('transform', 'rotate(' + percentageToDegrees(value) + 'deg)')
+			} else {
+				right.css('transform', 'rotate(180deg)')
+				left.css('transform', 'rotate(' + percentageToDegrees(value - 50) + 'deg)')
+			}
 		}
-	  }
-  
+
 	})
-  
+
 	function percentageToDegrees(percentage) {
-  
-	  return percentage / 100 * 360
-  
+
+		return percentage / 100 * 360
+
 	}
-  
+
 });
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
 	const inputs = document.querySelectorAll('input.form-control.validate-input');
 
 	inputs.forEach(input => {
-		input.addEventListener('input', function() {
+		input.addEventListener('input', function () {
 			if (input.value.trim() !== '') {
 				// If the input has a value, set it to valid
 				input.classList.remove('is-invalid');

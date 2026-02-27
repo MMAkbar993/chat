@@ -390,12 +390,12 @@ protected function getUserDeviceInfo()
 
         if ($request->wantsJson()) {
             return response()->json([
-                'message' => __('Registration successful. Please complete payment.'),
-                'redirect' => route('register.payment'),
+                'message' => __('Registration successful. Please complete KYC validation.'),
+                'redirect' => route('register.kyc'),
             ], 201);
         }
 
-        return redirect()->route('register.payment')->with('success', __('Registration successful. Please complete payment to continue.'));
+        return redirect()->route('register.kyc')->with('success', __('Registration successful. Please complete KYC validation to continue.'));
     }
 
 
