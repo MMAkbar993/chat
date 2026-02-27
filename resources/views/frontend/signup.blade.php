@@ -49,27 +49,7 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="col-md-12">
-                                                <div class="mb-3">
-                                                    <label class="form-label">{{ __('Company Name') }} <span class="text-danger">*</span></label>
-                                                    <div class="input-icon mb-3 position-relative">
-                                                        <input type="text" class="form-control @error('company_name') is-invalid @enderror" id="company_name" name="company_name" value="{{ old('company_name') }}" required>
-                                                        <span class="input-icon-addon"><i class="ti ti-building"></i></span>
-                                                        @error('company_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-12">
-                                                <div class="mb-3">
-                                                    <label class="form-label">{{ __('Company Website') }} <span class="text-danger">*</span></label>
-                                                    <div class="input-icon mb-3 position-relative">
-                                                        <input type="url" class="form-control @error('company_website') is-invalid @enderror" id="company_website" name="company_website" placeholder="https://example.com" value="{{ old('company_website') }}" required>
-                                                        <span class="input-icon-addon"><i class="ti ti-world"></i></span>
-                                                        <small class="text-muted">{{ __('Work email must use this domain') }}</small>
-                                                        @error('company_website')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                                    </div>
-                                                </div>
-                                            </div>
+
                                             <div class="col-md-12">
                                                 <div class="mb-3">
                                                     <label class="form-label">{{ __('Country') }} <span class="text-danger">*</span></label>
@@ -82,11 +62,10 @@
                                             </div>
                                             <div class="col-md-12">
                                                 <div class="mb-3">
-                                                    <label class="form-label">{{ __('Work Email') }} <span class="text-danger">*</span></label>
+                                                    <label class="form-label">{{ __('Email Address') }} <span class="text-danger">*</span></label>
                                                     <div class="input-icon mb-3 position-relative">
                                                         <input type="email" class="form-control @error('email') is-invalid @enderror" id="email" name="email" value="{{ old('email') }}" required>
                                                         <span class="input-icon-addon"><i class="ti ti-mail"></i></span>
-                                                        <small class="text-muted">{{ __('Must match company website domain') }}</small>
                                                         @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                                     </div>
                                                 </div>

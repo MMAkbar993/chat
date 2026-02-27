@@ -338,8 +338,6 @@ protected function getUserDeviceInfo()
      */
     public function register(StoreRegistrationRequest $request)
     {
-        $companyDomain = $this->extractDomain($request->input('company_website', ''));
-
         $nameParts = $this->splitFullName($request->input('full_name'));
 
         $user = User::create([
@@ -351,8 +349,8 @@ protected function getUserDeviceInfo()
             'password' => Hash::make($request->input('password')),
             'user_type' => 2, // frontendUser
             'mobile_number' => $request->input('mobile_number', ''),
-            'company_name' => $request->input('company_name'),
-            'company_domain' => $companyDomain,
+            'company_name' => null,
+            'company_domain' => null,
             'country' => $request->input('country'),
             'primary_role' => $request->input('primary_role'),
             'other_role_text' => $request->input('primary_role') === 'other' ? $request->input('other_role_text') : null,
@@ -400,17 +398,6 @@ protected function getUserDeviceInfo()
         return redirect()->route('register.payment')->with('success', __('Registration successful. Please complete payment to continue.'));
     }
 
-    protected function extractDomain(string $url): ?string
-    {
-        if ($url === '') {
-            return null;
-        }
-        if (! preg_match('#^https?://#i', $url)) {
-            $url = 'https://' . $url;
-        }
-        $host = parse_url($url, PHP_URL_HOST);
-        return is_string($host) ? strtolower($host) : null;
-    }
 
     protected function splitFullName(string $fullName): array
     {

@@ -23,28 +23,8 @@ class StoreRegistrationRequest extends FormRequest
         return [
             'full_name' => ['required', 'string', 'max:255'],
             'user_name' => ['required', 'string', 'max:255', 'unique:users,user_name'],
-            'company_name' => ['required', 'string', 'max:255'],
-            'company_website' => ['required', 'string', 'max:255', 'url'], // e.g. https://gamblizard.com
             'country' => ['required', 'string', 'max:100'],
-            'email' => [
-                'required',
-                'string',
-                'email',
-                'max:255',
-                'unique:users,email',
-                function (string $attribute, mixed $value, \Closure $fail) {
-                    $domain = $this->getCompanyDomain();
-                    if ($domain === null || $domain === '') {
-                        return;
-                    }
-                    $emailDomain = strpos($value, '@') !== false
-                        ? strtolower(substr(strrchr($value, '@'), 1))
-                        : '';
-                    if ($emailDomain !== $domain) {
-                        $fail("Work email domain must match company website domain ({$domain}).");
-                    }
-                },
-            ],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'primary_role' => ['required', 'string', Rule::in($roleKeys)],
             'other_role_text' => ['nullable', 'required_if:primary_role,other', 'string', 'max:255'],
             'mobile_number' => ['nullable', 'string', 'max:21'],
@@ -53,34 +33,14 @@ class StoreRegistrationRequest extends FormRequest
         ];
     }
 
-    /**
-     * Extract normalized domain from company_website (e.g. https://gamblizard.com -> gamblizard.com)
-     */
-    protected function getCompanyDomain(): ?string
-    {
-        $url = $this->input('company_website');
-        if (! is_string($url) || $url === '') {
-            return null;
-        }
-        if (! preg_match('#^https?://#i', $url)) {
-            $url = 'https://' . $url;
-        }
-        $host = parse_url($url, PHP_URL_HOST);
-        if (! is_string($host)) {
-            return null;
-        }
-        return strtolower($host);
-    }
 
     public function attributes(): array
     {
         return [
             'full_name' => __('Full Name (Legal)'),
             'user_name' => __('Username'),
-            'company_name' => __('Company Name'),
-            'company_website' => __('Company Website'),
             'country' => __('Country'),
-            'email' => __('Work Email'),
+            'email' => __('Email Address'),
             'primary_role' => __('Primary Role'),
             'other_role_text' => __('Other role description'),
             'terms' => __('Terms & Conditions'),
