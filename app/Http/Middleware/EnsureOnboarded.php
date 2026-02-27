@@ -24,7 +24,7 @@ class EnsureOnboarded
         }
 
         if ($status === 'pending_kyc' || ($status !== 'canceled' && !$user->isKycVerified() && $status !== 'pending_payment')) {
-            if (!$request->routeIs('register.kyc', 'idenfy.*', 'register.payment', 'stripe.*', 'logout')) {
+            if (!$request->routeIs('register.kyc', 'didit.*', 'register.payment', 'stripe.*', 'logout')) {
                 return redirect()->route('register.kyc');
             }
         }

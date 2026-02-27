@@ -42,7 +42,7 @@
                                         <i class="ti ti-alert-triangle me-1"></i>
                                         {{ __('Verification was not completed. Please try again.') }}
                                     </div>
-                                    <form method="POST" action="{{ route('idenfy.create-session') }}">
+                                    <form method="POST" action="{{ route('didit.create-session') }}">
                                         @csrf
                                         <button type="submit" class="btn btn-primary w-100 justify-content-center">
                                             <i class="ti ti-refresh me-1"></i> {{ __('Retry Verification') }}
@@ -63,14 +63,14 @@
                                             <i class="ti ti-id fs-24 text-primary me-2"></i>
                                             <h5 class="mb-0">{{ __('KYC Verification') }}</h5>
                                         </div>
-                                        <p class="text-muted small mb-0">{{ __('You will be redirected to our verification partner iDenfy. Have your government-issued ID ready.') }}</p>
+                                        <p class="text-muted small mb-0">{{ __('You will be redirected to our verification partner Didit. Have your government-issued ID ready.') }}</p>
                                     </div>
                                     <ul class="list-unstyled mb-4">
                                         <li class="mb-2"><i class="ti ti-check text-success me-2"></i>{{ __('Government-issued photo ID (passport, driving license, or national ID)') }}</li>
                                         <li class="mb-2"><i class="ti ti-check text-success me-2"></i>{{ __('Selfie for face matching') }}</li>
                                         <li class="mb-2"><i class="ti ti-check text-success me-2"></i>{{ __('Process takes 2-5 minutes') }}</li>
                                     </ul>
-                                    <form method="POST" action="{{ route('idenfy.create-session') }}">
+                                    <form method="POST" action="{{ route('didit.create-session') }}">
                                         @csrf
                                         <button type="submit" class="btn btn-primary w-100 justify-content-center">
                                             <i class="ti ti-shield-check me-1"></i> {{ __('Start Verification') }}
@@ -79,7 +79,7 @@
                                 @endif
 
                                 <p class="text-muted small text-center mt-3 mb-0">
-                                    <i class="ti ti-lock me-1"></i>{{ __('Your data is securely processed by iDenfy') }}
+                                    <i class="ti ti-lock me-1"></i>{{ __('Your data is securely processed by Didit') }}
                                 </p>
                             </div>
                         </div>

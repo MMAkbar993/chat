@@ -14,6 +14,6 @@ class VerifyCsrfToken extends Middleware
     protected $except = [
         'generate-token',
         'webhooks/stripe',
-        'webhooks/idenfy',
+        'webhooks/didit',
     ];
 }

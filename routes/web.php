@@ -13,10 +13,10 @@ use App\Http\Controllers\FirebaseAdminController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\StripeController;
-use App\Http\Controllers\IdenfyController;
+use App\Http\Controllers\KycController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\Webhooks\StripeWebhookController;
-use App\Http\Controllers\Webhooks\IdenfyWebhookController;
+use App\Http\Controllers\Webhooks\DiditWebhookController;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Session;
@@ -73,9 +73,8 @@ Route::post('stripe/checkout', [StripeController::class, 'checkout'])->name('str
 Route::get('stripe/success', [StripeController::class, 'success'])->name('stripe.success');
 Route::get('stripe/cancel', [StripeController::class, 'cancel'])->name('stripe.cancel');
 
-// KYC (iDenfy)
-Route::get('register/kyc', [IdenfyController::class, 'showKycStep'])->name('register.kyc');
-Route::post('idenfy/create-session', [IdenfyController::class, 'createSession'])->name('idenfy.create-session');
+Route::get('register/kyc', [KycController::class, 'showKycStep'])->name('register.kyc');
+Route::post('didit/create-session', [KycController::class, 'createSession'])->name('didit.create-session');
 
 // 2FA
 Route::middleware('auth')->group(function () {
@@ -98,7 +97,7 @@ Route::get('api/kyc-status', function (\Illuminate\Http\Request $request) {
 
 // Webhooks (CSRF excluded in VerifyCsrfToken)
 Route::post('webhooks/stripe', [StripeWebhookController::class, 'handle'])->name('webhooks.stripe');
-Route::post('webhooks/idenfy', [IdenfyWebhookController::class, 'handle'])->name('webhooks.idenfy');
+Route::post('webhooks/didit', [DiditWebhookController::class, 'handle'])->name('webhooks.didit');
 
  /* Foorgot Password */
 Route::get('/reset-password', function () {

@@ -3,18 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Services\IdenfyService;
+use App\Services\DiditService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
-class IdenfyController extends Controller
+class KycController extends Controller
 {
-    protected IdenfyService $idenfy;
+    protected DiditService $didit;
 
-    public function __construct(IdenfyService $idenfy)
+    public function __construct(DiditService $didit)
     {
-        $this->idenfy = $idenfy;
+        $this->didit = $didit;
     }
 
     public function showKycStep(Request $request)
@@ -39,9 +39,9 @@ class IdenfyController extends Controller
             return redirect()->route('signin')->with('success', __('Your identity is already verified.'));
         }
 
-        // Test mode: when iDenfy API key is not configured, auto-approve
-        if (empty(config('idenfy.api_key'))) {
-            Log::warning('iDenfy test mode: auto-approving KYC for user ' . $user->id);
+        // Test mode: when Didit API key is not configured, auto-approve
+        if (empty(config('didit.api_key'))) {
+            Log::warning('Didit test mode: auto-approving KYC for user ' . $user->id);
             $user->update([
                 'kyc_verified_at' => now(),
                 'kyc_provider_id' => 'TEST_MODE',
@@ -50,9 +50,9 @@ class IdenfyController extends Controller
                 ->with('success', __('[TEST MODE] Identity verified automatically. Please complete your payment.'));
         }
 
-        $result = $this->idenfy->createVerificationSession($user);
-        if (!$result || !$result['redirectUrl']) {
-            return back()->withErrors('Unable to start identity verification. Please try again.');
+        $result = $this->didit->createVerificationSession($user);
+        if (!$result || empty($result['redirectUrl'])) {
+            return back()->withErrors('Unable to start Didit identity verification. Please try again.');
         }
 
         return redirect($result['redirectUrl']);
