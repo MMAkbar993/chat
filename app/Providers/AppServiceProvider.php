@@ -37,7 +37,7 @@ class AppServiceProvider extends ServiceProvider
     });
 
     $this->app->bind(VerifyIdTokenHandler::class, function ($app) {
-        $projectId = env('FIREBASE_PROJECT_ID');
+        $projectId = config('firebase.frontend.project_id');
 
         // Create a Guzzle client for HTTP requests
         

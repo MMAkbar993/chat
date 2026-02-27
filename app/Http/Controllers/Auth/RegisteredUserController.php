@@ -69,13 +69,13 @@ class RegisteredUserController extends Controller
                 return response()->view('auth.login-complete', [
                     'customToken' => $result['token'],
                     'firebaseConfig' => [
-                        'apiKey' => env('FIREBASE_API_KEY'),
-                        'authDomain' => env('FIREBASE_AUTH_DOMAIN'),
-                        'databaseURL' => env('FIREBASE_DATABASE_URL'),
-                        'projectId' => env('FIREBASE_PROJECT_ID'),
-                        'storageBucket' => env('FIREBASE_STORAGE_BUCKET'),
-                        'messagingSenderId' => env('FIREBASE_MESSAGING_SENDER_ID'),
-                        'appId' => env('FIREBASE_APP_ID'),
+                        'apiKey' => config('firebase.frontend.api_key'),
+                        'authDomain' => config('firebase.frontend.auth_domain'),
+                        'databaseURL' => config('firebase.frontend.database_url'),
+                        'projectId' => config('firebase.frontend.project_id'),
+                        'storageBucket' => config('firebase.frontend.storage_bucket'),
+                        'messagingSenderId' => config('firebase.frontend.messaging_sender_id'),
+                        'appId' => config('firebase.frontend.app_id'),
                     ],
                     'chatUrl' => route('chat'),
                 ]);
@@ -139,11 +139,11 @@ class RegisteredUserController extends Controller
             return ['success' => false, 'message' => 'Invalid credentials.'];
         }
 
-        $credentialsPath = env('FIREBASE_CREDENTIALS')
-            ? base_path(env('FIREBASE_CREDENTIALS'))
+        $credentialsPath = config('firebase.projects.app.credentials.file')
+            ? base_path(config('firebase.projects.app.credentials.file'))
             : base_path('config/firebase_credentials.json');
-        $credentialsPathLabel = env('FIREBASE_CREDENTIALS') ?: 'config/firebase_credentials.json';
-        $envProjectId = env('FIREBASE_PROJECT_ID');
+        $credentialsPathLabel = config('firebase.projects.app.credentials.file') ?: 'config/firebase_credentials.json';
+        $envProjectId = config('firebase.frontend.project_id');
         if (file_exists($credentialsPath)) {
             $credentials = json_decode(file_get_contents($credentialsPath), true);
             $credentialsProjectId = $credentials['project_id'] ?? null;

@@ -40,8 +40,8 @@ class FirebaseService
      */
     public function __construct()
     {
-        $credentialsPath = env('FIREBASE_CREDENTIALS')
-            ? base_path(env('FIREBASE_CREDENTIALS'))
+        $credentialsPath = config('firebase.projects.app.credentials.file')
+            ? base_path(config('firebase.projects.app.credentials.file'))
             : base_path('config/firebase_credentials.json');
 
         if (!file_exists($credentialsPath)) {
@@ -50,7 +50,7 @@ class FirebaseService
 
         $factory = (new Factory)->withServiceAccount($credentialsPath);
 
-        $dbUrl = env('FIREBASE_DATABASE_URL');
+        $dbUrl = config('firebase.projects.app.database.url');
         if ($dbUrl !== null && $dbUrl !== '') {
             $factory = $factory->withDatabaseUri($dbUrl);
             $this->database = $factory->createDatabase();
