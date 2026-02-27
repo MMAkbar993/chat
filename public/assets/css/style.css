@@ -14367,3 +14367,8 @@ audio{
 .sidebar-body .dropdown-toggle::after{
   display: none !important;
 }
+
+
+/* Custom Logo Sizing */
+#company-logo, img[src*="full-logo.png"] { max-width: 150px !important; height: auto !important; }
+

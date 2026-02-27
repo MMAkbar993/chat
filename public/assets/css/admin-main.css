@@ -17379,3 +17379,8 @@ input.is-invalid + .conform-toggle-password{
   -webkit-justify-content: center;
   font-size: 24px;
 }
+
+
+/* Custom Logo Sizing */
+#company-logo, img[src*="full-logo.png"], .logo-dark { max-width: 150px !important; height: auto !important; }
+
