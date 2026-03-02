@@ -15,13 +15,15 @@
 <!-- TablerIcon CSS -->
 <link rel="stylesheet" href="{{ asset('assets/plugins/tabler-icons/tabler-icons.min.css') }}">
 
-@if (!Route::is(['signup', 'reset-password', 'forgot-password','login','register.payment']))
+@if (!Route::is(['reset-password', 'forgot-password','login','register.payment']))
 <!-- Swiper CSS -->
 <link rel="stylesheet" href="{{ asset('assets/plugins/swiper/swiper.min.css') }}">
 
 <!-- FancyBox CSS -->
 <link rel="stylesheet" href="{{ asset('assets/plugins/fancybox/jquery.fancybox.min.css') }}">
 
+<!-- Flags CSS -->
+<link rel="stylesheet" href="{{ asset('assets/plugins/icons/flags/flags.css') }}">
 
 <!-- Select CSS -->
 <link rel="stylesheet" href="{{ asset('assets/plugins/select2/css/select2.min.css') }}">

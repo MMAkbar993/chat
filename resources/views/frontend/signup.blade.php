@@ -53,9 +53,13 @@
                                             <div class="col-md-12">
                                                 <div class="mb-3">
                                                     <label class="form-label">{{ __('Country') }} <span class="text-danger">*</span></label>
-                                                    <div class="input-icon mb-3 position-relative">
-                                                        <input type="text" class="form-control @error('country') is-invalid @enderror" id="country" name="country" value="{{ old('country') }}" required>
-                                                        <span class="input-icon-addon"><i class="ti ti-map-pin"></i></span>
+                                                    <div class="mb-3 position-relative">
+                                                        <select class="form-control select2-country @error('country') is-invalid @enderror" id="country" name="country" required>
+                                                            <option value="">{{ __('Select Country') }}</option>
+                                                            @foreach(config('countries', []) as $code => $name)
+                                                                <option value="{{ $name }}" data-code="{{ strtolower($code) }}" {{ old('country') == $name ? 'selected' : '' }}>{{ $name }}</option>
+                                                            @endforeach
+                                                        </select>
                                                         @error('country')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                                     </div>
                                                 </div>
@@ -133,7 +137,7 @@
                                         </div>
                                         <p class="small text-muted">{{ __('2FA can be set up under Settings once logged in.') }}</p>
                                         <div class="mb-4">
-                                            <button type="submit" id="submit_button" class="btn btn-primary w-100 justify-content-center">{{ __('Next Step') }} &rarr;</button>
+                                            <button type="submit" id="submit_button" class="btn btn-primary w-100 justify-content-center">{{ __('Next Step (KYC Verification)') }} &rarr;</button>
                                         </div>
                                     </div>
                                 </div>
@@ -186,6 +190,24 @@ document.addEventListener('DOMContentLoaded', function() {
     if (primaryRole && otherWrap) {
         primaryRole.addEventListener('change', function() {
             otherWrap.style.display = this.value === 'other' ? 'block' : 'none';
+        });
+    }
+
+    if (typeof jQuery !== 'undefined' && $.fn.select2) {
+        function formatCountry(state) {
+            if (!state.id) { return state.text; }
+            var code = $(state.element).data('code');
+            if(!code) return state.text;
+            var $state = $(
+                '<span><i class="flag flag-' + code + ' me-2"></i> ' + state.text + '</span>'
+            );
+            return $state;
+        }
+        
+        $('.select2-country').select2({
+            templateResult: formatCountry,
+            templateSelection: formatCountry,
+            width: '100%'
         });
     }
 });

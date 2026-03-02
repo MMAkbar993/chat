@@ -340,6 +340,26 @@ class FrontendUserController extends Controller
                 }
             }
 
+            $details = $user->get_user_details;
+
+            $socialLinks = [
+                'facebook' => $details->facebook ?? '',
+                'twitter' => $details->twitter ?? '',
+                'linkedin' => $details->linkedin ?? '',
+                'youtube' => $details->youtube ?? '',
+                'instagram' => $details->instagram ?? '',
+                'kick' => $details->kick ?? '',
+                'twitch' => $details->twitch ?? '',
+            ];
+
+            $websites = $user->websites->map(fn ($w) => [
+                'id' => $w->id,
+                'url' => $w->url,
+                'verified' => $w->isVerified(),
+                'verified_at' => $w->verified_at?->toIso8601String(),
+                'sort_order' => $w->sort_order,
+            ]);
+
             $profile = [
                 'id' => $user->id,
                 'first_name' => $user->first_name,
@@ -356,8 +376,10 @@ class FrontendUserController extends Controller
                 'primary_role_label' => $roleLabel,
                 'other_role_text' => $user->other_role_text,
                 'profile_image' => $user->profile_image_link,
-                'bio' => $user->get_user_details->user_about ?? '',
-                'location' => $user->get_user_details->location ?? '',
+                'bio' => $details->user_about ?? '',
+                'location' => $details->location ?? '',
+                'social_links' => $socialLinks,
+                'websites' => $websites,
                 'kyc_verified' => $user->isKycVerified(),
                 'email_verified' => $user->email_verified_at !== null,
                 'name_locked' => $user->isKycVerified(),
@@ -413,6 +435,13 @@ class FrontendUserController extends Controller
                 'other_role_text' => 'sometimes|nullable|string|max:255',
                 'bio' => 'sometimes|nullable|string|max:1000',
                 'location' => 'sometimes|nullable|string|max:255',
+                'facebook' => 'sometimes|nullable|string|max:500',
+                'twitter' => 'sometimes|nullable|string|max:500',
+                'linkedin' => 'sometimes|nullable|string|max:500',
+                'youtube' => 'sometimes|nullable|string|max:500',
+                'instagram' => 'sometimes|nullable|string|max:500',
+                'kick' => 'sometimes|nullable|string|max:500',
+                'twitch' => 'sometimes|nullable|string|max:500',
             ]);
 
             if ($validator->fails()) {
@@ -450,6 +479,12 @@ class FrontendUserController extends Controller
                 }
                 if (isset($payload['location'])) {
                     $details->location = $payload['location'];
+                }
+                $socialFields = ['facebook', 'twitter', 'linkedin', 'youtube', 'instagram', 'kick', 'twitch'];
+                foreach ($socialFields as $field) {
+                    if (array_key_exists($field, $payload)) {
+                        $details->$field = $payload[$field];
+                    }
                 }
                 $details->save();
             }

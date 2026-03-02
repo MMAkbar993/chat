@@ -313,6 +313,28 @@
                                                         </span>
                                                     </div>
                                                 </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label text-default fw-normal mb-3">Kick</label>
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <div class="input-icon position-relative mb-3">
+                                                        <input type="text" class="form-control" value="">
+                                                        <span class="input-icon-addon">
+                                                            <i class="ti ti-device-gamepad-2"></i>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label text-default fw-normal mb-3">Twitch</label>
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <div class="input-icon position-relative mb-3">
+                                                        <input type="text" class="form-control" value="">
+                                                        <span class="input-icon-addon">
+                                                            <i class="ti ti-brand-twitch"></i>
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -454,6 +476,18 @@
                                         </div>
                                         <div class="col-sm-6">
                                             <h6 class="fw-medium fs-14 mb-2">www.youtube.com</h6>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <p class="mb-2 d-flex align-items-center"><i class="ti ti-device-gamepad-2 me-1"></i>Kick</p>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <h6 class="fw-medium fs-14 mb-2" data-field="kick"></h6>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-twitch me-1"></i>Twitch</p>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <h6 class="fw-medium fs-14 mb-2" data-field="twitch"></h6>
                                         </div>
                                     </div>
                                 </div>

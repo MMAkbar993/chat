@@ -60,6 +60,13 @@ Route::post('oauth/token', [AccessTokenController::class, 'issueToken']);
         Route::post('/system_settings', [App\Http\Controllers\API\SettingsController::class, 'system_settings']);
         Route::post('/system_settings_update', [App\Http\Controllers\API\SettingsController::class, 'system_settings_update']);
 
+        /* User Websites (verification) */
+        Route::post('/websites', [App\Http\Controllers\API\WebsiteController::class, 'index']);
+        Route::post('/websites/store', [App\Http\Controllers\API\WebsiteController::class, 'store']);
+        Route::post('/websites/{id}/verify', [App\Http\Controllers\API\WebsiteController::class, 'verify']);
+        Route::delete('/websites/{id}', [App\Http\Controllers\API\WebsiteController::class, 'destroy']);
+        Route::post('/websites/reorder', [App\Http\Controllers\API\WebsiteController::class, 'reorder']);
+
         // Add any other protected routes here
 
     });

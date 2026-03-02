@@ -10,7 +10,9 @@ class UserDetails extends Model
     use HasFactory;
 
     protected $fillable = [
-        'id', 'user_id', 'user_about', 'active_status', 'friends_status', 'deactivate_account', 'facebook', 'google', 'twitter', 'linkedin', 'youtube', 'location',
+        'id', 'user_id', 'user_about', 'active_status', 'friends_status', 'deactivate_account',
+        'facebook', 'google', 'twitter', 'linkedin', 'youtube', 'instagram', 'kick', 'twitch',
+        'location',
     ];
 
     protected $hidden = ['created_at', 'updated_at'];

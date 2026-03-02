@@ -6,7 +6,7 @@
 
  <!-- Slimscroll JS -->
  <script src="{{ asset('assets/plugins/slimscroll/jquery.slimscroll.min.js') }}"></script>
- @if (!Route::is('login','signup','register.payment'))
+ @if (!Route::is('login','register.payment'))
  <!-- Swiper JS -->
  <script src="{{ asset('assets/plugins/swiper/swiper.min.js') }}"></script>
 

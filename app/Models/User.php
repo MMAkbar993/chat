@@ -105,4 +105,8 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasOne(UserDetails::class, 'user_id', 'id');
     }
 
+    public function websites()
+    {
+        return $this->hasMany(UserWebsite::class)->orderBy('sort_order');
+    }
 }
