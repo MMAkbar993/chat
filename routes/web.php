@@ -168,6 +168,7 @@ Route::post('/check-incoming-call', [VideoCallController::class, 'checkIncomingC
 //session
 Route::post('/firesession', [SessionController::class, 'firesession']);
 
+Route::middleware(['ensure2fa'])->group(function () {
    Route::get('/index', function () {
       return view('frontend/index');
    })->name('index');
@@ -208,7 +209,7 @@ Route::post('/firesession', [SessionController::class, 'firesession']);
    Route::get('/settings', function () {
       return view('frontend.settings');
    })->name('settings');
-// });
+});
 
 
 

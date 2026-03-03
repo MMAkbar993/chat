@@ -961,10 +961,10 @@
                                                                                 class="input-icon mb-3 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
-                                                                                    placeholder="{{ __('Google')}}"
-                                                                                    id="google_link">
+                                                                                    placeholder="{{ __('Instagram')}}"
+                                                                                    id="instagram_link">
                                                                                 <span class="icon-addon">
-                                                                                    <i class="ti ti-brand-google"></i>
+                                                                                    <i class="ti ti-brand-instagram"></i>
                                                                                 </span>
                                                                             </div>
                                                                         </div>
@@ -972,8 +972,8 @@
                                                                             <div
                                                                                 class="input-icon mb-3 position-relative">
                                                                                 <input type="text" value=""
-                                                                                    class="form-control""
-                                                                                    placeholder=" {{ __('Twitter')}}"
+                                                                                    class="form-control"
+                                                                                    placeholder="{{ __('Twitter')}}"
                                                                                     id="twitter_link">
                                                                                 <span class="icon-addon">
                                                                                     <i class="ti ti-brand-twitter"></i>
@@ -998,10 +998,34 @@
                                                                                 class="input-icon mb-3 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
-                                                                                    placeholder="{{ __('Youtube')}}"
+                                                                                    placeholder="{{ __('YouTube')}}"
                                                                                     id="youtube_link">
                                                                                 <span class="icon-addon">
                                                                                     <i class="ti ti-brand-youtube"></i>
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="col-lg-12">
+                                                                            <div
+                                                                                class="input-icon mb-3 position-relative">
+                                                                                <input type="text" value=""
+                                                                                    class="form-control"
+                                                                                    placeholder="{{ __('Kick')}}"
+                                                                                    id="kick_link">
+                                                                                <span class="icon-addon">
+                                                                                    <i class="ti ti-device-gamepad-2"></i>
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="col-lg-12">
+                                                                            <div
+                                                                                class="input-icon mb-3 position-relative">
+                                                                                <input type="text" value=""
+                                                                                    class="form-control"
+                                                                                    placeholder="{{ __('Twitch')}}"
+                                                                                    id="twitch_link">
+                                                                                <span class="icon-addon">
+                                                                                    <i class="ti ti-brand-twitch"></i>
                                                                                 </span>
                                                                             </div>
                                                                         </div>
@@ -1115,6 +1139,49 @@
                                                             </div>
                                                         </div>
                                                     </div>
+                                                    <div class="accordion-item others mb-3">
+                                                        <h2 class="accordion-header">
+                                                            <a href="#" class="accordion-button collapsed"
+                                                                data-bs-toggle="collapse" data-bs-target="#set-2fa"
+                                                                aria-expanded="false" aria-controls="set-2fa">
+                                                                <i class="ti ti-shield-lock me-2"></i>{{ __('Two-Factor Authentication') }}
+                                                            </a>
+                                                        </h2>
+                                                        <div id="set-2fa" class="accordion-collapse collapse"
+                                                            data-bs-parent="#pwd-setting">
+                                                            <div class="accordion-body">
+                                                                @if(Auth::check() && Auth::user()->has2faEnabled())
+                                                                <div class="text-center mb-3">
+                                                                    <span class="badge bg-success-transparent text-success badge-lg mb-2">
+                                                                        <i class="ti ti-shield-check me-1"></i>{{ __('Enabled') }}
+                                                                    </span>
+                                                                    <p class="text-muted fs-14">{{ __('Your account is protected with authenticator app verification.') }}</p>
+                                                                </div>
+                                                                <form id="disable2faForm" method="POST" action="{{ route('2fa.disable') }}">
+                                                                    @csrf
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label">{{ __('Enter code to disable') }}</label>
+                                                                        <input type="text" name="code" class="form-control text-center" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" required>
+                                                                    </div>
+                                                                    <button type="submit" class="btn btn-outline-danger w-100">
+                                                                        <i class="ti ti-shield-off me-1"></i>{{ __('Disable 2FA') }}
+                                                                    </button>
+                                                                </form>
+                                                                @else
+                                                                <div class="text-center mb-3">
+                                                                    <span class="badge bg-warning-transparent text-warning badge-lg mb-2">
+                                                                        <i class="ti ti-shield-x me-1"></i>{{ __('Not Enabled') }}
+                                                                    </span>
+                                                                    <p class="text-muted fs-14">{{ __('Add an extra layer of security using an authenticator app (Google Authenticator, Authy, etc).') }}</p>
+                                                                </div>
+                                                                <a href="{{ route('2fa.setup') }}" class="btn btn-primary w-100">
+                                                                    <i class="ti ti-shield-check me-1"></i>{{ __('Set Up 2FA') }}
+                                                                </a>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
                                                     <!-- ReCAPTCHA container (required by Firebase Phone Auth) -->
                                                     <div id="recaptcha-container" style="display: none;"></div>
 

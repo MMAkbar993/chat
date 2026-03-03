@@ -684,10 +684,12 @@ function fetchUserDetails(userId) {
 
 
                 document.getElementById('facebook_link').value = user.facebook_link || '';
-                document.getElementById('google_link').value = user.google_link || '';
+                document.getElementById('instagram_link').value = user.instagram_link || '';
                 document.getElementById('twitter_link').value = user.twitter_link || '';
                 document.getElementById('linkedin_link').value = user.linkedin_link || '';
                 document.getElementById('youtube_link').value = user.youtube_link || '';
+                document.getElementById('kick_link').value = user.kick_link || '';
+                document.getElementById('twitch_link').value = user.twitch_link || '';
 
                 var roleSelect = document.getElementById('primary_role');
                 if (roleSelect && user.primary_role) {
@@ -1127,34 +1129,32 @@ document.getElementById('imageUpload').addEventListener('change', function(event
 
 // Save Social Links
 document.getElementById('saveSocialLinksBtn').addEventListener('click', function(event) {
-    event.preventDefault(); // Prevent default form submission
+    event.preventDefault();
 
-    // Get user input values for social links
-    const youtube = document.getElementById('youtube_link').value;
-    const linkedin = document.getElementById('linkedin_link').value;
-    const twitter = document.getElementById('twitter_link').value;
-    const google = document.getElementById('google_link').value;
     const facebook = document.getElementById('facebook_link').value;
+    const instagram = document.getElementById('instagram_link').value;
+    const twitter = document.getElementById('twitter_link').value;
+    const linkedin = document.getElementById('linkedin_link').value;
+    const youtube = document.getElementById('youtube_link').value;
+    const kick = document.getElementById('kick_link').value;
+    const twitch = document.getElementById('twitch_link').value;
 
-    // Get the current user's ID
-    const userId = currentUser.uid; // Make sure currentUser is defined
+    const userId = currentUser.uid;
 
-    // Social links data object
     const socialLinksData = {
-        youtube_link: youtube,
-        linkedin_link: linkedin,
+        facebook_link: facebook,
+        instagram_link: instagram,
         twitter_link: twitter,
-        google_link: google,
-        facebook_link: facebook
+        linkedin_link: linkedin,
+        youtube_link: youtube,
+        kick_link: kick,
+        twitch_link: twitch
     };
 
-    // Reference to the user data in Firebase
     const userRef = ref(database, 'data/users/' + userId);
 
-    // Update the user data in Firebase without removing existing fields
     update(userRef, socialLinksData)
         .then(() => {
-          
             Toastify({
                 text: "Social links updated successfully!",
                 duration: 3000,
@@ -1164,7 +1164,6 @@ document.getElementById('saveSocialLinksBtn').addEventListener('click', function
             }).showToast();
         })
         .catch((error) => {
-           
         });
 });
 

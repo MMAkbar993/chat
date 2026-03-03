@@ -66,6 +66,9 @@ class RegisteredUserController extends Controller
         if ($email && $password) {
             $result = $this->attemptLaravelLogin($email, $password);
             if ($result['success']) {
+                if (!empty($result['needs_2fa'])) {
+                    return redirect()->route('2fa.challenge');
+                }
                 return response()->view('auth.login-complete', [
                     'customToken' => $result['token'],
                     'firebaseConfig' => [
@@ -107,6 +110,9 @@ class RegisteredUserController extends Controller
         );
 
         if ($result['success']) {
+            if (!empty($result['needs_2fa'])) {
+                return response()->json(['needs_2fa' => true, 'redirect' => route('2fa.challenge')]);
+            }
             return response()->json(['firebase_custom_token' => $result['token']]);
         }
         if ($result['json_error']) {
@@ -123,7 +129,7 @@ class RegisteredUserController extends Controller
     {
         $user = User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
         if (!$user) {
-            return ['success' => false, 'message' => 'Invalid credentials.'];
+            return ['success' => false, 'message' => 'Invalid credentials.', 'json_error' => null];
         }
 
         $passwordValid = Hash::check($password, $user->password);
@@ -136,7 +142,7 @@ class RegisteredUserController extends Controller
             }
         }
         if (!$passwordValid) {
-            return ['success' => false, 'message' => 'Invalid credentials.'];
+            return ['success' => false, 'message' => 'Invalid credentials.', 'json_error' => null];
         }
 
         $credentialsPath = config('firebase.projects.app.credentials.file')
@@ -193,10 +199,18 @@ class RegisteredUserController extends Controller
             'timestamp' => time(),
         ]);
 
+        Auth::login($user);
+        $user->last_login_at = now();
+        $user->save();
+
+        if ($user->has2faEnabled() && !request()->session()->get('2fa_verified')) {
+            return ['success' => true, 'token' => null, 'needs_2fa' => true];
+        }
+
         try {
             $customToken = $this->firebase->createCustomToken($firebaseUid);
             $tokenString = is_string($customToken) ? trim($customToken) : trim($customToken->toString());
-            return ['success' => true, 'token' => $tokenString];
+            return ['success' => true, 'token' => $tokenString, 'needs_2fa' => false];
         } catch (\Throwable $e) {
             Log::error('Firebase createCustomToken failed', ['uid' => $firebaseUid, 'message' => $e->getMessage()]);
             return [
@@ -212,30 +226,38 @@ class RegisteredUserController extends Controller
     try {
         Log::info('Received Firebase token', ['token' => $firebaseToken]);
 
-        // Retrieve the Firebase Auth instance from the FirebaseService
         $firebaseAuth = $this->firebase->getAuth();
 
-        // Verify the Firebase token
         $verifiedIdToken = $firebaseAuth->verifyIdToken($firebaseToken);
-        
-        // Instead of toArray(), you can access claims like this:
         $claims = $verifiedIdToken->claims();
 
-        // Log specific claims for debugging
         Log::info('Verified token claims', [
-            'uid' => $claims->get('sub'), // User ID
-            'email' => $claims->get('email'), // Email
-            'issuedAt' => $claims->get('iat'), // Issued at
-            'expiresAt' => $claims->get('exp'), // Expiration
-            'issuer' => $claims->get('iss'), // Issuer
-            'audience' => $claims->get('aud') // Audience
+            'uid' => $claims->get('sub'),
+            'email' => $claims->get('email'),
+            'issuedAt' => $claims->get('iat'),
+            'expiresAt' => $claims->get('exp'),
+            'issuer' => $claims->get('iss'),
+            'audience' => $claims->get('aud')
         ]);
 
-        $uid = $claims->get('sub'); // Get the user ID
+        $uid = $claims->get('sub');
         $firebaseUser = $firebaseAuth->getUser($uid);
         
-        // Save device info to the database
         $this->saveDeviceInfo($uid, $firebaseUser);
+
+        $email = $claims->get('email');
+        if ($email) {
+            $laravelUser = User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
+            if ($laravelUser) {
+                Auth::login($laravelUser);
+                $laravelUser->last_login_at = now();
+                $laravelUser->save();
+
+                if ($laravelUser->has2faEnabled() && !session('2fa_verified')) {
+                    return redirect()->route('2fa.challenge');
+                }
+            }
+        }
 
         return redirect()->route('chat')->with('success', 'Login successful!');
     } catch (\Exception $exception) {
