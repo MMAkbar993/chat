@@ -20,10 +20,10 @@
 
 <body>
 
-    @if (!Route::is(['signup', 'signin', 'success', 'reset-password', 'otp', 'forgot-password','login','register.payment']))
+    @if (!Route::is(['signup', 'signin', 'success', 'reset-password', 'otp', 'forgot-password','login','register.payment','register.kyc']))
         <div class="main-wrapper">
     @endif
-    @if (Route::is(['signup', 'signin', 'success', 'reset-password', 'otp', 'forgot-password','login','register.payment']))
+    @if (Route::is(['signup', 'signin', 'success', 'reset-password', 'otp', 'forgot-password','login','register.payment','register.kyc']))
         <div class="main-wrapper d-block">
     @endif
     @yield('content')

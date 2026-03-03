@@ -15,10 +15,10 @@ class DiditService
 
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('didit.base_url'), '/');
-        $this->apiKey = config('didit.api_key');
-        $this->webhookSecret = config('didit.webhook_secret_key');
-        $this->workflowId = config('didit.workflow_id');
+        $this->baseUrl = rtrim(config('didit.base_url', ''), '/');
+        $this->apiKey = config('didit.api_key') ?? '';
+        $this->webhookSecret = config('didit.webhook_secret_key') ?? '';
+        $this->workflowId = config('didit.workflow_id') ?? '';
     }
 
     /**
