@@ -355,8 +355,9 @@ protected function getUserDeviceInfo()
     }
 
     /**
-     * Step 1: Personal info + Role + T&C (Affiliate Roulette).
-     * Creates user with subscription_status = pending_payment; redirects to Step 2 (payment).
+     * Step 1: Personal info + Role + T&C.
+     * Creates user with subscription_status = pending_payment.
+     * Flow: Register → Payment (setup, no charge) → KYC → auto-charge on approval.
      */
     public function register(StoreRegistrationRequest $request)
     {
@@ -369,7 +370,7 @@ protected function getUserDeviceInfo()
             'email' => $request->input('email'),
             'user_name' => $request->input('user_name'),
             'password' => Hash::make($request->input('password')),
-            'user_type' => 2, // frontendUser
+            'user_type' => 2,
             'mobile_number' => $request->input('mobile_number') ?? '',
             'company_name' => null,
             'company_domain' => null,
@@ -382,7 +383,6 @@ protected function getUserDeviceInfo()
 
         $user->assignRole('user');
 
-        // Sync to Firebase Auth + RTDB so the user can sign in with Firebase (email/password) on the login page
         $password = $request->input('password');
         $firebaseUid = $this->firebase->createAuthUser($user->email, $password, $user->full_name ?? $user->first_name . ' ' . $user->last_name);
         if ($firebaseUid !== null) {
@@ -412,12 +412,13 @@ protected function getUserDeviceInfo()
 
         if ($request->wantsJson()) {
             return response()->json([
-                'message' => __('Registration successful. Please complete KYC validation.'),
-                'redirect' => route('register.kyc'),
+                'message' => __('Registration successful.'),
+                'user_email' => $user->email,
+                'plans' => config('stripe.plans'),
             ], 201);
         }
 
-        return redirect()->route('register.kyc')->with('success', __('Registration successful. Please complete KYC validation to continue.'));
+        return redirect()->route('register.payment')->with('success', __('Registration successful. Please complete payment to continue.'));
     }
 
 

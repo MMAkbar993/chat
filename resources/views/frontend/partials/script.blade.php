@@ -43,8 +43,8 @@
  <script src="{{ asset('assets/js/script.js') }}"></script>
 
  <script src="{{ asset('assets/js/toastify.js') }}"></script>
- @if (!Route::is('login','signup','register.payment'))
- <script src="{{ asset('assets/js/AgoraRTC_N.js') }}"></script>
+ @if (!Route::is('login','signup','register.payment') && config('calls.provider') !== 'meet')
+ <script src="{{ asset('assets/js/AgoraRTC_N.js') }}" defer></script>
  @endif
  <script>
     const APP_URL = "{{ env('APP_URL') }}";

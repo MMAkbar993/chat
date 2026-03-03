@@ -32,6 +32,13 @@
                                     <i class="ti ti-search"></i>
                                 </a>
                             </li>
+                            @if(config('calls.provider') === 'meet')
+                            <li data-bs-toggle="tooltip" data-bs-placement="bottom" title="Start Google Meet">
+                                <a href="https://meet.google.com/new" target="_blank" class="btn">
+                                    <i class="ti ti-video"></i>
+                                </a>
+                            </li>
+                            @else
                             <li data-bs-toggle="tooltip" data-bs-placement="bottom" title="Video Call">
                                 <a href="javascript:void(0);" class="btn" data-bs-toggle="modal"
                                     data-bs-target="#video-call">
@@ -44,6 +51,7 @@
                                     <i class="ti ti-phone"></i>
                                 </a>
                             </li>
+                            @endif
                             <li>
                                 <a class="btn no-bg" href="#" data-bs-toggle="dropdown">
                                     <i class="ti ti-dots-vertical"></i>

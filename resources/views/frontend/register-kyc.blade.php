@@ -51,11 +51,11 @@
                                 @elseif($user && $user->isKycVerified())
                                     <div class="alert alert-success">
                                         <i class="ti ti-circle-check me-1"></i>
-                                        {{ __('Your identity is verified!') }}
+                                        {{ __('Your identity is verified! Your card has been charged and your account is now active.') }}
                                         <span class="badge bg-success ms-2">{{ __('ID Verified') }}</span>
                                     </div>
                                     <div class="mt-3">
-                                        <a href="{{ route('register.payment') }}" class="btn btn-primary w-100 justify-content-center">{{ __('Proceed to Payment') }}</a>
+                                        <a href="{{ route('signin') }}" class="btn btn-primary w-100 justify-content-center">{{ __('Sign In') }}</a>
                                     </div>
                                 @else
                                     <div class="border rounded p-3 mb-4">

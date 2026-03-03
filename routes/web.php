@@ -17,6 +17,8 @@ use App\Http\Controllers\KycController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\Webhooks\StripeWebhookController;
 use App\Http\Controllers\Webhooks\DiditWebhookController;
+use App\Http\Controllers\GroupChatController;
+use App\Http\Controllers\UserSearchController;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Session;
@@ -95,6 +97,19 @@ Route::get('api/kyc-status', function (\Illuminate\Http\Request $request) {
     return response()->json(['verified' => $user && $user->isKycVerified()]);
 })->name('kyc.status');
 
+// Registration flow status polling (used by the signup page AJAX flow)
+Route::get('api/registration-status', function (\Illuminate\Http\Request $request) {
+    $user = \Illuminate\Support\Facades\Auth::user()
+        ?? \App\Models\User::find($request->session()->get('registered_user_id'));
+    if (!$user) {
+        return response()->json(['error' => 'No user found'], 404);
+    }
+    return response()->json([
+        'kyc_verified' => $user->isKycVerified(),
+        'subscription_status' => $user->subscription_status,
+    ]);
+})->name('registration.status');
+
 // Webhooks (CSRF excluded in VerifyCsrfToken)
 Route::post('webhooks/stripe', [StripeWebhookController::class, 'handle'])->name('webhooks.stripe');
 Route::post('webhooks/didit', [DiditWebhookController::class, 'handle'])->name('webhooks.didit');
@@ -148,15 +163,22 @@ Route::get('/', function () {
 
 // Route::middleware('firebase_auth')->group(function () {
    Route::post('/chat/send-message', [ChatController::class, 'sendMessage']);
+   Route::post('/chat/upload-file', [ChatController::class, 'uploadFile'])->name('chat.upload-file');
    Route::get('/chat/{id}', [ChatController::class, 'showChat'])->name('chat.show');
 
    Route::post('/send-encrypted-message', [MessageController::class, 'sendEncryptedMessage']);
 
   Route::get('/video-call', function () {
+   if (config('calls.provider') === 'meet') {
+       return redirect('https://meet.google.com/new');
+   }
    return view('frontend/video-call');
 })->name('video-call');
 
 Route::get('/audio-call', function () {
+   if (config('calls.provider') === 'meet') {
+       return redirect('https://meet.google.com/new');
+   }
    return view('frontend/audio-call');
 })->name('audio-call');
 
@@ -167,6 +189,9 @@ Route::post('/check-incoming-call', [VideoCallController::class, 'checkIncomingC
 
 //session
 Route::post('/firesession', [SessionController::class, 'firesession']);
+
+// Public profile (no auth required)
+Route::get('/u/{username}', [UserSearchController::class, 'publicProfile'])->name('public-profile');
 
 Route::middleware(['ensure2fa'])->group(function () {
    Route::get('/index', function () {
@@ -209,6 +234,18 @@ Route::middleware(['ensure2fa'])->group(function () {
    Route::get('/settings', function () {
       return view('frontend.settings');
    })->name('settings');
+
+   // Group Chat API (JSON)
+   Route::prefix('api/groups')->group(function () {
+      Route::get('/', [GroupChatController::class, 'index'])->name('groups.index');
+      Route::post('/', [GroupChatController::class, 'store'])->name('groups.store');
+      Route::get('/{group}', [GroupChatController::class, 'show'])->name('groups.show');
+      Route::put('/{group}', [GroupChatController::class, 'update'])->name('groups.update');
+      Route::delete('/{group}', [GroupChatController::class, 'destroy'])->name('groups.destroy');
+      Route::post('/{group}/members', [GroupChatController::class, 'addMembers'])->name('groups.add-members');
+      Route::delete('/{group}/members', [GroupChatController::class, 'removeMember'])->name('groups.remove-member');
+      Route::post('/{group}/promote', [GroupChatController::class, 'promoteAdmin'])->name('groups.promote');
+   });
 });
 
 

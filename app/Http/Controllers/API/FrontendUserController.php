@@ -329,7 +329,7 @@ class FrontendUserController extends Controller
                 return send_bad_request_response('User not found');
             }
 
-            $user->load('get_user_details');
+            $user->load(['get_user_details', 'websites']);
 
             $roleLabel = '';
             if ($user->primary_role) {

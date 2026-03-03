@@ -109,4 +109,16 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->hasMany(UserWebsite::class)->orderBy('sort_order');
     }
+
+    public function groups()
+    {
+        return $this->belongsToMany(Group::class, 'group_members')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    public function ownedGroups()
+    {
+        return $this->hasMany(Group::class, 'owner_id');
+    }
 }

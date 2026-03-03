@@ -19,6 +19,7 @@
     var SPA_ROUTES = Object.keys(ROUTE_TAB_MAP);
     var isNavigating = false;
     var loadedModules = {};
+    var prefetchCache = {};
 
     function getPathname(url) {
         try {
@@ -206,6 +207,24 @@
         $('body').removeClass('modal-open').css({ overflow: '', paddingRight: '' });
     }
 
+    function showLoadingIndicator() {
+        if (!document.getElementById('spa-loading-bar')) {
+            var bar = document.createElement('div');
+            bar.id = 'spa-loading-bar';
+            bar.style.cssText = 'position:fixed;top:0;left:0;height:3px;background:#7269ef;z-index:9999;transition:width .3s ease;width:30%';
+            document.body.appendChild(bar);
+            setTimeout(function () { bar.style.width = '70%'; }, 100);
+        }
+    }
+
+    function hideLoadingIndicator() {
+        var bar = document.getElementById('spa-loading-bar');
+        if (bar) {
+            bar.style.width = '100%';
+            setTimeout(function () { bar.remove(); }, 200);
+        }
+    }
+
     function navigateTo(url, pushState) {
         if (isNavigating) return;
         if (typeof pushState === 'undefined') pushState = true;
@@ -216,50 +235,63 @@
         if (getPathname(window.location.href) === pathname) return;
 
         isNavigating = true;
+        showLoadingIndicator();
 
         dismissOpenModals();
         switchSidebarTab(pathname);
+
+        var cachedHtml = prefetchCache[pathname];
+        if (cachedHtml) {
+            delete prefetchCache[pathname];
+            applyPageContent(cachedHtml, url, pushState);
+            return;
+        }
 
         $.ajax({
             url: url,
             type: 'GET',
             headers: { 'X-SPA-Request': '1' },
             success: function (html) {
-                var parser = new DOMParser();
-                var doc = parser.parseFromString(html, 'text/html');
-
-                var newPageContent = doc.getElementById('spa-page-content');
-                var currentPageContent = document.getElementById('spa-page-content');
-                if (newPageContent && currentPageContent) {
-                    currentPageContent.innerHTML = newPageContent.innerHTML;
-                    executeInlineScripts(currentPageContent);
-                    loadModuleScripts(newPageContent);
-                }
-
-                var newPageModals = doc.getElementById('spa-page-modals');
-                var currentPageModals = document.getElementById('spa-page-modals');
-                if (newPageModals && currentPageModals) {
-                    currentPageModals.innerHTML = newPageModals.innerHTML;
-                    executeInlineScripts(currentPageModals);
-                    loadModuleScripts(newPageModals);
-                }
-
-                reinitPlugins();
-
-                if (pushState) {
-                    history.pushState({ spa: true }, '', url);
-                }
-
-                $(window).trigger('resize');
-
-                isNavigating = false;
+                applyPageContent(html, url, pushState);
             },
             error: function () {
+                hideLoadingIndicator();
                 console.warn('SPA: AJAX failed, falling back to full navigation');
                 window.location.href = url;
                 isNavigating = false;
             }
         });
+    }
+
+    function applyPageContent(html, url, pushState) {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, 'text/html');
+
+        var newPageContent = doc.getElementById('spa-page-content');
+        var currentPageContent = document.getElementById('spa-page-content');
+        if (newPageContent && currentPageContent) {
+            currentPageContent.innerHTML = newPageContent.innerHTML;
+            executeInlineScripts(currentPageContent);
+            loadModuleScripts(newPageContent);
+        }
+
+        var newPageModals = doc.getElementById('spa-page-modals');
+        var currentPageModals = document.getElementById('spa-page-modals');
+        if (newPageModals && currentPageModals) {
+            currentPageModals.innerHTML = newPageModals.innerHTML;
+            executeInlineScripts(currentPageModals);
+            loadModuleScripts(newPageModals);
+        }
+
+        reinitPlugins();
+        hideLoadingIndicator();
+
+        if (pushState) {
+            history.pushState({ spa: true }, '', url);
+        }
+
+        $(window).trigger('resize');
+        isNavigating = false;
     }
 
     $(document).on('click', '.sidebar-menu .main-menu .nav li a[href]', function (e) {
@@ -269,6 +301,28 @@
             e.stopPropagation();
             navigateTo(href);
         }
+    });
+
+    var prefetchTimer = null;
+    $(document).on('mouseenter', '.sidebar-menu .main-menu .nav li a[href]', function () {
+        var href = $(this).attr('href');
+        if (!href || !isSpaRoute(href)) return;
+        var pathname = getPathname(href);
+        if (!pathname || pathname === getPathname(window.location.href) || prefetchCache[pathname]) return;
+        var capturedHref = href;
+        var capturedPath = pathname;
+        prefetchTimer = setTimeout(function () {
+            $.ajax({
+                url: capturedHref,
+                type: 'GET',
+                headers: { 'X-SPA-Request': '1' },
+                success: function (html) { prefetchCache[capturedPath] = html; }
+            });
+        }, 150);
+    });
+
+    $(document).on('mouseleave', '.sidebar-menu .main-menu .nav li a[href]', function () {
+        if (prefetchTimer) { clearTimeout(prefetchTimer); prefetchTimer = null; }
     });
 
     window.addEventListener('popstate', function () {

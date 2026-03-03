@@ -7,6 +7,8 @@ use App\Models\UserSubscription;
 use Illuminate\Support\Facades\Log;
 use Stripe\Stripe;
 use Stripe\Checkout\Session as CheckoutSession;
+use Stripe\SetupIntent;
+use Stripe\Subscription;
 use Stripe\Webhook;
 use Stripe\Exception\SignatureVerificationException;
 
@@ -17,20 +19,18 @@ class StripeService
         Stripe::setApiKey(config('stripe.secret'));
     }
 
-    public function createCheckoutSession(User $user, string $plan, string $successUrl, string $cancelUrl): CheckoutSession
+    /**
+     * Setup-mode checkout: collects card details without charging.
+     * The actual subscription is created later (after KYC approval).
+     */
+    public function createSetupCheckoutSession(User $user, string $plan, string $successUrl, string $cancelUrl): CheckoutSession
     {
-        $planConfig = config("stripe.plans.{$plan}");
-        if (!$planConfig || empty($planConfig['price_id'])) {
-            throw new \InvalidArgumentException("Invalid plan: {$plan}");
-        }
+        $separator = str_contains($successUrl, '?') ? '&' : '?';
 
-        $params = [
-            'mode' => 'subscription',
-            'line_items' => [[
-                'price' => $planConfig['price_id'],
-                'quantity' => 1,
-            ]],
-            'success_url' => $successUrl . '?session_id={CHECKOUT_SESSION_ID}',
+        return CheckoutSession::create([
+            'mode' => 'setup',
+            'currency' => 'eur',
+            'success_url' => $successUrl . $separator . 'session_id={CHECKOUT_SESSION_ID}',
             'cancel_url' => $cancelUrl,
             'client_reference_id' => (string) $user->id,
             'customer_email' => $user->email,
@@ -38,16 +38,43 @@ class StripeService
                 'user_id' => $user->id,
                 'plan' => $plan,
             ],
-        ];
+        ]);
+    }
 
-        return CheckoutSession::create($params);
+    /**
+     * Standard subscription-mode checkout (kept for direct payment flows).
+     */
+    public function createCheckoutSession(User $user, string $plan, string $successUrl, string $cancelUrl): CheckoutSession
+    {
+        $planConfig = config("stripe.plans.{$plan}");
+        if (!$planConfig || empty($planConfig['price_id'])) {
+            throw new \InvalidArgumentException("Invalid plan: {$plan}");
+        }
+
+        $separator = str_contains($successUrl, '?') ? '&' : '?';
+
+        return CheckoutSession::create([
+            'mode' => 'subscription',
+            'line_items' => [[
+                'price' => $planConfig['price_id'],
+                'quantity' => 1,
+            ]],
+            'success_url' => $successUrl . $separator . 'session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url' => $cancelUrl,
+            'client_reference_id' => (string) $user->id,
+            'customer_email' => $user->email,
+            'metadata' => [
+                'user_id' => $user->id,
+                'plan' => $plan,
+            ],
+        ]);
     }
 
     public function retrieveSession(string $sessionId): CheckoutSession
     {
         return CheckoutSession::retrieve([
             'id' => $sessionId,
-            'expand' => ['subscription', 'customer'],
+            'expand' => ['subscription', 'customer', 'setup_intent'],
         ]);
     }
 
@@ -81,6 +108,56 @@ class StripeService
             return;
         }
 
+        if ($session->mode === 'setup') {
+            $this->handleSetupCheckoutCompleted($session, $user);
+        } else {
+            $this->handleSubscriptionCheckoutCompleted($session, $user);
+        }
+    }
+
+    /**
+     * Setup mode: store customer + payment method for later subscription creation.
+     */
+    protected function handleSetupCheckoutCompleted(CheckoutSession $session, User $user): void
+    {
+        $customerId = is_object($session->customer) ? $session->customer->id : $session->customer;
+
+        $paymentMethodId = null;
+        $setupIntent = $session->setup_intent;
+        if (is_object($setupIntent)) {
+            $paymentMethodId = is_object($setupIntent->payment_method)
+                ? $setupIntent->payment_method->id
+                : $setupIntent->payment_method;
+        } elseif (is_string($setupIntent)) {
+            $si = SetupIntent::retrieve($setupIntent);
+            $paymentMethodId = $si->payment_method;
+        }
+
+        $plan = $session->metadata->plan ?? 'monthly';
+
+        UserSubscription::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'stripe_customer_id' => $customerId,
+                'stripe_payment_method_id' => $paymentMethodId,
+                'plan' => $plan,
+                'status' => 'pending_kyc',
+            ]
+        );
+
+        $user->update(['subscription_status' => 'pending_kyc']);
+
+        Log::info('Setup checkout completed – payment method saved, awaiting KYC', [
+            'user_id' => $user->id,
+            'customer' => $customerId,
+        ]);
+    }
+
+    /**
+     * Subscription mode: immediate subscription (fallback / direct flow).
+     */
+    protected function handleSubscriptionCheckoutCompleted(CheckoutSession $session, User $user): void
+    {
         $customerId = is_object($session->customer) ? $session->customer->id : $session->customer;
         $subscriptionId = is_object($session->subscription) ? $session->subscription->id : $session->subscription;
 
@@ -100,7 +177,52 @@ class StripeService
             ]
         );
 
-        $user->update(['subscription_status' => 'pending_kyc']);
+        $user->update(['subscription_status' => 'active']);
+    }
+
+    /**
+     * Called after KYC approval: create the real Stripe subscription using
+     * the payment method that was saved during the setup checkout.
+     *
+     * @return bool true if subscription was successfully created
+     */
+    public function createSubscriptionFromSavedPayment(User $user): bool
+    {
+        $sub = UserSubscription::where('user_id', $user->id)->first();
+        if (!$sub || !$sub->stripe_customer_id || !$sub->stripe_payment_method_id) {
+            Log::warning('Cannot create subscription: missing saved payment data', ['user_id' => $user->id]);
+            return false;
+        }
+
+        $planConfig = config("stripe.plans.{$sub->plan}", config('stripe.plans.monthly'));
+        if (empty($planConfig['price_id'])) {
+            Log::error('Cannot create subscription: invalid plan config', ['plan' => $sub->plan]);
+            return false;
+        }
+
+        $subscription = Subscription::create([
+            'customer' => $sub->stripe_customer_id,
+            'items' => [['price' => $planConfig['price_id']]],
+            'default_payment_method' => $sub->stripe_payment_method_id,
+        ]);
+
+        $periodEnd = $sub->plan === 'yearly' ? now()->addYear() : now()->addMonth();
+
+        $sub->update([
+            'stripe_subscription_id' => $subscription->id,
+            'stripe_price_id' => $planConfig['price_id'],
+            'status' => 'active',
+            'current_period_ends_at' => $periodEnd,
+        ]);
+
+        $user->update(['subscription_status' => 'active']);
+
+        Log::info('Subscription created from saved payment method', [
+            'user_id' => $user->id,
+            'subscription_id' => $subscription->id,
+        ]);
+
+        return true;
     }
 
     public function handleInvoicePaid(array $invoice): void
@@ -118,7 +240,7 @@ class StripeService
                 'status' => 'active',
                 'current_period_ends_at' => $periodEnd ? \Carbon\Carbon::createFromTimestamp($periodEnd) : $fallback,
             ]);
-            $sub->user?->update(['subscription_status' => $sub->user->isKycVerified() ? 'active' : 'pending_kyc']);
+            $sub->user?->update(['subscription_status' => 'active']);
         }
     }
 

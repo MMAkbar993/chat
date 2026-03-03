@@ -39,6 +39,13 @@
                                 <i class="ti ti-search"></i>
                             </a>
                         </li>
+                        @if(config('calls.provider') === 'meet')
+                        <li data-bs-toggle="tooltip" data-bs-placement="bottom" title="Start Google Meet">
+                            <a href="https://meet.google.com/new" target="_blank" class="btn" id="google-meet-btn">
+                                <i class="ti ti-video"></i>
+                            </a>
+                        </li>
+                        @else
                         <li data-bs-toggle="tooltip" data-bs-placement="bottom" title="Video Call">
                             <a href="javascript:void(0)" class="btn" id="video-call-new-btn">
                                 <i class="ti ti-video"></i>
@@ -49,6 +56,7 @@
                                 <i class="ti ti-phone"></i>
                             </a>
                         </li>
+                        @endif
                         <li title="Contact Info" data-bs-toggle="tooltip" data-bs-placement="bottom">
                             <a href="javascript:void(0)" class="btn" data-bs-toggle="offcanvas"
                                 data-bs-target="#contact-profile" id="contactInfoButton">
@@ -143,6 +151,13 @@
                                 <i class="ti ti-location"></i>
                             </a>
                         </div>
+                        @if(config('calls.provider') === 'meet')
+                        <div class="form-item emoj-action-foot">
+                            <a href="javascript:void(0);" id="send-meet-link-btn" class="action-circle" title="Send Google Meet link">
+                                <i class="ti ti-video"></i>
+                            </a>
+                        </div>
+                        @endif
                         <!-- Emoji Picker Dropdown -->
                         <div id="emoji-picker" style="display: none;">
                             <ul id="emoji-list"></ul>
@@ -973,9 +988,13 @@
                                 </div>
                                 <div class="contact-actions d-flex align-items-center mb-3">
                                     <a href="{{ route('chat') }}" class="me-2"><i class="ti ti-message"></i></a>
+                                    @if(config('calls.provider') === 'meet')
+                                    <a href="https://meet.google.com/new" target="_blank" class="me-2" title="Start Google Meet"><i class="ti ti-video"></i></a>
+                                    @else
                                     <a href="javascript:void(0);" class="me-2" data-bs-toggle="modal"
                                         data-bs-target="#voice_call"><i class="ti ti-phone"></i></a>
                                     <a href="javascript:void(0);" class="me-2"><i class="ti ti-video"></i></a>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -2052,6 +2071,24 @@
     <!-- /Voice Modal-->
 
     <!-- /Content -->
+    @if(config('calls.provider') === 'meet')
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var meetBtn = document.getElementById('send-meet-link-btn');
+        if (meetBtn) {
+            meetBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var msgInput = document.getElementById('message-input');
+                if (msgInput) {
+                    msgInput.value = 'https://meet.google.com/new';
+                    msgInput.focus();
+                    msgInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            });
+        }
+    });
+    </script>
+    @endif
     <script type="module" src="assets/js/firebase/firebaseChat.js" crossorigin="anonymous"></script>
 </div>
     @endsection

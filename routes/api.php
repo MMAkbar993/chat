@@ -30,6 +30,9 @@ Route::post('oauth/token', [AccessTokenController::class, 'issueToken']);
     Route::get('login/facebook/callback', [SocialLoginController::class, 'handleFacebookCallback']);
 
 
+    // User search (public, rate-limited)
+    Route::get('/users/search', [\App\Http\Controllers\UserSearchController::class, 'search'])->name('api.users.search');
+
     /* With JWT token checking routes */
     Route::middleware('auth')->group(function () {
         Route::get('/user', function (Request $request) {

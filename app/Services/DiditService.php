@@ -105,6 +105,23 @@ class DiditService
                 'kyc_verified_at' => now(),
                 'kyc_provider_id' => $sessionId,
             ]);
+
+            // Auto-charge the saved payment method now that KYC is approved
+            try {
+                $stripeService = app(StripeService::class);
+                $charged = $stripeService->createSubscriptionFromSavedPayment($user);
+                if (!$charged) {
+                    $user->update(['subscription_status' => 'pending_payment']);
+                    Log::warning('KYC approved but no saved payment method to charge', ['user_id' => $user->id]);
+                }
+            } catch (\Throwable $e) {
+                $user->update(['subscription_status' => 'pending_payment']);
+                Log::error('KYC approved but subscription creation failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             return true;
         }
 

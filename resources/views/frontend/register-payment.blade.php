@@ -32,6 +32,10 @@
                             <p class="mb-0 fs-16">{{ __('Select a subscription plan to access the platform.') }}</p>
                         </div>
 
+                        <div class="alert alert-info mb-4">
+                            <i class="ti ti-info-circle me-1"></i>{{ __("Don't worry — you won't be charged until your identity is verified.") }}
+                        </div>
+
                         <form method="POST" action="{{ route('stripe.checkout') }}" id="plan-form">
                             @csrf
                             <input type="hidden" name="plan" id="selected-plan" value="monthly">
@@ -66,7 +70,7 @@
                             </div>
 
                             <button type="submit" class="btn btn-primary w-100 justify-content-center">
-                                <i class="ti ti-lock me-1"></i> {{ __('Subscribe with Stripe') }}
+                                <i class="ti ti-lock me-1"></i> {{ __('Enter Payment Details') }}
                             </button>
                         </form>
 
