@@ -370,7 +370,7 @@ protected function getUserDeviceInfo()
             'user_name' => $request->input('user_name'),
             'password' => Hash::make($request->input('password')),
             'user_type' => 2, // frontendUser
-            'mobile_number' => $request->input('mobile_number', ''),
+            'mobile_number' => $request->input('mobile_number') ?? '',
             'company_name' => null,
             'company_domain' => null,
             'country' => $request->input('country'),
