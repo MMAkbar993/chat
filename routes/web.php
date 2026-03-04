@@ -66,7 +66,7 @@ Route::get('signup', [RegisteredUserController::class, 'signup'])->name('signup'
 Route::post('register', [RegisteredUserController::class, 'register'])->name('register');
 Route::get('register/payment', [RegisteredUserController::class, 'registerPaymentStep'])->name('register.payment');
 Route::get('login', [RegisteredUserController::class, 'login'])->name('login');
-Route::post('login', [RegisteredUserController::class, 'loginSubmit'])->name('login');
+Route::post('login', [RegisteredUserController::class, 'loginSubmit'])->name('login.submit');
 Route::post('login/laravel', [RegisteredUserController::class, 'loginWithLaravel'])->name('login.laravel');
 Route::get('logout', [RegisteredUserController::class, 'logoutSubmit'])->name('logout')->middleware('auth');
     Route::post('logout', [RegisteredUserController::class, 'logoutSubmit'])->name('logout.post')->middleware('auth');
