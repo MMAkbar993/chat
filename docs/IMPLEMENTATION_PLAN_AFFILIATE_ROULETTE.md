@@ -127,6 +127,9 @@
 
 ---
 
+tail -50 /var/www/connectar.online/storage/logs/laravel.log
+
+
 ## 8. Settings Page
 
 ### 8.1 Required Fields & Rules

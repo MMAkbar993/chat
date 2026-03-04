@@ -55,41 +55,56 @@ class RegisteredUserController extends Controller
     // Handle Firebase Login
     public function loginSubmit(Request $request)
     {
-        $firebaseToken = $request->input('firebase_token');
-        if ($firebaseToken) {
-            return $this->firebaseLogin($firebaseToken);
-        }
+        try {
+            $firebaseToken = $request->input('firebase_token');
+            if ($firebaseToken) {
+                return $this->firebaseLogin($firebaseToken);
+            }
 
-        // Fallback: form submitted with email+password (e.g. when Firebase JS fails to load)
-        $email = trim($request->input('email', ''));
-        $password = $request->input('password', '');
-        if ($email && $password) {
-            $result = $this->attemptLaravelLogin($email, $password);
-            if ($result['success']) {
-                if (!empty($result['needs_2fa'])) {
-                    return redirect()->route('2fa.challenge');
+            // Fallback: form submitted with email+password (e.g. when Firebase JS fails to load)
+            $email = trim($request->input('email', ''));
+            $password = $request->input('password', '');
+            if ($email && $password) {
+                $result = $this->attemptLaravelLogin($email, $password);
+                if ($result['success']) {
+                    if (!empty($result['needs_2fa'])) {
+                        return redirect()->route('2fa.challenge');
+                    }
+                    return response()->view('auth.login-complete', [
+                        'customToken' => $result['token'],
+                        'firebaseConfig' => [
+                            'apiKey' => config('firebase.frontend.api_key'),
+                            'authDomain' => config('firebase.frontend.auth_domain'),
+                            'databaseURL' => config('firebase.frontend.database_url'),
+                            'projectId' => config('firebase.frontend.project_id'),
+                            'storageBucket' => config('firebase.frontend.storage_bucket'),
+                            'messagingSenderId' => config('firebase.frontend.messaging_sender_id'),
+                            'appId' => config('firebase.frontend.app_id'),
+                        ],
+                        'chatUrl' => route('chat'),
+                    ]);
                 }
-                return response()->view('auth.login-complete', [
-                    'customToken' => $result['token'],
-                    'firebaseConfig' => [
-                        'apiKey' => config('firebase.frontend.api_key'),
-                        'authDomain' => config('firebase.frontend.auth_domain'),
-                        'databaseURL' => config('firebase.frontend.database_url'),
-                        'projectId' => config('firebase.frontend.project_id'),
-                        'storageBucket' => config('firebase.frontend.storage_bucket'),
-                        'messagingSenderId' => config('firebase.frontend.messaging_sender_id'),
-                        'appId' => config('firebase.frontend.app_id'),
-                    ],
-                    'chatUrl' => route('chat'),
-                ]);
+                if ($result['json_error']) {
+                    return $result['json_error'];
+                }
+                return redirect()->route('login')->withErrors(['email' => $result['message'] ?? 'Invalid credentials.'])->withInput($request->only('email'));
             }
-            if ($result['json_error']) {
-                return $result['json_error'];
-            }
-            return redirect()->route('login')->withErrors(['email' => $result['message'] ?? 'Invalid credentials.'])->withInput($request->only('email'));
-        }
 
-        return response()->json(['message' => 'Firebase token is required'], 400);
+            return response()->json(['message' => 'Firebase token is required'], 400);
+        } catch (\Throwable $e) {
+            Log::error('Login failed', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'A server error occurred during login. Please try again or contact support.'], 500);
+            }
+            return redirect()->route('login')
+                ->withErrors(['email' => 'A server error occurred. Please try again or contact support.'])
+                ->withInput($request->only('email'));
+        }
     }
 
     /**
