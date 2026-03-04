@@ -66,9 +66,19 @@ Route::post('oauth/token', [AccessTokenController::class, 'issueToken']);
         /* User Websites (verification) */
         Route::post('/websites', [App\Http\Controllers\API\WebsiteController::class, 'index']);
         Route::post('/websites/store', [App\Http\Controllers\API\WebsiteController::class, 'store']);
+        Route::post('/websites/check-domain', [App\Http\Controllers\API\WebsiteController::class, 'checkDomain']);
+        Route::post('/websites/request-representation', [App\Http\Controllers\API\WebsiteController::class, 'requestRepresentation']);
+        Route::post('/websites/authorized-users', [App\Http\Controllers\API\WebsiteController::class, 'authorizedUsers']);
         Route::post('/websites/{id}/verify', [App\Http\Controllers\API\WebsiteController::class, 'verify']);
+        Route::post('/websites/representation/{id}/approve', [App\Http\Controllers\API\WebsiteController::class, 'approveRepresentation']);
+        Route::post('/websites/representation/{id}/deny', [App\Http\Controllers\API\WebsiteController::class, 'denyRepresentation']);
         Route::delete('/websites/{id}', [App\Http\Controllers\API\WebsiteController::class, 'destroy']);
+        Route::delete('/websites/{websiteId}/representative/{userId}', [App\Http\Controllers\API\WebsiteController::class, 'removeRepresentative']);
         Route::post('/websites/reorder', [App\Http\Controllers\API\WebsiteController::class, 'reorder']);
+
+        /* Social Account Verification (OAuth) */
+        Route::post('/social-accounts', [App\Http\Controllers\API\SocialAccountController::class, 'index']);
+        Route::delete('/social-accounts/{id}', [App\Http\Controllers\API\SocialAccountController::class, 'disconnect']);
 
         // Add any other protected routes here
 

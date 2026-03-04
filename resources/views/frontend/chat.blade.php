@@ -379,7 +379,7 @@
                             <div class="message-content bg-transparent p-0">
                                 <div class="message-audio">
                                     <audio controls>
-                                        <source src="assets/img/audio/audio.mp3" type="audio/mpeg">
+                                        <source src="assets/sounds/notification_sound.mp3" type="audio/mpeg">
                                         Your browser does not support the audio element.
                                     </audio>
                                 </div>
@@ -1208,7 +1208,7 @@
                                         <span
                                             class="call-span border border-2 border-primary d-flex justify-content-center align-items-center rounded">
                                             <span class="avatar avatar-xxl bg-soft-primary rounded-circle p-2">
-                                                <img src="assets/img/profiles/avatar-17.jpg" class="rounded-circle"
+                                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
                                                     alt="user">
                                             </span>
                                         </span>
@@ -1452,7 +1452,7 @@
                             <div class="row">
                                 <div class="col-md-12">
                                     <div class="video-call-view br-8 overflow-hidden position-relative">
-                                        <img src="assets/img/video/video-member-01.jpg" alt="user-image">
+                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                                         <div class="mini-video-view active br-8 overflow-hidden position-absolute">
                                             <img src="assets/img/video/user-image.jpg" alt="">
                                             <div
@@ -1470,22 +1470,22 @@
                             <div class="row row-gap-4">
                                 <div class="col-md-6 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/video/video-member-02.jpg" alt="user-image">
+                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                                     </div>
                                 </div>
                                 <div class="col-md-6 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/video/video-member-03.jpg" alt="user-image">
+                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/video/video-member-05.jpg" alt="user-image">
+                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/video/video-member-04.jpg" alt="user-image">
+                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">

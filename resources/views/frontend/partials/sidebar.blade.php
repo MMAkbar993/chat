@@ -300,9 +300,7 @@
                                     <div class="header-title d-flex align-items-center justify-content-between">
                                         <h4 class="mb-3">{{ __('Group') }}</h4>
                                         <div class="d-flex align-items-center mb-3">
-                                            <a href="javascript:void(0);" data-bs-toggle="modal"
-                                                data-bs-target="#new-group"
-                                                class="add-icon btn btn-primary p-0 d-flex align-items-center justify-content-center fs-16 me-2"><i
+                                            <a href="{{ route('group-chat') }}" id="group-add-btn" class="add-icon btn btn-primary p-0 d-flex align-items-center justify-content-center fs-16 me-2" title="{{ __('New Group') }}"><i
                                                     class="ti ti-plus"></i></a>
                                         </div>
                                     </div>
@@ -581,6 +579,19 @@
                                         </div>
                                     </div>
                                     <!-- /Social Media -->
+
+                                    <!-- Authorized Users (Company Admin) -->
+                                    <h5 class="mb-2">{{ __('Authorized Users') }}</h5>
+                                    <div class="card" id="authorized-users-card">
+                                        <div class="card-body">
+                                            <p class="text-muted fs-14" id="authorized-users-placeholder">{{ __('Manage representation requests for your verified websites.') }}</p>
+                                            <div id="authorized-users-content" style="display: none;">
+                                                <div id="pending-requests-list"></div>
+                                                <div id="authorized-representatives-list" class="mt-3"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- /Authorized Users -->
 
                                     <!-- Deactivate -->
                                     <h5 class="mb-2">{{ __('Deactivate') }} </h5>
@@ -946,6 +957,18 @@
                                                                         <div class="col-lg-12">
                                                                             <div
                                                                                 class="input-icon mb-3 position-relative">
+                                                                                <input type="url" value=""
+                                                                                    class="form-control"
+                                                                                    placeholder="{{ __('Website')}} (https://...)"
+                                                                                    id="website_link">
+                                                                                <span class="icon-addon">
+                                                                                    <i class="ti ti-globe"></i>
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="col-lg-12">
+                                                                            <div
+                                                                                class="input-icon mb-3 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Facebook')}}"
@@ -1175,7 +1198,7 @@
                                                                     <p class="text-muted fs-14">{{ __('Add an extra layer of security using an authenticator app (Google Authenticator, Authy, etc).') }}</p>
                                                                 </div>
                                                                 <a href="{{ route('2fa.setup') }}" class="btn btn-primary w-100">
-                                                                    <i class="ti ti-shield-check me-1"></i>{{ __('Set Up 2FA') }}
+                                                                    <i class="ti ti-shield-check me-1"></i>{{ __('Connect') }}
                                                                 </a>
                                                                 @endif
                                                             </div>
@@ -1199,141 +1222,6 @@
                                                 <div class="accordion accordion-flush chat-accordion"
                                                     id="chat-setting">
                                                     <div class="border-0 profile-list mb-3">
-                                                        <div class="accordion-item border-0 ">
-                                                            <h2 class="accordion-header border-0">
-                                                                <a href="#"
-                                                                    class="accordion-button border-0 collapsed"
-                                                                    data-bs-toggle="collapse"
-                                                                    data-bs-target="#chatuser-collapse4"
-                                                                    aria-expanded="true"
-                                                                    aria-controls="chatuser-collapse4">
-                                                                    <i class="ti ti-photo me-2"></i>{{ __('Background Images') }}
-                                                                </a>
-                                                            </h2>
-                                                            <div id="chatuser-collapse4"
-                                                                class="accordion-collapse border-0 collapse "
-                                                                data-bs-parent="#chat-setting">
-                                                                <div class="accordion-body border-0 pb-0">
-                                                                    <div class="chat-user-photo">
-                                                                        <div class="chat-img contact-gallery mb-3"
-                                                                            id="image-gallery">
-                                                                            <div class="img-wrap"
-                                                                                data-image="assets/img/gallery/gallery-01.jpg">
-                                                                                <img src="assets/img/gallery/gallery-01.jpg"
-                                                                                    alt="Background 1">
-                                                                                <div class="img-overlay-1">
-                                                                                    <span
-                                                                                        class="check-icon avatar avatar-md d-flex justify-content-center align-items-center">
-                                                                                        <i
-                                                                                            class="ti ti-check d-flex justify-content-center align-items-center"></i>
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div class="img-wrap"
-                                                                                data-image="assets/img/gallery/gallery-02.jpg">
-                                                                                <img src="assets/img/gallery/gallery-02.jpg"
-                                                                                    alt="Background 2">
-                                                                                <div class="img-overlay-1">
-                                                                                    <span
-                                                                                        class="check-icon avatar avatar-md d-flex justify-content-center align-items-center">
-                                                                                        <i
-                                                                                            class="ti ti-check d-flex justify-content-center align-items-center"></i>
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div class="img-wrap"
-                                                                                data-image="assets/img/gallery/gallery-03.jpg">
-                                                                                <img src="assets/img/gallery/gallery-03.jpg"
-                                                                                    alt="Background 3">
-                                                                                <div class="img-overlay-1">
-                                                                                    <span
-                                                                                        class="check-icon avatar avatar-md d-flex justify-content-center align-items-center">
-                                                                                        <i
-                                                                                            class="ti ti-check d-flex justify-content-center align-items-center"></i>
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div class="img-wrap"
-                                                                                data-image="assets/img/gallery/gallery-04.jpg">
-                                                                                <img src="assets/img/gallery/gallery-04.jpg"
-                                                                                    alt="Background 4">
-                                                                                <div class="img-overlay-1">
-                                                                                    <span
-                                                                                        class="check-icon avatar avatar-md d-flex justify-content-center align-items-center">
-                                                                                        <i
-                                                                                            class="ti ti-check d-flex justify-content-center align-items-center"></i>
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div class="img-wrap"
-                                                                                data-image="assets/img/gallery/gallery-05.jpg">
-                                                                                <img src="assets/img/gallery/gallery-05.jpg"
-                                                                                    alt="Background 5">
-                                                                                <div class="img-overlay-1">
-                                                                                    <span
-                                                                                        class="check-icon avatar avatar-md d-flex justify-content-center align-items-center">
-                                                                                        <i
-                                                                                            class="ti ti-check d-flex justify-content-center align-items-center"></i>
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div class="img-wrap"
-                                                                                data-image="assets/img/gallery/gallery-06.jpg">
-                                                                                <img src="assets/img/gallery/gallery-06.jpg"
-                                                                                    alt="Background 6">
-                                                                                <div class="img-overlay-1">
-                                                                                    <span
-                                                                                        class="check-icon avatar avatar-md d-flex justify-content-center align-items-center">
-                                                                                        <i
-                                                                                            class="ti ti-check d-flex justify-content-center align-items-center"></i>
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div class="img-wrap"
-                                                                                data-image="assets/img/gallery/gallery-07.jpg">
-                                                                                <img src="assets/img/gallery/gallery-07.jpg"
-                                                                                    alt="Background 7">
-                                                                                <div class="img-overlay-1">
-                                                                                    <span
-                                                                                        class="check-icon avatar avatar-md d-flex justify-content-center align-items-center">
-                                                                                        <i
-                                                                                            class="ti ti-check d-flex justify-content-center align-items-center"></i>
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div class="img-wrap"
-                                                                                data-image="assets/img/gallery/gallery-08.jpg">
-                                                                                <img src="assets/img/gallery/gallery-08.jpg"
-                                                                                    alt="Background 8">
-                                                                                <div class="img-overlay-1">
-                                                                                    <span
-                                                                                        class="check-icon avatar avatar-md d-flex justify-content-center align-items-center">
-                                                                                        <i
-                                                                                            class="ti ti-check d-flex justify-content-center align-items-center"></i>
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="col-lg-12 d-flex">
-                                                                            <a href="#"
-                                                                                class="btn btn-primary flex-fill mb-3"
-                                                                                id="image-save-button">
-                                                                                <i
-                                                                                    class="ti ti-device-floppy me-2"></i>{{ __('Save Changes') }}
-                                                                            </a>
-                                                                        </div>
-                                                                        <div class="col-lg-12 d-flex">
-                                                                            <a href="#"
-                                                                                class="btn btn-primary flex-fill mb-3"
-                                                                                id="remove-background-button">
-                                                                                <i
-                                                                                    class="ti ti-device-floppy me-2"></i>{{ __('Remove Background Image') }}
-                                                                            </a>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
                                                     </div>
 
                                                 </div>
@@ -1445,7 +1333,8 @@
                                                         <div id="terms" class="accordion-collapse collapse"
                                                             data-bs-parent="#other-term">
                                                             <div class="accordion-body p-0 pt-3">
-                                                                <textarea class="form-control" id="TermsText"></textarea>
+                                                                <p class="text-muted small mb-1">{{ __('For your reference. Set by the site administrator.') }}</p>
+                                                                <textarea class="form-control" id="TermsText" readonly rows="6" placeholder="{{ __('Terms are set by the site administrator.')}}"></textarea>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1464,7 +1353,8 @@
                                                         <div id="privacy" class="accordion-collapse collapse"
                                                             data-bs-parent="#other-policy">
                                                             <div class="accordion-body p-0 pt-3">
-                                                                <textarea class="form-control" id="privacyPolicyText"></textarea>
+                                                                <p class="text-muted small mb-1">{{ __('For your reference. Set by the site administrator.') }}</p>
+                                                                <textarea class="form-control" id="privacyPolicyText" readonly rows="6" placeholder="{{ __('Privacy policy is set by the site administrator.')}}"></textarea>
                                                             </div>
                                                         </div>
                                                     </div>

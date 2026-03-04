@@ -129,17 +129,19 @@ function applySavedBackground(userId) {
     });
 }
 
-// Background Image
-document.getElementById('image-gallery').addEventListener('click', function (event) {
-    const target = event.target.closest('.img-wrap');
-    if (target) {
-        const imageUrl = target.getAttribute('data-image');
-        selectBackground(imageUrl, target); // Call to select background
-    }
-});
-
-// Background Image
-document.getElementById('image-save-button').addEventListener('click', saveBackground);
+// Background Image (removed from UI - keep handlers for backwards compatibility)
+const imageGallery = document.getElementById('image-gallery');
+if (imageGallery) {
+    imageGallery.addEventListener('click', function (event) {
+        const target = event.target.closest('.img-wrap');
+        if (target) {
+            const imageUrl = target.getAttribute('data-image');
+            selectBackground(imageUrl, target);
+        }
+    });
+}
+const imageSaveBtn = document.getElementById('image-save-button');
+if (imageSaveBtn) imageSaveBtn.addEventListener('click', saveBackground);
 
 // Background Image
 
@@ -199,8 +201,8 @@ document.getElementById('image-save-button').addEventListener('click', saveBackg
 }
 
  
- // Add an event listener to the "Remove Background" button
- document.getElementById('remove-background-button').addEventListener('click', removeBackground);
+ const removeBgBtn = document.getElementById('remove-background-button');
+ if (removeBgBtn) removeBgBtn.addEventListener('click', removeBackground);
 
 // Load language file
 function loadLanguage(language) {

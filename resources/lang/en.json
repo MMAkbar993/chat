@@ -194,5 +194,13 @@
     "Please confirm by checking the box above.": "Please confirm by checking the box above.",
     "block": "Block Users",
     "unblock": "Unblock Users",
-    "Clearing or deleting entire chats will only remove messages from this device and your devices on the newer versions of DreamsChat." : "Clearing or deleting entire chats will only remove messages from this device and your devices on the newer versions of DreamsChat."
+    "Clearing or deleting entire chats will only remove messages from this device and your devices on the newer versions of DreamsChat." : "Clearing or deleting entire chats will only remove messages from this device and your devices on the newer versions of DreamsChat.",
+    "Search by Username": "Search by Username",
+    "Type username to search...": "Type username to search...",
+    "Or add by email and phone:": "Or add by email and phone:",
+    "Website": "Website",
+    "Connect": "Connect",
+    "Terms are set by the site administrator.": "Terms are set by the site administrator.",
+    "Privacy policy is set by the site administrator.": "Privacy policy is set by the site administrator.",
+    "For your reference. Set by the site administrator.": "For your reference. Set by the site administrator."
 }

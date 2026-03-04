@@ -47,5 +47,22 @@ return [
         'redirect' => env('FACEBOOK_REDIRECT_URI'),
     ],
 
+    'twitter' => [
+        'client_id' => env('TWITTER_CLIENT_ID'),
+        'client_secret' => env('TWITTER_CLIENT_SECRET'),
+        'redirect' => env('TWITTER_REDIRECT_URI'),
+    ],
+
+    'twitch' => [
+        'client_id' => env('TWITCH_CLIENT_ID'),
+        'client_secret' => env('TWITCH_CLIENT_SECRET'),
+        'redirect' => env('TWITCH_REDIRECT_URI'),
+    ],
+
+    'kick' => [
+        'client_id' => env('KICK_CLIENT_ID'),
+        'client_secret' => env('KICK_CLIENT_SECRET'),
+        'redirect' => env('KICK_REDIRECT_URI'),
+    ],
 
 ];

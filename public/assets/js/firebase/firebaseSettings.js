@@ -107,7 +107,7 @@ function deleteUserAccount() {
             duration: 3000,
             gravity: "top",
             position: "right",
-            backgroundColor: "#dc3545",
+            style: { background: "#dc3545" },
         }).showToast();
         return;
     }
@@ -127,7 +127,7 @@ function deleteUserAccount() {
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#28a745",
+                style: { background: "#28a745" },
             }).showToast();
 
             // Reference to the user in your Firebase Realtime Database
@@ -142,7 +142,7 @@ function deleteUserAccount() {
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#28a745",
+                style: { background: "#28a745" },
             }).showToast();
 
             // Now delete the user from Firebase Authentication
@@ -154,7 +154,7 @@ function deleteUserAccount() {
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#28a745",
+                style: { background: "#28a745" },
             }).showToast();
 
             // Redirect to the login page
@@ -227,7 +227,7 @@ function handleAccountDeactivation(isDeactivated) {
                 duration: 3000, // Duration in milliseconds
                 gravity: "top", // Positioning: top or bottom
                 position: "right", // Positioning: left, center, or right
-                backgroundColor: isDeactivated ? "#FF5733" : "#28a745", // Different colors for deactivation/reactivation
+                style: { background: isDeactivated ? "#FF5733" : "#28a745" }, // Different colors for deactivation/reactivation
                 className: "toast-message", // Optional: add a class for custom styling
             }).showToast();
 
@@ -268,34 +268,27 @@ SettinglogoutButton.addEventListener("click", function(event) {
 
 
 function logoutUser() {
-if (auth.currentUser) {
-    const userId = auth.currentUser.uid;
-    const userStatusRef = ref(database, `data/users/${userId}/online`);
-    const lastSeenRef = ref(database, `data/users/${userId}/lastSeen`); // Reference to last seen
-    // const deviceInfoRef = ref(database, `data/users/${userId}/device_info`); // Reference to device_info
-
-    // Set the status to offline before logging out
-    set(userStatusRef, 'false').then(() => {
-        // Once the status is set to offline, update the lastSeen timestamp
-        return set(lastSeenRef, Date.now());
-    // }).then(() => {
-    //     // Remove the device_info node
-    //     return remove(deviceInfoRef);
-    }).then(() => {
-        // After lastSeen is updated, log the user out from Firebase
-        return auth.signOut(); // Sign out from Firebase
-    }).then(() => {
-        // Redirect to the login page after successful logout
-        window.location.href = "/login";
-    }).catch((error) => {
-       
-        // Optionally, redirect to the login page in case of an error
-        window.location.href = "/login";
-    });
-} else {
-    // No user logged in, redirect directly to logout
-    window.location.href = "/login";;
-}
+    const doRedirect = () => { window.location.href = "/login"; };
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    const doServerLogout = () => {
+        return fetch('/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken || '', 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        }).catch(() => {});
+    };
+    if (auth.currentUser) {
+        const userId = auth.currentUser.uid;
+        const userStatusRef = ref(database, `data/users/${userId}/online`);
+        const lastSeenRef = ref(database, `data/users/${userId}/lastSeen`);
+        set(userStatusRef, 'false').then(() => set(lastSeenRef, Date.now())).catch(() => {})
+            .then(() => auth.signOut())
+            .then(() => doServerLogout())
+            .then(() => doRedirect())
+            .catch(() => doRedirect());
+    } else {
+        doServerLogout().then(() => doRedirect());
+    }
 }
 
 // Device Management
@@ -312,7 +305,7 @@ function removeDevice(deviceId, element) {
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                style: { background: "#28a745" }, // Use style instead of backgroundColor
+                style: { background: "#28a745" },
             }).showToast();
         
             window.location.href = '/';
@@ -427,7 +420,7 @@ function logoutFromAllDevices() {
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#28a745",
+                style: { background: "#28a745" },
             }).showToast();
             const auth = getAuth(); // Get the Auth instance
             return signOut(auth); // Sign out from Firebase Auth
@@ -438,7 +431,7 @@ function logoutFromAllDevices() {
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#28a745",
+                style: { background: "#28a745" },
             }).showToast();
             // Redirect to the login page using the APP_URL variable
             window.location.href = "/login"; // Redirect
@@ -586,7 +579,7 @@ function unblockUser(currentUserId, blockedUserId) {
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#28a745",
+                style: { background: "#28a745" },
             }).showToast();
            
             // Optionally remove the user from the DOM immediately
@@ -682,7 +675,15 @@ function fetchUserDetails(userId) {
                 document.getElementById('user_name').value = user.username || '';
                 document.getElementById('uid').value = user.uid || '';
 
+                // Set profile image in Settings form and everywhere
+                const profileImageUrl = user.image || user.profile_image || user.photoURL || '';
+                if (profileImageUrl) {
+                    const profileImgEl = document.getElementById('profileImage');
+                    if (profileImgEl && profileImgEl.tagName === 'IMG') profileImgEl.src = profileImageUrl;
+                }
 
+                const websiteLinkEl = document.getElementById('website_link');
+                if (websiteLinkEl) websiteLinkEl.value = user.website_link || user.website || '';
                 document.getElementById('facebook_link').value = user.facebook_link || '';
                 document.getElementById('instagram_link').value = user.instagram_link || '';
                 document.getElementById('twitter_link').value = user.twitter_link || '';
@@ -690,6 +691,11 @@ function fetchUserDetails(userId) {
                 document.getElementById('youtube_link').value = user.youtube_link || '';
                 document.getElementById('kick_link').value = user.kick_link || '';
                 document.getElementById('twitch_link').value = user.twitch_link || '';
+
+                // Update sidebar profile panel so it doesn't stay "Loading"
+                if (typeof displayUserDetails === 'function') {
+                    try { displayUserDetails(user); } catch (e) {}
+                }
 
                 var roleSelect = document.getElementById('primary_role');
                 if (roleSelect && user.primary_role) {
@@ -814,15 +820,25 @@ function fetchUserDetails(userId) {
 
 // Display Details
 function displayUserDetails(user) {
-    document.getElementById('profile-name').innerText = user.username || "No Name";
-    document.getElementById('profile-info-name').innerText = user.firstName + ' ' + user.lastName || "No Name";
-    document.getElementById('profile-info-chat-name').innerText = user.firstName + ' ' + user.lastName || "No Name";
-    document.getElementById('profile-info-email').innerText = user.email || "No Email";
-    document.getElementById('profile-info-phone').innerText = user.mobile_number || "No Phone";
-    document.getElementById('profile-info-country').innerText = user.country || "No Country";
-    document.getElementById('profile-info-about').innerText = user.about || "No Bio";
-    document.getElementById('profile-info-bio').innerText = user.about || "No Bio";
-    document.getElementById('profile-info-gender').innerText = user.gender || "No Gender";
+    if (!user || typeof user !== 'object') return;
+    const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = text || '-'; };
+    // Support common Firebase keys for profile image
+    const imageUrl = user.image || user.profile_image || user.photoURL || user.profileImage || '';
+    const setImg = (id, src) => {
+        const el = document.getElementById(id);
+        if (el && el.tagName === 'IMG') {
+            el.src = (src || imageUrl) || 'assets/img/profiles/avatar-03.jpg';
+        }
+    };
+    setText('profile-name', user.username || user.firstName + ' ' + (user.lastName || ''));
+    setText('profile-info-name', (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
+    setText('profile-info-chat-name', (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
+    setText('profile-info-email', user.email || 'No Email');
+    setText('profile-info-phone', user.mobile_number || 'No Phone');
+    setText('profile-info-country', user.country || 'No Country');
+    setText('profile-info-about', user.about || 'No Bio');
+    setText('profile-info-bio', user.about || 'No Bio');
+    setText('profile-info-gender', user.gender || 'No Gender');
 
     var roleEl = document.getElementById('profile-info-role');
     if (roleEl) {
@@ -835,36 +851,17 @@ function displayUserDetails(user) {
         }
         roleEl.innerText = roleLabel || 'Not set';
     }
-    document.getElementById('profile-info-youtube').innerText = user.youtube_link || "No youtube link";
-    document.getElementById('profile-info-linkedin').innerText = user.linkedin_link || "No linkedin link";
-    document.getElementById('profile-info-twitter').innerText = user.twitter_link || "No twitter link";
-    document.getElementById('profile-info-google').innerText = user.google_link || "No google link";
-    document.getElementById('profile-info-facebook').innerText = user.facebook_link || "No facebook link";
-    document.getElementById('profileImage').innerText = user.image || "No Profile image";
-    document.getElementById('profileImageProfile').innerText = user.image || "No Profile image";
-    document.getElementById('profileImageChat').innerText = user.image || "No Profile image";
-    document.getElementById('ProfileImageSidebar').innerText = user.image || "No Profile image";
+    setText('profile-info-youtube', user.youtube_link || 'No youtube link');
+    setText('profile-info-linkedin', user.linkedin_link || 'No linkedin link');
+    setText('profile-info-twitter', user.twitter_link || 'No twitter link');
+    setText('profile-info-google', user.google_link || 'No google link');
+    setText('profile-info-facebook', user.facebook_link || 'No facebook link');
     displayJoinDate(user.timestamp);
-    if (user.image) {
-        document.getElementById('profileImage').src = user.image; // Set the profile image URL
-    } else {
-        document.getElementById('profileImage').src = 'assets/img/profiles/avatar-03.jpg'; // Optional: set a default image
-    }
-    if (user.image) {
-        document.getElementById('profileImageProfile').src = user.image; // Set the profile image URL
-    } else {
-        document.getElementById('profileImageProfile').src = 'assets/img/profiles/avatar-03.jpg'; // Optional: set a default image
-    }
-    if (user.image) {
-        document.getElementById('profileImageChat').src = user.image; // Set the profile image URL
-    } else {
-        document.getElementById('profileImageChat').src = 'assets/img/profiles/avatar-03.jpg'; // Optional: set a default image
-    }
-    if (user.image) {
-        document.getElementById('ProfileImageSidebar').src = user.image; // Set the profile image URL
-    } else {
-        document.getElementById('ProfileImageSidebar').src = 'assets/img/profiles/avatar-03.jpg'; // Optional: set a default image
-    }
+    // Set profile image src (do not use innerText on img elements) - use imageUrl so all avatars update
+    setImg('profileImage', imageUrl);
+    setImg('profileImageProfile', imageUrl);
+    setImg('profileImageChat', imageUrl);
+    setImg('ProfileImageSidebar', imageUrl);
     // Add other fields as needed
 }
 
@@ -899,7 +896,7 @@ if(currentUserId == "qvs0EBUDnRPIQFlWnki62Rrh2w32" || currentUserId == "TKVRtzXc
         duration: 3000,
         gravity: 'top',
         position: 'right',
-        backgroundColor: '#ffc107',
+        style: { background: '#ffc107' },
     }).showToast();
     return;
 }
@@ -1005,6 +1002,8 @@ if(currentUserId == "qvs0EBUDnRPIQFlWnki62Rrh2w32" || currentUserId == "TKVRtzXc
     const primaryRole = document.getElementById('primary_role')?.value || '';
     const otherRoleText = document.getElementById('other_role_text')?.value?.trim() || '';
 
+    const websiteLinkEl = document.getElementById('website_link');
+    const websiteLink = websiteLinkEl ? websiteLinkEl.value.trim() : '';
     const userData = {
         gender: gender,
         dob: dob,
@@ -1016,6 +1015,7 @@ if(currentUserId == "qvs0EBUDnRPIQFlWnki62Rrh2w32" || currentUserId == "TKVRtzXc
         primary_role: primaryRole,
         other_role_text: primaryRole === 'other' ? otherRoleText : '',
     };
+    if (websiteLink) userData.website_link = websiteLink;
 
     if (typeof IS_KYC_VERIFIED === 'undefined' || !IS_KYC_VERIFIED) {
         userData.firstName = capitalizeFirstLetter(firstName);
@@ -1038,8 +1038,15 @@ if(currentUserId == "qvs0EBUDnRPIQFlWnki62Rrh2w32" || currentUserId == "TKVRtzXc
                 duration: 3000,
                 gravity: 'top',
                 position: 'right',
-                backgroundColor: '#28a745',
+                style: { background: '#28a745' },
             }).showToast();
+
+            // Refresh the Profile tab / sidebar so it shows the updated info
+            get(userRef).then(snap => {
+                if (snap.exists() && typeof displayUserDetails === 'function') {
+                    displayUserDetails(snap.val());
+                }
+            }).catch(() => {});
 
             // If an image is selected, upload it to storage
             if (selectedImage) {
@@ -1091,7 +1098,22 @@ function uploadProfileImage(file, userId) {
                 '/image'); // Use dbRef to refer to the database
                 set(userImageRef, downloadURL) // Save the image URL to the user's profile
                     .then(() => {
-                       
+                        // Refresh the Profile tab / sidebar immediately so the new pic shows
+                        const userRef = ref(database, 'data/users/' + userId);
+                        get(userRef).then(snap => {
+                            if (snap.exists() && typeof displayUserDetails === 'function') {
+                                displayUserDetails(snap.val());
+                            }
+                        }).catch(() => {});
+
+                        Toastify({
+                            text: 'Profile photo updated.',
+                            duration: 3000,
+                            gravity: 'top',
+                            position: 'right',
+                            style: { background: '#28a745' },
+                        }).showToast();
+
                         window.location.reload();
                     })
                     .catch((error) => {
@@ -1114,7 +1136,7 @@ document.getElementById('imageUpload').addEventListener('change', function(event
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#dc3545", // Error color
+                style: { background: "#dc3545" }, // Error color
             }).showToast();
             return;
         }
@@ -1160,8 +1182,15 @@ document.getElementById('saveSocialLinksBtn').addEventListener('click', function
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#28a745",
+                style: { background: "#28a745" },
             }).showToast();
+
+            // Refresh the Profile tab so it shows the updated social links
+            get(userRef).then(snap => {
+                if (snap.exists() && typeof displayUserDetails === 'function') {
+                    displayUserDetails(snap.val());
+                }
+            }).catch(() => {});
         })
         .catch((error) => {
         });
@@ -1250,7 +1279,7 @@ document.getElementById('saveProfileInfoBtn').addEventListener('click', async fu
             duration: 3000,
             gravity: "top",
             position: "right",
-            backgroundColor: "#dc3545", // Error color
+            style: { background: "#dc3545" }, // Error color
         }).showToast();
         return;
     }
@@ -1270,7 +1299,7 @@ document.getElementById('saveProfileInfoBtn').addEventListener('click', async fu
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#28a745",
+                style: { background: "#28a745" },
             }).showToast();
         } 
     } catch (error) {
@@ -1353,7 +1382,7 @@ document.getElementById('saveLastSeenBtn').addEventListener('click', async funct
             duration: 3000,
             gravity: "top",
             position: "right",
-            backgroundColor: "#dc3545", // Error color
+            style: { background: "#dc3545" }, // Error color
         }).showToast();
         return;
     }
@@ -1373,7 +1402,7 @@ document.getElementById('saveLastSeenBtn').addEventListener('click', async funct
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#28a745",
+                style: { background: "#28a745" },
             }).showToast();
         } 
     } catch (error) {
@@ -1468,7 +1497,7 @@ document.getElementById('saveStatusBtn').addEventListener('click', async functio
             duration: 3000,
             gravity: "top",
             position: "right",
-            backgroundColor: "#dc3545", // Error color
+            style: { background: "#dc3545" }, // Error color
         }).showToast();
         return;
     }
@@ -1493,7 +1522,7 @@ document.getElementById('saveStatusBtn').addEventListener('click', async functio
                 duration: 3000,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#28a745",
+                style: { background: "#28a745" },
             }).showToast();
            
         } 
@@ -1545,6 +1574,7 @@ let isMessageNotificationSoundEnabled = false;
 
 
 // Load saved state from localStorage and set the switch accordingly
+if (messagenotificationSoundSwitch) {
 window.addEventListener('load', function() {
     const savedSetting = localStorage.getItem('messageNotificationSound');
     if (savedSetting === 'enabled') {
@@ -1555,8 +1585,10 @@ window.addEventListener('load', function() {
         messagenotificationSoundSwitch.checked = false; // Set the switch to disabled
     }
 });
+}
 
 // Event listener for the sound toggle switch
+if (messagenotificationSoundSwitch) {
 messagenotificationSoundSwitch.addEventListener('change', function() {
     isMessageNotificationSoundEnabled = this.checked;
     
@@ -1568,7 +1600,7 @@ messagenotificationSoundSwitch.addEventListener('change', function() {
             duration: 3000,
             gravity: "top",
             position: "right",
-            backgroundColor: "#28a745",
+            style: { background: "#28a745" },
         }).showToast();
     } else {
         Toastify({
@@ -1576,12 +1608,13 @@ messagenotificationSoundSwitch.addEventListener('change', function() {
             duration: 3000,
             gravity: "top",
             position: "right",
-            backgroundColor: "#dc3545",
+            style: { background: "#dc3545" },
         }).showToast();
         localStorage.setItem('messageNotificationSound', 'disabled');
     }
    
 });
+}
 
 // Play the message sent sound (to be called from chat.js)
 function playMessageSentSound() {
@@ -1601,6 +1634,28 @@ function playMessageReceivedSound() {
     }
 }
 
+// Enable Notifications button - request browser permission
+const notificationButton = document.getElementById('notificationButton');
+if (notificationButton) {
+    notificationButton.addEventListener('click', function () {
+        if (!('Notification' in window)) {
+            Toastify({ text: 'This browser does not support notifications.', duration: 3000, gravity: 'top', position: 'right', style: { background: '#dc3545' } } ).showToast();
+            return;
+        }
+        if (Notification.permission === 'granted') {
+            Toastify({ text: 'Notifications are already enabled.', duration: 3000, gravity: 'top', position: 'right', style: { background: '#28a745' } } ).showToast();
+            return;
+        }
+        Notification.requestPermission().then(function (permission) {
+            if (permission === 'granted') {
+                Toastify({ text: 'Notifications enabled.', duration: 3000, gravity: 'top', position: 'right', style: { background: '#28a745' } } ).showToast();
+            } else {
+                Toastify({ text: 'Notification permission denied.', duration: 3000, gravity: 'top', position: 'right', style: { background: '#ffc107' } } ).showToast();
+            }
+        });
+    });
+}
+
 function decryptMessage(encryptedText, secretKey) {
     const bytes = CryptoJS.AES.decrypt(encryptedText, secretKey);
     return bytes.toString(CryptoJS.enc.Utf8); // Return the decrypted message
@@ -1615,6 +1670,7 @@ const notificationSound = new Audio('assets/sounds/notification_sound.mp3');
 const notificationSoundSwitch = document.getElementById('notificationSoundSwitch');
 let isNotificationSoundEnabled = false;
 
+if (notificationSoundSwitch) {
 window.addEventListener('load', function() {
     const savedSetting = localStorage.getItem('NotificationSound');
     if (savedSetting === 'enabled') {
@@ -1636,7 +1692,7 @@ notificationSoundSwitch.addEventListener('change', function() {
             duration: 3000,
             gravity: "top",
             position: "right",
-            backgroundColor: "#28a745",
+            style: { background: "#28a745" },
         }).showToast();
     } else {
         Toastify({
@@ -1644,11 +1700,12 @@ notificationSoundSwitch.addEventListener('change', function() {
             duration: 3000,
             gravity: "top",
             position: "right",
-            backgroundColor: "#dc3545",
+            style: { background: "#dc3545" },
         }).showToast();
         localStorage.setItem('NotificationSound', 'disabled');
     }
 });
+}
 
 // Notification Sound
 function playNotificationSound() {

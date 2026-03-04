@@ -26,7 +26,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <form id="register-form" method="POST">
+                <form id="register-form" method="POST" action="javascript:void(0)" onsubmit="return false;">
                     @csrf
                     <div class="row">
                         <div class="col-md-6">

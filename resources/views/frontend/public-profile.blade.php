@@ -103,9 +103,24 @@
                         @foreach($websites as $website)
                             <div class="d-flex align-items-center mb-2">
                                 <i class="ti ti-circle-check text-success me-2"></i>
-                                <a href="{{ $website->url }}" target="_blank" rel="noopener">{{ $website->url }}</a>
+                                <a href="{{ $website->getDisplayUrl() }}" target="_blank" rel="noopener">{{ $website->getDisplayUrl() }}</a>
                             </div>
                         @endforeach
+                    </div>
+                    @endif
+
+                    @php $verifiedSocial = $user->socialAccounts ?? collect(); @endphp
+                    @if($verifiedSocial->count())
+                    <div class="card-body border-top">
+                        <h6 class="mb-3">Verified Social Accounts</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach($verifiedSocial as $account)
+                                <a href="{{ $account->profile_url ?? '#' }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                    <i class="ti ti-circle-check text-success me-1"></i>
+                                    {{ ucfirst($account->platform) }}: {{ $account->username ?? $account->platform }}
+                                </a>
+                            @endforeach
+                        </div>
                     </div>
                     @endif
 

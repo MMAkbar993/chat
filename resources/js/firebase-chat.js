@@ -279,7 +279,7 @@ messageElement.innerHTML = `
             </div>
         </div>
         <div class="chat-avatar">
-            <img src="assets/img/profiles/avatar-17.jpg" class="rounded-circle" alt="image">
+            <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
         </div>
     </div>
 `;

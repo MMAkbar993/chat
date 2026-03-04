@@ -26,7 +26,17 @@
                 </button>
             </div>
             <div class="modal-body">
-                <form id="register-form" method="POST">
+                <div class="mb-3">
+                    <label class="form-label">{{ __('Search by Username')}}</label>
+                    <div class="input-group">
+                        <input type="text" id="add-contact-username-search" class="form-control" placeholder="{{ __('Type username to search...')}}" minlength="2">
+                        <span class="input-group-text"><i class="ti ti-search"></i></span>
+                    </div>
+                    <div id="add-contact-search-results" class="mt-2" style="display:none; max-height:150px; overflow-y:auto;"></div>
+                </div>
+                <hr class="my-3">
+                <p class="text-muted small mb-2">{{ __('Or add by email and phone:')}}</p>
+                <form id="register-form" method="POST" action="javascript:void(0)" onsubmit="return false;">
                     @csrf
                     <div class="row">
                         <div class="col-md-6">
@@ -111,7 +121,7 @@
                                 aria-label="Close">{{ __('Cancel')}}</a>
                         </div>
                         <div class="col-6">
-                            <button type="submit" id="submit-contact-button" class="btn btn-primary w-100">{{ __('Add Contact')}}</button>
+                            <button type="button" id="submit-contact-button" class="btn btn-primary w-100">{{ __('Add Contact')}}</button>
                         </div>
                     </div>
                 </form>

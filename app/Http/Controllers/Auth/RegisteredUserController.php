@@ -199,7 +199,7 @@ class RegisteredUserController extends Controller
             'timestamp' => time(),
         ]);
 
-        Auth::login($user);
+        Auth::login($user, true);
         $user->last_login_at = now();
         $user->save();
 
@@ -519,14 +519,14 @@ protected function getUserDeviceInfo()
                 $user = User::where('email', $socialUser->getEmail())->first();
 
                 if ($user) {
-                    Auth::login($user);
+                    Auth::login($user, true);
                 } else {
                     $user = User::create([
                         'user_name' => $socialUser->getName(),
                         'email' => $socialUser->getEmail(),
                         'facebook_id' => $socialUser->getId(),
                     ]);
-                    Auth::login($user);
+                    Auth::login($user, true);
                 }
 
                 return redirect()->route('index')->with('success', 'Login successful!');
@@ -559,14 +559,14 @@ protected function getUserDeviceInfo()
                 $user = User::where('email', $socialUser->getEmail())->first();
 
                 if ($user) {
-                    Auth::login($user);
+                    Auth::login($user, true);
                 } else {
                     $user = User::create([
                         'user_name' => $socialUser->getName(),
                         'email' => $socialUser->getEmail(),
                         'google_id' => $socialUser->getId(),
                     ]);
-                    Auth::login($user);
+                    Auth::login($user, true);
                 }
 
                 return redirect()->route('index')->with('success', 'Login successful!');
@@ -583,25 +583,28 @@ protected function getUserDeviceInfo()
         try {
             $token = $request->session()->get('jwt_token');
 
-            if (!$token) {
-                return redirect()->back()->withErrors('Logout failed: No token provided.');
+            if ($token) {
+                $response = Http::withHeaders([
+                    'Authorization' => 'Bearer ' . $token,
+                    'Accept' => 'application/json',
+                ])->post(url('/api/logout'));
+                // Continue to flush session even if API call fails (user may not have JWT)
             }
 
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $token,
-                'Accept' => 'application/json',
-            ])->post(url('/api/logout'));
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
 
-            if ($response->successful()) {
-                $request->session()->flush();
-                return redirect()->route('signin')->with('success', 'Successfully logged out');
-            } else {
-                $errorMessage = $response->json()['message'] ?? 'Logout failed. Please try again.';
-                return redirect()->back()->withErrors($errorMessage);
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Successfully logged out']);
             }
+            return redirect()->route('login')->with('success', 'Successfully logged out');
         } catch (\Exception $exception) {
             Log::error('Logout Exception:', ['message' => $exception->getMessage()]);
-            return redirect()->back()->withErrors('Logout failed: ' . $exception->getMessage());
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Logout failed'], 500);
+            }
+            return redirect()->route('login')->withErrors('Logout failed. Please try again.');
         }
     }
 }

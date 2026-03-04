@@ -69,6 +69,7 @@ Route::get('login', [RegisteredUserController::class, 'login'])->name('login');
 Route::post('login', [RegisteredUserController::class, 'loginSubmit'])->name('login');
 Route::post('login/laravel', [RegisteredUserController::class, 'loginWithLaravel'])->name('login.laravel');
 Route::get('logout', [RegisteredUserController::class, 'logoutSubmit'])->name('logout')->middleware('auth');
+    Route::post('logout', [RegisteredUserController::class, 'logoutSubmit'])->name('logout.post')->middleware('auth');
 
 // Stripe payment
 Route::post('stripe/checkout', [StripeController::class, 'checkout'])->name('stripe.checkout');
@@ -133,6 +134,12 @@ Route::prefix('/facebook')->group(function () {
 Route::prefix('/google')->group(function () {
    Route::get('', [RegisteredUserController::class, 'redirectToGoogle'])->name('user.login.google');
    Route::get('/callback', [RegisteredUserController::class, 'handleGoogleCallback']);
+});
+
+// Social account verification (OAuth connect - requires auth)
+Route::middleware(['auth'])->prefix('connect')->group(function () {
+   Route::get('/{platform}', [App\Http\Controllers\API\SocialAccountController::class, 'redirect'])->name('social.connect');
+   Route::get('/{platform}/callback', [App\Http\Controllers\API\SocialAccountController::class, 'callback'])->name('social.callback');
 });
 
 Route::post('/create-user', [FirebaseUserController::class, 'createUser']);
