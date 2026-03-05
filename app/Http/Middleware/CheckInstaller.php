@@ -9,9 +9,12 @@ class CheckInstaller
 {
     public function handle($request, Closure $next)
     {
-         dd('inside check installer');
+        $path = base_path('modules_statuses.json');
+        if (!File::exists($path)) {
+            return $next($request);
+        }
         // Load the status of the installer module
-        $modulesStatus = json_decode(File::get(base_path('modules_statuses.json')), true);
+        $modulesStatus = json_decode(File::get($path), true);
        
         // If the installer is enabled, redirect to the installer route
         if (isset($modulesStatus['Installer']) && $modulesStatus['Installer']) {
