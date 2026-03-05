@@ -49,20 +49,22 @@
  <script>
     const APP_URL = "{{ env('APP_URL') }}";
     const APP_ID = "{{ env('AGORA_APP_ID') }}";
-    const IS_KYC_VERIFIED = {{ (Auth::check() && Auth::user()->isKycVerified()) ? 'true' : 'false' }};
-    const IS_EMAIL_VERIFIED = {{ (Auth::check() && Auth::user()->email_verified_at) ? 'true' : 'false' }};
+    const IS_KYC_VERIFIED = {{ (Auth::check() && Auth::user() && Auth::user()->isKycVerified()) ? 'true' : 'false' }};
+    const IS_EMAIL_VERIFIED = {{ (Auth::check() && Auth::user() && Auth::user()->email_verified_at) ? 'true' : 'false' }};
     const PRIMARY_ROLES = @json(config('registration.primary_roles', []));
-    // Firebase config from server – avoids fetch() path issues on deployed server
-    window.__FIREBASE_CONFIG__ = @json([
-        'apiKey' => config('firebase.frontend.api_key'),
-        'authDomain' => config('firebase.frontend.auth_domain'),
-        'databaseURL' => config('firebase.frontend.database_url'),
-        'projectId' => config('firebase.frontend.project_id'),
-        'storageBucket' => config('firebase.frontend.storage_bucket'),
-        'messagingSenderId' => config('firebase.frontend.messaging_sender_id'),
-        'appId' => config('firebase.frontend.app_id'),
-        'measurementId' => config('firebase.frontend.measurement_id'),
-    ]);
+    @php
+    $fc = [
+        'apiKey' => env('FIREBASE_API_KEY'),
+        'authDomain' => env('FIREBASE_AUTH_DOMAIN'),
+        'databaseURL' => env('FIREBASE_DATABASE_URL'),
+        'projectId' => env('FIREBASE_PROJECT_ID'),
+        'storageBucket' => env('FIREBASE_STORAGE_BUCKET'),
+        'messagingSenderId' => env('FIREBASE_MESSAGING_SENDER_ID'),
+        'appId' => env('FIREBASE_APP_ID'),
+        'measurementId' => env('FIREBASE_MEASUREMENT_ID'),
+    ];
+    @endphp
+    window.__FIREBASE_CONFIG__ = @json($fc);
     function capitalizeFirstLetter(val) {
     return String(val).charAt(0).toUpperCase() + String(val).slice(1);
 }
