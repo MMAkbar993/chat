@@ -52,6 +52,17 @@
     const IS_KYC_VERIFIED = {{ (Auth::check() && Auth::user()->isKycVerified()) ? 'true' : 'false' }};
     const IS_EMAIL_VERIFIED = {{ (Auth::check() && Auth::user()->email_verified_at) ? 'true' : 'false' }};
     const PRIMARY_ROLES = @json(config('registration.primary_roles', []));
+    // Firebase config from server – avoids fetch() path issues on deployed server
+    window.__FIREBASE_CONFIG__ = @json([
+        'apiKey' => config('firebase.frontend.api_key'),
+        'authDomain' => config('firebase.frontend.auth_domain'),
+        'databaseURL' => config('firebase.frontend.database_url'),
+        'projectId' => config('firebase.frontend.project_id'),
+        'storageBucket' => config('firebase.frontend.storage_bucket'),
+        'messagingSenderId' => config('firebase.frontend.messaging_sender_id'),
+        'appId' => config('firebase.frontend.app_id'),
+        'measurementId' => config('firebase.frontend.measurement_id'),
+    ]);
     function capitalizeFirstLetter(val) {
     return String(val).charAt(0).toUpperCase() + String(val).slice(1);
 }
