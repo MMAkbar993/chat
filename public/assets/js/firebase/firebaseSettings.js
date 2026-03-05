@@ -822,10 +822,18 @@ function fetchUserDetails(userId) {
                     document.getElementById('status-user-list').style.display = 'none';
                 }
 
-            } 
+            } else {
+                // No user data in Firebase (e.g. new user or wrong DB) – clear "Loading..."
+                if (typeof displayUserDetails === 'function') {
+                    try { displayUserDetails({}); } catch (e) {}
+                }
+            }
         })
         .catch((error) => {
-        
+            console.warn('[Firebase] Could not load profile from Realtime Database. Check FIREBASE_DATABASE_URL and RTDB rules. Profile will show placeholders.', error);
+            if (typeof displayUserDetails === 'function') {
+                try { displayUserDetails({}); } catch (e) {}
+            }
         });
 }
 
@@ -841,7 +849,7 @@ function displayUserDetails(user) {
             el.src = (src || imageUrl) || 'assets/img/profiles/avatar-03.jpg';
         }
     };
-    setText('profile-name', user.username || user.firstName + ' ' + (user.lastName || ''));
+    setText('profile-name', user.username || (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
     setText('profile-info-name', (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
     setText('profile-info-chat-name', (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
     setText('profile-info-email', user.email || 'No Email');
