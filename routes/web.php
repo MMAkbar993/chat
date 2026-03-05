@@ -341,7 +341,7 @@ Route::get('/admin', function () {
 })->name('admin.login');
 Route::get('/admin/login', function () {
    return view('admin/login');
-})->name('admin.login');
+})->name('admin.login.page');
 Route::get('/admin/notification-settings', function () {
    return view('admin/notification-settings');
 })->name('admin.notification-settings');
