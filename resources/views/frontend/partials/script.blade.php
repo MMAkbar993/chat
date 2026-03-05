@@ -332,6 +332,23 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
 })();
 </script>
 @if (!Route::is('login','signup','register.payment'))
+{{-- "+ Group" button: open New Group modal when Firebase disabled (firebaseGroupChat.js may not load) --}}
+<script>
+(function() {
+    if (typeof window.FIREBASE_DISABLED === 'undefined' || !window.FIREBASE_DISABLED) return;
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('#group-add-btn');
+        if (!btn) return;
+        var modalEl = document.getElementById('new-group');
+        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+    }, true);
+})();
+</script>
 {{-- Laravel-only logout when Firebase is disabled: destroy session then redirect --}}
 <script>
 (function() {
