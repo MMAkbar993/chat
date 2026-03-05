@@ -54,7 +54,7 @@
                                                 <div class="d-flex align-items-center">
                                                     <div class="form-check form-check-md mb-0">
                                                         <input class="form-check-input mt-0" type="checkbox"
-                                                            id="rememberMe">
+                                                            id="rememberMe" name="remember" value="1">
                                                     </div>
                                                     <p class=" mb-0 ">
                                                         {{ __('Remember Me') }}</p>
@@ -123,5 +123,18 @@
 
         </div>
     </div>
-    <script type="module" src="assets/js/firebase/firebaseLogin.js" crossorigin="anonymous"></script>
+    {{-- Laravel-only login: form submits to POST /login with email/password. No Firebase. --}}
+    <script>
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            var email = document.getElementById('email');
+            var password = document.getElementById('password');
+            if (!email || !email.value || !password || !password.value) {
+                e.preventDefault();
+                if (email && !email.value) email.classList.add('is-invalid');
+                if (password && !password.value) password.classList.add('is-invalid');
+                return false;
+            }
+            this.submit();
+        });
+    </script>
 @endsection

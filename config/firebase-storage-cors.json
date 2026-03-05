@@ -1,6 +1,6 @@
 [
   {
-    "origin": ["http://127.0.0.1:8000", "http://localhost:8000", "http://localhost", "https://connectar.online"],
+    "origin": ["http://127.0.0.1:8000", "http://localhost:8000", "http://localhost", "https://connectar.online", "https://www.connectar.online"],
     "method": ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS"],
     "maxAgeSeconds": 3600,
     "responseHeader": ["Content-Type", "Authorization", "Content-Length", "User-Agent", "X-Requested-With", "Accept", "Origin"]

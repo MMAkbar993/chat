@@ -19,8 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'secureApi' => \App\Http\Middleware\secureApi::class,
             'JwtAuth' => \App\Http\Middleware\JWTMiddleware::class,
             'checkInstaller' =>\App\Http\Middleware\CheckInstaller::class,
-            'startSession' => \Illuminate\Session\Middleware\StartSession::class, 
-            'firebase_auth' => \App\Http\Middleware\FirebaseAuthMiddleware::class,
+            'startSession' => \Illuminate\Session\Middleware\StartSession::class,
             'ensure2fa' => \App\Http\Middleware\Ensure2fa::class,
             'ensureOnboarded' => \App\Http\Middleware\EnsureOnboarded::class,
         ]);

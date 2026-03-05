@@ -84,7 +84,7 @@ The system verifies that users actually own the websites or social profiles they
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/connect/{platform}` | Redirect to OAuth (YouTube, Instagram, X, Twitch) |
+| GET | `/connect/{platform}` | Redirect to OAuth (Facebook, Instagram, X, LinkedIn, YouTube, Twitch, Kick) |
 | GET | `/connect/{platform}/callback` | OAuth callback |
 
 ---
@@ -107,13 +107,25 @@ The system verifies that users actually own the websites or social profiles they
 
 ## 4. Social OAuth Platforms
 
-| Platform | Socialite Driver | Config Keys |
-|----------|------------------|-------------|
-| YouTube | `google` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` |
-| Instagram | `facebook` | `FACEBOOK_CLIENT_ID`, etc. |
-| X (Twitter) | `twitter` | `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET`, `TWITTER_REDIRECT_URI` |
-| Twitch | `twitch` | `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, `TWITTER_REDIRECT_URI` |
-| Kick | (future) | Requires custom OAuth implementation |
+Profile Settings **require** each entered social link to be verified via OAuth before saving. Users click **Verify** next to each social field, complete the provider’s OAuth flow, then can save.
+
+| Platform | Socialite Driver | Config Keys | Callback URL |
+|----------|------------------|-------------|--------------|
+| Facebook | `facebook` | `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`, `FACEBOOK_REDIRECT_URI` | `{APP_URL}/connect/facebook/callback` |
+| Instagram | `facebook` | Same as Facebook (Facebook App with Instagram Basic) | `{APP_URL}/connect/instagram/callback` |
+| X (Twitter) | `twitter` | `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET`, `TWITTER_REDIRECT_URI` | `{APP_URL}/connect/x/callback` |
+| LinkedIn | `linkedin` | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_REDIRECT_URI` | `{APP_URL}/connect/linkedin/callback` |
+| YouTube | `google` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | `{APP_URL}/connect/youtube/callback` |
+| Twitch | `twitch` | `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, `TWITCH_REDIRECT_URI` | `{APP_URL}/connect/twitch/callback` |
+| Kick | `kick` | `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET`, `KICK_REDIRECT_URI` | `{APP_URL}/connect/kick/callback` (if supported) |
+
+**What you need to do (per provider):**
+- Create a developer app (e.g. Facebook Developer, Twitter Developer Portal, Google Cloud Console, LinkedIn Developer, Twitch Dev Console).
+- Get **Client ID** and **Client Secret**.
+- Register the **callback URL** as above (replace `{APP_URL}` with your site URL, e.g. `https://yoursite.com`).
+- Add the same values to `.env` (and optionally to `.env.example` for your team).
+- For **Instagram**: use a Facebook App and enable “Instagram Basic Display” or the product your app uses; the callback is `/connect/instagram/callback`.
+- For **YouTube**: use Google Cloud OAuth credentials; the callback is `/connect/youtube/callback`.
 
 **Twitch**: Install `composer require socialiteproviders/twitch` and register in `AppServiceProvider`:
 ```php

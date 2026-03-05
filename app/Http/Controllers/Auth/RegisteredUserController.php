@@ -18,90 +18,53 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Http;
 use Exception;
 use App\Services\EncryptionService;
-use App\Services\FirebaseService;
-use Kreait\Firebase\Auth as FirebaseAuth;
-use Kreait\Firebase\Factory;
-use Kreait\Firebase\Database;
-use Psy\Readline\Hoa\Console;
 
 class RegisteredUserController extends Controller
 {
     protected $encryptionService;
-    protected $firebase;
 
-    public function __construct(EncryptionService $encryptionService, FirebaseService $firebase)
+    public function __construct(EncryptionService $encryptionService)
     {
         $this->encryptionService = $encryptionService;
-        $this->firebase = $firebase;
     }
-
-    public function getDatabase()
-    {
-        return $this->firebase->getDatabase();
-    }
-
-    public function index()
-    {
-        $auth = $this->firebase->getAuth();
-        return redirect()->route('login')->with('message', 'Firebase initialized successfully');
-    }
-
 
     public function login()
     {
         return view('frontend.signin');
     }
 
-
-    // Handle Firebase Login
+    /**
+     * Handle login with email + password (Laravel session only).
+     */
     public function loginSubmit(Request $request)
     {
         try {
-            $firebaseToken = $request->input('firebase_token');
-            if ($firebaseToken) {
-                if ($request->wantsJson()) {
-                    $result = $this->verifyFirebaseTokenAndLogin($firebaseToken);
-                    if ($result['success']) {
-                        if (!empty($result['needs_2fa'])) {
-                            return response()->json(['success' => true, 'needs_2fa' => true, 'redirect' => route('2fa.challenge')]);
-                        }
-                        return response()->json(['success' => true, 'redirect' => route('chat')]);
-                    }
-                    return response()->json(['message' => $result['message'] ?? 'Invalid Firebase token'], $result['status'] ?? 401);
-                }
-                return $this->firebaseLogin($firebaseToken);
-            }
-
-            // Fallback: form submitted with email+password (e.g. when Firebase JS fails to load)
             $email = trim($request->input('email', ''));
             $password = $request->input('password', '');
-            if ($email && $password) {
-                $result = $this->attemptLaravelLogin($email, $password);
-                if ($result['success']) {
-                    if (!empty($result['needs_2fa'])) {
-                        return redirect()->route('2fa.challenge');
-                    }
-                    return response()->view('auth.login-complete', [
-                        'customToken' => $result['token'],
-                        'firebaseConfig' => [
-                            'apiKey' => config('firebase.frontend.api_key'),
-                            'authDomain' => config('firebase.frontend.auth_domain'),
-                            'databaseURL' => config('firebase.frontend.database_url'),
-                            'projectId' => config('firebase.frontend.project_id'),
-                            'storageBucket' => config('firebase.frontend.storage_bucket'),
-                            'messagingSenderId' => config('firebase.frontend.messaging_sender_id'),
-                            'appId' => config('firebase.frontend.app_id'),
-                        ],
-                        'chatUrl' => route('chat'),
-                    ]);
+            if (!$email || !$password) {
+                if ($request->wantsJson()) {
+                    return response()->json(['message' => 'Email and password are required.'], 400);
                 }
-                if ($result['json_error']) {
-                    return $result['json_error'];
-                }
-                return redirect()->route('login')->withErrors(['email' => $result['message'] ?? 'Invalid credentials.'])->withInput($request->only('email'));
+                return redirect()->route('login')->withErrors(['email' => __('Email and password are required.')])->withInput($request->only('email'));
             }
 
-            return response()->json(['message' => 'Firebase token is required'], 400);
+            $result = $this->attemptLaravelLogin($email, $password);
+            if ($result['success']) {
+                if (!empty($result['needs_2fa'])) {
+                    if ($request->wantsJson()) {
+                        return response()->json(['success' => true, 'needs_2fa' => true, 'redirect' => route('2fa.challenge')]);
+                    }
+                    return redirect()->route('2fa.challenge');
+                }
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => true, 'redirect' => route('chat')]);
+                }
+                return redirect()->intended(route('chat'));
+            }
+            if ($result['json_error']) {
+                return $result['json_error'];
+            }
+            return redirect()->route('login')->withErrors(['email' => $result['message'] ?? __('Invalid credentials.')])->withInput($request->only('email'));
         } catch (\Throwable $e) {
             Log::error('Login failed', [
                 'message' => $e->getMessage(),
@@ -119,9 +82,7 @@ class RegisteredUserController extends Controller
     }
 
     /**
-     * Fallback login for users who exist in Laravel but not in Firebase (e.g. registered via new form before sync).
-     * Verifies Laravel credentials, creates Firebase user if needed, returns a Firebase custom token so the client can sign in.
-     * The frontend .env FIREBASE_PROJECT_ID must match the project_id in config/firebase_credentials.json or the token will be rejected (400).
+     * API: Laravel-only login (e.g. for AJAX). Returns success + redirect URL.
      */
     public function loginWithLaravel(Request $request)
     {
@@ -139,23 +100,22 @@ class RegisteredUserController extends Controller
             if (!empty($result['needs_2fa'])) {
                 return response()->json(['needs_2fa' => true, 'redirect' => route('2fa.challenge')]);
             }
-            return response()->json(['firebase_custom_token' => $result['token']]);
+            return response()->json(['success' => true, 'redirect' => route('chat')]);
         }
         if ($result['json_error']) {
             return $result['json_error'];
         }
-        return response()->json(['message' => $result['message'] ?? 'Invalid credentials.'], 401);
+        return response()->json(['message' => $result['message'] ?? __('Invalid credentials.')], 401);
     }
 
     /**
-     * Attempt Laravel + Firebase login. Returns ['success' => true, 'token' => '...'] or
-     * ['success' => false, 'message' => '...', 'json_error' => Response|null].
+     * Attempt Laravel login. Returns ['success' => true] or ['success' => false, 'message' => '...', 'json_error' => Response|null].
      */
     protected function attemptLaravelLogin(string $email, string $password): array
     {
         $user = User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
         if (!$user) {
-            return ['success' => false, 'message' => 'Invalid credentials.', 'json_error' => null];
+            return ['success' => false, 'message' => __('Invalid credentials.'), 'json_error' => null];
         }
 
         $passwordValid = Hash::check($password, $user->password);
@@ -168,225 +128,18 @@ class RegisteredUserController extends Controller
             }
         }
         if (!$passwordValid) {
-            return ['success' => false, 'message' => 'Invalid credentials.', 'json_error' => null];
+            return ['success' => false, 'message' => __('Invalid credentials.'), 'json_error' => null];
         }
 
-        $credentialsPath = config('firebase.projects.app.credentials.file')
-            ? base_path(config('firebase.projects.app.credentials.file'))
-            : base_path('config/firebase_credentials.json');
-        $credentialsPathLabel = config('firebase.projects.app.credentials.file') ?: 'config/firebase_credentials.json';
-        $envProjectId = config('firebase.frontend.project_id');
-        if (file_exists($credentialsPath)) {
-            $credentials = json_decode(file_get_contents($credentialsPath), true);
-            $credentialsProjectId = $credentials['project_id'] ?? null;
-            if ($credentialsProjectId && $envProjectId && $credentialsProjectId !== $envProjectId) {
-                Log::warning('Firebase project mismatch', [
-                    'credentials_project' => $credentialsProjectId,
-                    'env_project' => $envProjectId,
-                ]);
-                return [
-                    'success' => false,
-                    'message' => 'Firebase project mismatch.',
-                    'json_error' => response()->json([
-                        'message' => 'Firebase project mismatch. Backend uses project "' . $credentialsProjectId . '" (' . $credentialsPathLabel . ') but .env has FIREBASE_PROJECT_ID="' . $envProjectId . '". Use one project: replace ' . $credentialsPathLabel . ' with the service account for "' . $envProjectId . '" (Firebase Console → Project settings → Service accounts → Generate new private key), or set all .env FIREBASE_* to the values for "' . $credentialsProjectId . '".',
-                    ], 503),
-                ];
-            }
-        }
-
-        $firebaseUid = $this->firebase->createAuthUser($user->email, $password, $user->full_name ?? trim($user->first_name . ' ' . $user->last_name));
-        if ($firebaseUid === null) {
-            return [
-                'success' => false,
-                'message' => 'Unable to sign in.',
-                'json_error' => response()->json(['message' => 'Unable to sign in. Please try again later.'], 503),
-            ];
-        }
-
-        $nameParts = [$user->first_name ?? '', $user->last_name ?? ''];
-        $this->firebase->syncUserToRealtimeDatabase($firebaseUid, [
-            'firstName' => $nameParts[0],
-            'lastName' => $nameParts[1] ?? '',
-            'email' => $user->email,
-            'mobile_number' => $user->mobile_number ?? '',
-            'username' => $user->user_name ?? $user->email,
-            'uid' => $firebaseUid,
-            'id' => $firebaseUid,
-            'image' => '',
-            'name' => $user->mobile_number ?: ($user->user_name ?? $user->email),
-            'nameToDisplay' => $user->full_name ?? trim($user->first_name . ' ' . $user->last_name),
-            'profileName' => $user->user_name ?? $user->email,
-            'online' => false,
-            'selected' => false,
-            'osType' => 'web',
-            'typing' => '',
-            'deviceToken' => '',
-            'status' => 'Hey I am available',
-            'timestamp' => time(),
-        ]);
-
-        Auth::login($user, true);
+        Auth::login($user, request()->boolean('remember', false));
         $user->last_login_at = now();
         $user->save();
 
         if ($user->has2faEnabled() && !request()->session()->get('2fa_verified')) {
-            return ['success' => true, 'token' => null, 'needs_2fa' => true];
+            return ['success' => true, 'needs_2fa' => true];
         }
-
-        try {
-            $customToken = $this->firebase->createCustomToken($firebaseUid);
-            $tokenString = is_string($customToken) ? trim($customToken) : trim($customToken->toString());
-            return ['success' => true, 'token' => $tokenString, 'needs_2fa' => false];
-        } catch (\Throwable $e) {
-            Log::error('Firebase createCustomToken failed', ['uid' => $firebaseUid, 'message' => $e->getMessage()]);
-            return [
-                'success' => false,
-                'message' => 'Could not create sign-in token.',
-                'json_error' => response()->json(['message' => 'Could not create sign-in token. Check Firebase credentials and that FIREBASE_PROJECT_ID in .env matches config/firebase_credentials.json project_id.'], 503),
-            ];
-        }
+        return ['success' => true];
     }
-
-    protected function firebaseLogin($firebaseToken)
-    {
-        $result = $this->verifyFirebaseTokenAndLogin($firebaseToken);
-        if ($result['success']) {
-            if (!empty($result['needs_2fa'])) {
-                return redirect()->route('2fa.challenge');
-            }
-            return redirect()->route('chat')->with('success', 'Login successful!');
-        }
-        return response()->json(['message' => $result['message'] ?? 'Invalid Firebase token'], $result['status'] ?? 401);
-    }
-
-    /**
-     * Verify Firebase ID token and log in the corresponding Laravel user.
-     * Returns ['success' => true] or ['success' => false, 'message' => '...', 'status' => 401].
-     */
-    protected function verifyFirebaseTokenAndLogin(string $firebaseToken): array
-    {
-        try {
-            $firebaseAuth = $this->firebase->getAuth();
-            $verifiedIdToken = $firebaseAuth->verifyIdToken($firebaseToken);
-            $claims = $verifiedIdToken->claims();
-            $uid = $claims->get('sub');
-            $firebaseUser = $firebaseAuth->getUser($uid);
-            $this->saveDeviceInfo($uid, $firebaseUser);
-
-            $email = $claims->get('email');
-            if (!$email) {
-                return ['success' => false, 'message' => 'No email in token.', 'status' => 401];
-            }
-            $laravelUser = User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
-            if (!$laravelUser) {
-                $laravelUser = User::where('provider_id', $uid)->whereIn('provider', ['firebase', 'Firebase'])->first();
-            }
-            if (!$laravelUser) {
-                $displayName = $firebaseUser->displayName ?? '';
-                $nameParts = $displayName ? $this->splitFullName($displayName) : [explode('@', $email)[0], ''];
-                $baseUserName = 'user_' . substr($uid, 0, 12);
-                $userName = $baseUserName;
-                $n = 0;
-                while (User::where('user_name', $userName)->exists()) {
-                    $userName = $baseUserName . (++$n);
-                }
-                $laravelUser = User::create([
-                    'first_name' => $nameParts[0] ?? 'User',
-                    'last_name' => $nameParts[1] ?? null,
-                    'full_name' => $displayName ?: ($nameParts[0] . ' ' . ($nameParts[1] ?? '')),
-                    'email' => $email,
-                    'user_name' => $userName,
-                    'password' => Hash::make(Str::random(32)),
-                    'user_type' => 2,
-                    'mobile_number' => '',
-                    'provider' => 'firebase',
-                    'provider_id' => $uid,
-                    'subscription_status' => 'pending_payment',
-                ]);
-                $laravelUser->assignRole('user');
-                Log::info('Created Laravel user from Firebase login', ['user_id' => $laravelUser->id, 'email' => $email, 'uid' => $uid]);
-            }
-            Auth::login($laravelUser, true);
-            $laravelUser->last_login_at = now();
-            $laravelUser->save();
-
-            if ($laravelUser->has2faEnabled() && !session('2fa_verified')) {
-                return ['success' => true, 'needs_2fa' => true];
-            }
-            return ['success' => true];
-        } catch (\Throwable $e) {
-            Log::error('Firebase token verification failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            // Only say "Invalid Firebase token" for real auth/token errors; otherwise generic message
-            $isTokenError = $e instanceof \Kreait\Firebase\Exception\AuthException
-                || $e instanceof \InvalidArgumentException
-                || str_contains($e->getMessage(), 'token') || str_contains($e->getMessage(), 'Token');
-            return [
-                'success' => false,
-                'message' => $isTokenError ? 'Invalid Firebase token' : 'Login failed. Please try again or contact support.',
-                'status' => 401,
-            ];
-        }
-    }
-
-    // protected function firebaseLogin($firebaseToken)
-    // {
-    //     try {
-    //         Log::info('Received Firebase token', ['token' => $firebaseToken]);
-    //         // Retrieve the Firebase Auth instance from the FirebaseService
-    //         $firebaseAuth = $this->firebase->getAuth();
-    
-    //         // Verify the Firebase token
-    //         $verifiedIdToken = $firebaseAuth->verifyIdToken($firebaseToken);
-    //         $uid = $verifiedIdToken->claims()->get('sub');
-    //         $firebaseUser = $firebaseAuth->getUser($uid);
-            
-    //         // Save device info to the database
-    //         $this->saveDeviceInfo($uid, $firebaseUser);
-
-    //         return redirect()->route('chat')->with('success', 'Login successful!');
-    
-    //         // Return user details in the response
-    //         // return response()->json([
-    //         //     'message' => 'Login successful',
-    //         //     'user' => [
-    //         //         'id' => $firebaseUser->uid, // Firebase UID
-    //         //         'name' => $firebaseUser->displayName, // User's display name
-    //         //         'email' => $firebaseUser->email, // User's email
-    //         //         'photo_url' => $firebaseUser->photoUrl // User's photo URL if available
-    //         //     ]
-    //         // ], 200);
-            
-    //     } catch (\Exception | \Throwable $exception) {
-    //         return response()->json(['message' => 'Invalid Firebase token'], 401);
-    //     }
-    // }
-    
-    protected function saveDeviceInfo($uid, $firebaseUser)
-    {
-        if (!$this->firebase->hasDatabase()) {
-            return;
-        }
-        try {
-            $deviceInfo = [
-                'device_name' => $this->getUserDeviceInfo(),
-                'last_used' => now()->toDateTimeString()
-            ];
-            $this->firebase->getDatabase()->getReference("users/{$uid}/devices")->push($deviceInfo);
-            Log::info('Device info saved', [$deviceInfo]);
-        } catch (\Throwable $e) {
-            Log::warning('Firebase device info save failed', ['uid' => $uid, 'message' => $e->getMessage()]);
-        }
-    }
-    
-
-protected function getUserDeviceInfo()
-{
-    // You can retrieve the device information using user-agent or other methods
-    return request()->userAgent(); // This will return the user-agent string
-}
 
     // Handle Normal Login
     public function normalLogin(Request $request)
@@ -444,31 +197,6 @@ protected function getUserDeviceInfo()
         ]);
 
         $user->assignRole('user');
-
-        $password = $request->input('password');
-        $firebaseUid = $this->firebase->createAuthUser($user->email, $password, $user->full_name ?? $user->first_name . ' ' . $user->last_name);
-        if ($firebaseUid !== null) {
-            $this->firebase->syncUserToRealtimeDatabase($firebaseUid, [
-                'firstName' => $nameParts[0],
-                'lastName' => $nameParts[1] ?? '',
-                'email' => $user->email,
-                'mobile_number' => $user->mobile_number ?? '',
-                'username' => $user->user_name,
-                'uid' => $firebaseUid,
-                'id' => $firebaseUid,
-                'image' => '',
-                'name' => $user->mobile_number ?: $user->user_name,
-                'nameToDisplay' => $user->full_name ?? ($user->first_name . ' ' . $user->last_name),
-                'profileName' => $user->user_name,
-                'online' => false,
-                'selected' => false,
-                'osType' => 'web',
-                'typing' => '',
-                'deviceToken' => '',
-                'status' => 'Hey I am available',
-                'timestamp' => time(),
-            ]);
-        }
 
         $request->session()->put('registered_user_id', $user->id);
 

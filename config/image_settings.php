@@ -3,7 +3,7 @@
 return [
     'backEnd' => [
         'profile' => [
-            'path' => 'public/image/profile'
+            'path' => 'public/image/profile/'
         ],
         'admin' => [
             'website_settings' => [

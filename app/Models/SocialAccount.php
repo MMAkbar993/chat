@@ -29,6 +29,8 @@ class SocialAccount extends Model
     public const PLATFORM_X = 'x';
     public const PLATFORM_TWITCH = 'twitch';
     public const PLATFORM_KICK = 'kick';
+    public const PLATFORM_FACEBOOK = 'facebook';
+    public const PLATFORM_LINKEDIN = 'linkedin';
 
     public static function supportedPlatforms(): array
     {
@@ -38,6 +40,8 @@ class SocialAccount extends Model
             self::PLATFORM_X,
             self::PLATFORM_TWITCH,
             self::PLATFORM_KICK,
+            self::PLATFORM_FACEBOOK,
+            self::PLATFORM_LINKEDIN,
         ];
     }
 

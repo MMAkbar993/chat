@@ -953,6 +953,10 @@
                                                         <div id="social-id" class="accordion-collapse collapse"
                                                             data-bs-parent="#account-setting">
                                                             <div class="accordion-body">
+                                                                <p class="text-muted small mb-3"><i class="ti ti-info-circle me-1"></i>{{ __('Social links must be verified via OAuth before saving. Use full URLs (e.g. https://...).') }}</p>
+                                                                @php
+                                                                    $socialVerifiedPlatforms = Auth::check() ? Auth::user()->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray() : [];
+                                                                @endphp
                                                                 <div class="chat-video">
                                                                     <div class="row">
                                                                         <div class="col-lg-12">
@@ -979,6 +983,13 @@
                                                                                         class="ti ti-brand-facebook"></i>
                                                                                 </span>
                                                                             </div>
+                                                                            <p class="small mb-2">
+                                                                                @if(in_array('facebook', $socialVerifiedPlatforms))
+                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
+                                                                                @else
+                                                                                    <a href="{{ route('social.connect', 'facebook') }}" class="text-primary">{{ __('Verify') }}</a>
+                                                                                @endif
+                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
@@ -991,6 +1002,13 @@
                                                                                     <i class="ti ti-brand-instagram"></i>
                                                                                 </span>
                                                                             </div>
+                                                                            <p class="small mb-2">
+                                                                                @if(in_array('instagram', $socialVerifiedPlatforms))
+                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
+                                                                                @else
+                                                                                    <a href="{{ route('social.connect', 'instagram') }}" class="text-primary">{{ __('Verify') }}</a>
+                                                                                @endif
+                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
@@ -1003,6 +1021,13 @@
                                                                                     <i class="ti ti-brand-twitter"></i>
                                                                                 </span>
                                                                             </div>
+                                                                            <p class="small mb-2">
+                                                                                @if(in_array('x', $socialVerifiedPlatforms))
+                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
+                                                                                @else
+                                                                                    <a href="{{ route('social.connect', 'x') }}" class="text-primary">{{ __('Verify') }}</a>
+                                                                                @endif
+                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
@@ -1016,6 +1041,13 @@
                                                                                         class="ti ti-brand-linkedin"></i>
                                                                                 </span>
                                                                             </div>
+                                                                            <p class="small mb-2">
+                                                                                @if(in_array('linkedin', $socialVerifiedPlatforms))
+                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
+                                                                                @else
+                                                                                    <a href="{{ route('social.connect', 'linkedin') }}" class="text-primary">{{ __('Verify') }}</a>
+                                                                                @endif
+                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
@@ -1028,6 +1060,13 @@
                                                                                     <i class="ti ti-brand-youtube"></i>
                                                                                 </span>
                                                                             </div>
+                                                                            <p class="small mb-2">
+                                                                                @if(in_array('youtube', $socialVerifiedPlatforms))
+                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
+                                                                                @else
+                                                                                    <a href="{{ route('social.connect', 'youtube') }}" class="text-primary">{{ __('Verify') }}</a>
+                                                                                @endif
+                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
@@ -1040,6 +1079,13 @@
                                                                                     <i class="ti ti-device-gamepad-2"></i>
                                                                                 </span>
                                                                             </div>
+                                                                            <p class="small mb-2">
+                                                                                @if(in_array('kick', $socialVerifiedPlatforms))
+                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
+                                                                                @else
+                                                                                    <a href="{{ route('social.connect', 'kick') }}" class="text-primary">{{ __('Verify') }}</a>
+                                                                                @endif
+                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
@@ -1052,6 +1098,13 @@
                                                                                     <i class="ti ti-brand-twitch"></i>
                                                                                 </span>
                                                                             </div>
+                                                                            <p class="small mb-2">
+                                                                                @if(in_array('twitch', $socialVerifiedPlatforms))
+                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
+                                                                                @else
+                                                                                    <a href="{{ route('social.connect', 'twitch') }}" class="text-primary">{{ __('Verify') }}</a>
+                                                                                @endif
+                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12 d-flex">
                                                                             <a href=""
@@ -1059,6 +1112,7 @@
                                                                                 id="saveSocialLinksBtn"><i
                                                                                     class="ti ti-device-floppy me-2"></i>{{ __('Save Changes') }}</a>
                                                                         </div>
+                                                                        <div class="col-lg-12 d-none alert alert-danger" id="socialVerifyError" role="alert"></div>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1449,7 +1503,7 @@
 
 
 
-            <script type="module" src="{{ asset('assets/js/firebase/firebaseSettings.js') }}" crossorigin="anonymous"></script>
+            {{-- Settings use Laravel/MySQL only (see script.blade.php). Firebase settings script removed. --}}
             <script type="module" src="{{ asset('assets/js/firebase/firebaseStatus.js') }}" crossorigin="anonymous"></script>
             <script type="module" src="{{ asset('assets/js/firebase/firebaseCalls.js') }}" crossorigin="anonymous"></script>
             @if(request()->routeIs('settings'))

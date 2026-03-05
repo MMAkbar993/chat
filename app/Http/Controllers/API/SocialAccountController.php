@@ -131,7 +131,9 @@ class SocialAccountController extends Controller
             'instagram' => 'facebook',
             'x' => 'twitter',
             'twitch' => 'twitch',
-            'kick' => null,
+            'kick' => 'kick',
+            'facebook' => 'facebook',
+            'linkedin' => 'linkedin',
             default => null,
         };
     }

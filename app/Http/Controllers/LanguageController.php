@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use Closure; 
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Auth;
-use Kreait\Firebase\Factory; 
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -16,27 +15,13 @@ class LanguageController extends Controller
 
     public function handle(Request $request, Closure $next)
     {
-        // Check if user is authenticated
         if (Auth::check()) {
-            // Initialize Firebase SDK
-            $firebase = (new Factory)->createDatabase(); // Initialize Firebase database
-
-            // Retrieve the language setting from Firebase
-            $firebaseUserId = Auth::user()->firebase_user_id;
-            $language = $firebase->getReference('users/' . $firebaseUserId . '/language')
-                ->getValue();
-
-            // Default to 'en' if no language is set
-            $language = $language ?? 'en';
-
-            // Set the application's locale
+            $language = session('language');
+            $language = $language ?? config('app.locale', 'en');
             App::setLocale($language);
-
-            // Optionally store the language in session if needed
             session(['language' => $language]);
         } else {
-            // If the user is not logged in, default to 'en'
-            App::setLocale('en');
+            App::setLocale(config('app.locale', 'en'));
         }
 
         return $next($request);

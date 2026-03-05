@@ -596,6 +596,15 @@ function refreshChatList() {
 
 
 function logoutUser() {
+    var loginUrl = "/login";
+    var doServerLogout = function() {
+        var csrfToken = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        return fetch('/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken || '', 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        }).catch(function() {});
+    };
     if (auth.currentUser) {
         const userId = auth.currentUser.uid;
         const userStatusRef = ref(database, `data/users/${userId}/status`);
@@ -609,16 +618,18 @@ function logoutUser() {
         }).then(() => {
             // After lastSeen is updated, log the user out from Firebase
             return auth.signOut(); // Sign out from Firebase
-        }).then(() => {
+        }).then(function() {
+            return doServerLogout();
+        }).then(function() {
             // Redirect to the login page after successful logout
-            window.location.href = "/login";
+            window.location.href = loginUrl;
         }).catch((error) => {
             // Optionally, redirect to the login page in case of an error
-            window.location.href = "/login";
+            doServerLogout().then(function() { window.location.href = loginUrl; });
         });
     } else {
-        // No user logged in, redirect directly to logout
-        window.location.href = "/login";;
+        // No user logged in, still clear Laravel session then redirect
+        doServerLogout().then(function() { window.location.href = loginUrl; });
     }
 }
 

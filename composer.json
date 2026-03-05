@@ -11,8 +11,6 @@
         "google/auth": "^1.42",
         "guzzlehttp/guzzle": "^7.9",
         "intervention/image": "^2.7",
-        "kreait/firebase-php": "^7.10",
-        "kreait/laravel-firebase": "^5.8",
         "laravel/framework": "^11.9",
         "laravel/passport": "*",
         "laravel/sanctum": "^4.0",

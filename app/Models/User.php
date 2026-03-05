@@ -22,7 +22,7 @@ class User extends Authenticatable implements JWTSubject
      * @var array<int, string>
      */
     protected $fillable = [
-        'first_name', 'last_name', 'full_name', 'email', 'user_name', 'password', 'user_type', 'api_token', 'gender', 'dob', 'mobile_number', 'provider', 'provider_id', 'last_login_at',
+        'first_name', 'last_name', 'full_name', 'email', 'user_name', 'password', 'user_type', 'api_token', 'gender', 'dob', 'mobile_number', 'profile_image', 'provider', 'provider_id', 'last_login_at',
         'company_name', 'company_domain', 'country', 'primary_role', 'other_role_text', 'terms_accepted_at', 'kyc_verified_at', 'kyc_provider_id', 'subscription_status',
         'two_factor_secret', 'two_factor_enabled_at',
     ];
@@ -40,13 +40,19 @@ class User extends Authenticatable implements JWTSubject
     protected $appends = ['profile_image_link'];
 
     public function getProfileImageLinkAttribute() {
-        $profile_original_path = config('image_settings.backEnd.profile.path');
-        if (!empty($this->profile_image) && Storage::exists($profile_original_path . $this->profile_image)) {
-            $custurl = request()->getSchemeAndHttpHost();
-            return $custurl . Storage::url($profile_original_path. $this->profile_image);
-        } else {
+        if (empty($this->profile_image)) {
             return '';
         }
+        $path = 'image/profile/' . $this->profile_image;
+        $oldPath = 'public/image/profile/' . $this->profile_image;
+        $disk = Storage::disk('public');
+        if ($disk->exists($path)) {
+            return request()->getSchemeAndHttpHost() . '/storage/' . $path;
+        }
+        if ($disk->exists($oldPath)) {
+            return request()->getSchemeAndHttpHost() . '/storage/' . $oldPath;
+        }
+        return '';
     }
 
 

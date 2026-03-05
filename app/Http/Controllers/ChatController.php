@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Chat;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use Kreait\Firebase\Factory;
 
 class ChatController extends Controller
 {
-    protected $firebaseDatabase;
-
     const MAX_FILE_SIZE_MB = 25;
 
     const ALLOWED_MIMES = [
@@ -25,48 +24,46 @@ class ChatController extends Controller
         'text/plain',
     ];
 
-    public function __construct()
-    {
-        $credentialsPath = storage_path('firebase/firebase_credentials.json');
-
-        if (!file_exists($credentialsPath)) {
-            throw new \Exception("Firebase credentials file not found at path: {$credentialsPath}");
-        }
-
-        $credentials = json_decode(file_get_contents($credentialsPath), true);
-        if ($credentials === null) {
-            throw new \Exception("Invalid JSON in Firebase credentials file.");
-        }
-
-        $this->firebaseDatabase = (new Factory)
-            ->withServiceAccount($credentials)
-            ->withDatabaseUri("https://dreams-chat-ef2a3-default-rtdb.firebaseio.com")
-            ->createDatabase();
-    }
-
     public function sendMessage(Request $request)
     {
-        $message = [
-            'from' => $request->from_user_id,
-            'to' => $request->to_user_id,
-            'text' => $request->message,
-            'timestamp' => now()->timestamp,
-        ];
+        $request->validate([
+            'from_user_id' => 'required',
+            'to_user_id' => 'required',
+            'message' => 'required|string',
+        ]);
 
-        $this->firebaseDatabase->getReference('messages')->push($message);
+        $userId = Auth::id();
+        if ((int) $request->from_user_id !== (int) $userId) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        Chat::create([
+            'sender_id' => $request->from_user_id,
+            'receiver_id' => $request->to_user_id,
+            'message' => $request->message,
+        ]);
 
         return response()->json(['message' => 'Message sent successfully']);
     }
 
     public function getMessages($userId, Request $request)
     {
-        $fromUserId = auth()->user()->id;
-        $toUserId = $userId;
+        $fromUserId = Auth::id();
+        $toUserId = (int) $userId;
 
-        $messages = $this->firebaseDatabase->getReference('messages')
-            ->orderByChild('from')
-            ->equalTo($fromUserId)
-            ->getValue();
+        $messages = Chat::where(function ($q) use ($fromUserId, $toUserId) {
+            $q->where('sender_id', $fromUserId)->where('receiver_id', $toUserId);
+        })->orWhere(function ($q) use ($fromUserId, $toUserId) {
+            $q->where('sender_id', $toUserId)->where('receiver_id', $fromUserId);
+        })->orderBy('created_at')->get()->map(function ($chat) {
+            return [
+                'id' => $chat->id,
+                'from' => $chat->sender_id,
+                'to' => $chat->receiver_id,
+                'text' => $chat->message,
+                'timestamp' => $chat->created_at->timestamp,
+            ];
+        });
 
         return response()->json($messages);
     }
@@ -78,7 +75,7 @@ class ChatController extends Controller
 
     /**
      * Upload a chat attachment (image, video, audio, document) to Laravel storage.
-     * Returns the public URL so the client can reference it in a Firebase message.
+     * Returns the public URL so the client can reference it in a message.
      */
     public function uploadFile(Request $request)
     {

@@ -2,7 +2,7 @@
 
 namespace Modules\Installer\app\Http\Controllers;
 
-use App\Models\Administrator;
+use App\Models\User;
 use Closure;
 use Exception;
 use App\Enums\UserStatus;
@@ -74,6 +74,77 @@ class InstallerController extends Controller
     public function databaseSubmit(Request $request)
     {
         try {
+            $mysqlOnly = $request->boolean('mysql_only', false);
+            if ($mysqlOnly) {
+                session()->put('step-3-complete', true);
+                Configuration::updateStep(1);
+                return response()->json(['success' => true, 'message' => 'Using MySQL only. Proceed to create admin account.']);
+            }
+
+            if ($request->filled('db_host') || $request->filled('db_database')) {
+                // MySQL setup
+                $request->validate([
+                    'db_host'     => 'required|string|max:255',
+                    'db_port'     => 'required|string|max:20',
+                    'db_database' => 'required|string|max:64',
+                    'db_username' => 'required|string|max:255',
+                    'db_password' => 'nullable|string|max:255',
+                ]);
+
+                $config = [
+                    'host'     => $request->input('db_host'),
+                    'port'     => $request->input('db_port'),
+                    'database' => $request->input('db_database'),
+                    'user'     => $request->input('db_username'),
+                    'password' => $request->input('db_password', ''),
+                ];
+
+                $this->changeEnvDatabaseConfig($config);
+                $result = $this->createDatabaseConnection($config);
+
+                if ($result !== true) {
+                    if ($result === 'not-found') {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Database "' . $config['database'] . '" does not exist. Please create it in MySQL first, then try again.',
+                        ], 422);
+                    }
+                    if ($result === 'table-exist') {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'This database already has tables. Use a new empty database or enable "Reset database" if you want to start fresh.',
+                        ], 422);
+                    }
+                    return response()->json([
+                        'success' => false,
+                        'message' => is_string($result) ? $result : 'Database connection failed. Check host, port, database name, username and password.',
+                    ], 422);
+                }
+
+                \Illuminate\Support\Facades\Config::set('database.connections.mysql.host', $config['host']);
+                \Illuminate\Support\Facades\Config::set('database.connections.mysql.port', $config['port']);
+                \Illuminate\Support\Facades\Config::set('database.connections.mysql.database', $config['database']);
+                \Illuminate\Support\Facades\Config::set('database.connections.mysql.username', $config['user']);
+                \Illuminate\Support\Facades\Config::set('database.connections.mysql.password', $config['password']);
+                \Illuminate\Support\Facades\DB::purge('mysql');
+                \Illuminate\Support\Facades\DB::reconnect('mysql');
+
+                \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+
+                // Ensure default roles exist for the admin account step
+                \Spatie\Permission\Models\Role::firstOrCreate(
+                    ['name' => 'admin', 'guard_name' => 'web']
+                );
+                \Spatie\Permission\Models\Role::firstOrCreate(
+                    ['name' => 'user', 'guard_name' => 'web']
+                );
+
+                session()->put('step-3-complete', true);
+                Configuration::updateStep(1);
+                return response()->json(['success' => true, 'message' => 'MySQL configured and migrations run successfully.']);
+            }
+
+            // Firebase (optional)
             $request->validate([
                 'application_key' => 'required|string',
                 'authnticate_domain' => 'required|string',
@@ -84,8 +155,6 @@ class InstallerController extends Controller
                 'application_id' => 'required|string',
             ]);
 
-            
-            // Update .env
             $this->updateEnv([
                 'FIREBASE_API_KEY' => $request->application_key,
                 'FIREBASE_AUTH_DOMAIN' => $request->authnticate_domain,
@@ -95,13 +164,17 @@ class InstallerController extends Controller
                 'FIREBASE_MESSAGING_SENDER_ID' => $request->message_id,
                 'FIREBASE_APP_ID' => $request->application_id,
             ]);
-            return response()->json(['success' => true, 'message' => 'Successfully saved Firebase settings']);
-
             session()->put('step-3-complete', true);
             Configuration::updateStep(1);
+            return response()->json(['success' => true, 'message' => 'Firebase settings saved.']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            dd(($e->getMessage()));
-            return response()->json(['success' => false, 'message' => 'Failed to save settings'], 500);
+            Log::error('Database setup failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Setup failed: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
@@ -123,7 +196,7 @@ class InstallerController extends Controller
         $step = Configuration::stepExists();
         $step = '1';
         if ($step >= 1 && $step < 5 && $this->requirementsCompleteStatus()) {
-            $admin = $step >= 2 ? Administrator::select('name', 'email')->first() : null;
+            $admin = $step >= 2 ? User::where('user_type', 1)->select('first_name', 'email')->first() : null;
             return view('installer::account', compact('admin'));
         }
         if ($step == 5 || !$this->requirementsCompleteStatus()) {
@@ -137,38 +210,41 @@ class InstallerController extends Controller
         try {
             $request->validate([
                 'name' => 'required|string',
-                'email' => 'required|email',
+                'email' => 'required|email|unique:users,email',
                 'password' => 'required|min:6',
             ]);
-    
-            // Initialize Firebase Admin SDK
-            $firebase = (new \Kreait\Firebase\Factory())
-            ->withServiceAccount(storage_path('firebase/firebase_credentials.json'))
-            ->withDatabaseUri(env('FIREBASE_DATABASE_URL'));
-    
-        $auth = $firebase->createAuth();
-    
-        $userProperties = [
-            'email' => $request->email,
-            'password' => $request->password,
-            'displayName' => $request->name,
-        ];
-    
-        $user = $auth->createUser($userProperties);
-    
-        $database = $firebase->createDatabase();
-        $database->getReference('data/users/' . $user->uid)->set([
-            'firstName' => $request->name,
-            'email' => $request->email,
-            'role' => "admin",
-            'created_at' => now()->toDateTimeString(),
-        ]);
-    
-        return response()->json(['success' => true, 'message' => 'Admin Account Successfully Created'], 200);
+
+            $name = trim($request->name);
+            $nameParts = preg_split('/\s+/', $name, 2);
+            $firstName = $nameParts[0] ?? 'Admin';
+            $lastName = $nameParts[1] ?? null;
+            $baseUserName = 'admin_' . substr(str_replace(['@', '.'], '', $request->email), 0, 12);
+            $userName = $baseUserName;
+            $n = 0;
+            while (User::where('user_name', $userName)->exists()) {
+                $userName = $baseUserName . (++$n);
+            }
+
+            $user = User::create([
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'full_name' => $name,
+                'email' => $request->email,
+                'user_name' => $userName,
+                'password' => Hash::make($request->password),
+                'user_type' => 1,
+                'mobile_number' => '',
+            ]);
+
+            if (\Spatie\Permission\Models\Role::where('name', 'admin')->exists()) {
+                $user->assignRole('admin');
+            }
+
+            return response()->json(['success' => true, 'message' => 'Admin account created successfully.'], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to Create Admin Account',
+                'message' => 'Failed to create admin account.',
                 'error' => $e->getMessage(),
             ], 500);
         }

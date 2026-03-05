@@ -3,14 +3,10 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Kreait\Firebase\Factory;
 use Illuminate\Support\Facades\File;
 
 class AgoraController extends Controller
 {
-    protected $auth;
-
-
     public function updateAgoraConfig(Request $request)
     {
         // Validate incoming request data

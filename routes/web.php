@@ -7,9 +7,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\VideoCallController;
 use App\Http\Controllers\AgoraController;
-use App\Http\Controllers\FirebaseUserController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\FirebaseAdminController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\StripeController;
@@ -19,6 +17,7 @@ use App\Http\Controllers\Webhooks\StripeWebhookController;
 use App\Http\Controllers\Webhooks\DiditWebhookController;
 use App\Http\Controllers\GroupChatController;
 use App\Http\Controllers\UserSearchController;
+use App\Http\Controllers\ProfileSettingsController;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Session;
@@ -36,17 +35,20 @@ Route::get('lang/{locale}.json', function ($locale) {
 
 Route::get('/firebase-config', function () {
    return response()->json([
-       'apiKey' => env('FIREBASE_API_KEY'),
-       'authDomain' => env('FIREBASE_AUTH_DOMAIN'),
-       'databaseURL' => env('FIREBASE_DATABASE_URL'),
-       'projectId' => env('FIREBASE_PROJECT_ID'),
-       'storageBucket' => env('FIREBASE_STORAGE_BUCKET'),
-       'messagingSenderId' => env('FIREBASE_MESSAGING_SENDER_ID'),
-       'appId' => env('FIREBASE_APP_ID'),
-       'measurementId' => env('FIREBASE_MEASUREMENT_ID'),
+       'apiKey' => null,
+       'authDomain' => null,
+       'databaseURL' => null,
+       'projectId' => null,
+       'storageBucket' => null,
+       'messagingSenderId' => null,
+       'appId' => null,
+       'measurementId' => null,
+       'firebaseDisabled' => true,
    ]);
 });
-Route::post('/update-firebase-config', [FirebaseUserController::class, 'updateFirebaseConfig']);
+Route::post('/update-firebase-config', function () {
+   return response()->json(['message' => 'Firebase has been removed. This app uses MySQL only.'], 410);
+});
 Route::post('/update-agora-config', [AgoraController::class, 'updateAgoraConfig']);
 Route::get('/verify-session', function() {
    // Directly check the session data
@@ -142,10 +144,10 @@ Route::middleware(['auth'])->prefix('connect')->group(function () {
    Route::get('/{platform}/callback', [App\Http\Controllers\API\SocialAccountController::class, 'callback'])->name('social.callback');
 });
 
-Route::post('/create-user', [FirebaseUserController::class, 'createUser']);
-Route::post('/create-admin-user', [FirebaseAdminController::class, 'createUser']);
-Route::post('/save-firebase-settings', [FirebaseUserController::class, 'saveSettings']);
-Route::get('/firebase-settings', [FirebaseUserController::class, 'showSettings'])->name('firebase.settings');
+Route::post('/create-user', function () { return response()->json(['message' => 'Firebase removed. Use registration page.'], 410); });
+Route::post('/create-admin-user', function () { return response()->json(['message' => 'Firebase removed. Use admin user management.'], 410); });
+Route::post('/save-firebase-settings', function () { return response()->json(['message' => 'Firebase has been removed.'], 410); });
+Route::get('/firebase-settings', function () { return response()->json(['message' => 'Firebase has been removed. App uses MySQL only.'], 410); });
 
 //Libsodium test
 Route::get('/encrypt-decrypt', function () {
@@ -241,6 +243,8 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
    Route::get('/settings', function () {
       return view('frontend.settings');
    })->name('settings');
+
+   Route::post('/profile-settings/save', [ProfileSettingsController::class, 'save'])->name('profile-settings.save');
 
    // Group Chat API (JSON)
    Route::prefix('api/groups')->group(function () {

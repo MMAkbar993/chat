@@ -3,16 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Services\FirebaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
 class UserSearchController extends Controller
 {
-    public function __construct(protected FirebaseService $firebase)
-    {
-    }
-
     /**
      * Search users by username or name.
      * GET /api/users/search?q=xxx
@@ -53,25 +48,11 @@ class UserSearchController extends Controller
                         'country' => $user->country,
                         'profile_image' => $user->profile_image_link,
                         'kyc_verified' => $user->isKycVerified(),
-                        'firebase_uid' => $this->getFirebaseUidForUser($user),
                     ];
                 });
         });
 
         return response()->json(['users' => $users]);
-    }
-
-    protected function getFirebaseUidForUser(User $user): ?string
-    {
-        if (empty($user->email)) {
-            return null;
-        }
-        try {
-            $firebaseUser = $this->firebase->getAuth()->getUserByEmail($user->email);
-            return $firebaseUser->uid;
-        } catch (\Throwable $e) {
-            return null;
-        }
     }
 
     /**
