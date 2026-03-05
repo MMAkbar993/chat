@@ -779,7 +779,7 @@
                                                                     <div class="row">
                                                                         <div class="col-lg-12" style="display: none;">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="UID" id="uid">
@@ -790,7 +790,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('First Name')}}"
@@ -807,7 +807,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Last Name')}}"
@@ -823,7 +823,7 @@
                                                                             </div>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div class="input-icon mb-3 position-relative">
+                                                                            <div class="input-icon mb-1 position-relative">
                                                                                 <select class="form-control" id="gender">
                                                                                     <option value="" disabled selected>{{ __('Select Gender') }}</option>
                                                                                     <option value="Male">{{ __('Male') }}</option>
@@ -837,7 +837,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="tel" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Mobile Number')}}"
@@ -850,7 +850,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 @php
                                                                                     $emailLocked = Auth::check() && (Auth::user()->isKycVerified() || Auth::user()->email_verified_at);
                                                                                 @endphp
@@ -870,7 +870,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('User Name')}}"
@@ -881,7 +881,7 @@
                                                                             </div>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div class="input-icon mb-3 position-relative">
+                                                                            <div class="input-icon mb-1 position-relative">
                                                                                 <input type="text" id="dob" class="form-control datetimepicker" placeholder="{{ __('Date of birth')}}">
                                                                                 <span class="icon-addon">
                                                                                     <i class="ti ti-calendar-event"></i>
@@ -890,7 +890,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Country')}}"
@@ -908,7 +908,7 @@
                                                                             </div>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div class="input-icon mb-3 position-relative">
+                                                                            <div class="input-icon mb-1 position-relative">
                                                                                 <select class="form-control" id="primary_role">
                                                                                     <option value="" disabled selected>{{ __('Select Role') }}</option>
                                                                                     @foreach(config('registration.primary_roles', []) as $key => $label)
@@ -921,7 +921,7 @@
                                                                             </div>
                                                                         </div>
                                                                         <div class="col-lg-12" id="other_role_wrapper" style="display:none;">
-                                                                            <div class="input-icon mb-3 position-relative">
+                                                                            <div class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Specify your role')}}"
@@ -961,7 +961,7 @@
                                                                     <div class="row">
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="url" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Website')}} (https://...)"
@@ -973,17 +973,16 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Facebook')}}"
                                                                                     id="facebook_link">
                                                                                 <span class="icon-addon">
-                                                                                    <i
-                                                                                        class="ti ti-brand-facebook"></i>
+                                                                                    <i class="ti ti-brand-facebook"></i>
                                                                                 </span>
                                                                             </div>
-                                                                            <p class="small mb-2">
+                                                                            <p class="small mt-0 mb-2">
                                                                                 @if(in_array('facebook', $socialVerifiedPlatforms))
                                                                                     <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
                                                                                 @else
@@ -993,7 +992,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Instagram')}}"
@@ -1002,7 +1001,7 @@
                                                                                     <i class="ti ti-brand-instagram"></i>
                                                                                 </span>
                                                                             </div>
-                                                                            <p class="small mb-2">
+                                                                            <p class="small mt-0 mb-2">
                                                                                 @if(in_array('instagram', $socialVerifiedPlatforms))
                                                                                     <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
                                                                                 @else
@@ -1012,7 +1011,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Twitter')}}"
@@ -1021,7 +1020,7 @@
                                                                                     <i class="ti ti-brand-twitter"></i>
                                                                                 </span>
                                                                             </div>
-                                                                            <p class="small mb-2">
+                                                                            <p class="small mt-0 mb-2">
                                                                                 @if(in_array('x', $socialVerifiedPlatforms))
                                                                                     <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
                                                                                 @else
@@ -1031,7 +1030,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('LinkedIn')}}"
@@ -1041,7 +1040,7 @@
                                                                                         class="ti ti-brand-linkedin"></i>
                                                                                 </span>
                                                                             </div>
-                                                                            <p class="small mb-2">
+                                                                            <p class="small mt-0 mb-2">
                                                                                 @if(in_array('linkedin', $socialVerifiedPlatforms))
                                                                                     <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
                                                                                 @else
@@ -1051,7 +1050,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('YouTube')}}"
@@ -1060,7 +1059,7 @@
                                                                                     <i class="ti ti-brand-youtube"></i>
                                                                                 </span>
                                                                             </div>
-                                                                            <p class="small mb-2">
+                                                                            <p class="small mt-0 mb-2">
                                                                                 @if(in_array('youtube', $socialVerifiedPlatforms))
                                                                                     <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
                                                                                 @else
@@ -1070,7 +1069,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Kick')}}"
@@ -1079,7 +1078,7 @@
                                                                                     <i class="ti ti-device-gamepad-2"></i>
                                                                                 </span>
                                                                             </div>
-                                                                            <p class="small mb-2">
+                                                                            <p class="small mt-0 mb-2">
                                                                                 @if(in_array('kick', $socialVerifiedPlatforms))
                                                                                     <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
                                                                                 @else
@@ -1089,7 +1088,7 @@
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div
-                                                                                class="input-icon mb-3 position-relative">
+                                                                                class="input-icon mb-1 position-relative">
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Twitch')}}"
@@ -1098,7 +1097,7 @@
                                                                                     <i class="ti ti-brand-twitch"></i>
                                                                                 </span>
                                                                             </div>
-                                                                            <p class="small mb-2">
+                                                                            <p class="small mt-0 mb-2">
                                                                                 @if(in_array('twitch', $socialVerifiedPlatforms))
                                                                                     <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
                                                                                 @else

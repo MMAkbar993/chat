@@ -55,7 +55,12 @@ class SocialAccountController extends Controller
             if (!$driver) {
                 return response()->json(['error' => 'Platform not configured'], 400);
             }
-            return Socialite::driver($driver)->stateless()->redirect();
+            $socialite = Socialite::driver($driver)->stateless();
+            // Facebook driver is used for both Facebook and Instagram; each has its own callback URL
+            if ($driver === 'facebook') {
+                $socialite->redirectUrl(url("/connect/{$platform}/callback"));
+            }
+            return $socialite->redirect();
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

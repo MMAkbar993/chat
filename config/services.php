@@ -51,6 +51,7 @@ return [
         'client_id' => env('TWITTER_CLIENT_ID'),
         'client_secret' => env('TWITTER_CLIENT_SECRET'),
         'redirect' => env('TWITTER_REDIRECT_URI'),
+        'oauth' => 2, // Use OAuth 2.0 for X (Twitter); avoids "identifier" error from OAuth 1
     ],
 
     'twitch' => [
