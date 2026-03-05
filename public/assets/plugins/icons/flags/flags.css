@@ -6,6 +6,10 @@
     vertical-align: bottom;
     font-style: normal;
 }
+/* Fallback for flag images that are not in the bundle (avoids 404) */
+.flag-aq, .flag-eh, .flag-eu, .flag-gb-eng, .flag-gb-nir, .flag-gb-sct, .flag-gb-wls, .flag-hm, .flag-mf, .flag-sj {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Crect fill='%23e0e0e0' width='24' height='24'/%3E%3C/svg%3E");
+}
 .flag-ad {
     background-image: url("flags/ad.png");
 }

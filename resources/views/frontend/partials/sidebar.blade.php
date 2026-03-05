@@ -534,6 +534,7 @@
 
                                     <!-- Social Media -->
                                     <h5 class="mb-2">{{ __('Social Media') }}</h5>
+                                    <p class="text-muted small mb-2">{{ __('Social links are displayed as provided and are not verified.') }}</p>
                                     <div class="card">
                                         <div class="card-body">
                                             <div
@@ -1451,6 +1452,9 @@
             <script type="module" src="assets/js/firebase/firebaseSettings.js" crossorigin="anonymous"></script>
             <script type="module" src="assets/js/firebase/firebaseStatus.js" crossorigin="anonymous"></script>
             <script type="module" src="assets/js/firebase/firebaseCalls.js" crossorigin="anonymous"></script>
+            @if(request()->routeIs('settings'))
+            <script type="module" src="{{ asset('assets/js/firebase/firebaseChat.js') }}" crossorigin="anonymous"></script>
+            @endif
             <script type="module" src="assets/js/firebase/firebaseSidebar.js" crossorigin="anonymous"></script>
             <script type="module" src="assets/js/firebase/firebaseSidebarChangePassword.js" crossorigin="anonymous"></script>
 

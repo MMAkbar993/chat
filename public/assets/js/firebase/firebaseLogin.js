@@ -235,7 +235,7 @@ function getDeviceInfo() {
                                 duration: 3000,
                                 gravity: "top",
                                 position: "center",
-                                backgroundColor: "#f44336",
+                                style: { background: "#f44336" },
                             }).showToast();
 
                             // Log the user out immediately
@@ -259,7 +259,7 @@ function getDeviceInfo() {
                                 duration: 3000,
                                 gravity: "top",
                                 position: "center",
-                                backgroundColor: "#f44336",
+                                style: { background: "#f44336" },
                             }).showToast();
 
                             // Log the user out immediately
@@ -276,52 +276,85 @@ function getDeviceInfo() {
                             return; // Exit the login process
                         }
 
-                    // const deviceToken = await getDeviceToken();    
-
-                    var userref = ref(database, `data/users/${user.uid}`);
-                    update(userref, { "online":true,
-                                      "osType": "web" }) // Persist the 'seen' status in Firebase
-                            .then(() => {
-                               
-                            })
-                            .catch((error) => {
-                               
+                    // Establish Laravel session so /chat middleware allows access
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                    const loginUrl = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin + '/login' : '/login';
+                    user.getIdToken()
+                        .then(function(idToken) {
+                            return fetch(loginUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': csrfToken || ''
+                                },
+                                body: JSON.stringify({ firebase_token: idToken })
                             });
-                            try {
-                                var language = "English";
-                                setfiresession(user.uid, userData.username, userData.firstName, language);
-                            } catch (e) {
-                            }
-                        }       
-                    Toastify({
-                        text: "Logged in successfully!",
-                        duration: 3000,
-                        gravity: "top",
-                        position: "center",
-                        backgroundColor: "#4caf50",
-                    }).showToast();
-
-                    const deviceInfo = getDeviceInfo(); 
-                    const userRef = ref(getDatabase(), `data/users/${user.uid}/device_info`);
-                    const newDeviceRef = push(userRef);
-                    const deviceData = {
-                        device_name: deviceInfo.userAgent,
-                        last_used: deviceInfo.timestamp
-                    };
-
-                    set(newDeviceRef, deviceData)
-                        .then(() => {
-                           
-                             window.location.href = '/chat';
                         })
-                        .catch((error) => {
-                           
+                        .then(function(r) {
+                            return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data || {} }; })
+                                .catch(function() { return { ok: false, status: r.status, data: {} }; });
+                        })
+                        .then(function(result) {
+                            if (!result.ok || !(result.data && result.data.success)) {
+                                Toastify({
+                                    text: (result.data && result.data.message) || "Could not sign in. Please try again.",
+                                    duration: 4000,
+                                    gravity: "top",
+                                    position: "center",
+                                    style: { background: "#f44336" },
+                                }).showToast();
+                                submitButton.textContent = "Sign In";
+                                submitButton.disabled = false;
+                                return;
+                            }
+                            if (result.data.needs_2fa && result.data.redirect) {
+                                window.location.href = result.data.redirect;
+                                return;
+                            }
+                            var userref = ref(database, `data/users/${user.uid}`);
+                            update(userref, { "online": true, "osType": "web" }).then(function() {}).catch(function() {});
+                            try {
+                                setfiresession(user.uid, userData.username, userData.firstName, "English");
+                            } catch (e) {}
+                            Toastify({
+                                text: "Logged in successfully!",
+                                duration: 3000,
+                                gravity: "top",
+                                position: "center",
+                                style: { background: "#4caf50" },
+                            }).showToast();
+                            var deviceInfo = getDeviceInfo();
+                            var newDeviceRef = push(ref(getDatabase(), `data/users/${user.uid}/device_info`));
+                            set(newDeviceRef, {
+                                device_name: deviceInfo.userAgent,
+                                last_used: deviceInfo.timestamp
+                            }).then(function() {
+                                window.location.href = result.data.redirect || '/chat';
+                            }).catch(function() {
+                                window.location.href = result.data.redirect || '/chat';
+                            });
+                        })
+                        .catch(function(err) {
+                            Toastify({
+                                text: "Could not sign in. Please try again.",
+                                duration: 4000,
+                                gravity: "top",
+                                position: "center",
+                                style: { background: "#f44336" },
+                            }).showToast();
+                            submitButton.textContent = "Sign In";
+                            submitButton.disabled = false;
                         });
-                }).catch((error) => {
-                  
+                        return;
+                    }
                     submitButton.textContent = "Sign In";
                     submitButton.disabled = false;
-                });
+                })
+            .catch((error) => {
+                submitButton.textContent = "Sign In";
+                submitButton.disabled = false;
+            });
             })
             .catch(async (error) => {
                 // If Firebase has no user (e.g. registered via Laravel only), try Laravel login and sign in with custom token
@@ -429,33 +462,29 @@ function getDeviceInfo() {
         // Retrieve language data from Firebase
         get(languageRef)
             .then((snapshot) => {
-                if (snapshot.exists()) {
-                    const languagedata = snapshot.val();
-                    $.ajaxSetup({
-                        headers: {
-                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                        }
-                    });
-    
-                    $.ajax({
-                        url: '/fire-session', // Laravel endpoint
-                        type: 'POST',
-                        data: {
-                            user: user,
-                            username: name,
-                            firstName: username,
-                            state: 'no',
-                            language: language,
-                            languagedata: languagedata
-                        },
-                        success: function(response) {
-                        },
-                        error: function(xhr) {
-                        }
-                    });
-                } else {
-                    console.error("No data available for the selected language.");
-                }
+                const languagedata = snapshot.exists() ? snapshot.val() : {};
+                $.ajaxSetup({
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    }
+                });
+
+                $.ajax({
+                    url: '/fire-session',
+                    type: 'POST',
+                    data: {
+                        user: user,
+                        username: name,
+                        firstName: username,
+                        state: 'no',
+                        language: language,
+                        languagedata: languagedata
+                    },
+                    success: function(response) {
+                    },
+                    error: function(xhr) {
+                    }
+                });
             })
             .catch((error) => {
                 console.error("Firebase error:", error);

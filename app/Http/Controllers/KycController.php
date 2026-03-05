@@ -23,6 +23,8 @@ class KycController extends Controller
         $user = Auth::user() ?? User::find($request->session()->get('registered_user_id'));
         $kycStatus = $request->query('status');
 
+        // When Didit redirects with status=Approved, render the view so popup can notify opener and close.
+        // Do not redirect here; the view handles both popup (postMessage + close) and normal tab (redirect).
         return view('frontend.register-kyc', [
             'user' => $user,
             'kycStatus' => $kycStatus,
@@ -77,12 +79,23 @@ class KycController extends Controller
                 ->with('success', __('[TEST MODE] Identity verified and subscription activated.'));
         }
 
-        $result = $this->didit->createVerificationSession($user);
-        if (!$result || empty($result['redirectUrl'])) {
+        try {
+            $result = $this->didit->createVerificationSession($user);
+        } catch (\Throwable $e) {
+            Log::error('Didit createSession exception', ['error' => $e->getMessage(), 'user_id' => $user->id]);
+            $message = 'Identity verification is temporarily unavailable. Please try again later.';
             if ($request->wantsJson()) {
-                return response()->json(['message' => 'Unable to start identity verification.'], 500);
+                return response()->json(['message' => __($message)], 503);
             }
-            return back()->withErrors('Unable to start Didit identity verification. Please try again.');
+            return back()->withErrors($message);
+        }
+
+        if (!$result || empty($result['redirectUrl'])) {
+            $message = 'Unable to start identity verification. Please try again or contact support.';
+            if ($request->wantsJson()) {
+                return response()->json(['message' => __($message)], 503);
+            }
+            return back()->withErrors($message);
         }
 
         if ($request->wantsJson()) {

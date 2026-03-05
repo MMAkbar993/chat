@@ -26,7 +26,7 @@ class TwoFactorController extends Controller
     {
         $user = Auth::user();
         if (!$user) {
-            return redirect()->route('signin');
+            return redirect()->route('login');
         }
 
         if ($user->has2faEnabled()) {

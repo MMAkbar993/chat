@@ -610,8 +610,7 @@ function fetchUsers() {
 
                 // Create a mapping of user IDs to user names
                 for (const userId in users) {
-                    usersMap[userId] = users[userId].firstName + ' ' + users[userId]
-                    .lastName; // Store user names in usersMap
+                    usersMap[userId] = users[userId]; // Store full user object for displayUserDetails
                 }
 
                 // Check for the logged-in user
@@ -677,9 +676,9 @@ function fetchUserDetails(userId) {
 
                 // Set profile image in Settings form and everywhere
                 const profileImageUrl = user.image || user.profile_image || user.photoURL || '';
-                if (profileImageUrl) {
-                    const profileImgEl = document.getElementById('profileImage');
-                    if (profileImgEl && profileImgEl.tagName === 'IMG') profileImgEl.src = profileImageUrl;
+                const profileImgEl = document.getElementById('profileImage');
+                if (profileImgEl && profileImgEl.tagName === 'IMG') {
+                    profileImgEl.src = profileImageUrl || profileImgEl.src || 'assets/img/profiles/avatar-03.jpg';
                 }
 
                 const websiteLinkEl = document.getElementById('website_link');
@@ -695,6 +694,18 @@ function fetchUserDetails(userId) {
                 // Update sidebar profile panel so it doesn't stay "Loading"
                 if (typeof displayUserDetails === 'function') {
                     try { displayUserDetails(user); } catch (e) {}
+                }
+
+                // Lock name and email fields when KYC/email verified (enforce even if blade didn't)
+                if (typeof IS_KYC_VERIFIED !== 'undefined' && IS_KYC_VERIFIED) {
+                    const fn = document.getElementById('firstName');
+                    const ln = document.getElementById('lastName');
+                    if (fn) { fn.readOnly = true; }
+                    if (ln) { ln.readOnly = true; }
+                }
+                if (typeof IS_EMAIL_VERIFIED !== 'undefined' && IS_EMAIL_VERIFIED) {
+                    const em = document.getElementById('email');
+                    if (em) { em.readOnly = true; }
                 }
 
                 var roleSelect = document.getElementById('primary_role');
@@ -913,21 +924,28 @@ if(currentUserId == "qvs0EBUDnRPIQFlWnki62Rrh2w32" || currentUserId == "TKVRtzXc
     const mobile_number = document.getElementById('mobile_number').value.trim();
     const uid = document.getElementById('uid').value.trim();
 
+    const nameLocked = typeof IS_KYC_VERIFIED !== 'undefined' && IS_KYC_VERIFIED;
+    const emailLocked = typeof IS_EMAIL_VERIFIED !== 'undefined' && IS_EMAIL_VERIFIED;
+
     const fields = [
-        {
-            id: 'firstName',
-            value: firstName,
-            regex: /^[A-Za-z\s]+$/,
-            requiredError: 'First name is required.',
-            formatError: 'First name must only contain letters and spaces.',
-        },
-        {
-            id: 'email',
-            value: email,
-            regex: /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/,
-            requiredError: 'Email address is required.',
-            formatError: 'Enter a valid email address.',
-        },
+        ...(!nameLocked ? [
+            {
+                id: 'firstName',
+                value: firstName,
+                regex: /^[A-Za-z\s]+$/,
+                requiredError: 'First name is required.',
+                formatError: 'First name must only contain letters and spaces.',
+            },
+        ] : []),
+        ...(!emailLocked ? [
+            {
+                id: 'email',
+                value: email,
+                regex: /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/,
+                requiredError: 'Email address is required.',
+                formatError: 'Enter a valid email address.',
+            },
+        ] : []),
         {
             id: 'mobile_number',
             value: mobile_number,
@@ -935,13 +953,15 @@ if(currentUserId == "qvs0EBUDnRPIQFlWnki62Rrh2w32" || currentUserId == "TKVRtzXc
             requiredError: 'Mobile number is required.',
             formatError: 'Mobile number length must be 10 to 21 digits.',
         },
-        {
-            id: 'lastName',
-            value: lastName,
-            regex: /^[A-Za-z\s]+$/,
-            requiredError: 'Last name is required.',
-            formatError: 'Last name must only contain letters and spaces.',
-        },
+        ...(!nameLocked ? [
+            {
+                id: 'lastName',
+                value: lastName,
+                regex: /^[A-Za-z\s]+$/,
+                requiredError: 'Last name is required.',
+                formatError: 'Last name must only contain letters and spaces.',
+            },
+        ] : []),
         {
             id: 'country',
             value: country,
@@ -954,7 +974,17 @@ if(currentUserId == "qvs0EBUDnRPIQFlWnki62Rrh2w32" || currentUserId == "TKVRtzXc
     // Validation flags
     let isValid = true;
 
-    // Clear previous error messages
+    // Clear previous error messages (and clear name/email errors when locked so no stale messages)
+    if (nameLocked) {
+        const fnErr = document.getElementById('firstName_error');
+        const lnErr = document.getElementById('lastName_error');
+        if (fnErr) { fnErr.textContent = ''; fnErr.style.display = 'none'; }
+        if (lnErr) { lnErr.textContent = ''; lnErr.style.display = 'none'; }
+    }
+    if (emailLocked) {
+        const emErr = document.getElementById('email_error');
+        if (emErr) { emErr.textContent = ''; emErr.style.display = 'none'; }
+    }
 
     // Validate each field
     fields.forEach(field => {

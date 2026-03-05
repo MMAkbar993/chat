@@ -29,15 +29,72 @@
                                     </div>
                                 @endif
 
-                                @if($kycStatus === 'success')
-                                    <div class="alert alert-success">
+                                @if($kycStatus === 'success' || $kycStatus === 'Approved' || (isset($kycStatus) && strtolower($kycStatus) === 'approved'))
+                                    <div class="alert alert-success" id="kyc-success-message">
                                         <i class="ti ti-shield-check me-1"></i>
-                                        {{ __('Verification submitted successfully! We will process it shortly. You will be notified once approved.') }}
+                                        {{ __('Verification completed successfully! Closing this window and taking you to sign in…') }}
                                     </div>
-                                    <div class="mt-3">
-                                        <a href="{{ route('signin') }}" class="btn btn-primary w-100 justify-content-center">{{ __('Go to Sign In') }}</a>
+                                    <div class="mt-3 d-none" id="kyc-fallback-link">
+                                        <p class="text-muted small">{{ __('If this window did not close automatically, click below:') }}</p>
+                                        <a href="{{ route('signin') }}" id="kyc-continue-btn" class="btn btn-primary w-100 justify-content-center">{{ __('Continue to Sign In') }}</a>
                                     </div>
-                                @elseif($kycStatus === 'error' || $kycStatus === 'unverified')
+                                    <script>
+                                    (function() {
+                                        var signinUrl = '{{ route("signin") }}';
+                                        var fallbackEl = document.getElementById('kyc-fallback-link');
+
+                                        function redirectOpenerAndClose() {
+                                            if (window.opener && !window.opener.closed) {
+                                                try {
+                                                    window.opener.postMessage({ type: 'kyc-approved' }, '*');
+                                                    window.opener.location.href = signinUrl;
+                                                } catch (e) {}
+                                            }
+                                            window.close();
+                                        }
+
+                                        // Notify opener first so it can close this popup and redirect
+                                        if (window.opener && !window.opener.closed) {
+                                            try {
+                                                window.opener.postMessage({ type: 'kyc-approved' }, '*');
+                                            } catch (e) {}
+                                        }
+                                        if (window.opener && !window.opener.closed) {
+                                            redirectOpenerAndClose();
+                                        } else {
+                                            window.location.href = signinUrl;
+                                            return;
+                                        }
+
+                                        // Retry close (browsers may block first close after redirect)
+                                        var closeAttempts = 0;
+                                        var closeInterval = setInterval(function() {
+                                            closeAttempts++;
+                                            if (window.closed) {
+                                                clearInterval(closeInterval);
+                                                return;
+                                            }
+                                            redirectOpenerAndClose();
+                                            if (closeAttempts >= 5) {
+                                                clearInterval(closeInterval);
+                                                if (!window.closed && fallbackEl) fallbackEl.classList.remove('d-none');
+                                            }
+                                        }, 400);
+                                        setTimeout(function() {
+                                            clearInterval(closeInterval);
+                                            if (!window.closed && fallbackEl) fallbackEl.classList.remove('d-none');
+                                        }, 2500);
+
+                                        document.getElementById('kyc-continue-btn').addEventListener('click', function(e) {
+                                            if (window.opener && !window.opener.closed) {
+                                                e.preventDefault();
+                                                try { window.opener.location.href = signinUrl; } catch (err) {}
+                                                window.close();
+                                            }
+                                        });
+                                    })();
+                                    </script>
+                                @elseif($kycStatus === 'error' || $kycStatus === 'unverified' || (isset($kycStatus) && strtolower($kycStatus) === 'declined'))
                                     <div class="alert alert-warning">
                                         <i class="ti ti-alert-triangle me-1"></i>
                                         {{ __('Verification was not completed. Please try again.') }}

@@ -394,11 +394,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // === Select2 for country ===
     if (typeof jQuery !== 'undefined' && $.fn.select2) {
+        var flagFallback = { aq: 'gb', eh: 'ma', eu: 'fr', 'gb-eng': 'gb', 'gb-nir': 'gb', 'gb-sct': 'gb', 'gb-wls': 'gb', hm: 'au', mf: 'fr', sj: 'no' };
         function formatCountry(state) {
             if (!state.id) return state.text;
             var code = $(state.element).data('code');
             if (!code) return state.text;
-            return $('<span><i class="flag flag-' + code + ' me-2"></i> ' + state.text + '</span>');
+            var flagCode = flagFallback[code] || code;
+            return $('<span><i class="flag flag-' + flagCode + ' me-2"></i> ' + state.text + '</span>');
         }
         $('.select2-country').select2({ templateResult: formatCountry, templateSelection: formatCountry, width: '100%' });
     }
@@ -569,12 +571,14 @@ document.addEventListener('DOMContentLoaded', function() {
         showSection('payment-plan-select');
     });
 
-    // === Listen for Stripe popup messages ===
+    // === Listen for Stripe and KYC popup messages ===
     window.addEventListener('message', function(event) {
         if (event.data && event.data.type === 'stripe-success') {
             onPaymentDetailsSaved();
         } else if (event.data && event.data.type === 'stripe-cancelled') {
             onPaymentCancelled();
+        } else if (event.data && event.data.type === 'kyc-approved') {
+            onKycApproved();
         }
     });
 
@@ -671,9 +675,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('kyc-verified').classList.remove('d-none');
         setActiveStep('done');
 
-        setTimeout(function() {
-            window.location.href = '{{ route("signin") }}';
-        }, 2500);
+        window.location.href = '{{ route("signin") }}';
     }
 });
 </script>

@@ -43,6 +43,19 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
+// "+ Group" button: open New Group modal instead of navigating (fixes button on group-chat page)
+const groupAddBtn = document.getElementById('group-add-btn');
+if (groupAddBtn) {
+    groupAddBtn.addEventListener('click', function (e) {
+        const newGroupEl = document.getElementById('new-group');
+        if (newGroupEl && typeof bootstrap !== 'undefined') {
+            e.preventDefault();
+            const modal = bootstrap.Modal.getOrCreateInstance(newGroupEl);
+            modal.show();
+        }
+    });
+}
+
 let usersMap = {};
 
 // Function to fetch users from Firebase

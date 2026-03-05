@@ -200,7 +200,7 @@ Route::post('/firesession', [SessionController::class, 'firesession']);
 // Public profile (no auth required)
 Route::get('/u/{username}', [UserSearchController::class, 'publicProfile'])->name('public-profile');
 
-Route::middleware(['ensure2fa'])->group(function () {
+Route::middleware(['auth', 'ensure2fa'])->group(function () {
    Route::get('/index', function () {
       return view('frontend/index');
    })->name('index');

@@ -24,13 +24,15 @@ class DiditService
     /**
      * Create a Didit verification session for a user.
      * Returns ['sessionId' => '...', 'redirectUrl' => '...'] on success.
+     * API docs: https://docs.didit.me/sessions-api/create-session
      */
     public function createVerificationSession(User $user): ?array
     {
         $payload = [
             'workflow_id' => $this->workflowId,
             'vendor_data' => (string) $user->id,
-            'callback_url' => route('register.kyc'), // Didit appends ?status=... to this URL
+            'callback' => route('register.kyc'), // Didit expects "callback", appends verificationSessionId & status
+            'callback_method' => 'both',
         ];
 
         try {
@@ -39,23 +41,34 @@ class DiditService
                 'Content-Type' => 'application/json',
             ])->post("{$this->baseUrl}/v3/session/", $payload);
 
+            $data = $response->json() ?? [];
+            $status = $response->status();
+
             if ($response->successful()) {
-                $data = $response->json();
-                Log::info('Didit session created', ['sessionId' => $data['session_id'] ?? null, 'user_id' => $user->id]);
+                $redirectUrl = $data['url'] ?? $data['verification_url'] ?? null;
+                Log::info('Didit session created', [
+                    'session_id' => $data['session_id'] ?? null,
+                    'user_id' => $user->id,
+                ]);
                 return [
                     'sessionId' => $data['session_id'] ?? null,
-                    'redirectUrl' => $data['url'] ?? null,
+                    'redirectUrl' => $redirectUrl,
                 ];
             }
 
             Log::error('Didit session creation failed', [
-                'status' => $response->status(),
+                'status' => $status,
                 'body' => $response->body(),
+                'response_data' => $data,
                 'user_id' => $user->id,
             ]);
             return null;
         } catch (\Throwable $e) {
-            Log::error('Didit API error', ['error' => $e->getMessage(), 'user_id' => $user->id]);
+            Log::error('Didit API error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'user_id' => $user->id,
+            ]);
             return null;
         }
     }
