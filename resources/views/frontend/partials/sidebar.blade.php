@@ -1449,14 +1449,14 @@
 
 
 
-            <script type="module" src="assets/js/firebase/firebaseSettings.js" crossorigin="anonymous"></script>
-            <script type="module" src="assets/js/firebase/firebaseStatus.js" crossorigin="anonymous"></script>
-            <script type="module" src="assets/js/firebase/firebaseCalls.js" crossorigin="anonymous"></script>
+            <script type="module" src="{{ asset('assets/js/firebase/firebaseSettings.js') }}" crossorigin="anonymous"></script>
+            <script type="module" src="{{ asset('assets/js/firebase/firebaseStatus.js') }}" crossorigin="anonymous"></script>
+            <script type="module" src="{{ asset('assets/js/firebase/firebaseCalls.js') }}" crossorigin="anonymous"></script>
             @if(request()->routeIs('settings'))
             <script type="module" src="{{ asset('assets/js/firebase/firebaseChat.js') }}" crossorigin="anonymous"></script>
             @endif
-            <script type="module" src="assets/js/firebase/firebaseSidebar.js" crossorigin="anonymous"></script>
-            <script type="module" src="assets/js/firebase/firebaseSidebarChangePassword.js" crossorigin="anonymous"></script>
+            <script type="module" src="{{ asset('assets/js/firebase/firebaseSidebar.js') }}" crossorigin="anonymous"></script>
+            <script type="module" src="{{ asset('assets/js/firebase/firebaseSidebarChangePassword.js') }}" crossorigin="anonymous"></script>
 
 
             <div class="modal fade" id="modalPopup" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">

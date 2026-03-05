@@ -2089,6 +2089,6 @@
     });
     </script>
     @endif
-    <script type="module" src="assets/js/firebase/firebaseChat.js" crossorigin="anonymous"></script>
+    <script type="module" src="{{ asset('assets/js/firebase/firebaseChat.js') }}" crossorigin="anonymous"></script>
 </div>
     @endsection

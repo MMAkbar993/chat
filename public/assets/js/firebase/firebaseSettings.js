@@ -885,6 +885,8 @@ function displayUserDetails(user) {
 }
 
 function displayJoinDate(timestamp) {
+    const el = document.getElementById('profile-info-join-date');
+    if (!el) return;
     if (timestamp) {
         // Convert timestamp (milliseconds) to a Date object
         const date = new Date(timestamp);
@@ -898,9 +900,9 @@ function displayJoinDate(timestamp) {
         const formattedDate = date.toLocaleDateString(undefined, options);
 
         // Display the formatted date
-        document.getElementById('profile-info-join-date').innerText = `${formattedDate}`;
+        el.innerText = `${formattedDate}`;
     } else {
-        document.getElementById('profile-info-join-date').innerText = '-';
+        el.innerText = '-';
     }
 }
 
