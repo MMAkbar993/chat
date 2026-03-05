@@ -337,11 +337,11 @@ Route::get('/admin/localization-settings', function () {
    return view('admin/localization-settings');
 })->name('admin.localization-settings');
 Route::get('/admin', function () {
-   return view('admin/login');
-})->name('admin.login');
+   return redirect()->route('admin.login');
+})->name('admin.dashboard.redirect');
 Route::get('/admin/login', function () {
    return view('admin/login');
-})->name('admin.login.page');
+})->name('admin.login');
 Route::get('/admin/notification-settings', function () {
    return view('admin/notification-settings');
 })->name('admin.notification-settings');
