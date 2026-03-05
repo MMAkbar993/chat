@@ -60,6 +60,10 @@ class SocialAccountController extends Controller
             if ($driver === 'facebook') {
                 $socialite->redirectUrl(url("/connect/{$platform}/callback"));
             }
+            // Google driver is used for YouTube; use the correct callback URL for this platform
+            if ($driver === 'google') {
+                $socialite->redirectUrl(url("/connect/{$platform}/callback"));
+            }
             return $socialite->redirect();
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
