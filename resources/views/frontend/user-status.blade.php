@@ -1,4 +1,4 @@
-@extends('frontend.layout')
+﻿@extends('frontend.layout')
 
 @section('content')
 <!-- content -->
@@ -169,7 +169,6 @@
     </div>
 </div>
 <!-- /Status -->
-<script type="module" src="assets/js/firebase/firebaseStatus.js" crossorigin="anonymous"></script>
 <script>
     const StatusUrl = "{{ route('user.status.upload') }}";
 </script>

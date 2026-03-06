@@ -73,13 +73,6 @@ class ProfileSettingsController extends Controller
                 'about' => 'sometimes|nullable|string|max:1000',
                 'primary_role' => 'sometimes|nullable|string|max:80',
                 'other_role_text' => 'sometimes|nullable|string|max:255',
-                'facebook_link' => 'sometimes|nullable|url|max:500',
-                'twitter_link' => 'sometimes|nullable|url|max:500',
-                'linkedin_link' => 'sometimes|nullable|url|max:500',
-                'youtube_link' => 'sometimes|nullable|url|max:500',
-                'instagram_link' => 'sometimes|nullable|url|max:500',
-                'kick_link' => 'sometimes|nullable|url|max:500',
-                'twitch_link' => 'sometimes|nullable|url|max:500',
                 'profile_image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif,svg|max:5120',
             ];
 
@@ -89,35 +82,6 @@ class ProfileSettingsController extends Controller
                     return response()->json(['message' => $validator->errors()->first()], 422);
                 }
                 return back()->withErrors($validator)->withInput();
-            }
-
-            // Require OAuth-verified connection for each social link that is being saved
-            $socialMap = [
-                'facebook_link' => 'facebook',
-                'twitter_link' => 'x',
-                'linkedin_link' => 'linkedin',
-                'youtube_link' => 'youtube',
-                'instagram_link' => 'instagram',
-                'kick_link' => 'kick',
-                'twitch_link' => 'twitch',
-            ];
-            $verifiedPlatforms = $user->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
-            $unverified = [];
-            foreach ($socialMap as $requestKey => $platform) {
-                $value = $request->input($requestKey);
-                if ($value !== null && trim((string) $value) !== '') {
-                    if (!in_array($platform, $verifiedPlatforms)) {
-                        $label = ucfirst($platform === 'x' ? 'Twitter/X' : $platform);
-                        $unverified[] = $label;
-                    }
-                }
-            }
-            if (count($unverified) > 0) {
-                $msg = __('You must verify your social profile before continuing.') . ' ' . __('Connect and verify: :list', ['list' => implode(', ', $unverified)]);
-                if ($request->wantsJson()) {
-                    return response()->json(['message' => $msg], 422);
-                }
-                return back()->withErrors(['social_verify' => $msg])->withInput();
             }
 
             $userFields = ['mobile_number', 'gender', 'dob', 'country', 'primary_role', 'other_role_text', 'user_name'];
@@ -179,20 +143,6 @@ class ProfileSettingsController extends Controller
             }
             if ($request->has('about')) {
                 $details->user_about = $request->input('about');
-            }
-            $socialMapForDb = [
-                'facebook_link' => 'facebook',
-                'twitter_link' => 'twitter',
-                'linkedin_link' => 'linkedin',
-                'youtube_link' => 'youtube',
-                'instagram_link' => 'instagram',
-                'kick_link' => 'kick',
-                'twitch_link' => 'twitch',
-            ];
-            foreach ($socialMapForDb as $requestKey => $dbKey) {
-                if ($request->has($requestKey)) {
-                    $details->$dbKey = $request->input($requestKey);
-                }
             }
             $details->save();
 

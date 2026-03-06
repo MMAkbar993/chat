@@ -112,7 +112,7 @@ Profile Settings **require** each entered social link to be verified via OAuth b
 | Platform | Socialite Driver | Config Keys | Callback URL |
 |----------|------------------|-------------|--------------|
 | Facebook | `facebook` | `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`, `FACEBOOK_REDIRECT_URI` | `{APP_URL}/connect/facebook/callback` |
-| Instagram | `facebook` | Same as Facebook (Facebook App with Instagram Basic) | `{APP_URL}/connect/instagram/callback` |
+| Instagram | `instagram` | `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET`, `INSTAGRAM_REDIRECT_URI` | `{APP_URL}/connect/instagram/callback` |
 | X (Twitter) | `twitter` | `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET`, `TWITTER_REDIRECT_URI` | `{APP_URL}/connect/x/callback` |
 | LinkedIn | `linkedin` | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_REDIRECT_URI` | `{APP_URL}/connect/linkedin/callback` |
 | YouTube | `google` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | `{APP_URL}/connect/youtube/callback` |
@@ -124,7 +124,7 @@ Profile Settings **require** each entered social link to be verified via OAuth b
 - Get **Client ID** and **Client Secret**.
 - Register the **callback URL** as above (replace `{APP_URL}` with your site URL, e.g. `https://yoursite.com`).
 - Add the same values to `.env` (and optionally to `.env.example` for your team).
-- For **Instagram**: use a Facebook App and enable “Instagram Basic Display” or the product your app uses; the callback is `/connect/instagram/callback`.
+- For **Instagram**: Connect now uses Instagram’s own OAuth (Instagram login page). Create an app in [Meta for Developers](https://developers.facebook.com/) and add the **Instagram Basic Display** or **Instagram Graph API** product. Use the app’s credentials in `.env` as `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET`, and `INSTAGRAM_REDIRECT_URI` = `{APP_URL}/connect/instagram/callback`.
 - For **YouTube**: use Google Cloud OAuth credentials; the callback is `/connect/youtube/callback`.
 
 **Twitch**: Install `composer require socialiteproviders/twitch` and register in `AppServiceProvider`:
@@ -135,6 +135,25 @@ Event::listen(function (\SocialiteProviders\Manager\SocialiteWasCalled $event) {
 ```
 
 **Twitter/X**: Add to `config/services.php` (already added). Use Twitter OAuth 2.0 credentials.
+
+---
+
+## Troubleshooting social verification
+
+| Issue | What to do |
+|-------|------------|
+| **LinkedIn: "You need to pass the client_id parameter"** | Ensure `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_REDIRECT_URI` are set in `.env`. Run `php artisan config:clear`. |
+| **LinkedIn: "The redirect_uri does not match the registered value"** | Set `LINKEDIN_REDIRECT_URI` in `.env` to the **exact** URL you added in [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps) → your app → Auth → Authorized redirect URLs. Use the same scheme (http/https), host (e.g. `127.0.0.1` or `localhost`), port (e.g. `:8000`), and path `/connect/linkedin/callback` with no trailing slash. Example: `http://127.0.0.1:8000/connect/linkedin/callback`. Then run `php artisan config:clear`. |
+| **Twitch: "missing client id"** | Set `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, `TWITCH_REDIRECT_URI` in `.env`. Run `php artisan config:clear`. |
+| **Kick: "Driver [kick] not supported"** | Run `php artisan config:clear` and `php artisan cache:clear`. Ensure `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET`, `KICK_REDIRECT_URI` are in `.env`. Ensure `byancode/socialite-kick` is installed. |
+| **Kick: "This id.kick.com page can't be found" (HTTP 404)** | Kick’s OAuth is at `https://id.kick.com/oauth/authorize`; the base URL `https://id.kick.com/` has no page and returns 404. (1) Set `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET`, and `KICK_REDIRECT_URI` in `.env`. (2) Use **localhost** (not 127.0.0.1) for the redirect URI when testing locally, e.g. `http://localhost:8000/connect/kick/callback` ([Kick’s recommendation](https://docs.kick.com/getting-started/generating-tokens-oauth2-flow)). (3) In [Kick Apps](https://kick.com/) / [Kick Developer](https://docs.kick.com/) create an app and add that **exact** redirect URI. (4) Run `php artisan config:clear`. If you still get 404, the OAuth request may be invalid (wrong/missing client_id or redirect_uri) or Kick’s service may be temporarily down — check [docs.kick.com](https://docs.kick.com) or Kick’s developer Discord. |
+| **Website: Does not work** | Verification fetches your site’s HTML; the URL must be publicly reachable (not localhost unless you test locally). Add the exact meta tag in `<head>`. |
+| **Instagram: App not active** | In [Facebook for Developers](https://developers.facebook.com/), open your app → Instagram product → set app to **Live** and add the correct redirect URI. |
+| **Twitter: "Something went wrong... give access to the App"** | In [Twitter Developer Portal](https://developer.twitter.com/), check App permissions and ensure the callback URL is exactly `{APP_URL}/connect/x/callback`. |
+| **YouTube: "Access blocked: This app's request is invalid"** | In [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → OAuth consent screen: add test users if the app is in Testing, or publish the app. Ensure the redirect URI is exactly `{APP_URL}/connect/youtube/callback`. |
+| **YouTube / Google: "Error 400: redirect_uri_mismatch"** | The redirect URL your app sends must **exactly** match a redirect URI in Google Cloud Console. (1) In `.env` set `GOOGLE_REDIRECT_URI` to that URL, e.g. `http://127.0.0.1:8000/connect/youtube/callback` (same scheme, host, and port as you use to open the site; no trailing slash). (2) In [Google Cloud Console](https://console.cloud.google.com/) → your project → **APIs & Services** → **Credentials** → open your **OAuth 2.0 Client ID** → under **Authorized redirect URIs** add the **exact** same URL (e.g. `http://127.0.0.1:8000/connect/youtube/callback`). (3) Run `php artisan config:clear`. If you see "Apollo.io", you may be using another app’s credentials; create your own OAuth client in your own Google Cloud project or add this redirect URI to the existing app. |
+
+Use the same `APP_URL` in `.env` as your site (e.g. `https://yoursite.com` in production). All redirect URIs must match exactly what is configured in each provider’s developer console.
 
 ---
 

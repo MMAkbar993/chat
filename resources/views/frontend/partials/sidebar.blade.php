@@ -954,165 +954,165 @@
                                                             data-bs-parent="#account-setting">
                                                             <div class="accordion-body">
                                                                 <p class="text-muted small mb-3"><i class="ti ti-info-circle me-1"></i>{{ __('Social links must be verified via OAuth before saving. Use full URLs (e.g. https://...).') }}</p>
+                                                                @if (session('error'))
+                                                                    <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                                                                        {{ session('error') }}
+                                                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                                                    </div>
+                                                                @endif
+                                                                @if (session('success'))
+                                                                    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+                                                                        {{ session('success') }}
+                                                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                                                    </div>
+                                                                @endif
                                                                 @php
                                                                     $socialVerifiedPlatforms = Auth::check() ? Auth::user()->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray() : [];
                                                                 @endphp
                                                                 <div class="chat-video">
                                                                     <div class="row">
                                                                         <div class="col-lg-12">
-                                                                            <div
-                                                                                class="input-icon mb-1 position-relative">
-                                                                                <input type="url" value=""
-                                                                                    class="form-control"
-                                                                                    placeholder="{{ __('Website')}} (https://...)"
-                                                                                    id="website_link">
+                                                                            <div class="input-icon mb-3 position-relative">
+                                                                                <input type="url" value="" class="form-control" placeholder="{{ __('Website')}} (https://...)" id="website_link">
                                                                                 <span class="icon-addon">
                                                                                     <i class="ti ti-globe"></i>
                                                                                 </span>
                                                                             </div>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div
-                                                                                class="input-icon mb-1 position-relative">
-                                                                                <input type="text" value=""
-                                                                                    class="form-control"
-                                                                                    placeholder="{{ __('Facebook')}}"
-                                                                                    id="facebook_link">
-                                                                                <span class="icon-addon">
-                                                                                    <i class="ti ti-brand-facebook"></i>
-                                                                                </span>
+                                                                            <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
+                                                                                <div class="d-flex align-items-center">
+                                                                                    <span class="avatar avatar-sm bg-soft-primary text-primary rounded-circle me-2">
+                                                                                        <i class="ti ti-brand-facebook fs-18"></i>
+                                                                                    </span>
+                                                                                    <span class="fw-medium text-dark">{{ __('Facebook') }}</span>
+                                                                                </div>
+                                                                                <div>
+                                                                                    @if(in_array('facebook', $socialVerifiedPlatforms))
+                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                    @else
+                                                                                        <a href="{{ route('social.connect', 'facebook') }}" class="btn btn-sm btn-outline-primary social-connect-btn">{{ __('Connect') }}</a>
+                                                                                    @endif
+                                                                                </div>
                                                                             </div>
-                                                                            <p class="small mt-0 mb-2">
-                                                                                @if(in_array('facebook', $socialVerifiedPlatforms))
-                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
-                                                                                @else
-                                                                                    <a href="{{ route('social.connect', 'facebook') }}" class="text-primary">{{ __('Verify') }}</a>
-                                                                                @endif
-                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div
-                                                                                class="input-icon mb-1 position-relative">
-                                                                                <input type="text" value=""
-                                                                                    class="form-control"
-                                                                                    placeholder="{{ __('Instagram')}}"
-                                                                                    id="instagram_link">
-                                                                                <span class="icon-addon">
-                                                                                    <i class="ti ti-brand-instagram"></i>
-                                                                                </span>
+                                                                            <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
+                                                                                <div class="d-flex align-items-center">
+                                                                                    <span class="avatar avatar-sm bg-soft-danger text-danger rounded-circle me-2">
+                                                                                        <i class="ti ti-brand-instagram fs-18"></i>
+                                                                                    </span>
+                                                                                    <span class="fw-medium text-dark">{{ __('Instagram') }}</span>
+                                                                                </div>
+                                                                                <div>
+                                                                                    @if(in_array('instagram', $socialVerifiedPlatforms))
+                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                    @else
+                                                                                        <a href="{{ route('social.connect', 'instagram') }}" class="btn btn-sm btn-outline-danger social-connect-btn">{{ __('Connect') }}</a>
+                                                                                    @endif
+                                                                                </div>
                                                                             </div>
-                                                                            <p class="small mt-0 mb-2">
-                                                                                @if(in_array('instagram', $socialVerifiedPlatforms))
-                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
-                                                                                @else
-                                                                                    <a href="{{ route('social.connect', 'instagram') }}" class="text-primary">{{ __('Verify') }}</a>
-                                                                                @endif
-                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div
-                                                                                class="input-icon mb-1 position-relative">
-                                                                                <input type="text" value=""
-                                                                                    class="form-control"
-                                                                                    placeholder="{{ __('Twitter')}}"
-                                                                                    id="twitter_link">
-                                                                                <span class="icon-addon">
-                                                                                    <i class="ti ti-brand-twitter"></i>
-                                                                                </span>
+                                                                            <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
+                                                                                <div class="d-flex align-items-center">
+                                                                                    <span class="avatar avatar-sm bg-soft-info text-info rounded-circle me-2">
+                                                                                        <i class="ti ti-brand-twitter fs-18"></i>
+                                                                                    </span>
+                                                                                    <span class="fw-medium text-dark">{{ __('Twitter') }}</span>
+                                                                                </div>
+                                                                                <div>
+                                                                                    @if(in_array('x', $socialVerifiedPlatforms))
+                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                    @else
+                                                                                        <a href="{{ route('social.connect', 'x') }}" class="btn btn-sm btn-outline-info social-connect-btn">{{ __('Connect') }}</a>
+                                                                                    @endif
+                                                                                </div>
                                                                             </div>
-                                                                            <p class="small mt-0 mb-2">
-                                                                                @if(in_array('x', $socialVerifiedPlatforms))
-                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
-                                                                                @else
-                                                                                    <a href="{{ route('social.connect', 'x') }}" class="text-primary">{{ __('Verify') }}</a>
-                                                                                @endif
-                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div
-                                                                                class="input-icon mb-1 position-relative">
-                                                                                <input type="text" value=""
-                                                                                    class="form-control"
-                                                                                    placeholder="{{ __('LinkedIn')}}"
-                                                                                    id="linkedin_link">
-                                                                                <span class="icon-addon">
-                                                                                    <i
-                                                                                        class="ti ti-brand-linkedin"></i>
-                                                                                </span>
+                                                                            <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
+                                                                                <div class="d-flex align-items-center">
+                                                                                    <span class="avatar avatar-sm bg-soft-primary text-primary rounded-circle me-2">
+                                                                                        <i class="ti ti-brand-linkedin fs-18"></i>
+                                                                                    </span>
+                                                                                    <span class="fw-medium text-dark">{{ __('LinkedIn') }}</span>
+                                                                                </div>
+                                                                                <div>
+                                                                                    @if(in_array('linkedin', $socialVerifiedPlatforms))
+                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                    @else
+                                                                                        <a href="{{ route('social.connect', 'linkedin') }}" class="btn btn-sm btn-outline-primary social-connect-btn">{{ __('Connect') }}</a>
+                                                                                    @endif
+                                                                                </div>
                                                                             </div>
-                                                                            <p class="small mt-0 mb-2">
-                                                                                @if(in_array('linkedin', $socialVerifiedPlatforms))
-                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
-                                                                                @else
-                                                                                    <a href="{{ route('social.connect', 'linkedin') }}" class="text-primary">{{ __('Verify') }}</a>
-                                                                                @endif
-                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div
-                                                                                class="input-icon mb-1 position-relative">
-                                                                                <input type="text" value=""
-                                                                                    class="form-control"
-                                                                                    placeholder="{{ __('YouTube')}}"
-                                                                                    id="youtube_link">
-                                                                                <span class="icon-addon">
-                                                                                    <i class="ti ti-brand-youtube"></i>
-                                                                                </span>
+                                                                            <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
+                                                                                <div class="d-flex align-items-center">
+                                                                                    <span class="avatar avatar-sm bg-soft-danger text-danger rounded-circle me-2">
+                                                                                        <i class="ti ti-brand-youtube fs-18"></i>
+                                                                                    </span>
+                                                                                    <span class="fw-medium text-dark">{{ __('YouTube') }}</span>
+                                                                                </div>
+                                                                                <div>
+                                                                                    @if(in_array('youtube', $socialVerifiedPlatforms))
+                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                    @else
+                                                                                        <a href="{{ route('social.connect', 'youtube') }}" class="btn btn-sm btn-outline-danger social-connect-btn">{{ __('Connect') }}</a>
+                                                                                    @endif
+                                                                                </div>
                                                                             </div>
-                                                                            <p class="small mt-0 mb-2">
-                                                                                @if(in_array('youtube', $socialVerifiedPlatforms))
-                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
-                                                                                @else
-                                                                                    <a href="{{ route('social.connect', 'youtube') }}" class="text-primary">{{ __('Verify') }}</a>
-                                                                                @endif
-                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div
-                                                                                class="input-icon mb-1 position-relative">
-                                                                                <input type="text" value=""
-                                                                                    class="form-control"
-                                                                                    placeholder="{{ __('Kick')}}"
-                                                                                    id="kick_link">
-                                                                                <span class="icon-addon">
-                                                                                    <i class="ti ti-device-gamepad-2"></i>
-                                                                                </span>
+                                                                            <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
+                                                                                <div class="d-flex align-items-center">
+                                                                                    <span class="avatar avatar-sm bg-soft-success text-success rounded-circle me-2">
+                                                                                        <i class="ti ti-device-gamepad-2 fs-18"></i>
+                                                                                    </span>
+                                                                                    <span class="fw-medium text-dark">{{ __('Kick') }}</span>
+                                                                                </div>
+                                                                                <div>
+                                                                                    @if(in_array('kick', $socialVerifiedPlatforms))
+                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                    @else
+                                                                                        <a href="{{ route('social.connect', 'kick') }}" class="btn btn-sm btn-outline-success social-connect-btn">{{ __('Connect') }}</a>
+                                                                                    @endif
+                                                                                </div>
                                                                             </div>
-                                                                            <p class="small mt-0 mb-2">
-                                                                                @if(in_array('kick', $socialVerifiedPlatforms))
-                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
-                                                                                @else
-                                                                                    <a href="{{ route('social.connect', 'kick') }}" class="text-primary">{{ __('Verify') }}</a>
-                                                                                @endif
-                                                                            </p>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div
-                                                                                class="input-icon mb-1 position-relative">
-                                                                                <input type="text" value=""
-                                                                                    class="form-control"
-                                                                                    placeholder="{{ __('Twitch')}}"
-                                                                                    id="twitch_link">
-                                                                                <span class="icon-addon">
-                                                                                    <i class="ti ti-brand-twitch"></i>
-                                                                                </span>
+                                                                            <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
+                                                                                <div class="d-flex align-items-center">
+                                                                                    <span class="avatar avatar-sm bg-soft-primary text-primary rounded-circle me-2">
+                                                                                        <i class="ti ti-brand-twitch fs-18"></i>
+                                                                                    </span>
+                                                                                    <span class="fw-medium text-dark">{{ __('Twitch') }}</span>
+                                                                                </div>
+                                                                                <div>
+                                                                                    @if(in_array('twitch', $socialVerifiedPlatforms))
+                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                    @else
+                                                                                        <a href="{{ route('social.connect', 'twitch') }}" class="btn btn-sm btn-outline-primary social-connect-btn">{{ __('Connect') }}</a>
+                                                                                    @endif
+                                                                                </div>
                                                                             </div>
-                                                                            <p class="small mt-0 mb-2">
-                                                                                @if(in_array('twitch', $socialVerifiedPlatforms))
-                                                                                    <span class="text-success"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
-                                                                                @else
-                                                                                    <a href="{{ route('social.connect', 'twitch') }}" class="text-primary">{{ __('Verify') }}</a>
-                                                                                @endif
-                                                                            </p>
                                                                         </div>
-                                                                        <div class="col-lg-12 d-flex">
-                                                                            <a href=""
-                                                                                class="btn btn-primary flex-fill"
-                                                                                id="saveSocialLinksBtn"><i
-                                                                                    class="ti ti-device-floppy me-2"></i>{{ __('Save Changes') }}</a>
-                                                                        </div>
-                                                                        <div class="col-lg-12 d-none alert alert-danger" id="socialVerifyError" role="alert"></div>
-                                                                    </div>
+                                                                    <script>
+                                                                    document.addEventListener('DOMContentLoaded', function() {
+                                                                        var buttons = document.querySelectorAll('.social-connect-btn');
+                                                                        buttons.forEach(function(btn) {
+                                                                            btn.addEventListener('click', function(e) {
+                                                                                e.preventDefault();
+                                                                                var width = 600;
+                                                                                var height = 700;
+                                                                                var left = (screen.width/2)-(width/2);
+                                                                                var top = (screen.height/2)-(height/2);
+                                                                                window.open(this.href, 'socialLogin', 'width=' + width + ',height=' + height + ',top=' + top + ',left=' + left);
+                                                                            });
+                                                                        });
+                                                                    });
+                                                                    </script>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1503,13 +1503,8 @@
 
 
             {{-- Settings use Laravel/MySQL only (see script.blade.php). Firebase settings script removed. --}}
-            <script type="module" src="{{ asset('assets/js/firebase/firebaseStatus.js') }}" crossorigin="anonymous"></script>
-            <script type="module" src="{{ asset('assets/js/firebase/firebaseCalls.js') }}" crossorigin="anonymous"></script>
             @if(request()->routeIs('settings'))
-            <script type="module" src="{{ asset('assets/js/firebase/firebaseChat.js') }}" crossorigin="anonymous"></script>
             @endif
-            <script type="module" src="{{ asset('assets/js/firebase/firebaseSidebar.js') }}" crossorigin="anonymous"></script>
-            <script type="module" src="{{ asset('assets/js/firebase/firebaseSidebarChangePassword.js') }}" crossorigin="anonymous"></script>
 
 
             <div class="modal fade" id="modalPopup" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
@@ -1626,7 +1621,6 @@
             @endif
 
 
-            <script type="module" src="{{ asset('assets/js/firebase/firebaseUserHeader.js') }}" crossorigin="anonymous"></script>
             <script>
                 const fullLogo = "{{ asset('assets/img/full-logo.png') }}";
                 const smallLogo = "{{ asset('assets/img/logo-small.svg') }}";

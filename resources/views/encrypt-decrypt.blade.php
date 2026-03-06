@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Libsodium Encrypted Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/libsodium-wrappers/0.7.9/libsodium-wrappers.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
 <body>
     <h1>Encrypted Chat</h1>
@@ -32,17 +30,7 @@ loadLibsodium().then(() => {
 });
 
 
-        // Initialize Firebase (replace with your own config)
-        var firebaseConfig = {
-            apiKey: "AIzaSyBYiaLcIIiFkdKzumpFtOj44mqujGBvSHg",
-    authDomain: "dreams-chat-ef2a3.firebaseapp.com",
-    databaseURL: "https://dreams-chat-ef2a3-default-rtdb.firebaseio.com",
-    projectId: "dreams-chat-ef2a3",
-    storageBucket: "dreams-chat-ef2a3.appspot.com",
-    messagingSenderId: "796333020052",
-    appId: "1:796333020052:web:94311f4f858a35ab0f7581",
-        };
-        firebase.initializeApp(firebaseConfig);
+        // Firebase removed
 
         // Wait for Libsodium to initialize
         let key;
@@ -88,34 +76,24 @@ loadLibsodium().then(() => {
             return sodium.to_string(decryptedMessage);
         }
 
-        // Function to send the encrypted message to Firebase
+        // Function to send the encrypted message 
         async function sendMessage() {
             const messageInput = document.getElementById('messageInput');
             const message = messageInput.value;
 
             if (message.trim() !== '') {
                 const encryptedMessage = await encryptMessage(message);
-                // Push encrypted message to Firebase Realtime Database
-                firebase.database().ref('messages').push({
-                    message: encryptedMessage,
-                    timestamp: Date.now(),
-                    senderId: 'user1' // Use actual sender ID in real case
-                });
+                
+                // Display locally for demo purposes since Firebase is removed
+                const decryptedMessage = await decryptMessage(encryptedMessage);
+                const chatbox = document.getElementById('chatbox');
+                const messageDiv = document.createElement('div');
+                messageDiv.textContent = decryptedMessage + " (Test local loop)";
+                chatbox.appendChild(messageDiv);
 
                 messageInput.value = ''; // Clear input
             }
         }
-
-        // Function to display decrypted messages
-        firebase.database().ref('messages').on('child_added', async (snapshot) => {
-            const encryptedMessage = snapshot.val().message;
-            const decryptedMessage = await decryptMessage(encryptedMessage);
-
-            const chatbox = document.getElementById('chatbox');
-            const messageDiv = document.createElement('div');
-            messageDiv.textContent = decryptedMessage;
-            chatbox.appendChild(messageDiv);
-        });
     </script>
 </body>
 </html>

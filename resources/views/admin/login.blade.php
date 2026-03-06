@@ -1,4 +1,4 @@
-@extends('admin.layout')
+﻿@extends('admin.layout')
 
 @section('content')
 <div class="container-fluid">
@@ -69,5 +69,4 @@
         </div>
     </div>
 </div>
-<script type="module" src="{{ asset('assets/js/firebase/firebaseAdminLogin.js') }}" crossorigin="anonymous"></script>
 @endsection

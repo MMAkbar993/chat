@@ -177,11 +177,21 @@ class WebsiteController extends Controller
                 return send_success_response(['data' => $data], 'This website has already been verified by another user.');
             }
 
-            VerifyWebsiteMetaTag::dispatch($userWebsite->id);
+            // Run synchronously so the user gets immediate feedback
+            VerifyWebsiteMetaTag::dispatchSync($userWebsite->id);
 
-            $result = json_encode(['message' => 'Verification started. This may take a moment.']);
+            // Refresh the model to check if verification succeeded
+            $userWebsite->refresh();
+            $verified = $userWebsite->isVerified();
+
+            $result = json_encode([
+                'verified' => $verified,
+                'message' => $verified
+                    ? 'Website verified successfully!'
+                    : 'Verification failed. Make sure the meta tag is in your site\'s <head> section and try again.',
+            ]);
             $data = $this->encryptionService->encryptData($result);
-            return send_success_response(['data' => $data], 'Verification job dispatched.');
+            return send_success_response(['data' => $data], $verified ? 'Website verified!' : 'Verification failed.');
         } catch (\Exception $e) {
             return send_exception_response($e->getMessage());
         }

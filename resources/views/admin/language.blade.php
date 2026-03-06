@@ -1,4 +1,4 @@
-@extends('admin.layout')
+﻿@extends('admin.layout')
 
 @section('content')
 <!-- Page Wrapper -->
@@ -271,5 +271,4 @@
     const webRoute = "{{ route('admin.language-web') }}";
     const adminRoute = "{{ route('admin.language-admin') }}";
 </script>
-<script type="module" src="{{ asset('assets/js/firebase/firebaseLanguage.js') }}" crossorigin="anonymous"></script>
 @endsection

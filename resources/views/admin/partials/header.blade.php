@@ -1,4 +1,4 @@
-<!-- Header -->
+﻿<!-- Header -->
 <div class="header">
 
     <!-- Logo -->
@@ -112,7 +112,6 @@
 
 </div>
 <!-- /Header -->
-<script type="module" src="{{ asset('assets/js/firebase/firebaseHeader.js') }}" crossorigin="anonymous"></script>
 <script>
     const fullLogo = "{{ asset('assets/img/full-logo.png') }}";
     const smallLogo = "{{ asset('assets/img/logo-small.svg') }}";

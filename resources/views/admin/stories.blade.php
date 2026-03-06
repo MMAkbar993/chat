@@ -1,4 +1,4 @@
-@extends('admin.layout')
+﻿@extends('admin.layout')
 
 @section('content')
     <!-- Page Wrapper -->
@@ -102,6 +102,5 @@
     </div>
     
     <!-- /Page Wrapper -->
-    <script type="module" src="{{ asset('assets/js/firebase/firebaseStatusList.js') }}" crossorigin="anonymous"></script>
     @endsection
 

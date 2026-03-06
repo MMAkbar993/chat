@@ -1,4 +1,4 @@
-@extends('frontend.layout')
+﻿@extends('frontend.layout')
 
 @section('content')
 <!-- content -->
@@ -1079,6 +1079,5 @@
     </div>
 </div>
 
-<script type="module" src="assets/js/firebase/firebaseContact.js" crossorigin="anonymous"></script>
 </div>
 @endsection

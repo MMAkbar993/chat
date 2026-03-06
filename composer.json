@@ -7,6 +7,7 @@
     "require": {
         "php": "^8.2",
         "bacon/bacon-qr-code": "*",
+        "byancode/socialite-kick": "*",
         "firebase/php-jwt": "^6.10",
         "google/auth": "^1.42",
         "guzzlehttp/guzzle": "^7.9",
@@ -20,6 +21,8 @@
         "nwidart/laravel-modules": "^10.0",
         "pragmarx/google2fa-laravel": "*",
         "pusher/pusher-php-server": "^7.2",
+        "socialiteproviders/instagram": "^5.1",
+        "socialiteproviders/linkedin": "*",
         "socialiteproviders/twitch": "^5.4",
         "spatie/laravel-permission": "^6.9",
         "stripe/stripe-php": "*",

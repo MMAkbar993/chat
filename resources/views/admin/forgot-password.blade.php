@@ -1,4 +1,4 @@
-@extends('admin.layout')
+﻿@extends('admin.layout')
 
 @section('content')
     <div class="container-fluid">
@@ -37,7 +37,6 @@
             </div>
         </div>
     </div>
-    <script type="module" src="{{ asset('assets/js/firebase/firebaseAdminForgotPassword.js') }}" crossorigin="anonymous"></script>
 @endsection
 <script>
     const APP_URL = "{{ env('APP_URL') }}";

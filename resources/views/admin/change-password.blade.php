@@ -1,4 +1,4 @@
-@extends('admin.layout')
+﻿@extends('admin.layout')
 
 @section('content')
     <!-- Page Wrapper -->
@@ -169,5 +169,4 @@
         </div>
     </div>
     <!-- /Page Wrapper -->
-    <script type="module" src="{{ asset('assets/js/firebase/firebaseChangePassword.js') }}" crossorigin="anonymous"></script>
 @endsection

@@ -1,4 +1,4 @@
-@extends('frontend.layout')
+﻿@extends('frontend.layout')
 
 @section('content')
 
@@ -1802,6 +1802,5 @@
         </div>
     </div>
 </div>
-<script type="module" src="assets/js/firebase/firebaseGroupChat.js" crossorigin="anonymous"></script>
 </div>
 @endsection

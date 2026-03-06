@@ -1,4 +1,4 @@
-@extends('frontend.layout')
+﻿@extends('frontend.layout')
 
 @section('content')
 <!-- content -->
@@ -2089,6 +2089,5 @@
     });
     </script>
     @endif
-    <script type="module" src="{{ asset('assets/js/firebase/firebaseChat.js') }}" crossorigin="anonymous"></script>
 </div>
     @endsection

@@ -4,9 +4,11 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\SocialAccount;
+use App\Models\UserDetails;
 use App\Services\EncryptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Socialite\Facades\Socialite;
 
@@ -55,18 +57,32 @@ class SocialAccountController extends Controller
             if (!$driver) {
                 return response()->json(['error' => 'Platform not configured'], 400);
             }
+
+            $callbackUrl = url("/connect/{$platform}/callback");
+            $config = $this->getDriverConfig($driver, $platform);
+            if (!$config || empty($config['client_id'])) {
+                return response()->json(['error' => 'Platform OAuth is not configured. Set client_id and client_secret in .env and config/services.php.'], 400);
+            }
+            // Use explicit redirect from config when set (e.g. LINKEDIN_REDIRECT_URI) so it matches the provider's console exactly
+            $redirectUrl = !empty($config['redirect']) ? $config['redirect'] : $callbackUrl;
+
             $socialite = Socialite::driver($driver)->stateless();
-            // Facebook driver is used for both Facebook and Instagram; each has its own callback URL
-            if ($driver === 'facebook') {
-                $socialite->redirectUrl(url("/connect/{$platform}/callback"));
-            }
-            // Google driver is used for YouTube; use the correct callback URL for this platform
-            if ($driver === 'google') {
-                $socialite->redirectUrl(url("/connect/{$platform}/callback"));
-            }
+            $socialite->redirectUrl($redirectUrl);
+            $this->applyDriverConfig($socialite, $config, $redirectUrl);
             return $socialite->redirect();
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            $msg = $e->getMessage();
+            Log::error('Social connect redirect failed', [
+                'platform' => $platform,
+                'message' => $msg,
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            if (str_contains($msg, 'Driver [kick] not supported') || str_contains($msg, 'not supported')) {
+                return response()->json(['error' => 'Kick OAuth driver is not registered. Run: php artisan config:clear and ensure KICK_CLIENT_ID, KICK_CLIENT_SECRET, KICK_REDIRECT_URI are set in .env.'], 400);
+            }
+            // Return redirect for popup UX: show settings with error instead of raw 500
+            return redirect()->route('settings')->with('error', __('Social verification failed. Please check OAuth settings in .env (client_id, client_secret, redirect URI) and try again.'));
         }
     }
 
@@ -88,7 +104,18 @@ class SocialAccountController extends Controller
                 return redirect()->route('settings')->with('error', 'Platform not configured');
             }
 
-            $socialUser = Socialite::driver($driver)->stateless()->user();
+            $callbackUrl = url("/connect/{$platform}/callback");
+            $config = $this->getDriverConfig($driver, $platform);
+            if (!$config || empty($config['client_id'])) {
+                return redirect()->route('settings')->with('error', 'Platform OAuth is not configured. Set client_id and client_secret in .env.');
+            }
+            $redirectUrl = !empty($config['redirect']) ? $config['redirect'] : $callbackUrl;
+
+            $socialite = Socialite::driver($driver)->stateless()->redirectUrl($redirectUrl);
+            $this->applyDriverConfig($socialite, $config, $redirectUrl);
+            $socialUser = $socialite->user();
+
+            $profileUrl = $this->buildProfileUrl($platform, $socialUser);
 
             SocialAccount::updateOrCreate(
                 [
@@ -98,18 +125,45 @@ class SocialAccountController extends Controller
                 [
                     'platform_user_id' => $socialUser->getId(),
                     'username' => $socialUser->getNickname() ?? $socialUser->getName(),
-                    'profile_url' => $socialUser->getAvatar(),
+                    'profile_url' => $profileUrl ?? $socialUser->getAvatar(),
                     'oauth_verified' => true,
                     'oauth_data' => [
                         'name' => $socialUser->getName(),
                         'email' => $socialUser->getEmail(),
+                        'avatar' => $socialUser->getAvatar(),
                     ],
                 ]
             );
 
-            return redirect()->route('settings')->with('success', ucfirst($platform) . ' account connected successfully.');
-        } catch (\Exception $e) {
-            return redirect()->route('settings')->with('error', $e->getMessage());
+            // Update user_details with the new profile URL for backward compatibility
+            if ($profileUrl) {
+                $details = $user->get_user_details;
+                if (!$details) {
+                    $details = new UserDetails(['user_id' => $user->id]);
+                }
+
+                $dbKey = match ($platform) {
+                    'x' => 'twitter',
+                    default => $platform
+                };
+
+                if (in_array($dbKey, ['facebook', 'twitter', 'linkedin', 'youtube', 'instagram', 'kick', 'twitch'])) {
+                    $details->$dbKey = $profileUrl;
+                    $details->save();
+                }
+            }
+
+            session()->flash('success', ucfirst($platform) . ' account connected successfully.');
+            return response('<script>window.opener ? (window.opener.location.reload(), window.close()) : (window.location.href="'.route('settings').'");</script>');
+        } catch (\Throwable $e) {
+            Log::error('Social connect callback failed', [
+                'platform' => $platform,
+                'message' => $e->getMessage(),
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            session()->flash('error', __('Could not connect account. Please try again.'));
+            return response('<script>window.opener ? (window.opener.location.reload(), window.close()) : (window.location.href="'.route('settings').'");</script>');
         }
     }
 
@@ -133,11 +187,28 @@ class SocialAccountController extends Controller
         }
     }
 
+    protected function buildProfileUrl(string $platform, $socialUser): ?string
+    {
+        $nickname = $socialUser->getNickname();
+        $id = $socialUser->getId();
+        
+        return match (strtolower($platform)) {
+            'x', 'twitter' => $nickname ? "https://x.com/{$nickname}" : null,
+            'facebook' => "https://facebook.com/{$id}",
+            'instagram' => $nickname ? "https://instagram.com/{$nickname}" : null,
+            'linkedin' => $nickname ? "https://linkedin.com/in/{$nickname}" : null,
+            'youtube' => $nickname ? "https://youtube.com/@{$nickname}" : null,
+            'twitch' => $nickname ? "https://twitch.tv/{$nickname}" : null,
+            'kick' => $nickname ? "https://kick.com/{$nickname}" : null,
+            default => null,
+        };
+    }
+
     protected function getDriverForPlatform(string $platform): ?string
     {
         return match ($platform) {
             'youtube' => 'google',
-            'instagram' => 'facebook',
+            'instagram' => 'instagram',
             'x' => 'twitter',
             'twitch' => 'twitch',
             'kick' => 'kick',
@@ -145,5 +216,42 @@ class SocialAccountController extends Controller
             'linkedin' => 'linkedin',
             default => null,
         };
+    }
+
+    /**
+     * Get OAuth config for the given driver. Uses driver name for config key.
+     */
+    protected function getDriverConfig(string $driver, string $platform): ?array
+    {
+        $config = config("services.{$driver}");
+        if (!is_array($config)) {
+            return null;
+        }
+        $callbackUrl = url("/connect/{$platform}/callback");
+        return [
+            'client_id' => $config['client_id'] ?? null,
+            'client_secret' => $config['client_secret'] ?? null,
+            'redirect' => $config['redirect'] ?? $callbackUrl,
+        ];
+    }
+
+    /**
+     * Apply client_id, client_secret, and redirect to the Socialite driver so providers
+     * that rely on these (e.g. LinkedIn, Twitch, Kick) receive them. Laravel Socialite's
+     * built-in providers (Facebook, Google, Twitter) read from config and do not have
+     * setClientId/setClientSecret, so we only call these when the driver supports them.
+     */
+    protected function applyDriverConfig($socialite, array $config, string $callbackUrl): void
+    {
+        if (!empty($config['client_id']) && method_exists($socialite, 'setClientId')) {
+            $socialite->setClientId($config['client_id']);
+        }
+        if (!empty($config['client_secret']) && method_exists($socialite, 'setClientSecret')) {
+            $socialite->setClientSecret($config['client_secret']);
+        }
+        // redirectUrl() is already called before this; only call setRedirectUrl if the driver supports it
+        if (method_exists($socialite, 'setRedirectUrl')) {
+            $socialite->setRedirectUrl($callbackUrl);
+        }
     }
 }

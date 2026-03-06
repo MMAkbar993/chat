@@ -62,27 +62,8 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
     }
     @endphp
     const PRIMARY_ROLES = @json($primaryRoles);
-    @php
-    try {
-        $fc = [
-            'apiKey' => env('FIREBASE_API_KEY'),
-            'authDomain' => env('FIREBASE_AUTH_DOMAIN'),
-            'databaseURL' => env('FIREBASE_DATABASE_URL'),
-            'projectId' => env('FIREBASE_PROJECT_ID'),
-            'storageBucket' => env('FIREBASE_STORAGE_BUCKET'),
-            'messagingSenderId' => env('FIREBASE_MESSAGING_SENDER_ID'),
-            'appId' => env('FIREBASE_APP_ID'),
-            'measurementId' => env('FIREBASE_MEASUREMENT_ID'),
-        ];
-    } catch (\Throwable $e) {
-        $fc = ['apiKey' => null, 'authDomain' => null, 'databaseURL' => null, 'projectId' => null, 'storageBucket' => null, 'messagingSenderId' => null, 'appId' => null, 'measurementId' => null];
-    }
-    @endphp
-    window.__FIREBASE_CONFIG__ = @json($fc);
-    @php
-        $firebaseDisabled = empty($fc['apiKey'] ?? null);
-    @endphp
-    window.FIREBASE_DISABLED = {{ $firebaseDisabled ? 'true' : 'false' }};
+    window.__FIREBASE_CONFIG__ = null;
+    window.FIREBASE_DISABLED = true;
     @if(Auth::check() && Auth::user())
     @php
         $laravelUserJson = 'null';
@@ -213,7 +194,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
     function buildFormData() {
         var form = new FormData();
         form.append('_token', getToken());
-        var ids = ['user_name','mobile_number','gender','dob','country','about','primary_role','other_role_text','facebook_link','instagram_link','twitter_link','linkedin_link','youtube_link','kick_link','twitch_link'];
+        var ids = ['user_name','mobile_number','gender','dob','country','about','primary_role','other_role_text'];
         if (typeof IS_KYC_VERIFIED === 'undefined' || !IS_KYC_VERIFIED) {
             ids = ['firstName','lastName'].concat(ids);
         }
@@ -237,24 +218,6 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         if (btn && btn.classList) btn.classList.add('disabled');
         var errEl = document.getElementById('socialVerifyError');
         if (errEl) { errEl.classList.add('d-none'); errEl.textContent = ''; }
-        var socialIds = ['facebook_link','instagram_link','twitter_link','linkedin_link','youtube_link','kick_link','twitch_link'];
-        var verified = typeof window.LARAVEL_SOCIAL_VERIFIED !== 'undefined' ? window.LARAVEL_SOCIAL_VERIFIED : {};
-        var labels = { facebook_link:'Facebook', instagram_link:'Instagram', twitter_link:'Twitter/X', linkedin_link:'LinkedIn', youtube_link:'YouTube', kick_link:'Kick', twitch_link:'Twitch' };
-        var unverified = [];
-        for (var i = 0; i < socialIds.length; i++) {
-            var id = socialIds[i];
-            var el = document.getElementById(id);
-            if (el && el.value && String(el.value).trim() !== '' && !verified[id]) {
-                unverified.push(labels[id] || id);
-            }
-        }
-        if (unverified.length > 0) {
-            if (btn && btn.classList) btn.classList.remove('disabled');
-            var msg = 'You must verify your social profile before continuing. Connect and verify: ' + unverified.join(', ');
-            if (errEl) { errEl.textContent = msg; errEl.classList.remove('d-none'); }
-            if (typeof Toastify !== 'undefined') Toastify({ text: msg, duration: 4000, gravity: 'top', position: 'right', style: { background: '#dc3545' } }).showToast();
-            return;
-        }
         var formData = buildFormData();
         fetch(saveUrl, {
             method: 'POST',

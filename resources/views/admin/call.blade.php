@@ -1,4 +1,4 @@
-@extends('admin.layout')
+﻿@extends('admin.layout')
 
 @section('content')
     <!-- Page Wrapper -->
@@ -93,7 +93,6 @@
         </div>
     </div>
     <!-- /Page Wrapper -->
-    <script type="module" src="{{ asset('assets/js/firebase/firabaseCallList.js') }}" crossorigin="anonymous"></script>
     @endsection
     <script>
     defaultAvatar = "{{ asset('assets/img/profiles/avatar-03.jpg') }}";

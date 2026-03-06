@@ -1,4 +1,4 @@
-@extends('frontend.layout')
+﻿@extends('frontend.layout')
 
 @section('content')
 
@@ -95,5 +95,4 @@
 
 			</div>
 		</div>
-		<script type="module" src="assets/js/firebase/firebaseForgotPassword.js" crossorigin="anonymous"></script>
 @endsection

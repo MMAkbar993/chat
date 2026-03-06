@@ -3,11 +3,13 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\App;
+use SocialiteProviders\Manager\SocialiteWasCalled;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -29,6 +31,14 @@ class AppServiceProvider extends ServiceProvider
 
         if (isset($modulesStatus['installer']) && $modulesStatus['installer']) {
             $this->loadRoutesFrom(base_path('Modules/Installer/routes/web.php'));
+        }
+
+        // Register community Socialite providers (Twitch, LinkedIn, Kick, Instagram)
+        Event::listen(SocialiteWasCalled::class, \SocialiteProviders\Twitch\TwitchExtendSocialite::class);
+        Event::listen(SocialiteWasCalled::class, \SocialiteProviders\LinkedIn\LinkedInExtendSocialite::class);
+        Event::listen(SocialiteWasCalled::class, \Byancode\SocialiteKick\KickExtendSocialite::class);
+        if (class_exists(\SocialiteProviders\Instagram\InstagramExtendSocialite::class)) {
+            Event::listen(SocialiteWasCalled::class, \SocialiteProviders\Instagram\InstagramExtendSocialite::class);
         }
     }
 }

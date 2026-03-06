@@ -1,4 +1,4 @@
-<!-- jQuery -->
+﻿<!-- jQuery -->
 <script src="{{ asset('assets/js/jquery-3.7.1.min.js') }}"></script>
 
 <!-- Bootstrap Core JS -->
@@ -21,7 +21,6 @@
   <script src="{{ asset('assets/js/sweetalert.js') }}"></script>
 
 @endif
-<script type="module" src="{{ asset('assets/js/firebase/firebase.js') }}" crossorigin="anonymous"></script>
 <!-- Custom JS -->
 <script src="{{ asset('assets/js/admin-main.js') }}"></script>
 
