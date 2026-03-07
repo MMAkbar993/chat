@@ -33,12 +33,23 @@ class AppServiceProvider extends ServiceProvider
             $this->loadRoutesFrom(base_path('Modules/Installer/routes/web.php'));
         }
 
-        // Register community Socialite providers (Twitch, LinkedIn, Instagram)
+        // Register community Socialite providers (Twitch, LinkedIn). Instagram only if class exists at runtime to avoid 500 when package is missing.
         Event::listen(SocialiteWasCalled::class, \SocialiteProviders\Twitch\TwitchExtendSocialite::class);
         Event::listen(SocialiteWasCalled::class, \SocialiteProviders\LinkedIn\LinkedInExtendSocialite::class);
-        if (class_exists(\SocialiteProviders\Instagram\InstagramExtendSocialite::class)) {
-            Event::listen(SocialiteWasCalled::class, \SocialiteProviders\Instagram\InstagramExtendSocialite::class);
-        }
+        Event::listen(SocialiteWasCalled::class, function (SocialiteWasCalled $event) {
+            if (!class_exists(\SocialiteProviders\Instagram\InstagramExtendSocialite::class)) {
+                return;
+            }
+            try {
+                $listener = $this->app->make(\SocialiteProviders\Instagram\InstagramExtendSocialite::class);
+                if (method_exists($listener, 'handle')) {
+                    $listener->handle($event);
+                }
+            } catch (\Throwable $e) {
+                // Don't break other providers if Instagram fails
+                report($e);
+            }
+        });
 
         // Register Kick driver manually so it works even if event order or config keys differ
         if (class_exists(\Byancode\SocialiteKick\Provider::class)) {
