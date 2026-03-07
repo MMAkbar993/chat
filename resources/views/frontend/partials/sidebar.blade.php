@@ -992,6 +992,7 @@
                                                                 @endif
                                                                 @php
                                                                     $socialVerifiedPlatforms = Auth::check() ? Auth::user()->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray() : [];
+                                                                    $socialAccountsByPlatform = Auth::check() ? Auth::user()->socialAccounts()->where('oauth_verified', true)->get()->keyBy('platform') : collect();
                                                                 @endphp
                                                                 <div class="chat-video">
                                                                     <div class="row">
@@ -1013,7 +1014,9 @@
                                                                                 </div>
                                                                                 <div>
                                                                                     @if(in_array('facebook', $socialVerifiedPlatforms))
+                                                                                        @php $acc = $socialAccountsByPlatform->get('facebook'); @endphp
                                                                                         <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'facebook') }}" class="btn btn-sm btn-outline-primary social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1030,7 +1033,9 @@
                                                                                 </div>
                                                                                 <div>
                                                                                     @if(in_array('instagram', $socialVerifiedPlatforms))
+                                                                                        @php $acc = $socialAccountsByPlatform->get('instagram'); @endphp
                                                                                         <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'instagram') }}" class="btn btn-sm btn-outline-danger social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1047,7 +1052,9 @@
                                                                                 </div>
                                                                                 <div>
                                                                                     @if(in_array('x', $socialVerifiedPlatforms))
+                                                                                        @php $acc = $socialAccountsByPlatform->get('x'); @endphp
                                                                                         <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'x') }}" class="btn btn-sm btn-outline-info social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1064,7 +1071,9 @@
                                                                                 </div>
                                                                                 <div>
                                                                                     @if(in_array('linkedin', $socialVerifiedPlatforms))
+                                                                                        @php $acc = $socialAccountsByPlatform->get('linkedin'); @endphp
                                                                                         <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'linkedin') }}" class="btn btn-sm btn-outline-primary social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1081,7 +1090,9 @@
                                                                                 </div>
                                                                                 <div>
                                                                                     @if(in_array('youtube', $socialVerifiedPlatforms))
+                                                                                        @php $acc = $socialAccountsByPlatform->get('youtube'); @endphp
                                                                                         <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'youtube') }}" class="btn btn-sm btn-outline-danger social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1098,7 +1109,9 @@
                                                                                 </div>
                                                                                 <div>
                                                                                     @if(in_array('kick', $socialVerifiedPlatforms))
+                                                                                        @php $acc = $socialAccountsByPlatform->get('kick'); @endphp
                                                                                         <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'kick') }}" class="btn btn-sm btn-outline-success social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1115,7 +1128,9 @@
                                                                                 </div>
                                                                                 <div>
                                                                                     @if(in_array('twitch', $socialVerifiedPlatforms))
+                                                                                        @php $acc = $socialAccountsByPlatform->get('twitch'); @endphp
                                                                                         <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'twitch') }}" class="btn btn-sm btn-outline-primary social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1133,6 +1148,19 @@
                                                                                 var left = (screen.width/2)-(width/2);
                                                                                 var top = (screen.height/2)-(height/2);
                                                                                 window.open(this.href, 'socialLogin', 'width=' + width + ',height=' + height + ',top=' + top + ',left=' + left);
+                                                                            });
+                                                                        });
+                                                                        document.querySelectorAll('.social-disconnect-btn').forEach(function(btn) {
+                                                                            btn.addEventListener('click', function() {
+                                                                                var id = this.getAttribute('data-account-id');
+                                                                                if (!id || !confirm('{{ __("Remove this social account? You can connect again later.") }}')) return;
+                                                                                var url = '{{ url("connect/social-accounts") }}/' + id;
+                                                                                var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                                var opts = { method: 'DELETE', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' };
+                                                                                fetch(url, opts).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); }).then(function(res) {
+                                                                                    var success = res.ok && res.data && (res.data.code === '200' || res.data.code === 200);
+                                                                                    if (success) { window.location.reload(); } else { alert((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}'); }
+                                                                                }).catch(function() { alert('{{ __("Could not remove account.") }}'); });
                                                                             });
                                                                         });
                                                                     });

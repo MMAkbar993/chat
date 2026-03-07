@@ -220,7 +220,20 @@ class SocialAccountController extends Controller
                 return send_bad_request_response('Social account not found');
             }
 
+            $platform = $account->platform;
             $account->delete();
+
+            // Clear the corresponding link in user_details so the profile no longer shows it
+            $dbKey = $platform === 'x' ? 'twitter' : $platform;
+            if (in_array($dbKey, ['facebook', 'twitter', 'linkedin', 'youtube', 'instagram', 'kick', 'twitch'])) {
+                $details = $user->get_user_details;
+                if ($details) {
+                    $details->$dbKey = null;
+                    $details->save();
+                }
+            }
+
+            Cache::forget('public_profile:' . strtolower($user->user_name));
             return send_success_response([], 'Account disconnected.');
         } catch (\Exception $e) {
             return send_exception_response($e->getMessage());

@@ -140,6 +140,7 @@ Route::prefix('/google')->group(function () {
 
 // Social account verification (OAuth connect - requires auth)
 Route::middleware(['auth'])->prefix('connect')->group(function () {
+   Route::delete('social-accounts/{id}', [App\Http\Controllers\API\SocialAccountController::class, 'disconnect'])->name('social.disconnect');
    Route::get('/{platform}', [App\Http\Controllers\API\SocialAccountController::class, 'redirect'])->name('social.connect');
    Route::get('/{platform}/callback', [App\Http\Controllers\API\SocialAccountController::class, 'callback'])->name('social.callback');
 });
