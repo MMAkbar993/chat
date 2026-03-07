@@ -1154,9 +1154,9 @@
                                                                             btn.addEventListener('click', function() {
                                                                                 var id = this.getAttribute('data-account-id');
                                                                                 if (!id || !confirm('{{ __("Remove this social account? You can connect again later.") }}')) return;
-                                                                                var url = '{{ url("connect/social-accounts") }}/' + id;
+                                                                                var url = '{{ url("connect/social-accounts") }}/' + id + '/disconnect';
                                                                                 var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                                                                                var opts = { method: 'DELETE', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' };
+                                                                                var opts = { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' }, credentials: 'same-origin' };
                                                                                 fetch(url, opts).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); }).then(function(res) {
                                                                                     var success = res.ok && res.data && (res.data.code === '200' || res.data.code === 200);
                                                                                     if (success) { window.location.reload(); } else { alert((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}'); }

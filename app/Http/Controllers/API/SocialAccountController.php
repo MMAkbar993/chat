@@ -226,16 +226,24 @@ class SocialAccountController extends Controller
             // Clear the corresponding link in user_details so the profile no longer shows it
             $dbKey = $platform === 'x' ? 'twitter' : $platform;
             if (in_array($dbKey, ['facebook', 'twitter', 'linkedin', 'youtube', 'instagram', 'kick', 'twitch'])) {
-                $details = $user->get_user_details;
-                if ($details) {
-                    $details->$dbKey = null;
-                    $details->save();
+                try {
+                    $details = $user->get_user_details;
+                    if ($details && in_array($dbKey, $details->getFillable())) {
+                        $details->$dbKey = null;
+                        $details->save();
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Social disconnect: could not clear user_details', ['user_id' => $user->id, 'platform' => $platform, 'message' => $e->getMessage()]);
                 }
             }
 
-            Cache::forget('public_profile:' . strtolower($user->user_name));
+            $userName = $user->user_name ?? '';
+            if ($userName !== '') {
+                Cache::forget('public_profile:' . strtolower($userName));
+            }
             return send_success_response([], 'Account disconnected.');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Log::error('Social disconnect failed', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return send_exception_response($e->getMessage());
         }
     }
