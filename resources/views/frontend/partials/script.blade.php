@@ -97,6 +97,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
                 'twitter' => $ud ? ($ud->twitter ?? '') : '',
                 'linkedin' => $ud ? ($ud->linkedin ?? '') : '',
                 'youtube' => $ud ? ($ud->youtube ?? '') : '',
+                'instagram' => $ud ? ($ud->instagram ?? '') : '',
                 'kick' => $ud ? ($ud->kick ?? '') : '',
                 'twitch' => $ud ? ($ud->twitch ?? '') : '',
                 'facebook_link' => $ud ? ($ud->facebook ?? '') : '',
@@ -104,6 +105,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
                 'twitter_link' => $ud ? ($ud->twitter ?? '') : '',
                 'linkedin_link' => $ud ? ($ud->linkedin ?? '') : '',
                 'youtube_link' => $ud ? ($ud->youtube ?? '') : '',
+                'instagram_link' => $ud ? ($ud->instagram ?? '') : '',
                 'kick_link' => $ud ? ($ud->kick ?? '') : '',
                 'twitch_link' => $ud ? ($ud->twitch ?? '') : '',
             ]);
@@ -113,12 +115,18 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
             foreach ($platformToKey as $platform => $key) {
                 $socialVerified[$key] = in_array($platform, $verifiedPlatforms);
             }
+            $fallbackUrls = [ 'facebook' => 'https://www.facebook.com/', 'x' => 'https://x.com/', 'linkedin' => 'https://www.linkedin.com/', 'youtube' => 'https://www.youtube.com/', 'instagram' => 'https://www.instagram.com/', 'kick' => 'https://kick.com/', 'twitch' => 'https://www.twitch.tv/' ];
             $laravelUserArr = json_decode($laravelUserJson, true);
-            if ($laravelUserArr && empty($laravelUserArr['linkedin_link']) && in_array('linkedin', $verifiedPlatforms)) {
-                $linkedinAccount = $u->socialAccounts()->where('platform', 'linkedin')->where('oauth_verified', true)->first();
-                $fallback = $linkedinAccount && $linkedinAccount->profile_url ? $linkedinAccount->profile_url : 'https://www.linkedin.com/';
-                $laravelUserArr['linkedin'] = $fallback;
-                $laravelUserArr['linkedin_link'] = $fallback;
+            if ($laravelUserArr) {
+                foreach ($platformToKey as $platform => $key) {
+                    $baseKey = str_replace('_link', '', $key);
+                    if (empty($laravelUserArr[$key]) && in_array($platform, $verifiedPlatforms)) {
+                        $acc = $u->socialAccounts()->where('platform', $platform)->where('oauth_verified', true)->first();
+                        $url = $acc && $acc->profile_url ? $acc->profile_url : ($fallbackUrls[$platform] ?? 'https://' . $platform . '.com/');
+                        $laravelUserArr[$baseKey] = $url;
+                        $laravelUserArr[$key] = $url;
+                    }
+                }
                 $laravelUserJson = json_encode($laravelUserArr);
             }
         } catch (\Throwable $e) {
@@ -173,6 +181,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         setText('profile-info-linkedin', u.linkedin_link || u.linkedin || '—');
         setText('profile-info-google', u.google_link || u.google || '—');
         setText('profile-info-youtube', u.youtube_link || u.youtube || '—');
+        setText('profile-info-instagram', u.instagram_link || u.instagram || '—');
         setText('profile-info-kick', u.kick_link || u.kick || '—');
         setText('profile-info-twitch', u.twitch_link || u.twitch || '—');
         setImg('profileImage', imgUrl);
@@ -187,6 +196,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         setInputValue('gender', u.gender);
         setInputValue('edit-kick', u.kick_link || u.kick);
         setInputValue('edit-twitch', u.twitch_link || u.twitch);
+        setInputValue('edit-instagram', u.instagram_link || u.instagram);
         if (document.getElementById('user-id')) document.getElementById('user-id').innerText = 'Logged in as: ' + u.id;
     }
     if (document.readyState === 'loading') {

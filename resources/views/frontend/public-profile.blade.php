@@ -58,47 +58,37 @@
                         @endif
                     </div>
 
-                    @if($details)
+                    @if($details || $user->socialAccounts()->where('oauth_verified', true)->exists())
                     <div class="card-body border-top">
                         <h6 class="mb-3">Social Links</h6>
                         <div class="d-flex flex-wrap gap-2">
-                            @if($details->facebook)
-                                <a href="{{ $details->facebook }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                    <i class="ti ti-brand-facebook me-1"></i>Facebook
-                                </a>
-                            @endif
                             @php
-                                $linkedinUrl = $details->linkedin;
-                                if (empty($linkedinUrl)) {
-                                    $linkedinAccount = $user->socialAccounts()->where('platform', 'linkedin')->where('oauth_verified', true)->first();
-                                    $linkedinUrl = $linkedinAccount && $linkedinAccount->profile_url ? $linkedinAccount->profile_url : ($linkedinAccount ? 'https://www.linkedin.com/' : null);
-                                }
+                                $socialPlatforms = [
+                                    'facebook' => ['detail' => optional($details)->facebook, 'label' => 'Facebook', 'icon' => 'ti-brand-facebook', 'fallback' => 'https://www.facebook.com/'],
+                                    'twitter' => ['detail' => optional($details)->twitter, 'label' => 'Twitter', 'icon' => 'ti-brand-twitter', 'fallback' => 'https://x.com/'],
+                                    'linkedin' => ['detail' => optional($details)->linkedin, 'label' => 'LinkedIn', 'icon' => 'ti-brand-linkedin', 'fallback' => 'https://www.linkedin.com/'],
+                                    'instagram' => ['detail' => optional($details)->instagram, 'label' => 'Instagram', 'icon' => 'ti-brand-instagram', 'fallback' => 'https://www.instagram.com/'],
+                                    'youtube' => ['detail' => optional($details)->youtube, 'label' => 'YouTube', 'icon' => 'ti-brand-youtube', 'fallback' => 'https://www.youtube.com/'],
+                                    'kick' => ['detail' => optional($details)->kick, 'label' => 'Kick', 'icon' => 'ti-device-gamepad-2', 'fallback' => 'https://kick.com/'],
+                                    'twitch' => ['detail' => optional($details)->twitch, 'label' => 'Twitch', 'icon' => 'ti-brand-twitch', 'fallback' => 'https://www.twitch.tv/'],
+                                ];
+                                $platformToOauth = ['twitter' => 'x'];
                             @endphp
-                            @if($linkedinUrl)
-                                <a href="{{ $linkedinUrl }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                    <i class="ti ti-brand-linkedin me-1"></i>LinkedIn
-                                </a>
-                            @endif
-                            @if($details->instagram)
-                                <a href="{{ $details->instagram }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                    <i class="ti ti-brand-instagram me-1"></i>Instagram
-                                </a>
-                            @endif
-                            @if($details->youtube)
-                                <a href="{{ $details->youtube }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                    <i class="ti ti-brand-youtube me-1"></i>YouTube
-                                </a>
-                            @endif
-                            @if($details->kick)
-                                <a href="{{ $details->kick }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                    <i class="ti ti-device-gamepad-2 me-1"></i>Kick
-                                </a>
-                            @endif
-                            @if($details->twitch)
-                                <a href="{{ $details->twitch }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                    <i class="ti ti-brand-twitch me-1"></i>Twitch
-                                </a>
-                            @endif
+                            @foreach($socialPlatforms as $detailKey => $cfg)
+                                @php
+                                    $oauthPlatform = $platformToOauth[$detailKey] ?? $detailKey;
+                                    $url = $cfg['detail'];
+                                    if (empty($url)) {
+                                        $acc = $user->socialAccounts()->where('platform', $oauthPlatform)->where('oauth_verified', true)->first();
+                                        $url = $acc && $acc->profile_url ? $acc->profile_url : ($acc ? $cfg['fallback'] : null);
+                                    }
+                                @endphp
+                                @if($url)
+                                    <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">
+                                        <i class="ti {{ $cfg['icon'] }} me-1"></i>{{ $cfg['label'] }}
+                                    </a>
+                                @endif
+                            @endforeach
                         </div>
                     </div>
                     @endif

@@ -8,6 +8,7 @@ use App\Models\UserDetails;
 use App\Services\EncryptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Cache;
@@ -136,6 +137,12 @@ class SocialAccountController extends Controller
 
             $profileUrl = $this->buildProfileUrl($platform, $socialUser);
 
+            // For LinkedIn: try to get public profile URL (vanityName) via API when OpenID didn't return it
+            if ($platform === 'linkedin' && (!$profileUrl || $profileUrl === 'https://www.linkedin.com/')) {
+                $profileUrl = $this->fetchLinkedInProfileUrl($socialUser) ?? $profileUrl;
+            }
+
+            // Never use avatar URL as profile_url; profile_url is the public profile page only
             SocialAccount::updateOrCreate(
                 [
                     'user_id' => $user->id,
@@ -144,7 +151,7 @@ class SocialAccountController extends Controller
                 [
                     'platform_user_id' => $socialUser->getId(),
                     'username' => $socialUser->getNickname() ?? $socialUser->getName(),
-                    'profile_url' => $profileUrl ?? $socialUser->getAvatar(),
+                    'profile_url' => $profileUrl,
                     'oauth_verified' => true,
                     'oauth_data' => [
                         'name' => $socialUser->getName(),
@@ -224,12 +231,43 @@ class SocialAccountController extends Controller
             'x', 'twitter' => $nickname ? "https://x.com/{$nickname}" : null,
             'facebook' => "https://facebook.com/{$id}",
             'instagram' => $nickname ? "https://instagram.com/{$nickname}" : null,
-            'linkedin' => $nickname ? "https://linkedin.com/in/{$nickname}" : ($id ? 'https://www.linkedin.com/' : null),
+            'linkedin' => $nickname ? "https://www.linkedin.com/in/{$nickname}" : ($id ? 'https://www.linkedin.com/' : null),
             'youtube' => $nickname ? "https://youtube.com/@{$nickname}" : null,
             'twitch' => $nickname ? "https://twitch.tv/{$nickname}" : null,
             'kick' => $nickname ? "https://kick.com/{$nickname}" : null,
             default => null,
         };
+    }
+
+    /**
+     * Try to get LinkedIn public profile URL (https://www.linkedin.com/in/{vanityName}) using the
+     * OAuth access token. LinkedIn OpenID often does not return vanityName; GET /v2/me can return it
+     * if the token has the right scopes (e.g. r_basicprofile). If the API call fails or vanityName
+     * is missing, returns null so the caller keeps the fallback URL.
+     */
+    protected function fetchLinkedInProfileUrl($socialUser): ?string
+    {
+        $token = $socialUser->token ?? null;
+        if (!$token) {
+            return null;
+        }
+        try {
+            $response = Http::withToken($token)
+                ->get('https://api.linkedin.com/v2/me', [
+                    'projection' => '(id,vanityName,localizedFirstName,localizedLastName)',
+                ]);
+            if (!$response->successful()) {
+                return null;
+            }
+            $data = $response->json();
+            $vanity = $data['vanityName'] ?? null;
+            if ($vanity !== null && $vanity !== '') {
+                return 'https://www.linkedin.com/in/' . trim($vanity);
+            }
+        } catch (\Throwable $e) {
+            Log::debug('LinkedIn v2/me failed', ['message' => $e->getMessage()]);
+        }
+        return null;
     }
 
     protected function getDriverForPlatform(string $platform): ?string

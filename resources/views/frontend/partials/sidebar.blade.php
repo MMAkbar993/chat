@@ -564,6 +564,14 @@
                                             <div
                                                 class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
                                                 <div>
+                                                    <h6 class="fs-14">{{ __('Instagram') }}</h6>
+                                                    <p class="fs-16" id="profile-info-instagram">{{ __('Loading...') }}</p>
+                                                </div>
+                                                <span><i class="ti ti-brand-instagram fs-16"></i></span>
+                                            </div>
+                                            <div
+                                                class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
+                                                <div>
                                                     <h6 class="fs-14">{{ __('Google') }}</h6>
                                                     <p class="fs-16" id="profile-info-google">{{ __('Loading...') }}</p>
                                                 </div>
