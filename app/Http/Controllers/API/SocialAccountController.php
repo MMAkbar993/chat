@@ -224,7 +224,7 @@ class SocialAccountController extends Controller
             'x', 'twitter' => $nickname ? "https://x.com/{$nickname}" : null,
             'facebook' => "https://facebook.com/{$id}",
             'instagram' => $nickname ? "https://instagram.com/{$nickname}" : null,
-            'linkedin' => $nickname ? "https://linkedin.com/in/{$nickname}" : null,
+            'linkedin' => $nickname ? "https://linkedin.com/in/{$nickname}" : ($id ? 'https://www.linkedin.com/' : null),
             'youtube' => $nickname ? "https://youtube.com/@{$nickname}" : null,
             'twitch' => $nickname ? "https://twitch.tv/{$nickname}" : null,
             'kick' => $nickname ? "https://kick.com/{$nickname}" : null,

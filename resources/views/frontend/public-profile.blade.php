@@ -67,8 +67,15 @@
                                     <i class="ti ti-brand-facebook me-1"></i>Facebook
                                 </a>
                             @endif
-                            @if($details->linkedin)
-                                <a href="{{ $details->linkedin }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            @php
+                                $linkedinUrl = $details->linkedin;
+                                if (empty($linkedinUrl)) {
+                                    $linkedinAccount = $user->socialAccounts()->where('platform', 'linkedin')->where('oauth_verified', true)->first();
+                                    $linkedinUrl = $linkedinAccount && $linkedinAccount->profile_url ? $linkedinAccount->profile_url : ($linkedinAccount ? 'https://www.linkedin.com/' : null);
+                                }
+                            @endphp
+                            @if($linkedinUrl)
+                                <a href="{{ $linkedinUrl }}" target="_blank" class="btn btn-sm btn-outline-primary">
                                     <i class="ti ti-brand-linkedin me-1"></i>LinkedIn
                                 </a>
                             @endif

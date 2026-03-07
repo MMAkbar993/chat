@@ -113,6 +113,14 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
             foreach ($platformToKey as $platform => $key) {
                 $socialVerified[$key] = in_array($platform, $verifiedPlatforms);
             }
+            $laravelUserArr = json_decode($laravelUserJson, true);
+            if ($laravelUserArr && empty($laravelUserArr['linkedin_link']) && in_array('linkedin', $verifiedPlatforms)) {
+                $linkedinAccount = $u->socialAccounts()->where('platform', 'linkedin')->where('oauth_verified', true)->first();
+                $fallback = $linkedinAccount && $linkedinAccount->profile_url ? $linkedinAccount->profile_url : 'https://www.linkedin.com/';
+                $laravelUserArr['linkedin'] = $fallback;
+                $laravelUserArr['linkedin_link'] = $fallback;
+                $laravelUserJson = json_encode($laravelUserArr);
+            }
         } catch (\Throwable $e) {
             $laravelUserJson = 'null';
             $socialVerified = [];
