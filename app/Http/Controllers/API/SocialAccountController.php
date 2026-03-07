@@ -161,7 +161,9 @@ class SocialAccountController extends Controller
                 ]
             );
 
-            // Update user_details with the new profile URL for backward compatibility
+            // Update user_details with the new profile URL for backward compatibility.
+            // For LinkedIn, do not store the generic "https://www.linkedin.com/" so the user can
+            // enter their real profile URL (e.g. https://www.linkedin.com/in/username) in settings.
             if ($profileUrl) {
                 $details = $user->get_user_details;
                 if (!$details) {
@@ -174,7 +176,10 @@ class SocialAccountController extends Controller
                 };
 
                 if (in_array($dbKey, ['facebook', 'twitter', 'linkedin', 'youtube', 'instagram', 'kick', 'twitch'])) {
-                    $details->$dbKey = $profileUrl;
+                    $isGenericLinkedIn = ($dbKey === 'linkedin' && $profileUrl === 'https://www.linkedin.com/');
+                    if (!$isGenericLinkedIn) {
+                        $details->$dbKey = $profileUrl;
+                    }
                     $details->save();
                 }
             }

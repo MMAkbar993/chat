@@ -480,10 +480,15 @@ class FrontendUserController extends Controller
                 if (isset($payload['location'])) {
                     $details->location = $payload['location'];
                 }
-                $socialFields = ['facebook', 'twitter', 'linkedin', 'youtube', 'instagram', 'kick', 'twitch'];
-                foreach ($socialFields as $field) {
+                $socialFields = ['facebook' => 'facebook', 'twitter' => 'x', 'linkedin' => 'linkedin', 'youtube' => 'youtube', 'instagram' => 'instagram', 'kick' => 'kick', 'twitch' => 'twitch'];
+                foreach ($socialFields as $field => $platform) {
                     if (array_key_exists($field, $payload)) {
                         $details->$field = $payload[$field];
+                        // Sync to social_accounts.profile_url when user has a verified account and provided a URL
+                        $url = is_string($payload[$field]) ? trim($payload[$field]) : '';
+                        if ($url !== '' && $user->socialAccounts()->where('platform', $platform)->where('oauth_verified', true)->exists()) {
+                            $user->socialAccounts()->where('platform', $platform)->update(['profile_url' => $url]);
+                        }
                     }
                 }
                 $details->save();
