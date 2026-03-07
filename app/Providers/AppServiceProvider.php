@@ -63,5 +63,13 @@ class AppServiceProvider extends ServiceProvider
                 });
             }
         }
+
+        // Use LinkedIn OpenID Connect (openid, profile, email) instead of legacy r_emailaddress / r_liteprofile to avoid "unauthorized_scope_error"
+        \Laravel\Socialite\Facades\Socialite::extend('linkedin', function ($app) {
+            $config = config('services.linkedin');
+            $config['scopes'] = ['openid', 'profile', 'email'];
+            $manager = $app->make(\Laravel\Socialite\Contracts\Factory::class);
+            return $manager->buildProvider(\Laravel\Socialite\Two\LinkedInOpenIdProvider::class, $config);
+        });
     }
 }
