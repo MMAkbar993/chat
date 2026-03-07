@@ -109,15 +109,31 @@
                     </div>
                     @endif
 
-                    @php $verifiedSocial = $user->socialAccounts ?? collect(); @endphp
+                    @php $verifiedSocial = $user->socialAccounts->where('oauth_verified', true) ?? collect(); @endphp
                     @if($verifiedSocial->count())
                     <div class="card-body border-top">
                         <h6 class="mb-3">Verified Social Accounts</h6>
                         <div class="d-flex flex-wrap gap-2">
                             @foreach($verifiedSocial as $account)
-                                <a href="{{ $account->profile_url ?? '#' }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                @php
+                                    $url = $account->profile_url;
+                                    if (!$url && $account->username) {
+                                        $url = match(strtolower($account->platform)) {
+                                            'twitch' => 'https://twitch.tv/' . $account->username,
+                                            'kick' => 'https://kick.com/' . $account->username,
+                                            'youtube' => 'https://youtube.com/@' . $account->username,
+                                            'x' => 'https://x.com/' . $account->username,
+                                            'instagram' => 'https://instagram.com/' . $account->username,
+                                            'linkedin' => 'https://linkedin.com/in/' . $account->username,
+                                            'facebook' => 'https://facebook.com/' . $account->platform_user_id,
+                                            default => null,
+                                        };
+                                    }
+                                    $label = $account->username ? ('@' . $account->username) : ucfirst($account->platform);
+                                @endphp
+                                <a href="{{ $url ?? '#' }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success">
                                     <i class="ti ti-circle-check text-success me-1"></i>
-                                    {{ ucfirst($account->platform) }}: {{ $account->username ?? $account->platform }}
+                                    {{ ucfirst($account->platform) }}: {{ $label }}
                                 </a>
                             @endforeach
                         </div>

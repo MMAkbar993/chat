@@ -570,12 +570,28 @@
                                                 <span><i class="ti ti-brand-google fs-16"></i></span>
                                             </div>
                                             <div
-                                                class="d-flex profile-list justify-content-between align-items-center">
+                                                class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
                                                 <div>
                                                     <h6 class="fs-14">{{ __('Youtube') }}</h6>
                                                     <p class="fs-16" id="profile-info-youtube">{{ __('Loading...') }}</p>
                                                 </div>
                                                 <span><i class="ti ti-brand-youtube fs-16"></i></span>
+                                            </div>
+                                            <div
+                                                class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
+                                                <div>
+                                                    <h6 class="fs-14">{{ __('Kick') }}</h6>
+                                                    <p class="fs-16" id="profile-info-kick">{{ __('Loading...') }}</p>
+                                                </div>
+                                                <span><i class="ti ti-brand-kick fs-16"></i></span>
+                                            </div>
+                                            <div
+                                                class="d-flex profile-list justify-content-between align-items-center">
+                                                <div>
+                                                    <h6 class="fs-14">{{ __('Twitch') }}</h6>
+                                                    <p class="fs-16" id="profile-info-twitch">{{ __('Loading...') }}</p>
+                                                </div>
+                                                <span><i class="ti ti-brand-twitch fs-16"></i></span>
                                             </div>
                                         </div>
                                     </div>

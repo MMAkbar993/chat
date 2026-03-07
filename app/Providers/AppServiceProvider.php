@@ -33,12 +33,24 @@ class AppServiceProvider extends ServiceProvider
             $this->loadRoutesFrom(base_path('Modules/Installer/routes/web.php'));
         }
 
-        // Register community Socialite providers (Twitch, LinkedIn, Kick, Instagram)
+        // Register community Socialite providers (Twitch, LinkedIn, Instagram)
         Event::listen(SocialiteWasCalled::class, \SocialiteProviders\Twitch\TwitchExtendSocialite::class);
         Event::listen(SocialiteWasCalled::class, \SocialiteProviders\LinkedIn\LinkedInExtendSocialite::class);
-        Event::listen(SocialiteWasCalled::class, \Byancode\SocialiteKick\KickExtendSocialite::class);
         if (class_exists(\SocialiteProviders\Instagram\InstagramExtendSocialite::class)) {
             Event::listen(SocialiteWasCalled::class, \SocialiteProviders\Instagram\InstagramExtendSocialite::class);
+        }
+
+        // Register Kick driver manually so it works even if event order or config keys differ
+        if (class_exists(\Byancode\SocialiteKick\Provider::class)) {
+            $kickConfig = config('services.kick');
+            if (is_array($kickConfig) && !empty($kickConfig['client_id'])) {
+                \Laravel\Socialite\Facades\Socialite::extend('kick', function ($app) {
+                    $manager = $app->make(\Laravel\Socialite\Contracts\Factory::class);
+                    $config = config('services.kick');
+                    $config['redirect'] = $config['redirect'] ?? $app->make('url')->route('social.callback', ['platform' => 'kick']);
+                    return $manager->buildProvider(\Byancode\SocialiteKick\Provider::class, $config);
+                });
+            }
         }
     }
 }

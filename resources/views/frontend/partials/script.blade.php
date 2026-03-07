@@ -97,11 +97,15 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
                 'twitter' => $ud ? ($ud->twitter ?? '') : '',
                 'linkedin' => $ud ? ($ud->linkedin ?? '') : '',
                 'youtube' => $ud ? ($ud->youtube ?? '') : '',
+                'kick' => $ud ? ($ud->kick ?? '') : '',
+                'twitch' => $ud ? ($ud->twitch ?? '') : '',
                 'facebook_link' => $ud ? ($ud->facebook ?? '') : '',
                 'google_link' => $ud ? ($ud->google ?? '') : '',
                 'twitter_link' => $ud ? ($ud->twitter ?? '') : '',
                 'linkedin_link' => $ud ? ($ud->linkedin ?? '') : '',
                 'youtube_link' => $ud ? ($ud->youtube ?? '') : '',
+                'kick_link' => $ud ? ($ud->kick ?? '') : '',
+                'twitch_link' => $ud ? ($ud->twitch ?? '') : '',
             ]);
             $verifiedPlatforms = $u->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
             $platformToKey = [ 'facebook' => 'facebook_link', 'x' => 'twitter_link', 'linkedin' => 'linkedin_link', 'youtube' => 'youtube_link', 'instagram' => 'instagram_link', 'kick' => 'kick_link', 'twitch' => 'twitch_link' ];
@@ -161,6 +165,8 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         setText('profile-info-linkedin', u.linkedin_link || u.linkedin || '—');
         setText('profile-info-google', u.google_link || u.google || '—');
         setText('profile-info-youtube', u.youtube_link || u.youtube || '—');
+        setText('profile-info-kick', u.kick_link || u.kick || '—');
+        setText('profile-info-twitch', u.twitch_link || u.twitch || '—');
         setImg('profileImage', imgUrl);
         setImg('profileImageProfile', imgUrl);
         setImg('profileImageChat', imgUrl);
@@ -171,6 +177,8 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         setInputValue('user_name', u.user_name || u.username);
         setInputValue('mobile_number', u.mobile_number);
         setInputValue('gender', u.gender);
+        setInputValue('edit-kick', u.kick_link || u.kick);
+        setInputValue('edit-twitch', u.twitch_link || u.twitch);
         if (document.getElementById('user-id')) document.getElementById('user-id').innerText = 'Logged in as: ' + u.id;
     }
     if (document.readyState === 'loading') {

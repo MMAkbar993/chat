@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cache;
 use Laravel\Socialite\Facades\Socialite;
 
 class SocialAccountController extends Controller
@@ -61,7 +62,7 @@ class SocialAccountController extends Controller
             $callbackUrl = url("/connect/{$platform}/callback");
             $config = $this->getDriverConfig($driver, $platform);
             if (!$config || empty($config['client_id'])) {
-                return response()->json(['error' => 'Platform OAuth is not configured. Set client_id and client_secret in .env and config/services.php.'], 400);
+                return $this->platformConfigError($platform);
             }
             // Use explicit redirect from config when set (e.g. LINKEDIN_REDIRECT_URI) so it matches the provider's console exactly
             $redirectUrl = !empty($config['redirect']) ? $config['redirect'] : $callbackUrl;
@@ -84,6 +85,24 @@ class SocialAccountController extends Controller
             // Return redirect for popup UX: show settings with error instead of raw 500
             return redirect()->route('settings')->with('error', __('Social verification failed. Please check OAuth settings in .env (client_id, client_secret, redirect URI) and try again.'));
         }
+    }
+
+    /**
+     * Return a 400 JSON or redirect with platform-specific "not configured" message.
+     */
+    protected function platformConfigError(string $platform): \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
+    {
+        $messages = [
+            'instagram' => 'Instagram OAuth is not configured. Set INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, and INSTAGRAM_REDIRECT_URI in .env (see docs/WEBSITE_SOCIAL_VERIFICATION.md).',
+            'youtube'   => 'YouTube uses Google OAuth. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI in .env. In Google Cloud Console add the exact redirect URI.',
+            'facebook'  => 'Facebook OAuth is not configured. Set FACEBOOK_CLIENT_ID, FACEBOOK_CLIENT_SECRET, FACEBOOK_REDIRECT_URI in .env and whitelist the redirect URI in the Facebook App.',
+            'linkedin'  => 'LinkedIn OAuth is not configured. Set LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, LINKEDIN_REDIRECT_URI in .env (redirect must match exactly in LinkedIn Developer Portal).',
+            'x'         => 'X (Twitter) OAuth is not configured. Set TWITTER_CLIENT_ID, TWITTER_CLIENT_SECRET, TWITTER_REDIRECT_URI in .env (OAuth 2.0).',
+            'kick'      => 'Kick OAuth is not configured. Set KICK_CLIENT_ID, KICK_CLIENT_SECRET, KICK_REDIRECT_URI in .env and run php artisan config:clear.',
+            'twitch'    => 'Twitch OAuth is not configured. Set TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_REDIRECT_URI in .env.',
+        ];
+        $message = $messages[strtolower($platform)] ?? 'Platform OAuth is not configured. Set client_id and client_secret in .env and config/services.php.';
+        return response()->json(['error' => $message], 400);
     }
 
     public function callback(Request $request, string $platform): \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
@@ -154,15 +173,24 @@ class SocialAccountController extends Controller
             }
 
             session()->flash('success', ucfirst($platform) . ' account connected successfully.');
+            Cache::forget('public_profile:' . strtolower($user->user_name));
             return response('<script>window.opener ? (window.opener.location.reload(), window.close()) : (window.location.href="'.route('settings').'");</script>');
         } catch (\Throwable $e) {
+            $msg = $e->getMessage();
             Log::error('Social connect callback failed', [
                 'platform' => $platform,
-                'message' => $e->getMessage(),
+                'message' => $msg,
                 'exception' => get_class($e),
                 'trace' => $e->getTraceAsString(),
             ]);
-            session()->flash('error', __('Could not connect account. Please try again.'));
+            $userMessage = __('Could not connect account. Please try again.');
+            if (str_contains($msg, 'redirect_uri_mismatch') || str_contains($msg, 'redirect_uri')) {
+                $userMessage = __('Redirect URI mismatch. Set the exact callback URL in .env and in the provider’s developer console (see docs/WEBSITE_SOCIAL_VERIFICATION.md).');
+            }
+            if (str_contains($msg, 'invalid_grant') || str_contains($msg, 'access_denied')) {
+                $userMessage = __('Access was denied or the authorization expired. Try connecting again.');
+            }
+            session()->flash('error', $userMessage);
             return response('<script>window.opener ? (window.opener.location.reload(), window.close()) : (window.location.href="'.route('settings').'");</script>');
         }
     }
