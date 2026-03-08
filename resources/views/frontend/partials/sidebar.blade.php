@@ -1126,7 +1126,7 @@
                                                                             </div>
                                                                             @if(in_array('linkedin', $socialVerifiedPlatforms) && $acc)
                                                                                 <div class="mb-2 ps-2">
-                                                                                    <label class="form-label small mb-1">{{ __('LinkedIn profile URL') }} (e.g. https://www.linkedin.com/in/yourname)</label>
+                                                                                    <label class="form-label small mb-1">{{ __('LinkedIn does not provide your profile URL automatically. Paste your profile URL here') }} (e.g. https://www.linkedin.com/in/yourname)</label>
                                                                                     <div class="input-group input-group-sm">
                                                                                         <input type="url" class="form-control linkedin-profile-url-input" data-account-id="{{ $acc->id }}" placeholder="https://www.linkedin.com/in/yourname" value="{{ $acc->profile_url && $acc->profile_url !== 'https://www.linkedin.com/' ? e($acc->profile_url) : '' }}">
                                                                                         <button type="button" class="btn btn-outline-primary linkedin-profile-url-btn">{{ __('Update URL') }}</button>

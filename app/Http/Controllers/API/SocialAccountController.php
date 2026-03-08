@@ -335,9 +335,9 @@ class SocialAccountController extends Controller
 
     /**
      * Try to get LinkedIn public profile URL (https://www.linkedin.com/in/{vanityName}) using the
-     * OAuth access token. LinkedIn OpenID often does not return vanityName; GET /v2/me can return it
-     * if the token has the right scopes (e.g. r_basicprofile). If the API call fails or vanityName
-     * is missing, returns null so the caller keeps the fallback URL.
+     * OAuth access token. Tries OpenID userinfo first, then v2/me. LinkedIn often does not return
+     * vanity name with standard OpenID scopes, so the manual "LinkedIn profile URL" field in
+     * Settings is the reliable way for users to set their profile link.
      */
     protected function fetchLinkedInProfileUrl($socialUser): ?string
     {
@@ -345,22 +345,44 @@ class SocialAccountController extends Controller
         if (!$token) {
             return null;
         }
+
+        // Try OpenID Connect userinfo (may include profile URL in some configurations)
+        try {
+            $userinfo = Http::withToken($token)->get('https://api.linkedin.com/v2/userinfo');
+            if ($userinfo->successful()) {
+                $data = $userinfo->json();
+                foreach (['profile', 'url', 'profile_url', 'vanityName', 'linkedin_url'] as $key) {
+                    $val = $data[$key] ?? null;
+                    if (is_string($val) && $val !== '' && preg_match('#linkedin\.com/in/[a-zA-Z0-9_-]+#', $val)) {
+                        return strpos($val, 'http') === 0 ? $val : 'https://www.linkedin.com/in/' . trim($val);
+                    }
+                }
+                $vanity = $data['vanityName'] ?? null;
+                if (is_string($vanity) && $vanity !== '') {
+                    return 'https://www.linkedin.com/in/' . trim($vanity);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::debug('LinkedIn userinfo failed', ['message' => $e->getMessage()]);
+        }
+
+        // Try legacy v2/me (requires r_basicprofile; often not granted)
         try {
             $response = Http::withToken($token)
                 ->get('https://api.linkedin.com/v2/me', [
                     'projection' => '(id,vanityName,localizedFirstName,localizedLastName)',
                 ]);
-            if (!$response->successful()) {
-                return null;
-            }
-            $data = $response->json();
-            $vanity = $data['vanityName'] ?? null;
-            if ($vanity !== null && $vanity !== '') {
-                return 'https://www.linkedin.com/in/' . trim($vanity);
+            if ($response->successful()) {
+                $data = $response->json();
+                $vanity = $data['vanityName'] ?? null;
+                if ($vanity !== null && $vanity !== '') {
+                    return 'https://www.linkedin.com/in/' . trim($vanity);
+                }
             }
         } catch (\Throwable $e) {
             Log::debug('LinkedIn v2/me failed', ['message' => $e->getMessage()]);
         }
+
         return null;
     }
 
