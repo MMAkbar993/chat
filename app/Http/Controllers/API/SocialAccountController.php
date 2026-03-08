@@ -256,6 +256,66 @@ class SocialAccountController extends Controller
         }
     }
 
+    /**
+     * Update a connected social account's profile URL (e.g. when LinkedIn doesn't return vanity name).
+     * Syncs to user_details for display. Validates URL format per platform.
+     */
+    public function updateProfileUrl(Request $request, int $id): \Illuminate\Http\JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return send_bad_request_response('User not found');
+            }
+
+            $account = $user->socialAccounts()->find($id);
+            if (!$account) {
+                return send_bad_request_response('Social account not found');
+            }
+
+            $url = $request->input('profile_url');
+            if ($url !== null) {
+                $url = trim((string) $url);
+            }
+            if ($url === '') {
+                $url = null;
+            }
+
+            if ($url !== null) {
+                if (!preg_match('#^https?://#i', $url)) {
+                    return send_bad_request_response('Profile URL must start with http:// or https://');
+                }
+                $platform = strtolower($account->platform);
+                if ($platform === 'linkedin' && !preg_match('#^https?://(www\.)?linkedin\.com/in/#i', $url)) {
+                    return send_bad_request_response('LinkedIn profile URL must be like https://www.linkedin.com/in/yourname');
+                }
+            }
+
+            $account->profile_url = $url;
+            $account->save();
+
+            $dbKey = $account->platform === 'x' ? 'twitter' : $account->platform;
+            if (in_array($dbKey, ['facebook', 'twitter', 'linkedin', 'youtube', 'instagram', 'kick', 'twitch'])) {
+                $details = $user->get_user_details;
+                if (!$details) {
+                    $details = new UserDetails(['user_id' => $user->id]);
+                }
+                $details->$dbKey = $url;
+                $details->save();
+            }
+
+            $userName = $user->user_name ?? '';
+            if ($userName !== '') {
+                Cache::forget('public_profile:' . strtolower($userName));
+            }
+
+            return send_success_response([], __('Profile URL updated.'));
+        } catch (\Throwable $e) {
+            Log::error('Social update profile URL failed', ['id' => $id, 'message' => $e->getMessage()]);
+            return send_exception_response($e->getMessage());
+        }
+    }
+
     protected function buildProfileUrl(string $platform, $socialUser): ?string
     {
         $nickname = $socialUser->getNickname();

@@ -78,6 +78,7 @@ Route::post('oauth/token', [AccessTokenController::class, 'issueToken']);
 
         /* Social Account Verification (OAuth) */
         Route::post('/social-accounts', [App\Http\Controllers\API\SocialAccountController::class, 'index']);
+        Route::put('/social-accounts/{id}/profile-url', [App\Http\Controllers\API\SocialAccountController::class, 'updateProfileUrl']);
         Route::delete('/social-accounts/{id}', [App\Http\Controllers\API\SocialAccountController::class, 'disconnect']);
 
         // Add any other protected routes here

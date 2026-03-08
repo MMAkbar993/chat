@@ -1126,6 +1126,15 @@
                                                                                     @endif
                                                                                 </div>
                                                                             </div>
+                                                                            @if(in_array('linkedin', $socialVerifiedPlatforms) && $acc)
+                                                                                <div class="mb-2 ps-2">
+                                                                                    <label class="form-label small mb-1">{{ __('LinkedIn profile URL') }} (e.g. https://www.linkedin.com/in/yourname)</label>
+                                                                                    <div class="input-group input-group-sm">
+                                                                                        <input type="url" class="form-control linkedin-profile-url-input" data-account-id="{{ $acc->id }}" placeholder="https://www.linkedin.com/in/yourname" value="{{ $acc->profile_url && $acc->profile_url !== 'https://www.linkedin.com/' ? e($acc->profile_url) : '' }}">
+                                                                                        <button type="button" class="btn btn-outline-primary linkedin-profile-url-btn">{{ __('Update URL') }}</button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            @endif
                                                                         </div>
                                                                         <div class="col-lg-12">
                                                                             <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
@@ -1223,6 +1232,25 @@
                                                                                     })
                                                                                     .catch(function() { alert('{{ __("Verification request failed.") }}'); })
                                                                                     .finally(function() { btn.disabled = false; });
+                                                                            });
+                                                                        });
+                                                                        document.querySelectorAll('.linkedin-profile-url-btn').forEach(function(btn) {
+                                                                            btn.addEventListener('click', function() {
+                                                                                var group = btn.closest('.input-group');
+                                                                                var input = group ? group.querySelector('.linkedin-profile-url-input') : null;
+                                                                                var id = input ? input.getAttribute('data-account-id') : null;
+                                                                                var url = input ? input.value.trim() : '';
+                                                                                if (!id) return;
+                                                                                btn.disabled = true;
+                                                                                var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                                fetch('{{ url("/api/social-accounts") }}/' + id + '/profile-url', {
+                                                                                    method: 'PUT',
+                                                                                    headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                                                                                    credentials: 'same-origin',
+                                                                                    body: JSON.stringify({ profile_url: url || null })
+                                                                                }).then(function(r) { return r.json(); }).then(function(res) {
+                                                                                    if (res.code === '200' || res.code === 200) { window.location.reload(); } else { alert(res.message || '{{ __("Could not update URL.") }}'); }
+                                                                                }).catch(function() { alert('{{ __("Could not update URL.") }}'); }).finally(function() { btn.disabled = false; });
                                                                             });
                                                                         });
                                                                     });
