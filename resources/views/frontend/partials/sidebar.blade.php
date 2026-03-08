@@ -989,15 +989,15 @@
                                                                 @if($userWebsites->count() > 0)
                                                                     <div class="list-group list-group-flush">
                                                                         @foreach($userWebsites as $w)
-                                                                            <div class="list-group-item d-flex flex-wrap align-items-center justify-content-between border rounded mb-2 p-3">
+                                                                            <div class="list-group-item d-flex flex-wrap align-items-center justify-content-between border rounded mb-2 p-3 website-row" data-website-id="{{ $w->id }}">
                                                                                 <div class="flex-grow-1 me-2">
                                                                                     @if($w->isVerified())
                                                                                         <span class="badge bg-success me-2"><i class="ti ti-circle-check me-1"></i>{{ __('Verified') }}</span>
                                                                                     @endif
-                                                                                    <a href="{{ $w->getDisplayUrl() }}" target="_blank" rel="noopener" class="text-primary">{{ $w->getDisplayUrl() }}</a>
+                                                                                    <a href="{{ $w->getDisplayUrl() }}" target="_blank" rel="noopener" class="text-primary website-display-url">{{ $w->getDisplayUrl() }}</a>
                                                                                 </div>
                                                                                 @if(!$w->isVerified())
-                                                                                    <div class="mt-2 mt-md-0">
+                                                                                    <div class="mt-2 mt-md-0 website-verify-block">
                                                                                         <small class="d-block text-muted mb-1">{{ __('Add this to your site’s <head>:') }}</small>
                                                                                         <code class="d-block small bg-light p-2 rounded mb-2" style="word-break: break-all;">&lt;meta name="greenunimind-verification" content="{{ $w->verification_token }}" /&gt;</code>
                                                                                         <button type="button" class="btn btn-sm btn-success website-verify-btn" data-website-id="{{ $w->id }}">{{ __('Verify') }}</button>
@@ -1023,8 +1023,6 @@
                                                         <div id="social-id" class="accordion-collapse collapse"
                                                             data-bs-parent="#account-setting">
                                                             <div class="accordion-body">
-                                                                <p class="text-muted small mb-3"><i class="ti ti-info-circle me-1"></i>{{ __('Social links must be verified via OAuth before saving. Use full URLs (e.g. https://...).') }}</p>
-                                                                <p class="text-muted small mb-3"><i class="ti ti-brand-facebook me-1"></i><i class="ti ti-brand-instagram me-1"></i>{{ __('Instagram and Facebook: connect with a personal or business/Creator account. If Connect fails, ensure your app is set up in Meta for Developers and the redirect URI is whitelisted.') }}</p>
                                                                 @if (session('error'))
                                                                     <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
                                                                         {{ session('error') }}
@@ -1195,6 +1193,28 @@
                                                                         </div>
                                                                     <script>
                                                                     document.addEventListener('DOMContentLoaded', function() {
+                                                                        function showToast(msg, isError) {
+                                                                            if (typeof Toastify !== 'undefined') {
+                                                                                Toastify({ text: msg, duration: 3000, gravity: 'top', position: 'right', style: { background: (isError ? '#dc3545' : '#28a745') } }).showToast();
+                                                                            } else { alert(msg); }
+                                                                        }
+                                                                        function setProfileLink(elId, url) {
+                                                                            var el = document.getElementById(elId);
+                                                                            if (!el) return;
+                                                                            if (url && (url.indexOf('http://') === 0 || url.indexOf('https://') === 0)) {
+                                                                                el.innerHTML = '';
+                                                                                var a = document.createElement('a');
+                                                                                a.href = url;
+                                                                                a.target = '_blank';
+                                                                                a.rel = 'noopener noreferrer';
+                                                                                a.className = 'text-primary text-break';
+                                                                                a.textContent = url.length > 50 ? url.substring(0, 47) + '\u2026' : url;
+                                                                                a.title = url;
+                                                                                el.appendChild(a);
+                                                                            } else {
+                                                                                el.textContent = url || '\u2014';
+                                                                            }
+                                                                        }
                                                                         var buttons = document.querySelectorAll('.social-connect-btn');
                                                                         buttons.forEach(function(btn) {
                                                                             btn.addEventListener('click', function(e) {
@@ -1228,9 +1248,22 @@
                                                                                 fetch('{{ url("/api/websites") }}/' + id + '/verify', { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
                                                                                     .then(function(r) { return r.json(); })
                                                                                     .then(function(res) {
-                                                                                        if (res.code === '200' || res.code === 200) { window.location.reload(); } else { alert(res.message || '{{ __("Verification failed.") }}'); }
+                                                                                        if (res.code === '200' || res.code === 200) {
+                                                                                            var row = btn.closest('.website-row');
+                                                                                            if (row) {
+                                                                                                var verifyBlock = row.querySelector('.website-verify-block');
+                                                                                                if (verifyBlock) verifyBlock.remove();
+                                                                                                var firstDiv = row.querySelector('.flex-grow-1');
+                                                                                                if (firstDiv && !firstDiv.querySelector('.badge.bg-success')) {
+                                                                                                    firstDiv.insertAdjacentHTML('afterbegin', '<span class="badge bg-success me-2"><i class="ti ti-circle-check me-1"></i>{{ __("Verified") }}</span>');
+                                                                                                }
+                                                                                            }
+                                                                                            showToast(res.message || '{{ __("Website verified.") }}');
+                                                                                        } else {
+                                                                                            showToast(res.message || '{{ __("Verification failed.") }}', true);
+                                                                                        }
                                                                                     })
-                                                                                    .catch(function() { alert('{{ __("Verification request failed.") }}'); })
+                                                                                    .catch(function() { showToast('{{ __("Verification request failed.") }}', true); })
                                                                                     .finally(function() { btn.disabled = false; });
                                                                             });
                                                                         });
@@ -1249,8 +1282,13 @@
                                                                                     credentials: 'same-origin',
                                                                                     body: JSON.stringify({ profile_url: url || null })
                                                                                 }).then(function(r) { return r.json(); }).then(function(res) {
-                                                                                    if (res.code === '200' || res.code === 200) { window.location.reload(); } else { alert(res.message || '{{ __("Could not update URL.") }}'); }
-                                                                                }).catch(function() { alert('{{ __("Could not update URL.") }}'); }).finally(function() { btn.disabled = false; });
+                                                                                    if (res.code === '200' || res.code === 200) {
+                                                                                        setProfileLink('profile-info-linkedin', url || null);
+                                                                                        showToast(res.message || '{{ __("Profile URL updated.") }}');
+                                                                                    } else {
+                                                                                        showToast(res.message || '{{ __("Could not update URL.") }}', true);
+                                                                                    }
+                                                                                }).catch(function() { showToast('{{ __("Could not update URL.") }}', true); }).finally(function() { btn.disabled = false; });
                                                                             });
                                                                         });
                                                                     });
