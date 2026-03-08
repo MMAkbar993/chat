@@ -1243,7 +1243,7 @@
                                                                                 if (!id) return;
                                                                                 btn.disabled = true;
                                                                                 var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                                                                                fetch('{{ url("/api/social-accounts") }}/' + id + '/profile-url', {
+                                                                                fetch('{{ url("connect/social-accounts") }}/' + id + '/profile-url', {
                                                                                     method: 'PUT',
                                                                                     headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                                                                                     credentials: 'same-origin',
