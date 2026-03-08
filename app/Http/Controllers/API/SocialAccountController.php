@@ -71,6 +71,9 @@ class SocialAccountController extends Controller
             $socialite = Socialite::driver($driver)->stateless();
             $socialite->redirectUrl($redirectUrl);
             $this->applyDriverConfig($socialite, $config, $redirectUrl);
+            if ($platform === 'youtube' && method_exists($socialite, 'scopes')) {
+                $socialite->scopes(['openid', 'profile', 'email', 'https://www.googleapis.com/auth/youtube.readonly']);
+            }
             return $socialite->redirect();
         } catch (\Throwable $e) {
             $msg = $e->getMessage();
@@ -140,6 +143,11 @@ class SocialAccountController extends Controller
             // For LinkedIn: try to get public profile URL (vanityName) via API when OpenID didn't return it
             if ($platform === 'linkedin' && (!$profileUrl || $profileUrl === 'https://www.linkedin.com/')) {
                 $profileUrl = $this->fetchLinkedInProfileUrl($socialUser) ?? $profileUrl;
+            }
+
+            // For YouTube: Google OAuth often doesn't return channel handle; fetch channel URL from YouTube Data API
+            if ($platform === 'youtube' && (!$profileUrl || $profileUrl === 'https://www.youtube.com/' || trim($profileUrl ?? '') === '')) {
+                $profileUrl = $this->fetchYouTubeChannelUrl($socialUser) ?? $profileUrl;
             }
 
             // Never use avatar URL as profile_url; profile_url is the public profile page only
@@ -292,6 +300,46 @@ class SocialAccountController extends Controller
             }
         } catch (\Throwable $e) {
             Log::debug('LinkedIn v2/me failed', ['message' => $e->getMessage()]);
+        }
+        return null;
+    }
+
+    /**
+     * Fetch YouTube channel URL using the Google access token and YouTube Data API v3.
+     * Requires the Google OAuth consent to include the YouTube scope (e.g. https://www.googleapis.com/auth/youtube.readonly).
+     * Returns https://youtube.com/@customUrl or https://www.youtube.com/channel/CHANNEL_ID.
+     */
+    protected function fetchYouTubeChannelUrl($socialUser): ?string
+    {
+        $token = $socialUser->token ?? null;
+        if (!$token) {
+            return null;
+        }
+        try {
+            $response = Http::withToken($token)
+                ->get('https://www.googleapis.com/youtube/v3/channels', [
+                    'part' => 'id,snippet',
+                    'mine' => 'true',
+                ]);
+            if (!$response->successful()) {
+                return null;
+            }
+            $data = $response->json();
+            $items = $data['items'] ?? [];
+            if (empty($items)) {
+                return null;
+            }
+            $channel = $items[0];
+            $channelId = $channel['id'] ?? null;
+            $customUrl = $channel['snippet']['customUrl'] ?? null;
+            if ($customUrl !== null && $customUrl !== '') {
+                return 'https://www.youtube.com/' . ltrim($customUrl, '/');
+            }
+            if ($channelId !== null && $channelId !== '') {
+                return 'https://www.youtube.com/channel/' . $channelId;
+            }
+        } catch (\Throwable $e) {
+            Log::debug('YouTube channels list failed', ['message' => $e->getMessage()]);
         }
         return null;
     }

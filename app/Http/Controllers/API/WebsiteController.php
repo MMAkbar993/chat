@@ -150,6 +150,57 @@ class WebsiteController extends Controller
         }
     }
 
+    /**
+     * Add a website from the Settings form (plain request, no encryption). Redirects back with flash message.
+     */
+    public function storeFromWeb(Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $request->validate(['url' => 'required|string|max:500']);
+
+        $user = Auth::user();
+        if (!$user) {
+            return redirect()->route('settings')->with('error', __('You must be logged in.'));
+        }
+
+        if ($user->websites()->count() >= self::MAX_WEBSITES) {
+            return redirect()->route('settings')->with('error', __('Maximum of :max websites allowed.', ['max' => self::MAX_WEBSITES]));
+        }
+
+        $domain = $this->verificationService->normalizeDomain($request->url);
+        $url = $this->verificationService->normalizeUrl($request->url);
+
+        if (empty($domain)) {
+            return redirect()->route('settings')->with('error', __('Invalid website URL.'));
+        }
+
+        $existingUserWebsite = $user->websites()
+            ->where(function ($q) use ($url, $domain) {
+                $q->where('url', $url)->orWhereHas('website', fn ($w) => $w->where('domain', $domain));
+            })
+            ->first();
+
+        if ($existingUserWebsite) {
+            return redirect()->route('settings')->with('error', __('This website has already been added.'));
+        }
+
+        $verifiedWebsite = $this->verificationService->getVerifiedWebsite($domain);
+        if ($verifiedWebsite) {
+            return redirect()->route('settings')->with('error', __('This website has already been verified by another user. You can request representation.'));
+        }
+
+        $token = $this->verificationService->generateVerificationToken();
+        $nextOrder = ($user->websites()->max('sort_order') ?? -1) + 1;
+
+        $user->websites()->create([
+            'url' => $url,
+            'verification_token' => $token,
+            'sort_order' => $nextOrder,
+            'relationship_type' => UserWebsite::RELATIONSHIP_OWNER,
+        ]);
+
+        return redirect()->route('settings')->with('success', __('Website added. Add the meta tag to your site’s &lt;head&gt; section below and click Verify.'));
+    }
+
     public function verify(Request $request, int $id): \Illuminate\Http\JsonResponse
     {
         try {

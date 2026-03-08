@@ -18,6 +18,7 @@ use App\Http\Controllers\Webhooks\DiditWebhookController;
 use App\Http\Controllers\GroupChatController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\ProfileSettingsController;
+use App\Http\Controllers\API\WebsiteController as ApiWebsiteController;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Session;
@@ -247,6 +248,7 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
    })->name('settings');
 
    Route::post('/profile-settings/save', [ProfileSettingsController::class, 'save'])->name('profile-settings.save');
+   Route::post('/settings/websites/add', [ApiWebsiteController::class, 'storeFromWeb'])->name('settings.websites.add');
 
    // Group Chat API (JSON)
    Route::prefix('api/groups')->group(function () {

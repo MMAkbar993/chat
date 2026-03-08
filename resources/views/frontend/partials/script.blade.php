@@ -149,6 +149,25 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         var el = document.getElementById(id);
         if (el) el.innerText = text || '—';
     }
+    /** Set element to a clickable link if value is a URL, otherwise plain text. Safe against XSS. */
+    function setLinkOrText(id, value) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var url = (value || '').toString().trim();
+        if (url && (url.indexOf('http://') === 0 || url.indexOf('https://') === 0)) {
+            el.innerHTML = '';
+            var a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.className = 'text-primary text-break';
+            a.textContent = url.length > 50 ? url.substring(0, 47) + '…' : url;
+            a.title = url;
+            el.appendChild(a);
+        } else {
+            el.textContent = url || '—';
+        }
+    }
     function setImg(id, src) {
         var el = document.getElementById(id);
         if (el && el.tagName === 'IMG' && src) el.src = src;
@@ -176,14 +195,14 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         setText('profile-info-gender', u.gender || '—');
         setText('profile-info-join-date', u.created_at || '—');
         setText('profile-info-role', u.primary_role || '—');
-        setText('profile-info-facebook', u.facebook_link || u.facebook || '—');
-        setText('profile-info-twitter', u.twitter_link || u.twitter || '—');
-        setText('profile-info-linkedin', u.linkedin_link || u.linkedin || '—');
-        setText('profile-info-google', u.google_link || u.google || '—');
-        setText('profile-info-youtube', u.youtube_link || u.youtube || '—');
-        setText('profile-info-instagram', u.instagram_link || u.instagram || '—');
-        setText('profile-info-kick', u.kick_link || u.kick || '—');
-        setText('profile-info-twitch', u.twitch_link || u.twitch || '—');
+        setLinkOrText('profile-info-facebook', u.facebook_link || u.facebook);
+        setLinkOrText('profile-info-twitter', u.twitter_link || u.twitter);
+        setLinkOrText('profile-info-linkedin', u.linkedin_link || u.linkedin);
+        setLinkOrText('profile-info-google', u.google_link || u.google);
+        setLinkOrText('profile-info-youtube', u.youtube_link || u.youtube);
+        setLinkOrText('profile-info-instagram', u.instagram_link || u.instagram);
+        setLinkOrText('profile-info-kick', u.kick_link || u.kick);
+        setLinkOrText('profile-info-twitch', u.twitch_link || u.twitch);
         setImg('profileImage', imgUrl);
         setImg('profileImageProfile', imgUrl);
         setImg('profileImageChat', imgUrl);
