@@ -442,6 +442,7 @@ class SocialAccountController extends Controller
 
     /**
      * Get OAuth config for the given driver. Uses driver name for config key.
+     * Falls back to env() when config is cached and missing credentials (e.g. server .env updated but config:clear not run).
      */
     protected function getDriverConfig(string $driver, string $platform): ?array
     {
@@ -450,10 +451,29 @@ class SocialAccountController extends Controller
             return null;
         }
         $callbackUrl = url("/connect/{$platform}/callback");
+        $clientId = $config['client_id'] ?? null;
+        $clientSecret = $config['client_secret'] ?? null;
+        $redirect = $config['redirect'] ?? $callbackUrl;
+        // Fallback to env() when config cache is stale (server .env has values but config was cached without them)
+        $envMap = [
+            'google'    => ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'],
+            'facebook'  => ['FACEBOOK_CLIENT_ID', 'FACEBOOK_CLIENT_SECRET', 'FACEBOOK_REDIRECT_URI'],
+            'instagram' => ['INSTAGRAM_CLIENT_ID', 'INSTAGRAM_CLIENT_SECRET', 'INSTAGRAM_REDIRECT_URI'],
+            'twitter'   => ['TWITTER_CLIENT_ID', 'TWITTER_CLIENT_SECRET', 'TWITTER_REDIRECT_URI'],
+            'twitch'    => ['TWITCH_CLIENT_ID', 'TWITCH_CLIENT_SECRET', 'TWITCH_REDIRECT_URI'],
+            'kick'      => ['KICK_CLIENT_ID', 'KICK_CLIENT_SECRET', 'KICK_REDIRECT_URI'],
+            'linkedin'  => ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET', 'LINKEDIN_REDIRECT_URI'],
+        ];
+        if (isset($envMap[$driver]) && (empty($clientId) || empty($clientSecret))) {
+            [$idKey, $secretKey, $redirectKey] = $envMap[$driver];
+            $clientId = $clientId ?: env($idKey);
+            $clientSecret = $clientSecret ?: env($secretKey);
+            $redirect = $redirect ?: env($redirectKey) ?: $callbackUrl;
+        }
         return [
-            'client_id' => $config['client_id'] ?? null,
-            'client_secret' => $config['client_secret'] ?? null,
-            'redirect' => $config['redirect'] ?? $callbackUrl,
+            'client_id' => $clientId,
+            'client_secret' => $clientSecret,
+            'redirect' => $redirect ?: $callbackUrl,
         ];
     }
 
