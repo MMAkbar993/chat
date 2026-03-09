@@ -97,7 +97,7 @@ class SocialAccountController extends Controller
     protected function platformConfigError(string $platform): \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
     {
         $messages = [
-            'instagram' => 'Instagram OAuth is not configured. Set INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, and INSTAGRAM_REDIRECT_URI in .env (see docs/WEBSITE_SOCIAL_VERIFICATION.md).',
+            'instagram' => 'Instagram OAuth is not configured. In .env set INSTAGRAM_CLIENT_ID and INSTAGRAM_CLIENT_SECRET from your Meta app (Instagram Basic Display or Graph API). Optional: INSTAGRAM_REDIRECT_URI (defaults to APP_URL/connect/instagram/callback). See docs/WEBSITE_SOCIAL_VERIFICATION.md.',
             'youtube'   => 'YouTube uses Google OAuth. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI in .env. In Google Cloud Console add the exact redirect URI.',
             'facebook'  => 'Facebook OAuth is not configured. Set FACEBOOK_CLIENT_ID, FACEBOOK_CLIENT_SECRET, FACEBOOK_REDIRECT_URI in .env and whitelist the redirect URI in the Facebook App.',
             'linkedin'  => 'LinkedIn OAuth is not configured. Set LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, LINKEDIN_REDIRECT_URI in .env (redirect must match exactly in LinkedIn Developer Portal).',
