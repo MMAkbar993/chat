@@ -44,6 +44,7 @@
             </div>
             <div class="text-center mt-4">
                 <a href="{{ url('/') }}" class="btn btn-primary">{{ __('Back to Home') }}</a>
+                <a href="{{ route('terms') }}" class="btn btn-outline-secondary ms-2">{{ __('Terms and Conditions') }}</a>
                 @auth
                     <a href="{{ route('settings') }}" class="btn btn-outline-secondary ms-2">{{ __('Settings') }}</a>
                 @endauth

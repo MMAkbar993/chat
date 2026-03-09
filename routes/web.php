@@ -134,6 +134,11 @@ Route::get('/privacy', function () {
    return view('frontend.privacy-policy');
 })->name('privacy');
 
+// Terms and Conditions (public page)
+Route::get('/terms-conditions', function () {
+   return view('frontend.terms-conditions');
+})->name('terms');
+
 //social login
 Route::prefix('/facebook')->group(function () {
    Route::get('', [RegisteredUserController::class, 'redirectToFacebook'])->name('user.login.facebook');
