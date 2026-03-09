@@ -1060,8 +1060,10 @@
                                                                                 <div>
                                                                                     @if(in_array('facebook', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('facebook'); @endphp
-                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
-                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        <div class="d-flex flex-column align-items-end gap-1">
+                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        </div>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'facebook') }}" class="btn btn-sm btn-outline-primary social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1079,8 +1081,10 @@
                                                                                 <div>
                                                                                     @if(in_array('instagram', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('instagram'); @endphp
-                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
-                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        <div class="d-flex flex-column align-items-end gap-1">
+                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        </div>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'instagram') }}" class="btn btn-sm btn-outline-danger social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1098,8 +1102,10 @@
                                                                                 <div>
                                                                                     @if(in_array('x', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('x'); @endphp
-                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
-                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        <div class="d-flex flex-column align-items-end gap-1">
+                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        </div>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'x') }}" class="btn btn-sm btn-outline-info social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1117,8 +1123,10 @@
                                                                                 <div>
                                                                                     @if(in_array('linkedin', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('linkedin'); @endphp
-                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
-                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        <div class="d-flex flex-column align-items-end gap-1">
+                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        </div>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'linkedin') }}" class="btn btn-sm btn-outline-primary social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1145,8 +1153,10 @@
                                                                                 <div>
                                                                                     @if(in_array('youtube', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('youtube'); @endphp
-                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
-                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        <div class="d-flex flex-column align-items-end gap-1">
+                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        </div>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'youtube') }}" class="btn btn-sm btn-outline-danger social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1164,8 +1174,10 @@
                                                                                 <div>
                                                                                     @if(in_array('kick', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('kick'); @endphp
-                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
-                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        <div class="d-flex flex-column align-items-end gap-1">
+                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        </div>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'kick') }}" class="btn btn-sm btn-outline-success social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
@@ -1183,8 +1195,10 @@
                                                                                 <div>
                                                                                     @if(in_array('twitch', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('twitch'); @endphp
-                                                                                        <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
-                                                                                        <button type="button" class="btn btn-sm btn-outline-danger ms-1 social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        <div class="d-flex flex-column align-items-end gap-1">
+                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}">{{ __('Remove') }}</button>
+                                                                                        </div>
                                                                                     @else
                                                                                         <a href="{{ route('social.connect', 'twitch') }}" class="btn btn-sm btn-outline-primary social-connect-btn">{{ __('Connect') }}</a>
                                                                                     @endif
