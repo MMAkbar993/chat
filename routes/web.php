@@ -141,6 +141,10 @@ Route::prefix('/google')->group(function () {
 
 // Social account verification (OAuth connect - requires auth)
 Route::middleware(['auth'])->prefix('connect')->group(function () {
+   Route::get('error', function () {
+       $message = session('social_connect_error', request()->query('message', 'OAuth is not configured for this platform.'));
+       return view('frontend.social-connect-error', ['message' => $message]);
+   })->name('social.connect.error');
    Route::delete('social-accounts/{id}', [App\Http\Controllers\API\SocialAccountController::class, 'disconnect'])->name('social.disconnect');
    Route::post('social-accounts/{id}/disconnect', [App\Http\Controllers\API\SocialAccountController::class, 'disconnect'])->name('social.disconnect.post');
    Route::put('social-accounts/{id}/profile-url', [App\Http\Controllers\API\SocialAccountController::class, 'updateProfileUrl'])->name('social.profile-url.update');

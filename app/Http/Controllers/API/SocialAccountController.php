@@ -93,6 +93,7 @@ class SocialAccountController extends Controller
 
     /**
      * Return a 400 JSON or redirect with platform-specific "not configured" message.
+     * When the request expects HTML (e.g. popup), redirect to an error page so the user sees a clear message instead of "Failed to load resource".
      */
     protected function platformConfigError(string $platform): \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
     {
@@ -106,6 +107,10 @@ class SocialAccountController extends Controller
             'twitch'    => 'Twitch OAuth is not configured. Set TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_REDIRECT_URI in .env.',
         ];
         $message = $messages[strtolower($platform)] ?? 'Platform OAuth is not configured. Set client_id and client_secret in .env and config/services.php.';
+        // When opened in a popup or normal navigation, redirect to error page so user sees a clear message instead of "Failed to load resource" (400 JSON).
+        if (request()->expectsJson() === false) {
+            return redirect()->route('social.connect.error')->with('social_connect_error', $message);
+        }
         return response()->json(['error' => $message], 400);
     }
 
