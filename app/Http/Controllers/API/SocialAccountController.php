@@ -83,8 +83,8 @@ class SocialAccountController extends Controller
                 'exception' => get_class($e),
                 'trace' => $e->getTraceAsString(),
             ]);
-            if (str_contains($msg, 'Driver [kick] not supported') || str_contains($msg, 'not supported')) {
-                return response()->json(['error' => 'Kick OAuth driver is not registered. Run: php artisan config:clear and ensure KICK_CLIENT_ID, KICK_CLIENT_SECRET, KICK_REDIRECT_URI are set in .env.'], 400);
+            if (str_contains($msg, 'not supported')) {
+                return $this->platformConfigError($platform);
             }
             // Return redirect for popup UX: show settings with error instead of raw 500
             return redirect()->route('settings')->with('error', __('Social verification failed. Please check OAuth settings in .env (client_id, client_secret, redirect URI) and try again.'));
