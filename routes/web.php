@@ -129,6 +129,11 @@ Route::get('/forgot-password', function () {
    return view('frontend/forgot-password');
 })->name('forgot-password');
 
+// Privacy Policy (public page for Meta/Facebook app verification and users)
+Route::get('/privacy', function () {
+   return view('frontend.privacy-policy');
+})->name('privacy');
+
 //social login
 Route::prefix('/facebook')->group(function () {
    Route::get('', [RegisteredUserController::class, 'redirectToFacebook'])->name('user.login.facebook');
