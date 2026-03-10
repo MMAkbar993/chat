@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\EncryptionController;
 use App\Http\Controllers\ChatController;
@@ -284,85 +285,6 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
 
 
 
-Route::get('/admin/index', function () {
-   return view('admin/index');
-})->name('admin.index');
-Route::get('/admin/abuse-message', function () {
-   return view('admin/abuse-message');
-})->name('admin.abuse-message');
-Route::get('/admin/add-language', function () {
-   return view('admin/add-language');
-})->name('admin.add-language');
-Route::get('/admin/app-settings', function () {
-   return view('admin/app-settings');
-})->name('admin.app-settings');
-Route::get('/admin/appearance-settings', function () {
-   return view('admin/appearance-settings');
-})->name('admin.appearance-settings');
-Route::get('/admin/authentication-settings', function () {
-   return view('admin/authentication-settings');
-})->name('admin.authentication-settings');
-Route::get('/admin/backup', function () {
-   return view('admin/backup');
-})->name('admin.backup');
-Route::get('/admin/ban-address', function () {
-   return view('admin/ban-address');
-})->name('admin.ban-address');
-Route::get('/admin/blank-page', function () {
-   return view('admin/blank-page');
-})->name('admin.blank-page');
-Route::get('/admin/block-user', function () {
-   return view('admin/block-user');
-})->name('admin.block-user');
-Route::get('/admin/call', function () {
-   return view('admin/call');
-})->name('admin.call');
-Route::get('/admin/change-password', function () {
-   return view('admin/change-password');
-})->name('admin.change-password');
-Route::get('/admin/chat-settings', function () {
-   return view('admin/chat-settings');
-})->name('admin.chat-settings');
-Route::get('/admin/chat', function () {
-   return view('admin/chat');
-})->name('admin.chat');
-Route::get('/admin/clear-cache', function () {
-   return view('admin/clear-cache');
-})->name('admin.clear-cache');
-Route::get('/admin/custom-fields', function () {
-   return view('admin/custom-fields');
-})->name('admin.custom-fields');
-Route::get('/admin/system-settings', function () {
-   return view('admin/email-settings');
-})->name('admin.system-settings');
-Route::get('/admin/basic-settings', function () {
-   return view('admin/basic-settings');
-})->name('admin.basic-settings');
-Route::get('/admin/forgot-password', function () {
-   return view('admin/forgot-password');
-})->name('admin.forgot-password');
-
-Route::get('/admin/gdpr', function () {
-   return view('admin/gdpr');
-})->name('admin.gdpr');
-Route::get('/admin/group', function () {
-   return view('admin/group');
-})->name('admin.group');
-Route::get('/admin/language', function () {
-   return view('admin/language');
-})->name('admin.language');
-Route::get('/admin/language-web', function () {
-   return view('admin/language-web');
-})->name('admin.language-web');
-Route::get('/admin/language-admin', function () {
-   return view('admin/language-admin');
-})->name('admin.language-admin');
-Route::get('/admin/integrations', function () {
-   return view('admin/integrations');
-})->name('admin.integrations');
-Route::get('/admin/localization-settings', function () {
-   return view('admin/localization-settings');
-})->name('admin.localization-settings');
 Route::get('/admin', function () {
    return redirect()->route('admin.login');
 })->name('admin.dashboard.redirect');
@@ -370,42 +292,123 @@ Route::get('/admin/login', function () {
    return view('admin/login');
 })->name('admin.login');
 Route::post('/admin/login', [RegisteredUserController::class, 'adminLoginSubmit'])->name('admin.login.submit');
-Route::get('/admin/notification-settings', function () {
-   return view('admin/notification-settings');
-})->name('admin.notification-settings');
-Route::get('/admin/otp', function () {
-   return view('admin/otp');
-})->name('admin.otp');
-Route::get('/admin/profile-settings', function () {
-   return view('admin/profile-settings');
-})->name('admin.profile-settings');
-Route::get('/admin/report-user', function () {
-   return view('admin/report-user');
-})->name('admin.report-user');
-Route::get('/admin/reset-password', function () {
-   return view('admin/reset-password');
-})->name('admin.reset-password');
-Route::get('/admin/reset-password-success', function () {
-   return view('admin/reset-password-success');
-})->name('admin.reset-password-success');
-Route::get('/admin/sms-settings', function () {
-   return view('admin/sms-settings');
-})->name('admin.sms-settings');
-Route::get('/admin/social-auth', function () {
-   return view('admin/social-auth');
-})->name('admin.social-auth');
-Route::get('/admin/storage', function () {
-   return view('admin/storage');
-})->name('admin.storage');
-Route::get('/admin/status', function () {
-   return view('admin/stories');
-})->name('admin.status');
+Route::get('/admin/forgot-password', function () {
+   return view('admin/forgot-password');
+})->name('admin.forgot-password');
 
+// Admin panel (auth + admin only)
+Route::middleware(['auth', 'ensureAdmin'])->prefix('admin')->group(function () {
+   Route::get('/index', [AdminController::class, 'index'])->name('admin.index');
+   Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
+   Route::get('/group', [AdminController::class, 'groups'])->name('admin.group');
+   // Admin API for users (used by admin users page)
+   Route::get('/api/users', [AdminController::class, 'usersData'])->name('admin.api.users');
+   Route::post('/api/users', [AdminController::class, 'storeUser'])->name('admin.api.users.store');
+   Route::get('/api/users/{id}', [AdminController::class, 'getUser'])->name('admin.api.users.show');
+   Route::put('/api/users/{id}', [AdminController::class, 'updateUser'])->name('admin.api.users.update');
+   Route::delete('/api/users/{id}', [AdminController::class, 'destroyUser'])->name('admin.api.users.destroy');
+   Route::post('/api/users/{id}/block', [AdminController::class, 'blockUser'])->name('admin.api.users.block');
 
-Route::get('/admin/users', function () {
-   return view('admin/users');
-})->name('admin.users');
-
-Route::get('/admin/video-audio-settings', function () {
-   return view('/admin/video-audio-settings');
-})->name('admin.video-audio-settings');
+   Route::get('/abuse-message', function () {
+      return view('admin/abuse-message');
+   })->name('admin.abuse-message');
+   Route::get('/add-language', function () {
+      return view('admin/add-language');
+   })->name('admin.add-language');
+   Route::get('/app-settings', function () {
+      return view('admin/app-settings');
+   })->name('admin.app-settings');
+   Route::get('/appearance-settings', function () {
+      return view('admin/appearance-settings');
+   })->name('admin.appearance-settings');
+   Route::get('/authentication-settings', function () {
+      return view('admin/authentication-settings');
+   })->name('admin.authentication-settings');
+   Route::get('/backup', function () {
+      return view('admin/backup');
+   })->name('admin.backup');
+   Route::get('/ban-address', function () {
+      return view('admin/ban-address');
+   })->name('admin.ban-address');
+   Route::get('/blank-page', function () {
+      return view('admin/blank-page');
+   })->name('admin.blank-page');
+   Route::get('/block-user', function () {
+      return view('admin/block-user');
+   })->name('admin.block-user');
+   Route::get('/call', function () {
+      return view('admin/call');
+   })->name('admin.call');
+   Route::get('/change-password', function () {
+      return view('admin/change-password');
+   })->name('admin.change-password');
+   Route::get('/chat-settings', function () {
+      return view('admin/chat-settings');
+   })->name('admin.chat-settings');
+   Route::get('/chat', function () {
+      return view('admin/chat');
+   })->name('admin.chat');
+   Route::get('/clear-cache', function () {
+      return view('admin/clear-cache');
+   })->name('admin.clear-cache');
+   Route::get('/custom-fields', function () {
+      return view('admin/custom-fields');
+   })->name('admin.custom-fields');
+   Route::get('/system-settings', function () {
+      return view('admin/email-settings');
+   })->name('admin.system-settings');
+   Route::get('/basic-settings', function () {
+      return view('admin/basic-settings');
+   })->name('admin.basic-settings');
+   Route::get('/gdpr', function () {
+      return view('admin/gdpr');
+   })->name('admin.gdpr');
+   Route::get('/language', function () {
+      return view('admin/language');
+   })->name('admin.language');
+   Route::get('/language-web', function () {
+      return view('admin/language-web');
+   })->name('admin.language-web');
+   Route::get('/language-admin', function () {
+      return view('admin/language-admin');
+   })->name('admin.language-admin');
+   Route::get('/integrations', function () {
+      return view('admin/integrations');
+   })->name('admin.integrations');
+   Route::get('/localization-settings', function () {
+      return view('admin/localization-settings');
+   })->name('admin.localization-settings');
+   Route::get('/notification-settings', function () {
+      return view('admin/notification-settings');
+   })->name('admin.notification-settings');
+   Route::get('/otp', function () {
+      return view('admin/otp');
+   })->name('admin.otp');
+   Route::get('/profile-settings', function () {
+      return view('admin/profile-settings');
+   })->name('admin.profile-settings');
+   Route::get('/report-user', function () {
+      return view('admin/report-user');
+   })->name('admin.report-user');
+   Route::get('/reset-password', function () {
+      return view('admin/reset-password');
+   })->name('admin.reset-password');
+   Route::get('/reset-password-success', function () {
+      return view('admin/reset-password-success');
+   })->name('admin.reset-password-success');
+   Route::get('/sms-settings', function () {
+      return view('admin/sms-settings');
+   })->name('admin.sms-settings');
+   Route::get('/social-auth', function () {
+      return view('admin/social-auth');
+   })->name('admin.social-auth');
+   Route::get('/storage', function () {
+      return view('admin/storage');
+   })->name('admin.storage');
+   Route::get('/status', function () {
+      return view('admin/stories');
+   })->name('admin.status');
+   Route::get('/video-audio-settings', function () {
+      return view('admin/video-audio-settings');
+   })->name('admin.video-audio-settings');
+});

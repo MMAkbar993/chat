@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'startSession' => \Illuminate\Session\Middleware\StartSession::class,
             'ensure2fa' => \App\Http\Middleware\Ensure2fa::class,
             'ensureOnboarded' => \App\Http\Middleware\EnsureOnboarded::class,
+            'ensureAdmin' => \App\Http\Middleware\EnsureAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

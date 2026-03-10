@@ -24,7 +24,7 @@ class User extends Authenticatable implements JWTSubject
     protected $fillable = [
         'first_name', 'last_name', 'full_name', 'email', 'user_name', 'password', 'user_type', 'api_token', 'gender', 'dob', 'mobile_number', 'profile_image', 'provider', 'provider_id', 'last_login_at',
         'company_name', 'company_domain', 'country', 'primary_role', 'other_role_text', 'terms_accepted_at', 'kyc_verified_at', 'kyc_provider_id', 'subscription_status',
-        'two_factor_secret', 'two_factor_enabled_at',
+        'two_factor_secret', 'two_factor_enabled_at', 'is_blocked',
     ];
 
     /**
@@ -69,7 +69,7 @@ class User extends Authenticatable implements JWTSubject
             'kyc_verified_at' => 'datetime',
             'two_factor_enabled_at' => 'datetime',
             'two_factor_secret' => 'encrypted',
-            // 'password' => 'hashed',
+            'is_blocked' => 'boolean',
         ];
     }
 

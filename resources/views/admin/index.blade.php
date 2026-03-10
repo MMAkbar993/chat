@@ -1,4 +1,4 @@
-﻿@extends('admin.layout')
+@extends('admin.layout')
 
 @section('content')
     <!-- Page Wrapper -->
@@ -29,7 +29,7 @@
                                     <span class="total-count-icons"><i class="ti ti-user-share"></i></span>
                                     <div>
                                         <p>Total Users </p>
-                                        <h5 id="total-users-count">0</h5>
+                                        <h5 id="total-users-count">{{ $totalUsers }}</h5>
                                     </div>
                                 </div>
                                 <div class="percentage">
@@ -47,7 +47,7 @@
                                     <span class="bg-dark total-count-icons"><i class="ti ti-users-group"></i></span>
                                     <div>
                                         <p>Total Groups</p>
-                                        <h5 id="total-groups-count">0</h5>
+                                        <h5 id="total-groups-count">{{ $totalGroups }}</h5>
                                     </div>
                                 </div>
                                 <div class="percentage">
@@ -65,7 +65,7 @@
                                     <span class="bg-purple total-count-icons"><i class="ti ti-brand-hipchat"></i></span>
                                     <div>
                                         <p>Total Chats</p>
-                                        <h5 id="total-chats-count">0</h5>
+                                        <h5 id="total-chats-count">{{ $totalChats }}</h5>
                                     </div>
                                 </div>
                                 <div class="percentage">
@@ -83,7 +83,7 @@
                                     <span class="bg-info total-count-icons"><i class="ti ti-circle-dot"></i></span>
                                     <div>
                                         <p>Total Status</p>
-                                        <h5 id="total-status-count">0</h5>
+                                        <h5 id="total-status-count">{{ $totalStatus }}</h5>
                                     </div>
                                 </div>
                                 <div class="percentage">
@@ -114,6 +114,16 @@
                                         </tr>
                                     </thead>
                                     <tbody>
+                                        @forelse($recentUsers as $u)
+                                        <tr>
+                                            <td>{{ $u->first_name }} {{ $u->last_name }}</td>
+                                            <td>{{ $u->created_at?->format('M d, Y') ?? '-' }}</td>
+                                            <td>{{ $u->last_login_at ? $u->last_login_at->format('M d, H:i') : '-' }}</td>
+                                            <td>{{ $u->country ?? '-' }}</td>
+                                        </tr>
+                                        @empty
+                                        <tr><td colspan="4" class="text-center">No users yet.</td></tr>
+                                        @endforelse
                                     </tbody>
                                 </table>
                             </div>
@@ -133,11 +143,21 @@
                                         <tr>
                                             <th>Name</th>
                                             <th>Reg Date</th>
-                                            <th>Login Time</th>
+                                            <th>Owner</th>
                                             <th>Members</th>
                                         </tr>
                                     </thead>
                                     <tbody id="groupsTableBody">
+                                        @forelse($recentGroups as $g)
+                                        <tr>
+                                            <td>{{ $g->name }}</td>
+                                            <td>{{ $g->created_at?->format('M d, Y') ?? '-' }}</td>
+                                            <td>{{ $g->owner ? $g->owner->first_name . ' ' . $g->owner->last_name : '-' }}</td>
+                                            <td>{{ $g->members_count ?? 0 }}</td>
+                                        </tr>
+                                        @empty
+                                        <tr><td colspan="4" class="text-center">No groups yet.</td></tr>
+                                        @endforelse
                                     </tbody>
                                 </table>
                             </div>

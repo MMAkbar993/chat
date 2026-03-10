@@ -1,4 +1,4 @@
-﻿@extends('admin.layout')
+@extends('admin.layout')
 
 @section('content')
     <!-- Page Wrapper -->
@@ -61,6 +61,18 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                @forelse($groups as $index => $g)
+                                <tr>
+                                    <td>{{ $index + 1 }}</td>
+                                    <td>{{ $g->name }}</td>
+                                    <td>{{ Str::limit($g->description ?? '', 40) ?: '-' }}</td>
+                                    <td>{{ $g->members_count ?? 0 }}</td>
+                                    <td>{{ $g->created_at?->format('M d, Y') ?? '-' }}</td>
+                                    <td>-</td>
+                                </tr>
+                                @empty
+                                <tr><td colspan="6" class="text-center">No groups yet.</td></tr>
+                                @endforelse
                             </tbody>
                         </table>
                     </div>

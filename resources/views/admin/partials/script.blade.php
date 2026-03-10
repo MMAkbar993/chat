@@ -1,4 +1,4 @@
-﻿<!-- jQuery -->
+<!-- jQuery -->
 <script src="{{ asset('assets/js/jquery-3.7.1.min.js') }}"></script>
 
 <!-- Bootstrap Core JS -->
@@ -23,7 +23,9 @@
 @endif
 <!-- Custom JS -->
 <script src="{{ asset('assets/js/admin-main.js') }}"></script>
-
+@if (Route::is('admin.users'))
+<script src="{{ asset('assets/js/admin-users-database.js') }}"></script>
+@endif
 <script src="{{ asset('assets/js/toastify.js') }} "></script>
 <script>
     const defaultAvatar = "{{ asset('assets/img/profiles/avatar-03.jpg') }}";
