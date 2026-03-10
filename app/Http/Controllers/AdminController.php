@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role;
 
 class AdminController extends Controller
@@ -19,20 +20,23 @@ class AdminController extends Controller
     public function index()
     {
         $totalUsers = User::where('user_type', '!=', 1)->count();
-        $totalGroups = Group::count();
-        $totalChats = Chat::count();
-        $totalStatus = 0; // No status table in DB yet
+        $totalGroups = Schema::hasTable('groups') ? Group::count() : 0;
+        $totalChats = Schema::hasTable('chats') ? Chat::count() : 0;
+        $totalStatus = 0;
 
         $recentUsers = User::where('user_type', '!=', 1)
             ->orderByDesc('created_at')
             ->limit(5)
             ->get(['id', 'first_name', 'last_name', 'email', 'country', 'created_at', 'last_login_at']);
 
-        $recentGroups = Group::withCount('members')
-            ->with('owner:id,first_name,last_name')
-            ->orderByDesc('created_at')
-            ->limit(5)
-            ->get();
+        $recentGroups = collect([]);
+        if (Schema::hasTable('groups')) {
+            $recentGroups = Group::withCount('members')
+                ->with('owner:id,first_name,last_name')
+                ->orderByDesc('created_at')
+                ->limit(5)
+                ->get();
+        }
 
         return view('admin.index', compact(
             'totalUsers',
@@ -61,6 +65,7 @@ class AdminController extends Controller
             ->orderByRaw('COALESCE(last_name, first_name) ASC');
 
         $users = $query->get()->map(function ($user, $index) {
+            $isBlocked = Schema::hasColumn('users', 'is_blocked') ? (bool) ($user->is_blocked ?? false) : false;
             return [
                 'id' => $user->id,
                 'sno' => $index + 1,
@@ -73,7 +78,7 @@ class AdminController extends Controller
                 'reg_date' => $user->created_at?->format('M d, Y') ?? '-',
                 'last_seen' => $user->last_login_at ? $user->last_login_at->format('M d, Y H:i') : '-',
                 'profile_image_link' => $user->profile_image_link ?? '',
-                'is_blocked' => (bool) ($user->is_blocked ?? false),
+                'is_blocked' => $isBlocked,
             ];
         });
 
@@ -164,9 +169,11 @@ class AdminController extends Controller
     public function blockUser(Request $request, $id)
     {
         $user = User::where('user_type', '!=', 1)->findOrFail($id);
+        if (!Schema::hasColumn('users', 'is_blocked')) {
+            return response()->json(['success' => false, 'message' => __('Block feature is not available. Run: php artisan migrate.')], 400);
+        }
         $user->is_blocked = !$user->is_blocked;
         $user->save();
-        $action = $user->is_blocked ? 'blocked' : 'unblocked';
         return response()->json(['success' => true, 'message' => $user->is_blocked ? __('User blocked successfully.') : __('User unblocked successfully.'), 'is_blocked' => $user->is_blocked]);
     }
 
@@ -191,6 +198,9 @@ class AdminController extends Controller
      */
     public function groups()
     {
+        if (!Schema::hasTable('groups')) {
+            return view('admin.group', ['groups' => collect([])]);
+        }
         $groups = Group::withCount('members')->with('owner:id,first_name,last_name')->orderByDesc('created_at')->get();
         return view('admin.group', compact('groups'));
     }

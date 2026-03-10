@@ -70,6 +70,7 @@ class User extends Authenticatable implements JWTSubject
             'two_factor_enabled_at' => 'datetime',
             'two_factor_secret' => 'encrypted',
             'is_blocked' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
 

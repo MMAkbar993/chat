@@ -118,7 +118,7 @@
                                         <tr>
                                             <td>{{ $u->first_name }} {{ $u->last_name }}</td>
                                             <td>{{ $u->created_at?->format('M d, Y') ?? '-' }}</td>
-                                            <td>{{ $u->last_login_at ? $u->last_login_at->format('M d, H:i') : '-' }}</td>
+                                            <td>{{ $u->last_login_at ? (is_object($u->last_login_at) ? $u->last_login_at->format('M d, H:i') : \Carbon\Carbon::parse($u->last_login_at)->format('M d, H:i')) : '-' }}</td>
                                             <td>{{ $u->country ?? '-' }}</td>
                                         </tr>
                                         @empty
