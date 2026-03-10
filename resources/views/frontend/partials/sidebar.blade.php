@@ -480,10 +480,10 @@
                                             <div
                                                 class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
                                                 <div>
-                                                    <h6 class="fs-14">{{ __('Google') }}</h6>
-                                                    <p class="fs-16" id="profile-info-google">{{ __('Loading...') }}</p>
+                                                    <h6 class="fs-14">{{ __('Website') }}</h6>
+                                                    <p class="fs-16" id="profile-info-website">{{ __('Loading...') }}</p>
                                                 </div>
-                                                <span><i class="ti ti-brand-google fs-16"></i></span>
+                                                <span><i class="ti ti-world fs-16"></i></span>
                                             </div>
                                             <div
                                                 class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">

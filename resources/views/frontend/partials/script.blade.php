@@ -119,6 +119,11 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
                 'instagram_link' => $ud ? ($ud->instagram ?? '') : '',
                 'kick_link' => $ud ? ($ud->kick ?? '') : '',
                 'twitch_link' => $ud ? ($ud->twitch ?? '') : '',
+                'website_url' => (function () use ($u) {
+                    $first = $u->websites()->orderBy('sort_order')->first();
+                    return $first ? $first->getDisplayUrl() : '';
+                })(),
+                'website_urls' => $u->websites()->orderBy('sort_order')->get()->map(fn ($w) => $w->getDisplayUrl())->values()->all(),
             ]);
             $verifiedPlatforms = $u->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
             $platformToKey = [ 'facebook' => 'facebook_link', 'x' => 'twitter_link', 'linkedin' => 'linkedin_link', 'youtube' => 'youtube_link', 'instagram' => 'instagram_link', 'kick' => 'kick_link', 'twitch' => 'twitch_link' ];
@@ -209,7 +214,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         setLinkOrText('profile-info-facebook', u.facebook_link || u.facebook);
         setLinkOrText('profile-info-twitter', u.twitter_link || u.twitter);
         setLinkOrText('profile-info-linkedin', u.linkedin_link || u.linkedin);
-        setLinkOrText('profile-info-google', u.google_link || u.google);
+        setLinkOrText('profile-info-website', u.website_url || u.website_urls?.[0] || '');
         setLinkOrText('profile-info-youtube', u.youtube_link || u.youtube);
         setLinkOrText('profile-info-instagram', u.instagram_link || u.instagram);
         setLinkOrText('profile-info-kick', u.kick_link || u.kick);

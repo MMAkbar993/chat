@@ -873,7 +873,7 @@ function displayUserDetails(user) {
     setText('profile-info-youtube', user.youtube_link || 'No youtube link');
     setText('profile-info-linkedin', user.linkedin_link || 'No linkedin link');
     setText('profile-info-twitter', user.twitter_link || 'No twitter link');
-    setText('profile-info-google', user.google_link || 'No google link');
+    setText('profile-info-website', user.website_url || user.website_link || 'No website');
     setText('profile-info-facebook', user.facebook_link || 'No facebook link');
     displayJoinDate(user.timestamp);
     // Set profile image src (do not use innerText on img elements) - use imageUrl so all avatars update
