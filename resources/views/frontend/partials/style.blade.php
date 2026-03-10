@@ -39,3 +39,7 @@
 
 <!-- Style CSS -->
 <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
+<!-- Welcome screen background and visibility -->
+<link rel="stylesheet" href="{{ asset('assets/css/welcome-screen-fix.css') }}">
+<!-- SPA modals z-index fix (Add contact, etc.) -->
+<link rel="stylesheet" href="{{ asset('assets/css/spa-modals-fix.css') }}">

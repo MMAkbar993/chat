@@ -38,7 +38,7 @@ class ProfileSettingsController extends Controller
             }
 
             $nameLocked = $user->isKycVerified();
-            $emailLocked = $user->isKycVerified() || $user->email_verified_at !== null;
+            $emailLocked = false;
 
             // Reject any name change after KYC verification (even if client sends different values)
             if ($nameLocked) {

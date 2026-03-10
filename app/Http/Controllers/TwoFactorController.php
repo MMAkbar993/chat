@@ -37,7 +37,7 @@ class TwoFactorController extends Controller
         $request->session()->put('2fa_setup_secret', $secret);
 
         $qrCodeUrl = $this->google2fa->getQRCodeUrl(
-            config('app.name', 'AffiliateRoulette'),
+            'Connect',
             $user->email,
             $secret
         );

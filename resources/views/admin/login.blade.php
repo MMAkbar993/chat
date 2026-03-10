@@ -1,4 +1,4 @@
-﻿@extends('admin.layout')
+@extends('admin.layout')
 
 @section('content')
 <div class="container-fluid">
@@ -15,11 +15,12 @@
                         <h3>Login</h3>
                     </div>
                 </div>
-                <form id="loginForm">
+                <form id="loginForm" method="POST" action="{{ route('admin.login.submit') }}">
+                    @csrf
                     <div class="form-group">
                         <label class="form-label">Email <span>*</span></label>
                         <div class="input-icon mb-3 position-relative">
-                            <input type="email" class="form-control validate-input email-icon" id="email" name="email">
+                            <input type="email" class="form-control validate-input email-icon" id="email" name="email" value="{{ old('email') }}" autocomplete="email">
                             <span class="input-icon-addon-admin">
                                 <i class="ti ti-mail"></i>
                             </span>
@@ -34,24 +35,20 @@
                     <div class="form-group">
                         <label class="form-label">Password <span>*</span></label>
                         <div class="pass-group">
-
-                            <input type="password" class="pass-input form-control validate-input pwd-bg-img" id="password" name="password">
-                            <span
-                                class="ti toggle-password ti-eye-off icon-left  pwd-align"></span>
+                            <input type="password" class="pass-input form-control validate-input pwd-bg-img" id="password" name="password" autocomplete="current-password">
+                            <span class="ti toggle-password ti-eye-off icon-left  pwd-align"></span>
                             <div class="invalid-feedback" id="password-error">
                                 @error('password')
                                 {{ $message }}
                                 @enderror
                             </div>
                             <div class="valid-feedback"></div>
-
                         </div>
                     </div>
-                    <div class="form-group form-remember d-flex align-items-center justify-content-between">
                         <div class="form-check d-flex align-items-center justify-content-start ps-0">
                             <label class="custom-check mt-0 mb-0">
                                 <span class="remember-me">Remember Me</span>
-                                <input type="checkbox" name="remeber" id="rememberMe">
+                                <input type="checkbox" name="remember" id="rememberMe" value="1" {{ old('remember') ? 'checked' : '' }}>
                                 <span class="checkmark"></span>
                             </label>
                         </div>

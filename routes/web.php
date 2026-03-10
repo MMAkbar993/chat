@@ -19,7 +19,7 @@ use App\Http\Controllers\GroupChatController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\ProfileSettingsController;
 use App\Http\Controllers\API\WebsiteController as ApiWebsiteController;
-use Illuminate\Support\Facades\File;
+use App\Http\Controllers\ContactController;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
@@ -246,14 +246,14 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
       return view('frontend/group-chat');
    })->name('group-chat');
    Route::get('/my-status', function () {
-      return view('frontend/my-status');
+      return redirect()->route('chat');
    })->name('my-status');
    Route::get('/status', function () {
-      return view('frontend/status');
+      return redirect()->route('chat');
    })->name('status');
    Route::post('/upload-status', [UserController::class, 'uploadStatus'])->name('user.status.upload');
    Route::get('/user-status', function () {
-      return view('frontend/user-status');
+      return redirect()->route('chat');
    })->name('user-status');
    Route::get('/profile', function () {
       return view('frontend.profile');
@@ -264,6 +264,9 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
 
    Route::post('/profile-settings/save', [ProfileSettingsController::class, 'save'])->name('profile-settings.save');
    Route::post('/settings/websites/add', [ApiWebsiteController::class, 'storeFromWeb'])->name('settings.websites.add');
+   Route::post('/contacts', [ContactController::class, 'store'])->name('contacts.store');
+   Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
+   Route::get('/api/chat-list', [ChatController::class, 'chatList'])->name('chat.list');
 
    // Group Chat API (JSON)
    Route::prefix('api/groups')->group(function () {
@@ -365,6 +368,7 @@ Route::get('/admin', function () {
 Route::get('/admin/login', function () {
    return view('admin/login');
 })->name('admin.login');
+Route::post('/admin/login', [RegisteredUserController::class, 'adminLoginSubmit'])->name('admin.login.submit');
 Route::get('/admin/notification-settings', function () {
    return view('admin/notification-settings');
 })->name('admin.notification-settings');

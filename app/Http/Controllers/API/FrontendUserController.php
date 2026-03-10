@@ -14,6 +14,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\SendOtpMail;
+use App\Mail\ForgotPasswordEmail;
 use Illuminate\Support\Facades\Auth;
 
 class FrontendUserController extends Controller
@@ -100,6 +101,12 @@ class FrontendUserController extends Controller
             }
 
             $user->assignRole('user');
+
+            try {
+                Mail::to($user->email)->send(new \App\Mail\WelcomeEmail($user));
+            } catch (\Throwable $e) {
+                // continue without failing registration
+            }
 
             $jwt_token = ['user_id' => $user->id];
             $myTTL = 60 * 720;
@@ -238,6 +245,10 @@ class FrontendUserController extends Controller
                 $otp = mt_rand(100000, 999999);
 
                 Mail::to($user->email)->send(new SendOtpMail(['name' => $user->first_name . ' ' . $user->last_name, 'otp' => $otp]));
+
+                $firstName = $user->first_name ?: explode(' ', $user->full_name ?? $user->user_name ?? 'User')[0];
+                $resetLink = route('otp');
+                Mail::to($user->email)->send(new ForgotPasswordEmail($firstName, $resetLink));
 
                 $delete_otp = ForgotPasswordOtp::where('user_id', $user->id)->delete();
 

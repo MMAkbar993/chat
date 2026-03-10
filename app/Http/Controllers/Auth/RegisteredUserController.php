@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Http;
 use Exception;
 use App\Services\EncryptionService;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\WelcomeEmail;
 
 class RegisteredUserController extends Controller
 {
@@ -141,7 +143,54 @@ class RegisteredUserController extends Controller
         return ['success' => true];
     }
 
-    // Handle Normal Login
+    /**
+     * Admin panel login: same as Laravel login but only allows user_type == 1 and redirects to admin.
+     */
+    public function adminLoginSubmit(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        $email = trim($request->input('email'));
+        $password = $request->input('password');
+        $user = User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
+
+        if (!$user) {
+            return redirect()->route('admin.login')
+                ->withErrors(['email' => __('Invalid credentials.')])
+                ->withInput($request->only('email'));
+        }
+
+        if ((int) $user->user_type !== 1) {
+            return redirect()->route('admin.login')
+                ->withErrors(['email' => __('You do not have permission to access the admin panel.')])
+                ->withInput($request->only('email'));
+        }
+
+        $passwordValid = Hash::check($password, $user->password);
+        if (!$passwordValid) {
+            try {
+                $decrypted = $this->encryptionService->decryptData($user->password);
+                $passwordValid = ($decrypted !== false && $decrypted === $password);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+
+        if (!$passwordValid) {
+            return redirect()->route('admin.login')
+                ->withErrors(['email' => __('Invalid credentials.')])
+                ->withInput($request->only('email'));
+        }
+
+        Auth::login($user, $request->boolean('remember', false));
+        $user->last_login_at = now();
+        $user->save();
+
+        return redirect()->intended(route('admin.index'));
+    }
     public function normalLogin(Request $request)
     {
         // Validate the email and password input
@@ -199,6 +248,12 @@ class RegisteredUserController extends Controller
         $user->assignRole('user');
 
         $request->session()->put('registered_user_id', $user->id);
+
+        try {
+            Mail::to($user->email)->send(new WelcomeEmail($user));
+        } catch (\Throwable $e) {
+            Log::warning('Welcome email failed', ['user_id' => $user->id, 'message' => $e->getMessage()]);
+        }
 
         if ($request->wantsJson()) {
             return response()->json([

@@ -91,6 +91,17 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
                 'image' => $profileImg,
                 'created_at' => $u->created_at?->format('Y-m-d H:i:s'),
                 'primary_role' => $u->primary_role ?? '',
+                'primary_role_label' => (function () use ($u) {
+                    $key = $u->primary_role ?? '';
+                    if ($key === '') return '';
+                    $roles = config('registration.primary_roles', []);
+                    $label = $roles[$key] ?? $key;
+                    if ($key === 'other' && $u->other_role_text) {
+                        $label .= ' (' . $u->other_role_text . ')';
+                    }
+                    return $label;
+                })(),
+                'other_role_text' => $u->other_role_text ?? '',
                 'about' => $ud ? ($ud->user_about ?? '') : '',
                 'facebook' => $ud ? ($ud->facebook ?? '') : '',
                 'google' => $ud ? ($ud->google ?? '') : '',
@@ -186,7 +197,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         var imgUrl = u.profile_image || u.image || defaultImg;
         setText('profile-name', fullName);
         setText('profile-info-name', fullName);
-        setText('profile-info-chat-name', fullName);
+        setText('profile-info-chat-name', fullName + ' 😊');
         setText('profile-info-email', u.email || '—');
         setText('profile-info-phone', u.mobile_number || '—');
         setText('profile-info-country', u.country || '—');
@@ -194,7 +205,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         setText('profile-info-bio', u.about || '—');
         setText('profile-info-gender', u.gender || '—');
         setText('profile-info-join-date', u.created_at || '—');
-        setText('profile-info-role', u.primary_role || '—');
+        setText('profile-info-role', u.primary_role_label || u.primary_role || '—');
         setLinkOrText('profile-info-facebook', u.facebook_link || u.facebook);
         setLinkOrText('profile-info-twitter', u.twitter_link || u.twitter);
         setLinkOrText('profile-info-linkedin', u.linkedin_link || u.linkedin);
@@ -244,10 +255,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
             ids = ['firstName','lastName'].concat(ids);
         }
         ids.push('email');
-        ids = ids.filter(function(id, i, a) {
-            if (id === 'email' && (typeof IS_EMAIL_VERIFIED !== 'undefined' && IS_EMAIL_VERIFIED)) return false;
-            return a.indexOf(id) === i;
-        });
+        ids = ids.filter(function(id, i, a) { return a.indexOf(id) === i; });
         ids.forEach(function(id) {
             var el = document.getElementById(id);
             if (el && el.value !== undefined) form.append(id, el.value || '');
@@ -339,7 +347,152 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
     setTimeout(bindWhenReady, 800);
 })();
 </script>
+{{-- Contact details "Chat" button: go to chat with selected user when Firebase disabled --}}
+<script>
+(function() {
+    if (typeof window.FIREBASE_DISABLED === 'undefined' || !window.FIREBASE_DISABLED) return;
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#chat-button')) return;
+        var editId = document.getElementById('edit-user-id');
+        var userId = editId && editId.value ? editId.value : '';
+        if (userId) {
+            try { localStorage.setItem('selectedUserId', userId); } catch (err) {}
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = (typeof APP_URL !== 'undefined' && APP_URL ? APP_URL : window.location.origin) + '/chat';
+        }
+    }, true);
+})();
+</script>
+<!-- Laravel data loaders: contacts, chat list, groups when Firebase disabled -->
+<script src="{{ asset('assets/js/laravel-data-loaders.js') }}"></script>
 @if (!Route::is('login','signup','register.payment'))
+{{-- "Add contact" button: ensure modal opens (SPA may replace #spa-page-modals so target must exist) --}}
+<script>
+(function() {
+    var contactUrl = '{{ route("contact") }}';
+    document.addEventListener('click', function(e) {
+        var trigger = e.target.closest('a[data-bs-target="#add-contact"], [data-bs-target="#add-contact"]');
+        if (!trigger) return;
+        var modalEl = document.getElementById('add-contact');
+        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        } else if (contactUrl) {
+            e.preventDefault();
+            window.location.href = contactUrl;
+        }
+    }, true);
+})();
+</script>
+{{-- "New chat" (+) and "Invite Others": ensure modals open; fallback to chat page if not in DOM --}}
+<script>
+(function() {
+    var chatUrl = '{{ route("chat") }}';
+    document.addEventListener('click', function(e) {
+        var trigger = e.target.closest('a[data-bs-target="#new-chat"], [data-bs-target="#new-chat"], a[data-bs-target="#invite-contact"], [data-bs-target="#invite-contact"]');
+        if (!trigger) return;
+        var targetId = trigger.getAttribute('data-bs-target');
+        if (!targetId || targetId.indexOf('#') !== 0) return;
+        var modalId = targetId.slice(1);
+        var modalEl = document.getElementById(modalId);
+        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        } else if (chatUrl) {
+            e.preventDefault();
+            window.location.href = chatUrl;
+        }
+    }, true);
+})();
+</script>
+{{-- Add Contact form submit when Firebase is disabled (Laravel/MySQL contacts) --}}
+<script>
+(function() {
+    if (typeof window.FIREBASE_DISABLED === 'undefined' || !window.FIREBASE_DISABLED) return;
+    var contactsUrl = '{{ route("contacts.store") }}';
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    function getEl(id) { return document.getElementById(id); }
+    function showToast(msg, isError) {
+        if (typeof Toastify !== 'undefined') {
+            Toastify({ text: msg, duration: 3000, gravity: 'top', position: 'right', style: { background: isError ? '#dc3545' : '#28a745' } }).showToast();
+        } else { alert(msg); }
+    }
+    function handleAddContactSubmit(e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        var form = getEl('register-form');
+        var btn = getEl('submit-contact-button');
+        if (!form || !btn) return;
+        var firstName = (getEl('first_name') && getEl('first_name').value) || '';
+        var lastName = (getEl('last_name') && getEl('last_name').value) || '';
+        var email = (getEl('email_new') && getEl('email_new').value) || '';
+        var mobile = (getEl('mobile_number_new') && getEl('mobile_number_new').value) || '';
+        var emailPattern = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+        var phonePattern = /^[0-9]{10,21}$/;
+        if (!firstName.trim()) { showToast('First name is required.', true); return; }
+        if (!lastName.trim()) { showToast('Last name is required.', true); return; }
+        if (!email.trim()) { showToast('Email is required.', true); return; }
+        if (!emailPattern.test(email)) { showToast('Enter a valid email.', true); return; }
+        if (!mobile.trim()) { showToast('Mobile number is required.', true); return; }
+        if (!phonePattern.test(mobile)) { showToast('Enter a valid mobile number (10–21 digits).', true); return; }
+        btn.disabled = true;
+        btn.textContent = 'Processing...';
+        var body = new FormData();
+        body.append('_token', csrfToken || '');
+        body.append('first_name', firstName.trim());
+        body.append('last_name', lastName.trim());
+        body.append('email', email.trim());
+        body.append('mobile_number', mobile.trim());
+        fetch(contactsUrl, {
+            method: 'POST',
+            body: body,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }).catch(function() { return { ok: false, status: r.status, data: { message: 'Request failed' } }; }); })
+          .then(function(result) {
+              btn.disabled = false;
+              btn.textContent = 'Add Contact';
+              if (result.ok) {
+                  showToast(result.data.message || 'Contact added successfully.', false);
+                  form.reset();
+                  var modalEl = document.getElementById('add-contact');
+                  if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                      var modal = bootstrap.Modal.getInstance(modalEl);
+                      if (modal) modal.hide();
+                  }
+              } else {
+                  showToast(result.data.message || 'Could not add contact.', true);
+              }
+          })
+          .catch(function() {
+              btn.disabled = false;
+              btn.textContent = 'Add Contact';
+              showToast('Could not add contact. Please try again.', true);
+          });
+    }
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('#submit-contact-button')) {
+            var form = getEl('register-form');
+            if (form && form.closest('#add-contact')) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleAddContactSubmit(e);
+            }
+        }
+    }, true);
+    document.addEventListener('submit', function(e) {
+        if (e.target && e.target.id === 'register-form' && e.target.closest('#add-contact')) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleAddContactSubmit(e);
+        }
+    }, true);
+})();
+</script>
 {{-- "+ Group" button: open New Group modal when Firebase disabled (firebaseGroupChat.js may not load) --}}
 <script>
 (function() {

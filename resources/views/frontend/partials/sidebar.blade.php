@@ -1,7 +1,7 @@
             <!-- Left Sidebar Menu -->
             <div class="sidebar-menu">
                 <div class="logo">
-                    <a href="{{ route('chat') }}" class="logo-normal"><img id="logo" src="assets/img/logo.svg" alt="Logo"></a>
+                    <a href="{{ route('chat') }}" class="logo-normal"><img id="logo" src="{{ asset('assets/img/Icon.png') }}" alt="Logo"></a>
                 </div>
                 <div class="menu-wrap">
                     <div class="main-menu">
@@ -25,13 +25,6 @@
                                 <a href="{{ route('group-chat') }}"
                                     class="{{ request()->routeIs('groups', 'group-chat') ? 'active' : '' }}">
                                     <i class="ti ti-users-group"></i>
-                                </a>
-                            </li>
-                            <li data-bs-toggle="tooltip" data-bs-placement="right" data-bs-original-title="Status"
-                                data-bs-custom-class="tooltip-primary">
-                                <a href="{{ route('user-status') }}"
-                                    class="{{ request()->routeIs('status', 'my-status', 'user-status') ? 'active' : '' }}">
-                                    <i class="ti ti-circle-dot"></i>
                                 </a>
                             </li>
                             <li data-bs-toggle="tooltip" data-bs-placement="right" data-bs-original-title="Calls"
@@ -340,82 +333,6 @@
                     </div>
                     <!-- /Group -->
 
-                    <!-- Status -->
-                    <div class="tab-pane fade  {{ request()->routeIs('status', 'my-status', 'user-status') ? 'active show' : '' }}"
-                        id="status-menu">
-                        <div id="chats" class="sidebar-content active slimscroll">
-
-                            <div class="slimscroll">
-
-                                <div class="chat-search-header">
-                                    <div class="header-title d-flex align-items-center justify-content-between">
-                                        <h4 class="mb-3">{{ __('Status') }}</h4>
-                                        <div class="d-flex align-items-center mb-3">
-                                            <a href="javascript:void(0);" data-bs-toggle="modal"
-                                                data-bs-target="#new-status"
-                                                class="add-icon text-white bg-primary fs-16 d-flex justify-content-center align-items-center">
-                                                <i class="ti ti-plus"></i>
-                                            </a>
-                                        </div>
-                                    </div>
-
-                                    <!-- Chat Search -->
-                                    <div class="search-wrap">
-                                        <form onsubmit="return false;">
-                                            <div class="input-group">
-                                                <input type="text" id="statusSearchInput" class="form-control"
-                                                    placeholder="{{ __('Search Contacts')}}">
-                                                <span class="input-group-text"><i class="ti ti-search"></i></span>
-                                            </div>
-                                        </form>
-                                    </div>
-                                    <!-- /Chat Search -->
-                                </div>
-
-
-                                <div class="sidebar-body chat-body" id="chatsidebar">
-                                    <div class="status-list">
-                                        <!-- Left Chat Title -->
-                                        <div class="d-flex  mb-3">
-                                            <h5>{{ __('My Status') }}</h5>
-
-                                        </div>
-                                        <!-- /Left Chat Title -->
-                                        <div class="chat-users-wrap" id="myStatusList">
-                                            <!-- My Statuses will be dynamically inserted here -->
-                                        </div>
-                                    </div>
-                                    <div class="status-list">
-                                        <!-- Left Chat Title -->
-                                        <div class="d-flex  mb-3">
-                                            <h5>{{ __('Recent Updates') }}</h5>
-
-                                        </div>
-                                        <!-- /Left Chat Title -->
-
-                                        <div class="chat-users-wrap" id="recentUpdatesList">
-                                            <!-- Recent Updates will be dynamically inserted here -->
-                                        </div>
-                                    </div>
-                                    <div class="status-list">
-                                        <!-- Left Chat Title -->
-                                        <div class="d-flex  mb-3">
-                                            <h5>{{ __('Already Seen') }}</h5>
-
-                                        </div>
-                                        <!-- /Left Chat Title -->
-                                        <div class="chat-users-wrap" id="alreadySeenList">
-                                        </div>
-                                    </div>
-                                    <div id="noStatusMatchesMessage" style="display: none;">{{ __('No matches found in statuses.') }}</div>
-                                </div>
-
-                            </div>
-
-                        </div>
-                    </div>
-                    <!-- /Status -->
-
                     <!-- Profile -->
                     <div class="tab-pane fade {{ request()->routeIs('profile') ? 'active show' : '' }}"
                         id="profile-menu">
@@ -493,15 +410,6 @@
                                                         <p class="fs-16" id="profile-info-gender">{{ __('Loading...') }}</p>
                                                     </div>
                                                     <span><i class="ti ti-user-star fs-16"></i></span>
-                                                </div>
-                                                <div
-                                                    class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
-                                                    <div class="flex-grow-1">
-                                                        <h6 class="fs-14">{{ __('Email Address') }}</h6>
-                                                        <p class="fs-16" id="profile-info-email">{{ __('Loading...') }}</p>
-                                                    </div>
-                                                    <span class="email-icon"><i
-                                                            class="ti ti-mail-heart fs-16"></i></span>
                                                 </div>
                                                 <div
                                                     class="d-flex profile-list profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
@@ -876,19 +784,15 @@
                                                                             <div
                                                                                 class="input-icon mb-1 position-relative">
                                                                                 @php
-                                                                                    $emailLocked = Auth::check() && (Auth::user()->isKycVerified() || Auth::user()->email_verified_at);
+                                                                                    $emailLocked = false;
                                                                                 @endphp
                                                                                 <input type="text" value=""
                                                                                     class="form-control"
                                                                                     placeholder="{{ __('Email')}}"
-                                                                                    id="email"
-                                                                                    @if($emailLocked) readonly title="{{ __('Email cannot be changed after verification') }}" @endif>
+                                                                                    id="email">
                                                                                 <span class="icon-addon">
                                                                                     <i class="ti ti-mail-heart"></i>
                                                                                 </span>
-                                                                                @if($emailLocked)
-                                                                                <small class="text-muted"><i class="ti ti-lock me-1"></i>{{ __('Locked (Verified)') }}</small>
-                                                                                @endif
                                                                                 <span id="email_error" class="error-message text-danger"></span>
                                                                             </div>
                                                                         </div>
@@ -1467,13 +1371,71 @@
                                         <h5 class="sub-title">{{ __('Chat') }}</h5>
                                         <div class="chat-file">
                                             <div class="file-item ">
-                                                <div class="accordion accordion-flush chat-accordion"
-                                                    id="chat-setting">
-                                                    <div class="border-0 profile-list mb-3">
+                                                <div class="card">
+                                                    <div class="card-body">
+                                                        <div class="d-flex justify-content-between align-items-center profile-list border-bottom pb-3 mb-3">
+                                                            <h6 class="fs-14">
+                                                                <a href="javascript:void(0);" data-bs-toggle="collapse" data-bs-target="#chat-bg-images" aria-expanded="false">
+                                                                    <i class="ti ti-photo text-gray me-2"></i>{{ __('Background Images') }}
+                                                                </a>
+                                                            </h6>
+                                                            <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                                        </div>
+                                                        <div id="chat-bg-images" class="collapse mb-3">
+                                                            <p class="text-muted small mb-2">{{ __('Choose a background for your chat screen.') }}</p>
+                                                            <div class="chat-user-photo">
+                                                                <div class="chat-img contact-gallery mb-2">
+                                                                    <div class="row g-2">
+                                                                        <div class="col-3 col-md-2">
+                                                                            <div class="img-wrap position-relative rounded overflow-hidden bg-light">
+                                                                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" alt="bg" class="w-100" style="height:60px;object-fit:cover;">
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="col-3 col-md-2">
+                                                                            <div class="img-wrap position-relative rounded overflow-hidden bg-light">
+                                                                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" alt="bg" class="w-100" style="height:60px;object-fit:cover;">
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="col-3 col-md-2">
+                                                                            <div class="img-wrap position-relative rounded overflow-hidden bg-light">
+                                                                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" alt="bg" class="w-100" style="height:60px;object-fit:cover;">
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="col-3 col-md-2">
+                                                                            <div class="img-wrap position-relative rounded overflow-hidden bg-light">
+                                                                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" alt="bg" class="w-100" style="height:60px;object-fit:cover;">
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between align-items-center profile-list border-bottom pb-3 mb-3">
+                                                            <h6 class="fs-14">
+                                                                <a href="javascript:void(0);"><i class="ti ti-clear-all text-gray me-2"></i>{{ __('Clear All Chat') }}</a>
+                                                            </h6>
+                                                            <div class="form-check form-switch d-flex justify-content-end align-items-center">
+                                                                <input class="form-check-input" type="checkbox" role="switch" id="clearAllChatSwitch">
+                                                            </div>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between align-items-center profile-list border-bottom pb-3 mb-3">
+                                                            <h6 class="fs-14">
+                                                                <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#delete-chat"><i class="ti ti-trash text-gray me-2"></i>{{ __('Delete All Chat') }}</a>
+                                                            </h6>
+                                                            <div class="form-check form-switch d-flex justify-content-end align-items-center">
+                                                                <input class="form-check-input" type="checkbox" role="switch" id="deleteAllChatSwitch">
+                                                            </div>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <h6 class="fs-14">
+                                                                <a href="javascript:void(0);"><i class="ti ti-restore text-gray me-2"></i>{{ __('Chat Backup') }}</a>
+                                                            </h6>
+                                                            <div class="form-check form-switch d-flex justify-content-end align-items-center">
+                                                                <input class="form-check-input" type="checkbox" role="switch" id="chatBackupSwitch">
+                                                            </div>
+                                                        </div>
                                                     </div>
-
                                                 </div>
-
                                             </div>
                                         </div>
                                     </div>
@@ -1816,7 +1778,7 @@
 
 
             <script>
-                const fullLogo = "{{ asset('assets/img/full-logo.png') }}";
-                const smallLogo = "{{ asset('assets/img/logo-small.svg') }}";
+                const fullLogo = "{{ asset('assets/img/Icon.png') }}";
+                const smallLogo = "{{ asset('assets/img/Icon.png') }}";
                 const faviLogo = "{{ asset('assets/img/favicon.png') }}";
             </script>

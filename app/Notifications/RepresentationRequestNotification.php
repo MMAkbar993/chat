@@ -2,10 +2,10 @@
 
 namespace App\Notifications;
 
+use App\Mail\NewRepresentationRequestMail;
 use App\Models\WebsiteRepresentative;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class RepresentationRequestNotification extends Notification implements ShouldQueue
@@ -21,18 +21,9 @@ class RepresentationRequestNotification extends Notification implements ShouldQu
         return ['database', 'mail'];
     }
 
-    public function toMail(object $notifiable): MailMessage
+    public function toMail(object $notifiable): NewRepresentationRequestMail
     {
-        $requester = $this->representationRequest->user;
-        $website = $this->representationRequest->website;
-        $name = $requester->full_name ?? $requester->first_name . ' ' . $requester->last_name;
-
-        return (new MailMessage)
-            ->subject('Representation Request: ' . $website->domain)
-            ->line("User {$name} ({$requester->email}) is requesting to represent your company.")
-            ->line('Website: ' . $website->domain)
-            ->action('Review Request', url('/profile?tab=authorized-users'))
-            ->line('Please approve or deny this request in your profile.');
+        return new NewRepresentationRequestMail($this->representationRequest);
     }
 
     public function toArray(object $notifiable): array

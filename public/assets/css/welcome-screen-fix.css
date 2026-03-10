@@ -1,0 +1,70 @@
+/**
+ * Welcome screen: ensure it is visible with a proper background.
+ * Matches reference: light grey + subtle circle pattern, centered welcome, purple Invite Contacts.
+ */
+
+/* Main content area takes full height so welcome can fill */
+.content.main_content {
+  min-height: 100vh;
+  flex: 1;
+}
+
+/* Right pane (welcome/chat area) takes remaining space and allows welcome to fill */
+#spa-page-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Ensure background shows when welcome is visible */
+  background-color: #f5f5f7;
+}
+
+/* Welcome block fills the main area and shows background */
+#welcome-container.welcome-content {
+  min-height: 0;
+  flex: 1;
+  display: flex !important;
+  width: 100%;
+  /* Light grey base with subtle repeating circles (matches reference) */
+  background-color: #f5f5f7;
+  background-image:
+    radial-gradient(circle at center, rgba(180, 160, 200, 0.12) 0%, transparent 70%),
+    radial-gradient(circle at 20% 30%, rgba(200, 180, 220, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(190, 170, 210, 0.08) 0%, transparent 50%);
+  background-repeat: repeat;
+  background-position: 0 0, 40px 40px, 80px 0;
+  background-size: 120px 120px, 120px 120px, 120px 120px;
+}
+
+/* If theme provides a background image, it can still be used; fallback above ensures something always shows */
+body:not(.darkmode) #welcome-container.welcome-content {
+  background-image:
+    radial-gradient(circle at center, rgba(180, 160, 200, 0.12) 0%, transparent 70%),
+    radial-gradient(circle at 20% 30%, rgba(200, 180, 220, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(190, 170, 210, 0.08) 0%, transparent 50%);
+}
+
+/* Show welcome on medium screens and up (override style.css hide below 1200px) */
+@media (max-width: 1199.98px) {
+  #welcome-container.welcome-content {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 991.98px) {
+  #welcome-container.welcome-content {
+    min-height: 50vh;
+  }
+}
+
+/* Dark mode: keep dark background */
+body.darkmode #welcome-container.welcome-content {
+  background-color: #0d0d0d;
+  background-image: none;
+}
+
+body.darkmode #spa-page-content {
+  background-color: #0d0d0d;
+}

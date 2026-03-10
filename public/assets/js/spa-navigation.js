@@ -291,6 +291,10 @@
         }
 
         $(window).trigger('resize');
+        try {
+            var pathname = getPathname(url || window.location.href);
+            window.dispatchEvent(new CustomEvent('spa-page-applied', { detail: { pathname: pathname } }));
+        } catch (e) {}
         isNavigating = false;
     }
 
@@ -334,6 +338,13 @@
     });
 
     history.replaceState({ spa: true }, '', window.location.href);
+
+    try {
+        var initialPath = getPathname(window.location.href);
+        if (initialPath && isSpaRoute(window.location.href)) {
+            setTimeout(function () { window.dispatchEvent(new CustomEvent('spa-page-applied', { detail: { pathname: initialPath } })); }, 100);
+        }
+    } catch (e) {}
 
     document.querySelectorAll('script[type="module"][src]').forEach(function (s) {
         var resolved = resolveUrl(s.getAttribute('src'));

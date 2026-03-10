@@ -1,0 +1,10 @@
+/**
+ * SPA modals fix: Bootstrap appends the modal backdrop to body (z-index 1050).
+ * Modals live inside .main-wrapper, so the wrapper must sit above the backdrop
+ * or the overlay covers the modal and the screen is dark/unclickable.
+ */
+.main-wrapper {
+  position: relative;
+  z-index: 1060;
+}
+

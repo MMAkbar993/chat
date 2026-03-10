@@ -137,4 +137,9 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->hasMany(Group::class, 'owner_id');
     }
+
+    public function contacts()
+    {
+        return $this->hasMany(UserContact::class)->orderBy('created_at', 'desc');
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Chat;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -44,6 +45,54 @@ class ChatController extends Controller
         ]);
 
         return response()->json(['message' => 'Message sent successfully']);
+    }
+
+    /**
+     * Get chat list (conversations with last message) for Laravel when Firebase is disabled.
+     */
+    public function chatList(Request $request)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $chats = Chat::where('sender_id', $userId)
+            ->orWhere('receiver_id', $userId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $seen = [];
+        $list = [];
+        foreach ($chats as $m) {
+            $otherId = (int) $m->sender_id === (int) $userId ? $m->receiver_id : $m->sender_id;
+            if (isset($seen[$otherId])) {
+                continue;
+            }
+            $seen[$otherId] = true;
+            $other = User::find($otherId);
+            $name = $other ? trim(($other->first_name ?? '') . ' ' . ($other->last_name ?? '')) : ('User ' . $otherId);
+            if ($name === '' && $other) {
+                $name = $other->user_name ?? $other->email ?? ('User ' . $otherId);
+            }
+            $list[] = [
+                'other_user_id' => $otherId,
+                'other_user' => $other ? [
+                    'id' => $other->id,
+                    'first_name' => $other->first_name,
+                    'last_name' => $other->last_name,
+                    'user_name' => $other->user_name,
+                    'email' => $other->email,
+                    'profile_image_link' => $other->profile_image_link ?? null,
+                ] : null,
+                'display_name' => $name,
+                'last_message' => $m->message,
+                'last_at' => $m->created_at->toIso8601String(),
+                'timestamp' => $m->created_at->timestamp,
+            ];
+        }
+
+        return response()->json($list);
     }
 
     public function getMessages($userId, Request $request)
