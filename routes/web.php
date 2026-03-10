@@ -264,6 +264,7 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
 
    Route::post('/profile-settings/save', [ProfileSettingsController::class, 'save'])->name('profile-settings.save');
    Route::post('/settings/websites/add', [ApiWebsiteController::class, 'storeFromWeb'])->name('settings.websites.add');
+   Route::post('/settings/websites/{id}/verify', [ApiWebsiteController::class, 'verify'])->name('settings.websites.verify');
    Route::post('/contacts', [ContactController::class, 'store'])->name('contacts.store');
    Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
    Route::get('/api/chat-list', [ChatController::class, 'chatList'])->name('chat.list');
