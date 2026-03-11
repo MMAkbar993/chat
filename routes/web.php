@@ -21,6 +21,7 @@ use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\ProfileSettingsController;
 use App\Http\Controllers\API\WebsiteController as ApiWebsiteController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\InviteController;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
@@ -275,8 +276,11 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
    Route::post('/settings/websites/representation/{id}/approve', [ApiWebsiteController::class, 'approveRepresentation'])->name('settings.websites.representation.approve');
    Route::post('/settings/websites/representation/{id}/deny', [ApiWebsiteController::class, 'denyRepresentation'])->name('settings.websites.representation.deny');
    Route::post('/contacts', [ContactController::class, 'store'])->name('contacts.store');
+   Route::post('/invite/send', [InviteController::class, 'send'])->name('invite.send');
    Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
    Route::get('/api/chat-list', [ChatController::class, 'chatList'])->name('chat.list');
+   Route::get('/api/chat-messages/{userId}', [ChatController::class, 'getMessages'])->name('chat.messages');
+   Route::post('/api/chat/send', [ChatController::class, 'sendMessage'])->name('chat.send');
    Route::delete('/api/chat-list', [ChatController::class, 'deleteAllChats'])->name('chat.delete-all');
 
    // Group Chat API (JSON)

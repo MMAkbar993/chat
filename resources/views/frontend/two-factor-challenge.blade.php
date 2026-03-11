@@ -44,7 +44,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6 p-0 min-vh-100">
+            <div class="col-lg-6 p-0 min-vh-100 overflow-hidden">
                 <div class="d-lg-flex align-items-center justify-content-center position-relative d-lg-block d-none flex-wrap vh-100 overflow-hidden login-bg2">
                     <div class="floating-bg">
                         <img src="{{ asset('assets/img/bg/circle-1.png') }}" alt="Img">

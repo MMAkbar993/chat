@@ -1161,8 +1161,8 @@
                                                                                 var url = '{{ url("connect/social-accounts") }}/' + id + '/disconnect';
                                                                                 var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
                                                                                 var opts = { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' }, credentials: 'same-origin' };
-                                                                                fetch(url, opts).then(function(r) { return r.json().catch(function() { return null; }).then(function(d) { return { ok: r.ok, status: r.status, data: d || {} }; }); }).then(function(res) {
-                                                                                    var success = res.ok && res.data && (res.data.code === '200' || res.data.code === 200);
+                                                                                fetch(url, opts).then(function(r) { return r.json().catch(function() { return null; }).then(function(d) { return { ok: r.ok, status: r.status, data: d || {}, code: d && d.code, message: d && d.message }; }); }).then(function(res) {
+                                                                                    var success = res.ok && (res.code === '200' || res.code === 200) && !(res.data && res.data.error);
                                                                                     if (success) {
                                                                                         var plat = (res.data.data && res.data.data.platform) || (res.data.platform) || platform;
                                                                                         var actionCell = document.querySelector('[data-platform="' + plat + '"] .social-profile-action');
@@ -1174,9 +1174,9 @@
                                                                                                 newLink.addEventListener('click', function(e) { e.preventDefault(); var w = 600, h = 700; window.open(this.href, 'socialLogin', 'width=' + w + ',height=' + h + ',top=' + ((screen.height/2)-(h/2)) + ',left=' + ((screen.width/2)-(w/2))); });
                                                                                             }
                                                                                         }
-                                                                                        if (typeof showToast === 'function') showToast(res.data.message || '{{ __("Account disconnected.") }}'); else alert(res.data.message || '{{ __("Account disconnected.") }}');
+                                                                                        if (typeof showToast === 'function') showToast(res.message || (res.data && res.data.message) || '{{ __("Account disconnected.") }}'); else alert(res.message || (res.data && res.data.message) || '{{ __("Account disconnected.") }}');
                                                                                     } else {
-                                                                                        if (typeof showToast === 'function') showToast((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}', true); else alert((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}');
+                                                                                        if (typeof showToast === 'function') showToast((res.message || (res.data && res.data.message)) || '{{ __("Could not remove account.") }}', true); else alert((res.message || (res.data && res.data.message)) || '{{ __("Could not remove account.") }}');
                                                                                     }
                                                                                 }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Could not remove account.") }}', true); else alert('{{ __("Could not remove account.") }}'); });
                                                                             });
@@ -1193,8 +1193,8 @@
                                                                                     var url = '{{ url("connect/social-accounts") }}/' + id + '/disconnect';
                                                                                     var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
                                                                                     var opts = { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' }, credentials: 'same-origin' };
-                                                                                    fetch(url, opts).then(function(r) { return r.json().catch(function() { return null; }).then(function(d) { return { ok: r.ok, status: r.status, data: d || {} }; }); }).then(function(res) {
-                                                                                        var success = res.ok && res.data && (res.data.code === '200' || res.data.code === 200);
+                                                                                    fetch(url, opts).then(function(r) { return r.json().catch(function() { return null; }).then(function(d) { return { ok: r.ok, status: r.status, data: d || {}, code: d && d.code, message: d && d.message }; }); }).then(function(res) {
+                                                                                        var success = res.ok && (res.code === '200' || res.code === 200) && !(res.data && res.data.error);
                                                                                         if (success) {
                                                                                             var plat = (res.data.data && res.data.data.platform) || (res.data.platform) || platform;
                                                                                             var actionCell = document.querySelector('[data-platform="' + plat + '"] .social-profile-action');
@@ -1206,9 +1206,9 @@
                                                                                                     newLink.addEventListener('click', function(e) { e.preventDefault(); var w = 600, h = 700; window.open(this.href, 'socialLogin', 'width=' + w + ',height=' + h + ',top=' + ((screen.height/2)-(h/2)) + ',left=' + ((screen.width/2)-(w/2))); });
                                                                                                 }
                                                                                             }
-                                                                                            if (typeof showToast === 'function') showToast(res.data.message || '{{ __("Account disconnected.") }}'); else alert(res.data.message || '{{ __("Account disconnected.") }}');
+                                                                                            if (typeof showToast === 'function') showToast(res.message || (res.data && res.data.message) || '{{ __("Account disconnected.") }}'); else alert(res.message || (res.data && res.data.message) || '{{ __("Account disconnected.") }}');
                                                                                         } else {
-                                                                                            if (typeof showToast === 'function') showToast((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}', true); else alert((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}');
+                                                                                            if (typeof showToast === 'function') showToast((res.message || (res.data && res.data.message)) || '{{ __("Could not remove account.") }}', true); else alert((res.message || (res.data && res.data.message)) || '{{ __("Could not remove account.") }}');
                                                                                         }
                                                                                     }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Could not remove account.") }}', true); else alert('{{ __("Could not remove account.") }}'); });
                                                                                 });
@@ -1627,6 +1627,7 @@
                                     <!-- Chat setting -->
                                     <div class="content-wrapper">
                                         <h5 class="sub-title">{{ __('Chat') }}</h5>
+                                        <p class="text-muted small mb-2">{{ __('Chat preferences: background image, clear or delete all conversations, and backup.') }}</p>
                                         <div class="chat-file">
                                             <div class="file-item ">
                                                 <div class="card">
@@ -1670,18 +1671,18 @@
                                                         </div>
                                                         <div class="d-flex justify-content-between align-items-center profile-list border-bottom pb-3 mb-3">
                                                             <h6 class="fs-14">
-                                                                <a href="javascript:void(0);"><i class="ti ti-clear-all text-gray me-2"></i>{{ __('Clear All Chat') }}</a>
+                                                                <a href="javascript:void(0);" title="{{ __('Toggle to show/hide clear-all option') }}"><i class="ti ti-clear-all text-gray me-2"></i>{{ __('Clear All Chat') }}</a>
                                                             </h6>
                                                             <div class="form-check form-switch d-flex justify-content-end align-items-center">
-                                                                <input class="form-check-input" type="checkbox" role="switch" id="clearAllChatSwitch">
+                                                                <input class="form-check-input" type="checkbox" role="switch" id="clearAllChatSwitch" title="{{ __('Saves your preference to clear chat list from view') }}">
                                                             </div>
                                                         </div>
                                                         <div class="d-flex justify-content-between align-items-center profile-list border-bottom pb-3 mb-3">
                                                             <h6 class="fs-14">
-                                                                <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#delete-chat"><i class="ti ti-trash text-gray me-2"></i>{{ __('Delete All Chat') }}</a>
+                                                                <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#delete-chat" title="{{ __('Opens confirmation to permanently delete all your chats') }}"><i class="ti ti-trash text-gray me-2"></i>{{ __('Delete All Chat') }}</a>
                                                             </h6>
                                                             <div class="form-check form-switch d-flex justify-content-end align-items-center">
-                                                                <input class="form-check-input" type="checkbox" role="switch" id="deleteAllChatSwitch">
+                                                                <input class="form-check-input" type="checkbox" role="switch" id="deleteAllChatSwitch" title="{{ __('When on, opens the delete-all confirmation modal') }}">
                                                             </div>
                                                         </div>
                                                         <div class="d-flex justify-content-between align-items-center">
@@ -1728,7 +1729,7 @@
                                                         </div>
                                                         <div
                                                             class="d-flex justify-content-between align-items-center">
-                                                            <button id="notificationButton"
+                                                            <button type="button" id="notificationButton"
                                                                 class="btn btn-primary">{{ __('Enable Notifications') }}</button>
                                                         </div>
                                                     </div>

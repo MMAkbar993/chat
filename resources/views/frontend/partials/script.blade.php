@@ -473,19 +473,57 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
     }, true);
 })();
 </script>
-{{-- Invite form (chat page): prevent refresh when Firebase disabled; form has no handler so submit would reload --}}
+{{-- Invite form (chat page): send invitation via API when Firebase disabled --}}
 <script>
 (function() {
     if (typeof window.FIREBASE_DISABLED === 'undefined' || !window.FIREBASE_DISABLED) return;
+    var inviteUrl = '{{ route("invite.send") }}';
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     document.addEventListener('submit', function(e) {
         if (e.target && e.target.id === 'inviteFormChat') {
             e.preventDefault();
             e.stopPropagation();
-            if (typeof Toastify !== 'undefined') {
-                Toastify({ text: 'Add contacts from the Contacts page.', duration: 3000, gravity: 'top', position: 'right', style: { background: '#7269ef' } }).showToast();
-            } else {
-                alert('Add contacts from the Contacts page.');
+            var input = document.getElementById('inviteInput');
+            var email = input ? input.value.trim() : '';
+            if (!email) {
+                if (typeof Toastify !== 'undefined') {
+                    Toastify({ text: '{{ __("Please enter an email address.") }}', duration: 3000, gravity: 'top', position: 'right', style: { background: '#dc3545' } }).showToast();
+                } else { alert('Please enter an email address.'); }
+                return;
             }
+            var btn = document.getElementById('sendInviteButton');
+            if (btn) { btn.disabled = true; btn.textContent = '{{ __("Sending...") }}'; }
+            fetch(inviteUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ email: email, message: '' })
+            }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }).catch(function() { return { ok: false, data: { message: 'Request failed' } }; }); })
+              .then(function(result) {
+                  if (btn) { btn.disabled = false; btn.textContent = '{{ __("Send Invitation") }}'; }
+                  if (result.ok && result.data && result.data.message) {
+                      if (typeof Toastify !== 'undefined') {
+                          Toastify({ text: result.data.message, duration: 3000, gravity: 'top', position: 'right', style: { background: '#28a745' } }).showToast();
+                      } else { alert(result.data.message); }
+                      e.target.reset();
+                      var modalEl = document.getElementById('invite-contact');
+                      if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                          var modal = bootstrap.Modal.getInstance(modalEl);
+                          if (modal) modal.hide();
+                      }
+                  } else {
+                      var msg = (result.data && result.data.message) ? result.data.message : '{{ __("Could not send invitation.") }}';
+                      if (typeof Toastify !== 'undefined') {
+                          Toastify({ text: msg, duration: 3000, gravity: 'top', position: 'right', style: { background: '#dc3545' } }).showToast();
+                      } else { alert(msg); }
+                  }
+              })
+              .catch(function() {
+                  if (btn) { btn.disabled = false; btn.textContent = '{{ __("Send Invitation") }}'; }
+                  if (typeof Toastify !== 'undefined') {
+                      Toastify({ text: '{{ __("Could not send invitation. Please try again.") }}', duration: 3000, gravity: 'top', position: 'right', style: { background: '#dc3545' } }).showToast();
+                  } else { alert('Could not send invitation.'); }
+              });
         }
     }, true);
 })();
@@ -619,6 +657,92 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindLogout);
     else bindLogout();
     setTimeout(bindLogout, 500);
+})();
+</script>
+{{-- Laravel chat: when on /chat with selectedUserId (localStorage or ?user=), show chat panel and load messages --}}
+<script>
+(function() {
+    if (typeof window.FIREBASE_DISABLED === 'undefined' || !window.FIREBASE_DISABLED) return;
+    var chatPath = '{{ route("chat") }}';
+    var pathname = (window.location.pathname || '').replace(/\/+/g, '/');
+    var isChatPage = pathname === '/chat' || pathname === chatPath.replace(/^https?:\/\/[^/]+/, '') || pathname.indexOf('/chat') !== -1;
+    if (!isChatPage) return;
+    var baseUrl = typeof APP_URL !== 'undefined' && APP_URL ? APP_URL : (window.location.origin || '');
+    if (baseUrl.slice(-1) === '/') baseUrl = baseUrl.slice(0, -1);
+    var currentUserId = typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER ? window.LARAVEL_USER.id : null;
+    function run() {
+        var selectedId = null;
+        try { selectedId = localStorage.getItem('selectedUserId'); } catch (e) {}
+        var params = typeof URLSearchParams !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        var userFromUrl = params ? params.get('user') : null;
+        if (userFromUrl) selectedId = userFromUrl;
+        if (!selectedId || !currentUserId) return;
+        var welcome = document.getElementById('welcome-container');
+        var middle = document.getElementById('middle');
+        var chatBox = document.getElementById('chat-box');
+        var chatForm = document.getElementById('message-form');
+        if (!middle || !chatBox) return;
+        if (chatForm) {
+            chatForm.onsubmit = function(e) {
+                e.preventDefault();
+                var input = document.getElementById('message-input') || chatForm.querySelector('input[type="text"], textarea');
+                var text = input ? input.value.trim() : '';
+                if (!text) return false;
+                var toId = selectedId;
+                var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                fetch(baseUrl + '/api/chat/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ from_user_id: currentUserId, to_user_id: toId, message: text })
+                }).then(function(r) { return r.json(); }).then(function() {
+                    if (input) input.value = '';
+                    var div = document.createElement('div');
+                    div.className = 'chats right';
+                    div.innerHTML = '<div class="chat-content"><div class="chat-profile-name"><h6>You</h6><span>' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</span></div><div class="chat-info"><p class="mb-0">' + text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p></div></div>';
+                    if (chatBox) { chatBox.appendChild(div); chatBox.scrollTop = chatBox.scrollHeight; }
+                }).catch(function() {});
+                return false;
+            };
+        }
+        fetch(baseUrl + '/api/chat-list', { method: 'GET', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(list) {
+                var other = null;
+                if (Array.isArray(list)) other = list.find(function(item) { return String(item.other_user_id) === String(selectedId); });
+                var name = other ? (other.display_name || 'User') : ('User ' + selectedId);
+                var img = (other && other.other_user && other.other_user.profile_image_link) ? other.other_user.profile_image_link : (baseUrl + '/assets/img/profiles/avatar-06.jpg');
+                if (welcome) welcome.style.display = 'none';
+                middle.style.display = 'block';
+                var h6 = middle.querySelector('.chat-header h6');
+                if (h6) h6.textContent = name;
+                var avatar = middle.querySelector('.chat-header .avatar img');
+                if (avatar) avatar.src = img;
+                return fetch(baseUrl + '/api/chat-messages/' + selectedId, { method: 'GET', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+            })
+            .then(function(r) { return r && r.json ? r.json() : []; })
+            .then(function(messages) {
+                if (!Array.isArray(messages)) return;
+                chatBox.innerHTML = '';
+                messages.forEach(function(m) {
+                    var isOut = Number(m.from) === Number(currentUserId);
+                    var div = document.createElement('div');
+                    div.className = isOut ? 'chats right' : 'chats';
+                    var time = m.timestamp ? new Date(m.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                    div.innerHTML = '<div class="chat-content"><div class="chat-profile-name"><h6>' + (isOut ? 'You' : 'Them') + '</h6><span>' + time + '</span></div><div class="chat-info"><p class="mb-0">' + (m.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p></div></div>';
+                    chatBox.appendChild(div);
+                });
+                if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+            })
+            .then(function() {
+                try { localStorage.removeItem('selectedUserId'); } catch (e) {}
+                if (params && params.get('user') && typeof history !== 'undefined' && history.replaceState) history.replaceState({}, '', pathname || '/chat');
+            })
+            .catch(function() {});
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
+    else run();
+    setTimeout(run, 300);
 })();
 </script>
 @endif

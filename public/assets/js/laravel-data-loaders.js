@@ -150,19 +150,105 @@
                     var chatBtn = document.getElementById('contact-detail-chat-btn');
                     var voiceBtn = document.getElementById('contact-detail-voice-btn');
                     var videoBtn = document.getElementById('contact-detail-video-btn');
-                    var goToChat = function () {
-                        try { localStorage.setItem('selectedUserId', uid); } catch (e) {}
-                        window.location.href = baseUrl + '/chat';
+                    var currentUserId = (typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER && window.LARAVEL_USER.id) ? String(window.LARAVEL_USER.id) : '';
+                    function closeContactDetailModal() {
+                        var modalEl = document.getElementById('contact-details');
+                        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                            var m = bootstrap.Modal.getInstance(modalEl);
+                            if (m) m.hide();
+                        }
+                    }
+                    var goToChat = function (e) {
+                        if (e) { e.preventDefault(); e.stopPropagation(); }
+                        try { localStorage.setItem('selectedUserId', uid); } catch (err) {}
+                        closeContactDetailModal();
+                        window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(uid);
+                    };
+                    var goToVoiceCall = function (e) {
+                        if (e) { e.preventDefault(); e.stopPropagation(); }
+                        if (!currentUserId || !uid) return;
+                        var channelName = 'call_' + [currentUserId, uid].sort().join('_');
+                        closeContactDetailModal();
+                        window.location.href = baseUrl + '/audio-call?caller=' + encodeURIComponent(currentUserId) + '&receiver=' + encodeURIComponent(uid) + '&channelname=' + encodeURIComponent(channelName) + '&call_type=audio&currentuser=' + encodeURIComponent(currentUserId);
+                    };
+                    var goToVideoCall = function (e) {
+                        if (e) { e.preventDefault(); e.stopPropagation(); }
+                        if (!currentUserId || !uid) return;
+                        var channelName = 'call_' + [currentUserId, uid].sort().join('_');
+                        closeContactDetailModal();
+                        window.location.href = baseUrl + '/video-call?caller=' + encodeURIComponent(currentUserId) + '&receiver=' + encodeURIComponent(uid) + '&channelname=' + encodeURIComponent(channelName) + '&call_type=video&currentuser=' + encodeURIComponent(currentUserId);
                     };
                     if (chatBtn) { chatBtn.onclick = goToChat; chatBtn.href = 'javascript:void(0);'; }
-                    if (voiceBtn) { voiceBtn.onclick = goToChat; voiceBtn.href = 'javascript:void(0);'; }
-                    if (videoBtn) { videoBtn.onclick = goToChat; videoBtn.href = 'javascript:void(0);'; }
+                    if (voiceBtn) { voiceBtn.onclick = goToVoiceCall; voiceBtn.href = 'javascript:void(0);'; }
+                    if (videoBtn) { videoBtn.onclick = goToVideoCall; videoBtn.href = 'javascript:void(0);'; }
                     var oldChatBtn = document.getElementById('chat-button');
                     if (oldChatBtn) { oldChatBtn.onclick = goToChat; oldChatBtn.href = 'javascript:void(0);'; }
                 });
             });
         }).catch(function () {
             container.innerHTML = '<p id="no-message">Failed to load contacts.</p>';
+        });
+    }
+
+    // --- New Chat modal: populate contacts when modal is shown (so + New Chat shows contacts) ---
+    function populateNewChatModal() {
+        var mainContainer = document.getElementById('main-container');
+        if (!mainContainer) return;
+        var contacts = window.__laravelContacts;
+        if (!contacts || Object.keys(contacts).length === 0) {
+            mainContainer.innerHTML = '<p class="text-muted text-center py-3">No contacts yet. Add contacts from the Contacts page or use Invite Others.</p>';
+            return;
+        }
+        var list = Object.keys(contacts).map(function (uid) {
+            var c = contacts[uid];
+            var first = (c.firstName || '').trim();
+            var last = (c.lastName || '').trim();
+            var name = (first + ' ' + last).trim() || c.userName || c.email || 'Unknown';
+            return { uid: uid, c: c, name: name };
+        });
+        list.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+        var html = '';
+        list.forEach(function (item) {
+            var img = item.c.image || baseUrl + '/assets/img/profiles/avatar-03.jpg';
+            if (img && img.indexOf('/') === 0 && img.indexOf('//') !== 0) img = baseUrl + img;
+            html += '<div class="contact-user d-flex align-items-center mb-2 p-2 rounded" data-user-id="' + escapeAttr(item.uid) + '" style="cursor:pointer;">';
+            html += '<div class="avatar avatar-lg me-2"><img src="' + escapeAttr(img) + '" class="rounded-circle" alt=""></div>';
+            html += '<div class="user-details"><h6 class="user-title mb-0">' + escapeHtml(item.name) + '</h6></div></div>';
+        });
+        mainContainer.innerHTML = html;
+        mainContainer.querySelectorAll('.contact-user[data-user-id]').forEach(function (el) {
+            el.addEventListener('click', function () {
+                var uid = this.getAttribute('data-user-id');
+                try { localStorage.setItem('selectedUserId', uid); } catch (e) {}
+                var modalEl = document.getElementById('new-chat');
+                if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    var modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
+                window.location.href = baseUrl + '/chat';
+            });
+        });
+    }
+    var newChatModalEl = document.getElementById('new-chat');
+    if (newChatModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        newChatModalEl.addEventListener('show.bs.modal', function () {
+            if (Object.keys(window.__laravelContacts || {}).length === 0) {
+                fetch(baseUrl + '/contacts', { method: 'GET', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (contacts) {
+                        if (Array.isArray(contacts)) {
+                            window.__laravelContacts = {};
+                            contacts.forEach(function (c) { window.__laravelContacts[c.uid] = c; });
+                        }
+                        populateNewChatModal();
+                    })
+                    .catch(function () {
+                        var mc = document.getElementById('main-container');
+                        if (mc) mc.innerHTML = '<p class="text-danger text-center py-3">Failed to load contacts.</p>';
+                    });
+            } else {
+                populateNewChatModal();
+            }
         });
     }
 

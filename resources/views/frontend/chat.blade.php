@@ -25,15 +25,12 @@
                     <div class="avatar avatar-lg flex-shrink-0">
                         <img src="assets/img/profiles/avatar-06.jpg" class="rounded-circle" alt="image">
                     </div>
-                    <div class="ms-2 overflow-hidden">
-                        <div class="d-flex align-items-center gap-1">
-                            <h6></h6>
-                            <span class="kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
-                                <i class="ti ti-shield-check"></i>
-                            </span>
-                        </div>
-                        <span class="last-seen"></span>
-                    </div>
+                                                    <div class="ms-2 overflow-hidden">
+                                                        <div class="d-flex align-items-center gap-1">
+                                                            <h6></h6>
+                                                        </div>
+                                                        <span class="last-seen"></span>
+                                                    </div>
                 </div>
                 <div class="chat-options">
                     <ul>

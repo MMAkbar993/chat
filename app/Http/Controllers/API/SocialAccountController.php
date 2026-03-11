@@ -259,18 +259,18 @@ class SocialAccountController extends Controller
     {
         $id = is_numeric($id) ? (int) $id : 0;
         if ($id < 1) {
-            return send_bad_request_response('Invalid account id');
+            return send_bad_request_response(__('Invalid account id.'));
         }
 
         try {
             $user = Auth::user();
             if (!$user) {
-                return send_bad_request_response('User not found');
+                return send_bad_request_response(__('User not found.'));
             }
 
             $account = $user->socialAccounts()->find($id);
             if (!$account) {
-                return send_bad_request_response('Social account not found');
+                return send_bad_request_response(__('Social account not found.'));
             }
 
             $platform = $account->platform;
@@ -294,10 +294,10 @@ class SocialAccountController extends Controller
             if ($userName !== '') {
                 Cache::forget('public_profile:' . strtolower($userName));
             }
-            return send_success_response(['platform' => $platform], 'Account disconnected.');
+            return send_success_response(['platform' => $platform], __('Account disconnected.'));
         } catch (\Throwable $e) {
             Log::error('Social disconnect failed', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return send_bad_request_response(__('Could not disconnect account. Please try again.'));
+            return send_success_response(['error' => true], __('Could not disconnect account. Please try again.'));
         }
     }
 
