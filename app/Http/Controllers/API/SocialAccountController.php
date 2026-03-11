@@ -255,7 +255,7 @@ class SocialAccountController extends Controller
         }
     }
 
-    public function disconnect(Request $request, int|string $id): \Illuminate\Http\JsonResponse
+    public function disconnect(Request $request, $id): \Illuminate\Http\JsonResponse
     {
         $id = is_numeric($id) ? (int) $id : 0;
         if ($id < 1) {

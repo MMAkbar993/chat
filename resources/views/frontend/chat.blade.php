@@ -1,5 +1,9 @@
 @extends('frontend.layout')
 
+@php
+    try { $callsProvider = config('calls.provider', 'meet'); } catch (\Throwable $e) { $callsProvider = 'meet'; }
+@endphp
+
 @section('content')
 <!-- content -->
 <div class="content main_content">
@@ -39,7 +43,7 @@
                                 <i class="ti ti-search"></i>
                             </a>
                         </li>
-                        @if(config('calls.provider') === 'meet')
+                        @if($callsProvider === 'meet')
                         <li data-bs-toggle="tooltip" data-bs-placement="bottom" title="Start Google Meet">
                             <a href="https://meet.google.com/new" target="_blank" class="btn" id="google-meet-btn">
                                 <i class="ti ti-video"></i>
@@ -151,7 +155,7 @@
                                 <i class="ti ti-location"></i>
                             </a>
                         </div>
-                        @if(config('calls.provider') === 'meet')
+                        @if($callsProvider === 'meet')
                         <div class="form-item emoj-action-foot">
                             <a href="javascript:void(0);" id="send-meet-link-btn" class="action-circle" title="Send Google Meet link">
                                 <i class="ti ti-video"></i>
@@ -214,7 +218,7 @@
                         </div>
                         <p id="contact-last-seen"></p>
                         <div class="d-flex align-items-center justify-content-center gap-2 mt-2">
-                            @if(config('calls.provider') === 'meet')
+                            @if($callsProvider === 'meet')
                             <a href="https://meet.google.com/new" target="_blank" class="btn btn-sm btn-outline-primary" title="{{ __('Video') }}"><i class="ti ti-video"></i></a>
                             @else
                             <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-profile-audio-btn" title="{{ __('Audio') }}"><i class="ti ti-phone"></i></a>
@@ -1011,7 +1015,7 @@
                                 </div>
                                 <div class="contact-actions d-flex align-items-center mb-3">
                                     <a href="{{ route('chat') }}" class="me-2"><i class="ti ti-message"></i></a>
-                                    @if(config('calls.provider') === 'meet')
+                                    @if($callsProvider === 'meet')
                                     <a href="https://meet.google.com/new" target="_blank" class="me-2" title="Start Google Meet"><i class="ti ti-video"></i></a>
                                     @else
                                     <a href="javascript:void(0);" class="me-2" data-bs-toggle="modal"
@@ -2094,7 +2098,7 @@
     <!-- /Voice Modal-->
 
     <!-- /Content -->
-    @if(config('calls.provider') === 'meet')
+    @if($callsProvider === 'meet')
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var meetBtn = document.getElementById('send-meet-link-btn');
