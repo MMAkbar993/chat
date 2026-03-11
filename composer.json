@@ -46,6 +46,7 @@
             "Modules\\": "Modules/"
         },
         "files": [
+            "app/Helpers/ExceptionHelper.php",
             "Modules/Installer/app/Helpers/helper.php"
         ]
     },
