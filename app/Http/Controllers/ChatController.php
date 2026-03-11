@@ -117,6 +117,25 @@ class ChatController extends Controller
         return response()->json($messages);
     }
 
+    /**
+     * Delete all chat messages for the current user (both sent and received).
+     * Used by Settings > Chat > Delete All Chat.
+     */
+    public function deleteAllChats(Request $request)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $deleted = Chat::where('sender_id', $userId)->orWhere('receiver_id', $userId)->delete();
+
+        return response()->json([
+            'message' => __('All chats have been deleted.'),
+            'deleted' => $deleted,
+        ]);
+    }
+
     public function showChat($id)
     {
         return view('frontend.chat', ['selectedUserId' => $id]);

@@ -889,6 +889,14 @@
                                                             data-bs-parent="#account-setting">
                                                             <div class="accordion-body">
                                                                 <p class="text-muted small mb-3"><i class="ti ti-info-circle me-1"></i>{{ __('Add your website URL below. Then add the meta tag to your site’s <head> section and click Verify.') }}</p>
+                                                                @if(session('website_already_approved') && session('website_already_approved_id'))
+                                                                    <div class="alert alert-info alert-dismissible fade show mb-3" role="alert" id="website-already-approved-alert">
+                                                                        <p class="mb-2">{{ __('This website is already approved. Please request the owner.') }}</p>
+                                                                        <p class="mb-2 small">{{ session('website_already_approved_domain') }}</p>
+                                                                        <button type="button" class="btn btn-sm btn-primary website-request-representation-btn" data-website-id="{{ session('website_already_approved_id') }}">{{ __('Request') }}</button>
+                                                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                                                    </div>
+                                                                @endif
                                                                 <form method="post" action="{{ route('settings.websites.add') }}" class="mb-3">
                                                                     @csrf
                                                                     <div class="input-group">
@@ -1270,6 +1278,95 @@
                                                                                     .catch(function() { showToast('{{ __("Could not remove website.") }}', true); btn.disabled = false; });
                                                                             });
                                                                         });
+                                                                        document.querySelectorAll('.website-request-representation-btn').forEach(function(btn) {
+                                                                            btn.addEventListener('click', function() {
+                                                                                var websiteId = this.getAttribute('data-website-id');
+                                                                                if (!websiteId) return;
+                                                                                this.disabled = true;
+                                                                                var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                                fetch('{{ route("settings.websites.request-representation") }}', {
+                                                                                    method: 'POST',
+                                                                                    headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                                                                                    credentials: 'same-origin',
+                                                                                    body: JSON.stringify({ website_id: parseInt(websiteId, 10), message: '' })
+                                                                                }).then(function(r) { return r.json(); }).then(function(res) {
+                                                                                    if (res.code === '200' || res.code === 200) {
+                                                                                        var alertEl = document.getElementById('website-already-approved-alert');
+                                                                                        if (alertEl) alertEl.remove();
+                                                                                        showToast(res.message || '{{ __("Representation request sent. The owner will review your request.") }}');
+                                                                                    } else {
+                                                                                        showToast(res.message || (res.data && res.data.error && res.data.error.user_message) || '{{ __("Could not send request.") }}', true);
+                                                                                    }
+                                                                                }).catch(function() { showToast('{{ __("Could not send request.") }}', true); }).finally(function() { btn.disabled = false; });
+                                                                            });
+                                                                        });
+                                                                        function loadAuthorizedUsers() {
+                                                                            var placeholder = document.getElementById('authorized-users-placeholder');
+                                                                            var content = document.getElementById('authorized-users-content');
+                                                                            var pendingList = document.getElementById('pending-requests-list');
+                                                                            var repsList = document.getElementById('authorized-representatives-list');
+                                                                            if (!pendingList || !repsList) return;
+                                                                            var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                            fetch('{{ route("settings.websites.authorized-users") }}', { method: 'GET', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                                                                                .then(function(r) { return r.json(); })
+                                                                                .then(function(res) {
+                                                                                    if (res.code !== '200' && res.code !== 200) return;
+                                                                                    var websites = res.websites || [];
+                                                                                    if (websites.length === 0) { placeholder.style.display = 'block'; content.style.display = 'none'; return; }
+                                                                                    placeholder.style.display = 'none';
+                                                                                    content.style.display = 'block';
+                                                                                    var pendingHtml = '';
+                                                                                    var repsHtml = '';
+                                                                                    websites.forEach(function(w) {
+                                                                                        var domain = w.domain || '';
+                                                                                        if (w.pending_requests && w.pending_requests.length) {
+                                                                                            w.pending_requests.forEach(function(req) {
+                                                                                                pendingHtml += '<div class="d-flex align-items-center justify-content-between border rounded p-2 mb-2" data-request-id="' + req.id + '"><div><span class="badge bg-warning text-dark me-2">{{ __("Request") }}</span><strong>' + (req.name || req.email || '') + '</strong><br><small class="text-muted">' + (req.email || '') + '</small>' + (req.message ? '<br><small>' + req.message + '</small>' : '') + '</div><div class="btn-group btn-group-sm"><button type="button" class="btn btn-success representation-approve-btn" data-request-id="' + req.id + '">{{ __("Approve") }}</button><button type="button" class="btn btn-outline-danger representation-deny-btn" data-request-id="' + req.id + '">{{ __("Deny") }}</button></div></div>';
+                                                                                            });
+                                                                                        }
+                                                                                        if (w.authorized_representatives && w.authorized_representatives.length) {
+                                                                                            repsHtml += '<div class="mb-2"><small class="text-muted d-block">' + domain + '</small>';
+                                                                                            w.authorized_representatives.forEach(function(rep) {
+                                                                                                repsHtml += '<div class="d-flex align-items-center border rounded p-2 mb-1"><span class="badge verified-badge me-2"><i class="ti ti-circle-check me-1"></i>{{ __("Verified") }}</span>' + (rep.name || rep.email || '') + ' <small class="text-muted ms-2">' + (rep.email || '') + '</small></div>';
+                                                                                            });
+                                                                                            repsHtml += '</div>';
+                                                                                        }
+                                                                                    });
+                                                                                    pendingList.innerHTML = pendingHtml || '<p class="text-muted small mb-0">{{ __("No pending representation requests.") }}</p>';
+                                                                                    repsList.innerHTML = repsHtml || '<p class="text-muted small mb-0">{{ __("No authorized representatives yet.") }}</p>';
+                                                                                    if (pendingHtml) {
+                                                                                        var pendingTitle = document.createElement('p');
+                                                                                        pendingTitle.className = 'fw-medium small mb-2';
+                                                                                        pendingTitle.textContent = '{{ __("Pending requests (click Approve or Deny)") }}';
+                                                                                        if (pendingList.firstChild) pendingList.insertBefore(pendingTitle, pendingList.firstChild);
+                                                                                    }
+                                                                                    if (repsHtml) {
+                                                                                        var repsTitle = document.createElement('p');
+                                                                                        repsTitle.className = 'fw-medium small mb-2 mt-3';
+                                                                                        repsTitle.textContent = '{{ __("Authorized representatives") }}';
+                                                                                        if (repsList.firstChild) repsList.insertBefore(repsTitle, repsList.firstChild);
+                                                                                    }
+                                                                                    document.querySelectorAll('.representation-approve-btn').forEach(function(b) {
+                                                                                        b.addEventListener('click', function() {
+                                                                                            var id = this.getAttribute('data-request-id');
+                                                                                            if (!id) return;
+                                                                                            this.disabled = true;
+                                                                                            fetch('{{ url("/settings/websites/representation") }}/' + id + '/approve', { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                                                                                                .then(function(r) { return r.json(); }).then(function(res) { showToast(res.message || '{{ __("Request approved.") }}'); loadAuthorizedUsers(); }).catch(function() { showToast('{{ __("Failed.") }}', true); }).finally(function() { b.disabled = false; });
+                                                                                        });
+                                                                                    });
+                                                                                    document.querySelectorAll('.representation-deny-btn').forEach(function(b) {
+                                                                                        b.addEventListener('click', function() {
+                                                                                            var id = this.getAttribute('data-request-id');
+                                                                                            if (!id) return;
+                                                                                            this.disabled = true;
+                                                                                            fetch('{{ url("/settings/websites/representation") }}/' + id + '/deny', { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                                                                                                .then(function(r) { return r.json(); }).then(function(res) { showToast(res.message || '{{ __("Request denied.") }}'); loadAuthorizedUsers(); }).catch(function() { showToast('{{ __("Failed.") }}', true); }).finally(function() { b.disabled = false; });
+                                                                                        });
+                                                                                    });
+                                                                                });
+                                                                        }
+                                                                        loadAuthorizedUsers();
                                                                         document.getElementById('linkedin-profile-url-save-btn') && document.getElementById('linkedin-profile-url-save-btn').addEventListener('click', function() {
                                                                             var btn = this;
                                                                             var input = document.getElementById('linkedin-profile-url-input');
@@ -1290,6 +1387,86 @@
                                                                                 }
                                                                             }).catch(function() { showToast('{{ __("Could not update URL.") }}', true); }).finally(function() { btn.disabled = false; });
                                                                         });
+                                                                        (function initChatSettings() {
+                                                                            var chatBg = document.getElementById('chat-bg-images');
+                                                                            var clearAllSwitch = document.getElementById('clearAllChatSwitch');
+                                                                            var deleteAllSwitch = document.getElementById('deleteAllChatSwitch');
+                                                                            var backupSwitch = document.getElementById('chatBackupSwitch');
+                                                                            var msgNotifSwitch = document.getElementById('messagenotificationSoundSwitch');
+                                                                            var notifSoundSwitch = document.getElementById('notificationSoundSwitch');
+                                                                            var deleteChatModal = document.getElementById('delete-chat');
+                                                                            var chatListUrl = '{{ url("/api/chat-list") }}';
+                                                                            var chatPageUrl = '{{ route("chat") }}';
+                                                                            var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                            function saveChatPref(key, value) { try { localStorage.setItem(key, value ? '1' : '0'); } catch (e) {} }
+                                                                            function loadChatPref(key) { try { return localStorage.getItem(key) === '1'; } catch (e) { return false; } }
+                                                                            if (chatBg) {
+                                                                                chatBg.querySelectorAll('.img-wrap').forEach(function(wrap, idx) {
+                                                                                    wrap.style.cursor = 'pointer';
+                                                                                    wrap.addEventListener('click', function() {
+                                                                                        chatBg.querySelectorAll('.img-wrap').forEach(function(w) { w.classList.remove('border', 'border-primary', 'border-2'); });
+                                                                                        this.classList.add('border', 'border-primary', 'border-2');
+                                                                                        var img = this.querySelector('img');
+                                                                                        var src = img ? img.src : '';
+                                                                                        try { localStorage.setItem('chat_background_index', String(idx)); if (src) localStorage.setItem('chat_background_url', src); } catch (e) {}
+                                                                                        if (typeof showToast === 'function') showToast('{{ __("Chat background updated. It will apply on the chat page.") }}');
+                                                                                    });
+                                                                                });
+                                                                                var savedIdx = parseInt(localStorage.getItem('chat_background_index'), 10);
+                                                                                if (!isNaN(savedIdx)) {
+                                                                                    var wraps = chatBg.querySelectorAll('.img-wrap');
+                                                                                    if (wraps[savedIdx]) wraps[savedIdx].classList.add('border', 'border-primary', 'border-2');
+                                                                                }
+                                                                            }
+                                                                            if (clearAllSwitch) {
+                                                                                clearAllSwitch.addEventListener('change', function() {
+                                                                                    if (!this.checked) return;
+                                                                                    if (!confirm('{{ __("Clear all chats? Your chat list will be emptied. This cannot be undone.") }}')) { this.checked = false; return; }
+                                                                                    fetch(chatListUrl, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                                                                                        .then(function(r) { return r.json(); }).then(function(res) {
+                                                                                            if (typeof showToast === 'function') showToast(res.message || '{{ __("All chats cleared.") }}');
+                                                                                            window.location.href = chatPageUrl;
+                                                                                        }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Could not clear chats.") }}', true); clearAllSwitch.checked = false; });
+                                                                                });
+                                                                            }
+                                                                            if (deleteAllSwitch) {
+                                                                                deleteAllSwitch.addEventListener('change', function() {
+                                                                                    if (this.checked && deleteChatModal) {
+                                                                                        var modal = typeof bootstrap !== 'undefined' && bootstrap.Modal ? bootstrap.Modal.getOrCreateInstance(deleteChatModal) : null;
+                                                                                        if (modal) modal.show();
+                                                                                    }
+                                                                                    this.checked = false;
+                                                                                });
+                                                                            }
+                                                                            if (deleteChatModal) {
+                                                                                var form = deleteChatModal.querySelector('form');
+                                                                                if (form) {
+                                                                                    form.addEventListener('submit', function(e) {
+                                                                                        e.preventDefault();
+                                                                                        if (!confirm('{{ __("Delete all chats permanently? This cannot be undone.") }}')) return;
+                                                                                        fetch(chatListUrl, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                                                                                            .then(function(r) { return r.json(); }).then(function(res) {
+                                                                                                if (typeof showToast === 'function') showToast(res.message || '{{ __("All chats deleted.") }}');
+                                                                                                var modal = typeof bootstrap !== 'undefined' && bootstrap.Modal ? bootstrap.Modal.getInstance(deleteChatModal) : null;
+                                                                                                if (modal) modal.hide();
+                                                                                                window.location.href = chatPageUrl;
+                                                                                            }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Could not delete chats.") }}', true); });
+                                                                                    });
+                                                                                }
+                                                                            }
+                                                                            if (backupSwitch) {
+                                                                                backupSwitch.checked = loadChatPref('chat_backup_enabled');
+                                                                                backupSwitch.addEventListener('change', function() { saveChatPref('chat_backup_enabled', this.checked); if (typeof showToast === 'function') showToast(this.checked ? '{{ __("Chat backup enabled.") }}' : '{{ __("Chat backup disabled.") }}'); });
+                                                                            }
+                                                                            if (msgNotifSwitch) {
+                                                                                msgNotifSwitch.checked = loadChatPref('message_notifications');
+                                                                                msgNotifSwitch.addEventListener('change', function() { saveChatPref('message_notifications', this.checked); });
+                                                                            }
+                                                                            if (notifSoundSwitch) {
+                                                                                notifSoundSwitch.checked = loadChatPref('notification_sound');
+                                                                                notifSoundSwitch.addEventListener('change', function() { saveChatPref('notification_sound', this.checked); });
+                                                                            }
+                                                                        })();
                                                                     });
                                                                     </script>
                                                                 </div>

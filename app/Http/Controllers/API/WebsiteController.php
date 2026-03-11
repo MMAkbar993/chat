@@ -186,7 +186,11 @@ class WebsiteController extends Controller
 
         $verifiedWebsite = $this->verificationService->getVerifiedWebsite($domain);
         if ($verifiedWebsite) {
-            return redirect()->route('settings')->with('error', __('This website has already been verified by another user. You can request representation.'));
+            return redirect()->route('settings')
+                ->with('website_already_approved', true)
+                ->with('website_already_approved_id', $verifiedWebsite->id)
+                ->with('website_already_approved_domain', $verifiedWebsite->domain)
+                ->with('info', __('This website is already approved. Please request the owner.'));
         }
 
         $token = $this->verificationService->generateVerificationToken();
@@ -398,6 +402,110 @@ class WebsiteController extends Controller
         } catch (\Exception $e) {
             return send_exception_response($e->getMessage());
         }
+    }
+
+    /**
+     * Request representation from the Settings page (plain POST, no encryption).
+     * Used when a user adds a website URL that is already verified by another user.
+     */
+    public function requestRepresentationFromWeb(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'website_id' => 'required|integer|exists:websites,id',
+            'message' => 'nullable|string|max:1000',
+        ]);
+
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['code' => -1, 'message' => 'User not found', 'data' => ['error' => ['user_message' => 'User not found']]], 200);
+        }
+
+        $website = Website::find($request->website_id);
+        if (!$website) {
+            return response()->json(['code' => -1, 'message' => 'Website not found', 'data' => ['error' => ['user_message' => 'Website not found']]], 200);
+        }
+
+        if ($website->admin_user_id === $user->id) {
+            return response()->json(['code' => -1, 'message' => __('You are already the company administrator for this website.'), 'data' => ['error' => ['user_message' => __('You are already the company administrator for this website.')]]], 200);
+        }
+
+        if ($user->websites()->whereHas('website', fn ($q) => $q->where('id', $website->id))->exists()) {
+            return response()->json(['code' => -1, 'message' => __('You already represent this website.'), 'data' => ['error' => ['user_message' => __('You already represent this website.')]]], 200);
+        }
+
+        $existing = WebsiteRepresentative::where('website_id', $website->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($existing) {
+            if ($existing->status === 'pending') {
+                return response()->json(['code' => -1, 'message' => __('You already have a pending representation request.'), 'data' => ['error' => ['user_message' => __('You already have a pending representation request.')]]], 200);
+            }
+            if ($existing->status === 'approved') {
+                return response()->json(['code' => -1, 'message' => __('You already represent this website.'), 'data' => ['error' => ['user_message' => __('You already represent this website.')]]], 200);
+            }
+        }
+
+        $rep = WebsiteRepresentative::create([
+            'website_id' => $website->id,
+            'user_id' => $user->id,
+            'status' => WebsiteRepresentative::STATUS_PENDING,
+            'message' => $request->message,
+            'requested_at' => now(),
+        ]);
+
+        $admin = $website->admin;
+        if ($admin) {
+            $admin->notify(new \App\Notifications\RepresentationRequestNotification($rep));
+        }
+
+        return response()->json([
+            'code' => '200',
+            'message' => __('Representation request sent. The owner will review your request.'),
+            'data' => ['request_id' => $rep->id],
+        ], 200);
+    }
+
+    /**
+     * Return authorized users (pending requests + representatives) as plain JSON for the Settings sidebar.
+     */
+    public function authorizedUsersFromWeb(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['code' => -1, 'message' => 'User not found', 'websites' => []], 200);
+        }
+
+        $ownedWebsites = $user->ownedWebsites()->with(['representatives.user', 'userWebsites.user'])->get();
+
+        $result = [];
+        foreach ($ownedWebsites as $website) {
+            $pending = $website->pendingRepresentationRequests()->with('user')->get()->map(fn ($r) => [
+                'id' => $r->id,
+                'user_id' => $r->user_id,
+                'name' => $r->user->full_name ?? trim($r->user->first_name . ' ' . $r->user->last_name),
+                'email' => $r->user->email,
+                'message' => $r->message,
+                'requested_at' => $r->requested_at->toIso8601String(),
+            ]);
+            $approved = $website->userWebsites()
+                ->where('relationship_type', UserWebsite::RELATIONSHIP_REPRESENTATIVE)
+                ->with('user')
+                ->get()
+                ->map(fn ($uw) => [
+                    'user_id' => $uw->user_id,
+                    'name' => $uw->user->full_name ?? trim($uw->user->first_name . ' ' . $uw->user->last_name),
+                    'email' => $uw->user->email,
+                ]);
+            $result[] = [
+                'website_id' => $website->id,
+                'domain' => $website->domain,
+                'pending_requests' => $pending->values()->all(),
+                'authorized_representatives' => $approved->values()->all(),
+            ];
+        }
+
+        return response()->json(['code' => '200', 'message' => 'OK', 'websites' => $result], 200);
     }
 
     public function approveRepresentation(Request $request, int $id): \Illuminate\Http\JsonResponse

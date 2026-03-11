@@ -357,6 +357,24 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
     setTimeout(bindWhenReady, 800);
 })();
 </script>
+{{-- Apply chat background from Settings when on chat page --}}
+<script>
+(function() {
+    try {
+        var path = (window.location.pathname || '').replace(/\/+/g, '/');
+        if (path.indexOf('/chat') !== 0 && path !== '/chat') return;
+        var url = localStorage.getItem('chat_background_url');
+        if (url) {
+            var el = document.getElementById('chat-area') || document.getElementById('middle');
+            if (el) {
+                el.style.backgroundImage = 'url(' + url.replace(/"/g, '%22') + ')';
+                el.style.backgroundSize = 'cover';
+                el.style.backgroundPosition = 'center';
+            }
+        }
+    } catch (e) {}
+})();
+</script>
 {{-- Contact details "Chat" button: go to chat with selected user when Firebase disabled --}}
 <script>
 (function() {

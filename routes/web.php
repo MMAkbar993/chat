@@ -270,9 +270,14 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
    Route::post('/settings/websites/add', [ApiWebsiteController::class, 'storeFromWeb'])->name('settings.websites.add');
    Route::post('/settings/websites/{id}/verify', [ApiWebsiteController::class, 'verify'])->name('settings.websites.verify');
    Route::delete('/settings/websites/{id}', [ApiWebsiteController::class, 'destroy'])->name('settings.websites.destroy');
+   Route::post('/settings/websites/request-representation', [ApiWebsiteController::class, 'requestRepresentationFromWeb'])->name('settings.websites.request-representation');
+   Route::get('/settings/websites/authorized-users', [ApiWebsiteController::class, 'authorizedUsersFromWeb'])->name('settings.websites.authorized-users');
+   Route::post('/settings/websites/representation/{id}/approve', [ApiWebsiteController::class, 'approveRepresentation'])->name('settings.websites.representation.approve');
+   Route::post('/settings/websites/representation/{id}/deny', [ApiWebsiteController::class, 'denyRepresentation'])->name('settings.websites.representation.deny');
    Route::post('/contacts', [ContactController::class, 'store'])->name('contacts.store');
    Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
    Route::get('/api/chat-list', [ChatController::class, 'chatList'])->name('chat.list');
+   Route::delete('/api/chat-list', [ChatController::class, 'deleteAllChats'])->name('chat.delete-all');
 
    // Group Chat API (JSON)
    Route::prefix('api/groups')->group(function () {
