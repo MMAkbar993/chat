@@ -1210,6 +1210,12 @@
                                                                             if (!ev.data || ev.data.type !== 'social-connected' || !ev.data.platform || !ev.data.accountId) return;
                                                                             var actionCell = document.querySelector('[data-platform="' + ev.data.platform + '"] .social-profile-action');
                                                                             if (!actionCell) return;
+                                                                            // Hide any stale error alert from a previous failed connect so only success shows
+                                                                            var socialSection = document.getElementById('social-id');
+                                                                            if (socialSection) {
+                                                                                var errAlert = socialSection.querySelector('.alert-danger');
+                                                                                if (errAlert) errAlert.remove();
+                                                                            }
                                                                             var verifiedLabel = '{{ __("Verified") }}';
                                                                             actionCell.innerHTML = '<div class="d-flex align-items-center gap-2"><span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> ' + verifiedLabel + '</span><button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="' + ev.data.accountId + '" title="{{ __("Remove") }}" aria-label="{{ __("Remove") }}"><i class="ti ti-x"></i></button></div>';
                                                                             attachSocialDisconnectHandlers();

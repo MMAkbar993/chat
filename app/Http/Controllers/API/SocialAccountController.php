@@ -210,6 +210,8 @@ class SocialAccountController extends Controller
             $accountId = (int) $account->id;
             $platformJs = json_encode($platform);
             $settingsUrlJs = json_encode($settingsUrl);
+            // Clear any previous connect error so the opener doesn't show it after reload or in existing DOM
+            session()->forget('error');
             return response('<script>
 (function() {
     var payload = { type: "social-connected", platform: ' . $platformJs . ', accountId: ' . $accountId . ' };
