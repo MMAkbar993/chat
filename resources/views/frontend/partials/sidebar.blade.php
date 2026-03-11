@@ -356,11 +356,6 @@
                                         </div>
                                         <div>
                                             <h6 class="fs-16" id="profile-name">{{ __('Loading...') }}</h6>
-                                            @if(Auth::check() && Auth::user()->isKycVerified())
-                                            <span class="badge verified-badge badge-xs mt-1" title="{{ __('ID Verified') }}">
-                                                <i class="ti ti-shield-check me-1"></i>{{ __('ID Verified') }}
-                                            </span>
-                                            @endif
                                             <div class="d-flex justify-content-center">
                                                 <span class="fs-14 text-center"
                                                     id="profile-info-about">{{ __('Loading...') }}</span>
@@ -1158,7 +1153,7 @@
                                                                                 var url = '{{ url("connect/social-accounts") }}/' + id + '/disconnect';
                                                                                 var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
                                                                                 var opts = { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' }, credentials: 'same-origin' };
-                                                                                fetch(url, opts).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); }).then(function(res) {
+                                                                                fetch(url, opts).then(function(r) { return r.json().catch(function() { return null; }).then(function(d) { return { ok: r.ok, status: r.status, data: d || {} }; }); }).then(function(res) {
                                                                                     var success = res.ok && res.data && (res.data.code === '200' || res.data.code === 200);
                                                                                     if (success) {
                                                                                         var plat = (res.data.data && res.data.data.platform) || (res.data.platform) || platform;
@@ -1190,7 +1185,7 @@
                                                                                     var url = '{{ url("connect/social-accounts") }}/' + id + '/disconnect';
                                                                                     var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
                                                                                     var opts = { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' }, credentials: 'same-origin' };
-                                                                                    fetch(url, opts).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); }).then(function(res) {
+                                                                                    fetch(url, opts).then(function(r) { return r.json().catch(function() { return null; }).then(function(d) { return { ok: r.ok, status: r.status, data: d || {} }; }); }).then(function(res) {
                                                                                         var success = res.ok && res.data && (res.data.code === '200' || res.data.code === 200);
                                                                                         if (success) {
                                                                                             var plat = (res.data.data && res.data.data.platform) || (res.data.platform) || platform;

@@ -253,8 +253,13 @@ class SocialAccountController extends Controller
         }
     }
 
-    public function disconnect(Request $request, int $id): \Illuminate\Http\JsonResponse
+    public function disconnect(Request $request, int|string $id): \Illuminate\Http\JsonResponse
     {
+        $id = is_numeric($id) ? (int) $id : 0;
+        if ($id < 1) {
+            return send_bad_request_response('Invalid account id');
+        }
+
         try {
             $user = Auth::user();
             if (!$user) {

@@ -377,7 +377,41 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
 <!-- Laravel data loaders: contacts, chat list, groups when Firebase disabled -->
 <script src="{{ asset('assets/js/laravel-data-loaders.js') }}"></script>
 <script src="{{ asset('assets/js/sidebar-search.js') }}"></script>
-@if (!Route::is('login','signup','register.payment'))
+{{-- Enable Notifications button (Settings): request browser permission; works when firebaseSettings.js is not loaded --}}
+<script>
+(function() {
+    function showToast(text, isError) {
+        if (typeof Toastify !== 'undefined') {
+            Toastify({ text: text, duration: 3000, gravity: 'top', position: 'right', style: { background: isError ? '#dc3545' : '#28a745' } }).showToast();
+        } else {
+            alert(text);
+        }
+    }
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('#notificationButton');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!('Notification' in window)) {
+            showToast('{{ __("This browser does not support notifications.") }}', true);
+            return;
+        }
+        if (Notification.permission === 'granted') {
+            showToast('{{ __("Notifications are already enabled.") }}', false);
+            return;
+        }
+        Notification.requestPermission().then(function(permission) {
+            if (permission === 'granted') {
+                showToast('{{ __("Notifications enabled.") }}', false);
+            } else {
+                showToast('{{ __("Notification permission denied.") }}', false);
+            }
+        }).catch(function() {
+            showToast('{{ __("Could not request notification permission.") }}', true);
+        });
+    }, true);
+})();
+</script>
 {{-- "Add contact" button: ensure modal opens (SPA may replace #spa-page-modals so target must exist) --}}
 <script>
 (function() {
