@@ -279,25 +279,43 @@ initializeFirebase(function (app, auth, database, storage) {
             });
     }
 
-    document
-        .getElementById("inviteFormChat")
-        .addEventListener("submit", function (event) {
+    const inviteFormChatEl = document.getElementById("inviteFormChat");
+    if (inviteFormChatEl) {
+        inviteFormChatEl.addEventListener("submit", function (event) {
             event.preventDefault(); // Prevent the form from reloading the page
 
-            const inviteInput = document
-                .getElementById("inviteInput")
-                .value.trim();
+            const inviteInputEl = document.getElementById("inviteInput");
+            const inviteInput = inviteInputEl ? inviteInputEl.value.trim() : "";
+            if (!inviteInput) {
+                if (typeof Swal !== "undefined") {
+                    Swal.fire({ title: "", text: "Please enter an email address.", icon: "warning" });
+                } else {
+                    alert("Please enter an email address.");
+                }
+                return;
+            }
+
+            if (!auth.currentUser || !auth.currentUser.uid) {
+                if (typeof Swal !== "undefined") {
+                    Swal.fire({ title: "", text: "Please sign in to send an invitation.", icon: "error" });
+                } else {
+                    alert("Please sign in to send an invitation.");
+                }
+                return;
+            }
+
             const loggedInUserId = auth.currentUser.uid;
 
-            const csrfToken = document
-                .querySelector('meta[name="csrf-token"]')
-                .getAttribute("content");
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfMeta ? csrfMeta.getAttribute("content") : "";
             const sendInviteButton =
                 document.getElementById("sendInviteButton");
 
             // Change button state to processing
-            sendInviteButton.textContent = "Processing..."; // Change button text
-            sendInviteButton.disabled = true; // Disable the button
+            if (sendInviteButton) {
+                sendInviteButton.textContent = "Processing...";
+                sendInviteButton.disabled = true;
+            }
 
             const usersRef = ref(database, "data/users");
 
@@ -341,7 +359,13 @@ initializeFirebase(function (app, auth, database, storage) {
                                     document
                                         .getElementById("inviteFormChat")
                                         .reset();
-                                    $("#invite-contact").modal("hide");
+                                    const inviteModalEl = document.getElementById("invite-contact");
+                                    if (inviteModalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                                        const inst = bootstrap.Modal.getInstance(inviteModalEl);
+                                        if (inst) inst.hide();
+                                    } else if (typeof $ !== "undefined" && $.fn.modal) {
+                                        $("#invite-contact").modal("hide");
+                                    }
                                     sendInviteButton.textContent =
                                         "Send Invitation";
                                     sendInviteButton.disabled = false;
@@ -365,7 +389,8 @@ initializeFirebase(function (app, auth, database, storage) {
                                                 text: "This contact is already in your contacts list!",
                                                 icon: "info",
                                             });
-                                            resetForm();
+                                            if (document.getElementById("inviteFormChat")) document.getElementById("inviteFormChat").reset();
+                                            if (sendInviteButton) { sendInviteButton.textContent = "Send Invitation"; sendInviteButton.disabled = false; }
                                         } else {
                                             // Add the user to contacts
                                             set(loggedInUserContactsRef, {
@@ -436,9 +461,13 @@ initializeFirebase(function (app, auth, database, storage) {
                                                             "inviteFormChat"
                                                         )
                                                         .reset(); // Clear the form
-                                                    $("#invite-contact").modal(
-                                                        "hide"
-                                                    ); // Close the modal
+                                                    const inviteModalEl = document.getElementById("invite-contact");
+                                                    if (inviteModalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                                                        const inst = bootstrap.Modal.getInstance(inviteModalEl);
+                                                        if (inst) inst.hide();
+                                                    } else if (typeof $ !== "undefined" && $.fn.modal) {
+                                                        $("#invite-contact").modal("hide");
+                                                    }
                                                     Swal.fire({
                                                         title: "",
                                                         width: 400,
@@ -531,8 +560,10 @@ initializeFirebase(function (app, auth, database, storage) {
                             });
                         })
                         .finally(() => {
-                            sendInviteButton.textContent = "Send Invitation";
-                            sendInviteButton.disabled = false;
+                            if (sendInviteButton) {
+                                sendInviteButton.textContent = "Send Invitation";
+                                sendInviteButton.disabled = false;
+                            }
                         });
                 })
                 .catch((error) => {
@@ -542,8 +573,13 @@ initializeFirebase(function (app, auth, database, storage) {
                         text: "Error fetching mobile number: " + error.message,
                         icon: "error",
                     });
+                    if (sendInviteButton) {
+                        sendInviteButton.textContent = "Send Invitation";
+                        sendInviteButton.disabled = false;
+                    }
                 });
         });
+    }
 
     function capitalizeFirstLetter(string) {
         if (!string) return ""; // Return empty string if input is empty
@@ -4236,13 +4272,11 @@ initializeFirebase(function (app, auth, database, storage) {
 
             // Check if the current user is excluded from seeing this profile
             if (excludedUsers.includes(currentUserId)) {
-                document.getElementById("contact-name").textContent =
-                    "Profile info hidden";
-                document.getElementById("contact-email").textContent = "";
-                document.getElementById("contact-phone").textContent = "";
-                document.getElementById("contact-bio").textContent = "";
-                document.getElementById("contact-last-seen").textContent = "";
-                return; // Exit the function early
+                setContactName("Profile info hidden");
+                const ids = ["contact-bio", "contact-location", "contact-website", "contact-join-date", "contact-last-seen"];
+                ids.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ""; });
+                document.querySelectorAll('#contact-profile .contact-kyc-badge, #contact-profile .contact-social-verified').forEach(b => { b.style.display = "none"; });
+                return;
             }
 
             // Fetch contact information from the "contacts" reference
@@ -4296,28 +4330,56 @@ initializeFirebase(function (app, auth, database, storage) {
         return date.toLocaleString(); // Example: "11/26/2024, 10:00 AM"
     }
 
-    // Helper function to update the UI
+    function setContactName(text) {
+        const nameText = document.getElementById("contact-name-text");
+        const nameEl = document.getElementById("contact-name");
+        if (nameText) nameText.textContent = text;
+        else if (nameEl) nameEl.textContent = text;
+        const fullNameEl = document.getElementById("contact-full-name");
+        if (fullNameEl) fullNameEl.textContent = text;
+    }
+
+    // Helper function to update the UI (public profile: Name, Bio, Location, Website, Social, Join Date + Verified badges)
     function updateContactUI(displayName, userData) {
-        document.getElementById("contact-name").textContent =
-            capitalizeFirstLetter(displayName);
-        document.getElementById("contact-email").textContent =
-            userData?.email || "No email";
-        document.getElementById("contact-phone").textContent =
-            userData?.mobile_number || "No phone";
-        document.getElementById("contact-bio").textContent =
-            userData?.about || "No bio available";
-        document.getElementById("contact-full-name").textContent =
-            capitalizeFirstLetter(displayName);
+        setContactName(capitalizeFirstLetter(displayName));
 
         const contactKycBadges = document.querySelectorAll('#contact-profile .contact-kyc-badge');
+        const socialVerifiedEls = document.querySelectorAll('#contact-profile .contact-social-verified');
         contactKycBadges.forEach(b => b.style.display = 'none');
-        if (userData?.email) {
-            fetch(`/api/kyc-status?email=${encodeURIComponent(userData.email)}`)
-                .then(r => r.json())
-                .then(data => {
-                    contactKycBadges.forEach(b => b.style.display = data.verified ? 'inline-flex' : 'none');
-                })
-                .catch(() => {});
+        socialVerifiedEls.forEach(b => b.style.display = 'none');
+
+        function setPublicFields(pub) {
+            if (pub && pub.display_name) setContactName(pub.display_name);
+            const bioEl = document.getElementById("contact-bio");
+            const locEl = document.getElementById("contact-location");
+            const webEl = document.getElementById("contact-website");
+            const joinEl = document.getElementById("contact-join-date");
+            if (bioEl) bioEl.textContent = (pub && pub.bio) ? pub.bio : "—";
+            if (locEl) locEl.textContent = (pub && pub.location) ? pub.location : "—";
+            if (joinEl) joinEl.textContent = (pub && pub.join_date) ? pub.join_date : "—";
+            if (webEl) {
+                if (pub && pub.websites && pub.websites.length > 0) {
+                    webEl.innerHTML = pub.websites.map(function(w) { return '<a href="' + w.url + '" target="_blank" rel="noopener">' + w.url + '</a>'; }).join(", ");
+                } else { webEl.textContent = "—"; }
+            }
+            contactKycBadges.forEach(function(b) { b.style.display = (pub && pub.kyc_verified) ? 'inline-flex' : 'none'; });
+            socialVerifiedEls.forEach(function(b) { b.style.display = (pub && pub.social_verified) ? 'inline-flex' : 'none'; });
+        }
+
+        if (userData && userData.email) {
+            fetch('/api/public-profile-by-email?email=' + encodeURIComponent(userData.email))
+                .then(function(r) { return r.json(); })
+                .then(setPublicFields)
+                .catch(function() { setPublicFields(null); });
+        } else {
+            const bioEl = document.getElementById("contact-bio");
+            if (bioEl) bioEl.textContent = userData && userData.about ? userData.about : "—";
+            const locEl = document.getElementById("contact-location");
+            const webEl = document.getElementById("contact-website");
+            const joinEl = document.getElementById("contact-join-date");
+            if (locEl) locEl.textContent = "—";
+            if (webEl) webEl.textContent = "—";
+            if (joinEl) joinEl.textContent = "—";
         }
 
         const avatarElement = document.getElementById("contact-avatar");
@@ -4327,7 +4389,7 @@ initializeFirebase(function (app, auth, database, storage) {
             avatarElement.src = userData.image;
         } else {
             // Fallback: Fetch from the "users" collection
-            const userRef = ref(database, `data/users/${userData?.contact_id}`);
+            const userRef = ref(database, `data/users/${userData?.contact_id || (contactSnapshot && contactSnapshot.key)}`);
             get(userRef)
                 .then((userSnapshot) => {
                     const userDataFallback = userSnapshot.val();
@@ -4353,18 +4415,19 @@ initializeFirebase(function (app, auth, database, storage) {
                 "contact-last-seen"
             ).textContent = `Last seen at ${lastSeenTime}`;
         } else {
-            document.getElementById("contact-last-seen").style.display = "none"; // Optionally hide the element
+            const lastSeenEl = document.getElementById("contact-last-seen");
+            if (lastSeenEl) lastSeenEl.textContent = "";
         }
 
-        // Update social profile links
+        // Update social profile links (from Firebase/userData)
         document.getElementById("facebook-link").href =
-            userData?.facebook_link || "#";
+            userData?.facebook_link || userData?.facebook || "javascript:void(0);";
         document.getElementById("twitter-link").href =
-            userData?.twitter_link || "#";
+            userData?.twitter_link || userData?.twitter || "javascript:void(0);";
         document.getElementById("google-link").href =
-            userData?.google_link || "#";
+            userData?.google_link || userData?.google || "javascript:void(0);";
         document.getElementById("linkedin-link").href =
-            userData?.linkedin_link || "#";
+            userData?.linkedin_link || userData?.linkedin || "javascript:void(0);";
     }
 
     function formatLastSeen(timestamp) {
@@ -6384,6 +6447,14 @@ initializeFirebase(function (app, auth, database, storage) {
     }
     // Example of calling displayContactsInModal inside your modal
     const openNewChatModal = async () => {
+        if (!currentUser || !currentUser.uid) {
+            console.warn("New Chat: user not signed in yet.");
+            return;
+        }
+        const mainContainer = document.getElementById("main-container");
+        if (mainContainer) {
+            mainContainer.innerHTML = '<div class="text-center py-3"><span class="spinner-border spinner-border-sm" role="status"></span> Loading contacts...</div>';
+        }
         try {
             // Reference to the contacts of the current user
             const contactsRef = ref(
@@ -6416,27 +6487,35 @@ initializeFirebase(function (app, auth, database, storage) {
                     // Display the filtered contacts in the modal
                     displayContactsInModal(validContacts);
                 } else {
-                    console.log("No users found in the users collection.");
+                    if (mainContainer) mainContainer.innerHTML = "<p class=\"text-muted text-center py-3\">No users found.</p>";
                 }
             } else {
-                console.log("No contacts found for the current user.");
+                if (mainContainer) mainContainer.innerHTML = "<p class=\"text-muted text-center py-3\">No contacts yet. Use Invite Others to add contacts.</p>";
             }
         } catch (error) {
             console.error("Error fetching contacts or users:", error);
+            if (mainContainer) mainContainer.innerHTML = "<p class=\"text-danger text-center py-3\">Failed to load contacts.</p>";
         }
     };
 
-
-// Assuming you have a button to open the modal
-document
-    .getElementById("newChatButton")
-    .addEventListener("click", openNewChatModal);
+    // Load contacts when New Chat modal is shown (works for + button or any opener)
+    const newChatModalEl = document.getElementById("new-chat");
+    if (newChatModalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+        newChatModalEl.addEventListener("show.bs.modal", function () {
+            openNewChatModal();
+        });
+    }
+    const newChatBtn = document.getElementById("newChatButton");
+    if (newChatBtn) {
+        newChatBtn.addEventListener("click", openNewChatModal);
+    }
 
 // =================================================================
 // AGORA AUDIO CALL IMPLEMENTATION (REVISED)
 // =================================================================
 
-const APP_ID = "e368b7a2b5d84c34a1b31da838758a32";
+// Use Agora App ID from server (script.blade.php sets window.APP_ID from .env) or fallback
+const APP_ID = typeof window.APP_ID !== "undefined" && window.APP_ID ? window.APP_ID : "e368b7a2b5d84c34a1b31da838758a32";
 let audioClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 let localAudioTrack = null;
 let callTimerInterval = null;
@@ -6998,7 +7077,7 @@ onValue(ref(database, `data/calls`), (snapshot) => {
 // AGORA VIDEO CALL IMPLEMENTATION (REVISED)
 // =================================================================
 
-const VIDEO_APP_ID = "e368b7a2b5d84c34a1b31da838758a32"; // Same or different from audio app ID
+const VIDEO_APP_ID = typeof window.APP_ID !== "undefined" && window.APP_ID ? window.APP_ID : "e368b7a2b5d84c34a1b31da838758a32"; // Same as APP_ID from .env when using Agora
 let videoClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 let localVideoTrack = null;
 let localAudioTrackForVideo = null;

@@ -1,4 +1,4 @@
-﻿@extends('frontend.layout')
+@extends('frontend.layout')
 
 @section('content')
 <!-- content -->
@@ -24,7 +24,7 @@
                     <div class="ms-2 overflow-hidden">
                         <div class="d-flex align-items-center gap-1">
                             <h6></h6>
-                            <span class="kyc-badge badge bg-success-transparent text-success badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
+                            <span class="kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
                                 <i class="ti ti-shield-check"></i>
                             </span>
                         </div>
@@ -208,11 +208,21 @@
                         </div>
                         <div class="d-flex align-items-center justify-content-center gap-1">
                             <h6 id="contact-full-name"></h6>
-                            <span class="contact-kyc-badge badge bg-success-transparent text-success badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
-                                <i class="ti ti-shield-check"></i>
+                            <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
+                                <i class="ti ti-shield-check"></i> {{ __('Verified') }}
                             </span>
                         </div>
                         <p id="contact-last-seen"></p>
+                        <div class="d-flex align-items-center justify-content-center gap-2 mt-2">
+                            @if(config('calls.provider') === 'meet')
+                            <a href="https://meet.google.com/new" target="_blank" class="btn btn-sm btn-outline-primary" title="{{ __('Video') }}"><i class="ti ti-video"></i></a>
+                            @else
+                            <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-profile-audio-btn" title="{{ __('Audio') }}"><i class="ti ti-phone"></i></a>
+                            <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-profile-video-btn" title="{{ __('Video') }}"><i class="ti ti-video"></i></a>
+                            @endif
+                            <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" title="{{ __('Chat') }}"><i class="ti ti-message"></i></a>
+                            <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" title="{{ __('Search') }}"><i class="ti ti-search"></i></a>
+                        </div>
                     </div>
                     <div class="content-wrapper">
                         <h5 class="sub-title">{{ __('Profile Info') }}</h5>
@@ -222,28 +232,15 @@
                                     <li class="list-group-item">
                                         <div class="profile-info">
                                             <h6>{{ __('Name') }}</h6>
-                                            <p id="contact-name"></p>
+                                            <p id="contact-name" class="d-flex align-items-center flex-wrap gap-1">
+                                                <span id="contact-name-text"></span>
+                                                <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
+                                                    <i class="ti ti-shield-check"></i> {{ __('Verified') }}
+                                                </span>
+                                            </p>
                                         </div>
                                         <div class="profile-icon">
                                             <i class="ti ti-user-circle"></i>
-                                        </div>
-                                    </li>
-                                    <li class="list-group-item">
-                                        <div class="info">
-                                            <h6>{{ __('Email Address') }}</h6>
-                                            <p id="contact-email"></p>
-                                        </div>
-                                        <div class="icon">
-                                            <i class="ti ti-mail-heart"></i>
-                                        </div>
-                                    </li>
-                                    <li class="list-group-item">
-                                        <div class="info">
-                                            <h6>{{ __('Phone') }}</h6>
-                                            <p id="contact-phone"></p>
-                                        </div>
-                                        <div class="icon">
-                                            <i class="ti ti-phone-check"></i>
                                         </div>
                                     </li>
                                     <li class="list-group-item">
@@ -255,6 +252,33 @@
                                             <i class="ti ti-user-check"></i>
                                         </div>
                                     </li>
+                                    <li class="list-group-item">
+                                        <div class="info">
+                                            <h6>{{ __('Location') }}</h6>
+                                            <p id="contact-location"></p>
+                                        </div>
+                                        <div class="icon">
+                                            <i class="ti ti-map-pin"></i>
+                                        </div>
+                                    </li>
+                                    <li class="list-group-item">
+                                        <div class="info">
+                                            <h6>{{ __('Website') }}</h6>
+                                            <p id="contact-website" class="mb-0"></p>
+                                        </div>
+                                        <div class="icon">
+                                            <i class="ti ti-world"></i>
+                                        </div>
+                                    </li>
+                                    <li class="list-group-item">
+                                        <div class="info">
+                                            <h6>{{ __('Join Date') }}</h6>
+                                            <p id="contact-join-date"></p>
+                                        </div>
+                                        <div class="icon">
+                                            <i class="ti ti-calendar-event"></i>
+                                        </div>
+                                    </li>
                                 </ul>
                             </div>
                         </div>
@@ -263,15 +287,14 @@
                         <h5 class="sub-title">{{ __('Social Profiles') }}</h5>
                         <div class="card">
                             <div class="card-body">
-                                <div class="social-icon">
-                                    <a id="facebook-link" href="javascript:void(0);"><i
-                                            class="ti ti-brand-facebook"></i></a>
-                                    <a id="twitter-link" href="javascript:void(0);"><i
-                                            class="ti ti-brand-twitter"></i></a>
-                                    <a id="google-link" href="javascript:void(0);"><i
-                                            class="ti ti-brand-google"></i></a>
-                                    <a id="linkedin-link" href="javascript:void(0);"><i
-                                            class="ti ti-brand-linkedin"></i></a>
+                                <div class="social-icon d-flex align-items-center flex-wrap gap-2">
+                                    <a id="facebook-link" href="javascript:void(0);"><i class="ti ti-brand-facebook"></i></a>
+                                    <a id="twitter-link" href="javascript:void(0);"><i class="ti ti-brand-twitter"></i></a>
+                                    <a id="google-link" href="javascript:void(0);"><i class="ti ti-brand-google"></i></a>
+                                    <a id="linkedin-link" href="javascript:void(0);"><i class="ti ti-brand-linkedin"></i></a>
+                                    <span class="contact-social-verified badge verified-badge badge-xs ms-1" style="display:none;" title="{{ __('Verified') }}">
+                                        <i class="ti ti-circle-check"></i> {{ __('Verified') }}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -2089,5 +2112,17 @@
     });
     </script>
     @endif
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var audioBtn = document.getElementById('contact-profile-audio-btn');
+        var videoBtn = document.getElementById('contact-profile-video-btn');
+        if (audioBtn && document.getElementById('audio-call-btn')) {
+            audioBtn.addEventListener('click', function() { document.getElementById('audio-call-btn').click(); });
+        }
+        if (videoBtn && document.getElementById('video-call-new-btn')) {
+            videoBtn.addEventListener('click', function() { document.getElementById('video-call-new-btn').click(); });
+        }
+    });
+    </script>
 </div>
     @endsection

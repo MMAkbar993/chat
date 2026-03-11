@@ -241,45 +241,77 @@
                         <div class="d-flex align-items-center justify-content-between">
                             <div class="d-flex align-items-center mb-3">
                                 <span class="avatar avatar-lg">
-                                    <img src="" class="rounded-circle" alt="img">
+                                    <img src="" class="rounded-circle" alt="img" id="contact-detail-avatar">
                                 </span>
                                 <div class="ms-2">
-                                    <div class="d-flex align-items-center gap-1">
-                                        <h6></h6>
-                                        <span class="contact-kyc-badge badge bg-success-transparent text-success badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
-                                            <i class="ti ti-shield-check"></i>
+                                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                                        <h6 id="contact-detail-name"></h6>
+                                        <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
+                                            <i class="ti ti-shield-check"></i> {{ __('Verified') }}
                                         </span>
                                     </div>
-                                    <p></p>
+                                    <p class="mb-0 small text-muted" id="contact-detail-title"></p>
                                 </div>
                             </div>
-                            <div class="contact-actions d-flex align-items-center mb-3">
-                                <a href="javascript:void(0);" class="me-2" id="chat-button" >
-                                    <i class="ti ti-message chat-button"></i>
-                                </a>
+                            <div class="contact-actions d-flex align-items-center gap-2 mb-3">
+                                <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-detail-chat-btn" title="{{ __('Chat') }}"><i class="ti ti-message"></i></a>
+                                @if(config('calls.provider') === 'meet')
+                                <a href="https://meet.google.com/new" target="_blank" class="btn btn-sm btn-outline-primary" title="{{ __('Video') }}"><i class="ti ti-video"></i></a>
+                                @else
+                                <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-detail-voice-btn" title="{{ __('Voice Call') }}"><i class="ti ti-phone"></i></a>
+                                <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-detail-video-btn" title="{{ __('Video Call') }}"><i class="ti ti-video"></i></a>
+                                @endif
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="card border mb-3">
-                    <div class="card-header border-bottom">
-                        <h6>{{ __('Personal Information')}}</h6>
+                    <div class="card-header border-bottom"><h6 class="mb-0">{{ __('Personal Information')}}</h6></div>
+                    <div class="card-body pb-1">
+                        <div class="mb-2">
+                            <div class="row align-items-center">
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-clock-hour-4 me-1"></i>{{ __('Local Time')}}</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="local_time">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-calendar-event me-1"></i>{{ __('Date of Birth')}}</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="dob">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-phone me-1"></i>{{ __('Phone Number')}}</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="phone">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-mail me-1"></i>{{ __('Email')}}</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="email">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-world me-1"></i>{{ __('Website')}}</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="website">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-user-check me-1"></i>{{ __('Bio')}}</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="bio">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-map-pin me-1"></i>{{ __('Location')}}</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="location">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-calendar me-1"></i>{{ __('Join Date')}}</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="join_date">—</h6></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card border mb-0">
+                    <div class="card-header border-bottom d-flex align-items-center flex-wrap gap-2">
+                        <h6 class="mb-0">{{ __('Social Information')}}</h6>
+                        <span class="contact-social-verified badge verified-badge badge-xs" style="display:none;"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
                     </div>
                     <div class="card-body pb-1">
                         <div class="mb-2">
                             <div class="row align-items-center">
-                                <div class="col-sm-6">
-                                    <p class="mb-2 d-flex align-items-center"><i class="ti ti-phone me-1"></i>{{ __('Phone Number')}}</p>
-                                </div>
-                                <div class="col-sm-6">
-                                    <h6 class="fw-medium fs-14 mb-2" data-field="phone"></h6>
-                                </div>
-                                <div class="col-sm-6">
-                                    <p class="mb-2 d-flex align-items-center"><i class="ti ti-mail me-1"></i>{{ __('Email')}}</p>
-                                </div>
-                                <div class="col-sm-6">
-                                    <h6 class="fw-medium fs-14 mb-2" data-field="email"></h6>
-                                </div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-facebook me-1"></i>Facebook</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="facebook">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-twitter me-1"></i>Twitter</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="twitter">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-instagram me-1"></i>Instagram</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="instagram">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-linkedin me-1"></i>LinkedIn</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="linkedin">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-youtube me-1"></i>YouTube</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="youtube">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-device-gamepad-2 me-1"></i>Kick</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="kick">—</h6></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-twitch me-1"></i>Twitch</p></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="twitch">—</h6></div>
                             </div>
                         </div>
                     </div>

@@ -102,6 +102,8 @@ Route::get('api/kyc-status', function (\Illuminate\Http\Request $request) {
     return response()->json(['verified' => $user && $user->isKycVerified()]);
 })->name('kyc.status');
 
+Route::get('api/public-profile-by-email', [UserSearchController::class, 'publicProfileByEmail'])->name('public-profile.by-email');
+
 // Registration flow status polling (used by the signup page AJAX flow)
 Route::get('api/registration-status', function (\Illuminate\Http\Request $request) {
     $user = \Illuminate\Support\Facades\Auth::user()
@@ -159,6 +161,7 @@ Route::middleware(['auth'])->prefix('connect')->group(function () {
    Route::delete('social-accounts/{id}', [App\Http\Controllers\API\SocialAccountController::class, 'disconnect'])->name('social.disconnect');
    Route::post('social-accounts/{id}/disconnect', [App\Http\Controllers\API\SocialAccountController::class, 'disconnect'])->name('social.disconnect.post');
    Route::put('social-accounts/{id}/profile-url', [App\Http\Controllers\API\SocialAccountController::class, 'updateProfileUrl'])->name('social.profile-url.update');
+   Route::put('linkedin-profile-url', [App\Http\Controllers\API\SocialAccountController::class, 'saveLinkedInProfileUrl'])->name('linkedin.profile-url.save');
    Route::get('/{platform}', [App\Http\Controllers\API\SocialAccountController::class, 'redirect'])->name('social.connect');
    Route::get('/{platform}/callback', [App\Http\Controllers\API\SocialAccountController::class, 'callback'])->name('social.callback');
 });
@@ -266,6 +269,7 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
    Route::post('/profile-settings/save', [ProfileSettingsController::class, 'save'])->name('profile-settings.save');
    Route::post('/settings/websites/add', [ApiWebsiteController::class, 'storeFromWeb'])->name('settings.websites.add');
    Route::post('/settings/websites/{id}/verify', [ApiWebsiteController::class, 'verify'])->name('settings.websites.verify');
+   Route::delete('/settings/websites/{id}', [ApiWebsiteController::class, 'destroy'])->name('settings.websites.destroy');
    Route::post('/contacts', [ContactController::class, 'store'])->name('contacts.store');
    Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
    Route::get('/api/chat-list', [ChatController::class, 'chatList'])->name('chat.list');

@@ -73,4 +73,71 @@ class UserSearchController extends Controller
 
         return view('frontend.public-profile', compact('user'));
     }
+
+    /**
+     * Public profile data by email (for chat Contact Info).
+     * GET /api/public-profile-by-email?email=
+     */
+    public function publicProfileByEmail(Request $request)
+    {
+        $email = $request->query('email');
+        if (!is_string($email) || !strlen(trim($email))) {
+            return response()->json(['error' => 'Email required'], 400);
+        }
+        $user = User::where('email', trim($email))
+            ->with(['get_user_details', 'websites', 'socialAccounts'])
+            ->first();
+        if (!$user) {
+            return response()->json([
+                'display_name' => '',
+                'bio' => '',
+                'location' => '',
+                'websites' => [],
+                'join_date' => null,
+                'dob' => null,
+                'kyc_verified' => false,
+                'social_verified' => false,
+                'social_links' => [],
+            ]);
+        }
+        $details = $user->get_user_details;
+        $verifiedPlatforms = $user->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
+        $websites = $user->websites->filter(fn ($w) => $w->isVerified())->map(fn ($w) => [
+            'url' => $w->getDisplayUrl(),
+        ])->values()->all();
+
+        $platformToDetail = [
+            'facebook' => optional($details)->facebook,
+            'x' => optional($details)->twitter,
+            'twitter' => optional($details)->twitter,
+            'instagram' => optional($details)->instagram,
+            'linkedin' => optional($details)->linkedin,
+            'youtube' => optional($details)->youtube,
+            'kick' => optional($details)->kick,
+            'twitch' => optional($details)->twitch,
+        ];
+        $socialLinks = [];
+        foreach (['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'] as $key) {
+            $url = $platformToDetail[$key] ?? null;
+            if (empty($url)) {
+                $oauthKey = $key === 'twitter' ? 'x' : $key;
+                $acc = $user->socialAccounts()->where('platform', $oauthKey)->where('oauth_verified', true)->first();
+                $url = $acc && $acc->profile_url ? $acc->profile_url : ($acc ? ('https://' . ($key === 'twitter' ? 'x.com' : $key . '.com')) : null);
+            }
+            $socialLinks[$key] = $url ?: '';
+        }
+
+        return response()->json([
+            'display_name' => $user->public_display_name,
+            'bio' => $details->user_about ?? '',
+            'location' => $user->country ?? $details->location ?? '',
+            'websites' => $websites,
+            'join_date' => $user->created_at?->format('F j, Y'),
+            'dob' => $user->dob ? \Carbon\Carbon::parse($user->dob)->format('d F Y') : null,
+            'kyc_verified' => $user->isKycVerified(),
+            'social_verified' => count($verifiedPlatforms) > 0,
+            'social_platforms' => $verifiedPlatforms,
+            'social_links' => $socialLinks,
+        ]);
+    }
 }

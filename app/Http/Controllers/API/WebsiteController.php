@@ -12,6 +12,7 @@ use App\Services\WebsiteVerificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class WebsiteController extends Controller
@@ -215,7 +216,7 @@ class WebsiteController extends Controller
             }
 
             if ($userWebsite->isVerified()) {
-                return send_success_response([], 'Website is already verified.');
+                return send_success_response([], __('Website is already verified.'));
             }
 
             $domain = $this->verificationService->normalizeDomain($userWebsite->url);
@@ -225,11 +226,18 @@ class WebsiteController extends Controller
                     'can_request_representation' => true,
                 ]);
                 $data = $this->encryptionService->encryptData($result);
-                return send_success_response(['data' => $data], 'This website has already been verified by another user.');
+                return send_success_response(['data' => $data], __('This website has already been verified by another user.'));
             }
 
-            // Run synchronously so the user gets immediate feedback
-            VerifyWebsiteMetaTag::dispatchSync($userWebsite->id);
+            try {
+                VerifyWebsiteMetaTag::dispatchSync($userWebsite->id);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Website verify job failed', ['id' => $id, 'message' => $e->getMessage()]);
+                return send_success_response(
+                    ['verified' => false],
+                    __('Verification failed. Please check the meta tag and try again.')
+                );
+            }
 
             // Refresh the model to check if verification succeeded
             $userWebsite->refresh();
@@ -238,13 +246,18 @@ class WebsiteController extends Controller
             $result = json_encode([
                 'verified' => $verified,
                 'message' => $verified
-                    ? 'Website verified successfully!'
-                    : 'Verification failed. Make sure the meta tag is in your site\'s <head> section and try again.',
+                    ? __('Website verified successfully!')
+                    : __('Verification failed. Make sure the meta tag is in your site\'s <head> section and try again.'),
             ]);
             $data = $this->encryptionService->encryptData($result);
-            return send_success_response(['data' => $data], $verified ? 'Website verified!' : 'Verification failed.');
+            $message = $verified ? __('Website verified successfully!') : __('Verification failed. Make sure the meta tag is in your site\'s <head> section and try again.');
+            return send_success_response(['data' => $data], $message);
         } catch (\Exception $e) {
-            return send_exception_response($e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Website verify error', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return send_success_response(
+                ['verified' => false],
+                __('Something went wrong. Please try again.')
+            );
         }
     }
 

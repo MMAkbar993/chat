@@ -1,0 +1,74 @@
+/**
+ * Verified badge – single design everywhere.
+ * White background, pill shape, vibrant green border and text.
+ */
+.verified-badge,
+.badge.verified-badge,
+.contact-kyc-badge.verified-badge,
+.contact-social-verified.verified-badge {
+  --verified-green: #10b981;
+  background-color: #fff !important;
+  color: var(--verified-green) !important;
+  border: 1.5px solid var(--verified-green) !important;
+  border-radius: 50px !important;
+  font-weight: 600 !important;
+  padding: 4px 10px !important;
+  display: inline-flex !important;
+  align-items: center;
+}
+.verified-badge:hover,
+.badge.verified-badge:hover {
+  background-color: #fff !important;
+  color: var(--verified-green) !important;
+  border-color: var(--verified-green) !important;
+}
+.badge.verified-badge.badge-xs {
+  padding: 2px 8px !important;
+  font-size: 10px;
+}
+.badge.verified-badge.badge-sm {
+  padding: 4px 10px !important;
+  font-size: 11px;
+}
+.badge.verified-badge.badge-lg {
+  padding: 6px 12px !important;
+  font-size: 13px;
+}
+.verified-badge .ti,
+.verified-badge i {
+  color: inherit;
+}
+
+/* Optional: same green for standalone verified icons (e.g. next to links) */
+.verified-icon {
+  color: var(--verified-green, #10b981) !important;
+}
+
+/* Apply same design to KYC and social verified badges (no extra class needed) */
+.kyc-badge,
+.contact-kyc-badge,
+.contact-social-verified {
+  --verified-green: #10b981;
+  background-color: #fff !important;
+  color: var(--verified-green) !important;
+  border: 1.5px solid var(--verified-green) !important;
+  border-radius: 50px !important;
+  font-weight: 600 !important;
+  padding: 4px 10px !important;
+  display: inline-flex !important;
+  align-items: center;
+}
+.contact-kyc-badge.badge-xs,
+.contact-social-verified.badge-xs,
+.kyc-badge.badge-xs {
+  padding: 2px 8px !important;
+  font-size: 10px;
+}
+.contact-kyc-badge .ti,
+.contact-kyc-badge i,
+.contact-social-verified .ti,
+.contact-social-verified i,
+.kyc-badge .ti,
+.kyc-badge i {
+  color: inherit;
+}

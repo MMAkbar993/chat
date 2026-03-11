@@ -74,6 +74,7 @@ class ProfileSettingsController extends Controller
                 'primary_role' => 'sometimes|nullable|string|max:80',
                 'other_role_text' => 'sometimes|nullable|string|max:255',
                 'profile_image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif,svg|max:5120',
+                'profile_display_name' => 'sometimes|nullable|string|in:full_name,username',
             ];
 
             $validator = Validator::make($request->all(), $rules);
@@ -87,6 +88,10 @@ class ProfileSettingsController extends Controller
             $userFields = ['mobile_number', 'gender', 'dob', 'country', 'primary_role', 'other_role_text', 'user_name'];
             if (!$nameLocked) {
                 $userFields = array_merge($userFields, ['first_name', 'last_name']);
+            }
+            if ($user->isKycVerified() && $request->has('profile_display_name')) {
+                $user->profile_display_name = in_array($request->input('profile_display_name'), ['full_name', 'username'], true)
+                    ? $request->input('profile_display_name') : 'full_name';
             }
             if (!$emailLocked) {
                 $userFields[] = 'email';

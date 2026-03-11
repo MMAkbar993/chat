@@ -88,22 +88,77 @@
                     if (!data) return;
                     var editId = document.getElementById('edit-user-id');
                     if (editId) editId.value = uid;
-                    var h6 = document.querySelector('#contact-details h6');
-                    if (h6) h6.textContent = (data.firstName || '') + ' ' + (data.lastName || '').trim() || data.userName || data.email || 'Contact';
-                    var avatar = document.querySelector('#contact-details .avatar img');
+                    var nameEl = document.getElementById('contact-detail-name') || document.querySelector('#contact-details h6');
+                    var displayName = (data.firstName || '') + ' ' + (data.lastName || '').trim() || data.userName || data.email || 'Contact';
+                    if (nameEl) nameEl.textContent = displayName;
+                    var titleEl = document.getElementById('contact-detail-title');
+                    if (titleEl) titleEl.textContent = data.primary_role || data.userName || '';
+                    var avatar = document.getElementById('contact-detail-avatar') || document.querySelector('#contact-details .avatar img');
                     if (avatar) avatar.src = data.image || (baseUrl + '/assets/img/profiles/avatar-03.jpg');
-                    var phone = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="phone"]');
-                    if (phone) phone.textContent = data.mobile_number || 'N/A';
+                    var phoneEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="phone"]');
+                    if (phoneEl) phoneEl.textContent = data.mobile_number || '—';
                     var emailEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="email"]');
-                    if (emailEl) emailEl.textContent = data.email || 'N/A';
+                    if (emailEl) emailEl.textContent = data.email || '—';
                     var kycBadge = document.querySelector('#contact-details .contact-kyc-badge');
-                    if (kycBadge && data.email) {
-                        kycBadge.style.display = 'none';
-                        fetch(baseUrl + '/api/kyc-status?email=' + encodeURIComponent(data.email))
+                    var socialVerified = document.querySelector('#contact-details .contact-social-verified');
+                    if (kycBadge) kycBadge.style.display = 'none';
+                    if (socialVerified) socialVerified.style.display = 'none';
+                    if (data.email) {
+                        fetch(baseUrl + '/api/public-profile-by-email?email=' + encodeURIComponent(data.email))
                             .then(function (r) { return r.json(); })
-                            .then(function (d) { kycBadge.style.display = d.verified ? 'inline-flex' : 'none'; })
+                            .then(function (pub) {
+                                if (!pub) return;
+                                if (pub.display_name && nameEl) nameEl.textContent = pub.display_name;
+                                if (kycBadge) kycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
+                                if (socialVerified) socialVerified.style.display = (pub.social_verified ? 'inline-flex' : 'none');
+                                var setField = function (field, value, asLink) {
+                                    var el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
+                                    if (!el) return;
+                                    if (asLink && value && (value.indexOf('http') === 0 || value.indexOf('www') === 0)) {
+                                        var href = value.indexOf('http') === 0 ? value : 'https://' + value;
+                                        el.innerHTML = '<a href="' + escapeAttr(href) + '" target="_blank" rel="noopener">' + escapeHtml(value) + '</a>';
+                                    } else {
+                                        el.textContent = value || '—';
+                                    }
+                                };
+                                var now = new Date();
+                                var localTime = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
+                                setField('local_time', localTime);
+                                setField('dob', pub.dob);
+                                setField('bio', pub.bio);
+                                setField('location', pub.location);
+                                setField('join_date', pub.join_date);
+                                if (pub.websites && pub.websites.length > 0) {
+                                    setField('website', pub.websites[0].url, true);
+                                } else {
+                                    setField('website', '');
+                                }
+                                var socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
+                                if (pub.social_links) {
+                                    socialKeys.forEach(function (k) {
+                                        setField(k, pub.social_links[k], true);
+                                    });
+                                }
+                            })
                             .catch(function () {});
+                    } else {
+                        ['local_time', 'dob', 'website', 'bio', 'location', 'join_date', 'facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'].forEach(function (field) {
+                            var el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
+                            if (el) el.textContent = '—';
+                        });
                     }
+                    var chatBtn = document.getElementById('contact-detail-chat-btn');
+                    var voiceBtn = document.getElementById('contact-detail-voice-btn');
+                    var videoBtn = document.getElementById('contact-detail-video-btn');
+                    var goToChat = function () {
+                        try { localStorage.setItem('selectedUserId', uid); } catch (e) {}
+                        window.location.href = baseUrl + '/chat';
+                    };
+                    if (chatBtn) { chatBtn.onclick = goToChat; chatBtn.href = 'javascript:void(0);'; }
+                    if (voiceBtn) { voiceBtn.onclick = goToChat; voiceBtn.href = 'javascript:void(0);'; }
+                    if (videoBtn) { videoBtn.onclick = goToChat; videoBtn.href = 'javascript:void(0);'; }
+                    var oldChatBtn = document.getElementById('chat-button');
+                    if (oldChatBtn) { oldChatBtn.onclick = goToChat; oldChatBtn.href = 'javascript:void(0);'; }
                 });
             });
         }).catch(function () {

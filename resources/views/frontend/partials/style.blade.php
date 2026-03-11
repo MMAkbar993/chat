@@ -39,6 +39,7 @@
 
 <!-- Style CSS -->
 <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
+<link rel="stylesheet" href="{{ asset('assets/css/verified-badge.css') }}">
 <!-- Welcome screen background and visibility -->
 <link rel="stylesheet" href="{{ asset('assets/css/welcome-screen-fix.css') }}">
 <!-- SPA modals z-index fix (Add contact, etc.) -->

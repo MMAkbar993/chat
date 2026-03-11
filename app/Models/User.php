@@ -24,6 +24,7 @@ class User extends Authenticatable implements JWTSubject
     protected $fillable = [
         'first_name', 'last_name', 'full_name', 'email', 'user_name', 'password', 'user_type', 'api_token', 'gender', 'dob', 'mobile_number', 'profile_image', 'provider', 'provider_id', 'last_login_at',
         'company_name', 'company_domain', 'country', 'primary_role', 'other_role_text', 'terms_accepted_at', 'kyc_verified_at', 'kyc_provider_id', 'subscription_status',
+        'profile_display_name',
         'two_factor_secret', 'two_factor_enabled_at', 'is_blocked',
     ];
 
@@ -87,6 +88,17 @@ class User extends Authenticatable implements JWTSubject
     public function isKycVerified(): bool
     {
         return $this->kyc_verified_at !== null;
+    }
+
+    /**
+     * Display name shown on public profile (verified users can choose username vs full name).
+     */
+    public function getPublicDisplayNameAttribute(): string
+    {
+        if ($this->isKycVerified() && ($this->profile_display_name ?? 'full_name') === 'username') {
+            return $this->user_name ?? $this->full_name ?? trim($this->first_name . ' ' . $this->last_name) ?: 'User';
+        }
+        return $this->full_name ?? trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? '')) ?: $this->user_name ?? 'User';
     }
 
     public function isSubscriptionActive(): bool

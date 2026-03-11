@@ -49,45 +49,50 @@ class SocialAccountController extends Controller
 
     public function redirect(string $platform): \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
     {
-        $platform = strtolower($platform);
-        if (!in_array($platform, SocialAccount::supportedPlatforms())) {
-            return response()->json(['error' => 'Unsupported platform'], 400);
-        }
-
         try {
-            $driver = $this->getDriverForPlatform($platform);
-            if (!$driver) {
-                return response()->json(['error' => 'Platform not configured'], 400);
+            $platform = strtolower($platform);
+            if (!in_array($platform, SocialAccount::supportedPlatforms())) {
+                return response()->json(['error' => 'Unsupported platform'], 400);
             }
 
-            $callbackUrl = url("/connect/{$platform}/callback");
-            $config = $this->getDriverConfig($driver, $platform);
-            if (!$config || empty($config['client_id'])) {
-                return $this->platformConfigError($platform);
-            }
-            // Use explicit redirect from config when set (e.g. LINKEDIN_REDIRECT_URI) so it matches the provider's console exactly
-            $redirectUrl = !empty($config['redirect']) ? $config['redirect'] : $callbackUrl;
+            try {
+                $driver = $this->getDriverForPlatform($platform);
+                if (!$driver) {
+                    return response()->json(['error' => 'Platform not configured'], 400);
+                }
 
-            $socialite = Socialite::driver($driver)->stateless();
-            $socialite->redirectUrl($redirectUrl);
-            $this->applyDriverConfig($socialite, $config, $redirectUrl);
-            if ($platform === 'youtube' && method_exists($socialite, 'scopes')) {
-                $socialite->scopes(['openid', 'profile', 'email', 'https://www.googleapis.com/auth/youtube.readonly']);
+                $callbackUrl = url("/connect/{$platform}/callback");
+                $config = $this->getDriverConfig($driver, $platform);
+                if (!$config || empty($config['client_id'])) {
+                    return $this->platformConfigError($platform);
+                }
+                // Use explicit redirect from config when set (e.g. LINKEDIN_REDIRECT_URI) so it matches the provider's console exactly
+                $redirectUrl = !empty($config['redirect']) ? $config['redirect'] : $callbackUrl;
+
+                $socialite = Socialite::driver($driver)->stateless();
+                $socialite->redirectUrl($redirectUrl);
+                $this->applyDriverConfig($socialite, $config, $redirectUrl);
+                if ($platform === 'youtube' && method_exists($socialite, 'scopes')) {
+                    $socialite->scopes(['openid', 'profile', 'email', 'https://www.googleapis.com/auth/youtube.readonly']);
+                }
+                return $socialite->redirect();
+            } catch (\Throwable $e) {
+                $msg = $e->getMessage();
+                Log::error('Social connect redirect failed', [
+                    'platform' => $platform,
+                    'message' => $msg,
+                    'exception' => get_class($e),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                if (str_contains($msg, 'not supported')) {
+                    return $this->platformConfigError($platform);
+                }
+                // Return redirect for popup UX: show settings with error instead of raw 500
+                return redirect()->route('settings')->with('error', __('Social verification failed. Please check OAuth settings in .env (client_id, client_secret, redirect URI) and try again.'));
             }
-            return $socialite->redirect();
         } catch (\Throwable $e) {
-            $msg = $e->getMessage();
-            Log::error('Social connect redirect failed', [
-                'platform' => $platform,
-                'message' => $msg,
-                'exception' => get_class($e),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            if (str_contains($msg, 'not supported')) {
-                return $this->platformConfigError($platform);
-            }
-            // Return redirect for popup UX: show settings with error instead of raw 500
-            return redirect()->route('settings')->with('error', __('Social verification failed. Please check OAuth settings in .env (client_id, client_secret, redirect URI) and try again.'));
+            Log::error('Social connect redirect outer failed', ['platform' => $platform ?? 'unknown', 'message' => $e->getMessage()]);
+            return redirect()->route('settings')->with('error', __('Social verification failed. Please try again.'));
         }
     }
 
@@ -116,12 +121,15 @@ class SocialAccountController extends Controller
 
     public function callback(Request $request, string $platform): \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
     {
-        $platform = strtolower($platform);
-        if (!in_array($platform, SocialAccount::supportedPlatforms())) {
-            return redirect()->route('settings')->with('error', 'Unsupported platform');
-        }
-
+        $settingsUrl = url()->route('settings');
+        $closeAndReload = '<script>try { if (window.opener) { window.opener.location.reload(); window.close(); } else { window.location.href="' . e($settingsUrl) . '"; } } catch(z) { window.location.href="' . e($settingsUrl) . '"; }</script>';
         try {
+            $platform = strtolower($platform);
+            if (!in_array($platform, SocialAccount::supportedPlatforms())) {
+                return redirect()->route('settings')->with('error', 'Unsupported platform');
+            }
+
+            try {
             $user = Auth::user();
             if (!$user) {
                 return redirect()->route('settings')->with('error', 'You must be logged in to connect accounts.');
@@ -156,7 +164,7 @@ class SocialAccountController extends Controller
             }
 
             // Never use avatar URL as profile_url; profile_url is the public profile page only
-            SocialAccount::updateOrCreate(
+            $account = SocialAccount::updateOrCreate(
                 [
                     'user_id' => $user->id,
                     'platform' => $platform,
@@ -199,7 +207,22 @@ class SocialAccountController extends Controller
 
             session()->flash('success', ucfirst($platform) . ' account connected successfully.');
             Cache::forget('public_profile:' . strtolower($user->user_name));
-            return response('<script>window.opener ? (window.opener.location.reload(), window.close()) : (window.location.href="'.route('settings').'");</script>');
+            $accountId = (int) $account->id;
+            $platformJs = json_encode($platform);
+            $settingsUrlJs = json_encode($settingsUrl);
+            return response('<script>
+(function() {
+    var payload = { type: "social-connected", platform: ' . $platformJs . ', accountId: ' . $accountId . ' };
+    try {
+        if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(payload, "*");
+            if (typeof window.opener.showToast === "function") window.opener.showToast("Account connected successfully.");
+        }
+    } catch (e) {}
+    try { window.close(); } catch (z) {}
+    setTimeout(function() { window.location.href = ' . $settingsUrlJs . '; }, 100);
+})();
+</script>');
         } catch (\Throwable $e) {
             $msg = $e->getMessage();
             Log::error('Social connect callback failed', [
@@ -216,7 +239,17 @@ class SocialAccountController extends Controller
                 $userMessage = __('Access was denied or the authorization expired. Try connecting again.');
             }
             session()->flash('error', $userMessage);
-            return response('<script>window.opener ? (window.opener.location.reload(), window.close()) : (window.location.href="'.route('settings').'");</script>');
+            return response($closeAndReload);
+        }
+        } catch (\Throwable $outer) {
+            Log::error('Social connect callback outer failed', ['platform' => $platform ?? 'unknown', 'message' => $outer->getMessage()]);
+            try {
+                session()->flash('error', __('Could not connect account. Please try again.'));
+                $url = url()->route('settings');
+            } catch (\Throwable $u) {
+                $url = url('/');
+            }
+            return response('<script>try { if (window.opener) { window.opener.location.reload(); window.close(); } else { window.location.href="' . e($url) . '"; } } catch(z) { window.location.href="' . e($url) . '"; }</script>');
         }
     }
 
@@ -254,10 +287,10 @@ class SocialAccountController extends Controller
             if ($userName !== '') {
                 Cache::forget('public_profile:' . strtolower($userName));
             }
-            return send_success_response([], 'Account disconnected.');
+            return send_success_response(['platform' => $platform], 'Account disconnected.');
         } catch (\Throwable $e) {
             Log::error('Social disconnect failed', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return send_exception_response($e->getMessage());
+            return send_bad_request_response(__('Could not disconnect account. Please try again.'));
         }
     }
 
@@ -317,6 +350,66 @@ class SocialAccountController extends Controller
             return send_success_response([], __('Profile URL updated.'));
         } catch (\Throwable $e) {
             Log::error('Social update profile URL failed', ['id' => $id, 'message' => $e->getMessage()]);
+            return send_exception_response($e->getMessage());
+        }
+    }
+
+    /**
+     * Save LinkedIn profile URL only (no OAuth connect). LinkedIn does not provide profile URL
+     * from OAuth, so we offer a simple URL field + Save. Creates/updates user_details.linkedin and
+     * optionally a SocialAccount row with oauth_verified=false for consistency.
+     */
+    public function saveLinkedInProfileUrl(Request $request): \Illuminate\Http\JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return send_bad_request_response('User not found');
+            }
+
+            $url = $request->input('profile_url');
+            if ($url !== null) {
+                $url = trim((string) $url);
+            }
+            if ($url === '') {
+                $url = null;
+            }
+
+            if ($url !== null) {
+                if (!preg_match('#^https?://#i', $url)) {
+                    return send_bad_request_response('Profile URL must start with http:// or https://');
+                }
+                if (!preg_match('#^https?://(www\.)?linkedin\.com/in/#i', $url)) {
+                    return send_bad_request_response('LinkedIn profile URL must be like https://www.linkedin.com/in/yourname');
+                }
+            }
+
+            $details = $user->get_user_details;
+            if (!$details) {
+                $details = new UserDetails(['user_id' => $user->id]);
+            }
+            $details->linkedin = $url;
+            $details->save();
+
+            SocialAccount::updateOrCreate(
+                ['user_id' => $user->id, 'platform' => 'linkedin'],
+                [
+                    'platform_user_id' => 'manual',
+                    'username' => null,
+                    'profile_url' => $url,
+                    'oauth_verified' => false,
+                    'oauth_data' => null,
+                ]
+            );
+
+            $userName = $user->user_name ?? '';
+            if ($userName !== '') {
+                Cache::forget('public_profile:' . strtolower($userName));
+            }
+
+            return send_success_response([], __('Profile URL updated.'));
+        } catch (\Throwable $e) {
+            Log::error('Save LinkedIn profile URL failed', ['message' => $e->getMessage()]);
             return send_exception_response($e->getMessage());
         }
     }

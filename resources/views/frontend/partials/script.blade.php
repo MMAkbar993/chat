@@ -120,10 +120,11 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
                 'kick_link' => $ud ? ($ud->kick ?? '') : '',
                 'twitch_link' => $ud ? ($ud->twitch ?? '') : '',
                 'website_url' => (function () use ($u) {
-                    $first = $u->websites()->orderBy('sort_order')->first();
+                    $first = $u->websites()->whereNotNull('verified_at')->orderBy('sort_order')->first();
                     return $first ? $first->getDisplayUrl() : '';
                 })(),
-                'website_urls' => $u->websites()->orderBy('sort_order')->get()->map(fn ($w) => $w->getDisplayUrl())->values()->all(),
+                'website_urls' => $u->websites()->whereNotNull('verified_at')->orderBy('sort_order')->get()->map(fn ($w) => $w->getDisplayUrl())->values()->all(),
+                'profile_display_name' => $u->profile_display_name ?? 'full_name',
             ]);
             $verifiedPlatforms = $u->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
             $platformToKey = [ 'facebook' => 'facebook_link', 'x' => 'twitter_link', 'linkedin' => 'linkedin_link', 'youtube' => 'youtube_link', 'instagram' => 'instagram_link', 'kick' => 'kick_link', 'twitch' => 'twitch_link' ];
@@ -232,6 +233,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         setInputValue('edit-kick', u.kick_link || u.kick);
         setInputValue('edit-twitch', u.twitch_link || u.twitch);
         setInputValue('edit-instagram', u.instagram_link || u.instagram);
+        setInputValue('profile_display_name', u.profile_display_name || 'full_name');
         if (document.getElementById('user-id')) document.getElementById('user-id').innerText = 'Logged in as: ' + u.id;
     }
     if (document.readyState === 'loading') {
@@ -256,6 +258,9 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         var form = new FormData();
         form.append('_token', getToken());
         var ids = ['user_name','mobile_number','gender','dob','country','about','primary_role','other_role_text'];
+        if (typeof IS_KYC_VERIFIED !== 'undefined' && IS_KYC_VERIFIED) {
+            ids.push('profile_display_name');
+        }
         if (typeof IS_KYC_VERIFIED === 'undefined' || !IS_KYC_VERIFIED) {
             ids = ['firstName','lastName'].concat(ids);
         }
@@ -371,6 +376,7 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
 </script>
 <!-- Laravel data loaders: contacts, chat list, groups when Firebase disabled -->
 <script src="{{ asset('assets/js/laravel-data-loaders.js') }}"></script>
+<script src="{{ asset('assets/js/sidebar-search.js') }}"></script>
 @if (!Route::is('login','signup','register.payment'))
 {{-- "Add contact" button: ensure modal opens (SPA may replace #spa-page-modals so target must exist) --}}
 <script>
@@ -411,6 +417,23 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         } else if (chatUrl) {
             e.preventDefault();
             window.location.href = chatUrl;
+        }
+    }, true);
+})();
+</script>
+{{-- Invite form (chat page): prevent refresh when Firebase disabled; form has no handler so submit would reload --}}
+<script>
+(function() {
+    if (typeof window.FIREBASE_DISABLED === 'undefined' || !window.FIREBASE_DISABLED) return;
+    document.addEventListener('submit', function(e) {
+        if (e.target && e.target.id === 'inviteFormChat') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof Toastify !== 'undefined') {
+                Toastify({ text: 'Add contacts from the Contacts page.', duration: 3000, gravity: 'top', position: 'right', style: { background: '#7269ef' } }).showToast();
+            } else {
+                alert('Add contacts from the Contacts page.');
+            }
         }
     }, true);
 })();

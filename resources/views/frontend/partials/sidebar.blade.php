@@ -357,7 +357,7 @@
                                         <div>
                                             <h6 class="fs-16" id="profile-name">{{ __('Loading...') }}</h6>
                                             @if(Auth::check() && Auth::user()->isKycVerified())
-                                            <span class="badge bg-success-transparent text-success badge-xs mt-1" title="{{ __('ID Verified') }}">
+                                            <span class="badge verified-badge badge-xs mt-1" title="{{ __('ID Verified') }}">
                                                 <i class="ti ti-shield-check me-1"></i>{{ __('ID Verified') }}
                                             </span>
                                             @endif
@@ -442,7 +442,14 @@
 
                                     <!-- Social Media -->
                                     <h5 class="mb-2">{{ __('Social Media') }}</h5>
-                                    <p class="text-muted small mb-2">{{ __('Social links are displayed as provided and are not verified.') }}</p>
+                                    @php
+                                        $hasVerifiedSocial = Auth::check() && Auth::user()->socialAccounts()->where('oauth_verified', true)->exists();
+                                    @endphp
+                                    @if($hasVerifiedSocial)
+                                        <p class="text-muted small mb-2">{{ __('Verified links are shown with a badge. Other links are displayed as provided.') }}</p>
+                                    @else
+                                        <p class="text-muted small mb-2">{{ __('Social links are displayed as provided and are not verified.') }}</p>
+                                    @endif
                                     <div class="card">
                                         <div class="card-body">
                                             <div
@@ -476,14 +483,6 @@
                                                     <p class="fs-16" id="profile-info-instagram">{{ __('Loading...') }}</p>
                                                 </div>
                                                 <span><i class="ti ti-brand-instagram fs-16"></i></span>
-                                            </div>
-                                            <div
-                                                class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
-                                                <div>
-                                                    <h6 class="fs-14">{{ __('Website') }}</h6>
-                                                    <p class="fs-16" id="profile-info-website">{{ __('Loading...') }}</p>
-                                                </div>
-                                                <span><i class="ti ti-world fs-16"></i></span>
                                             </div>
                                             <div
                                                 class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
@@ -754,6 +753,19 @@
                                                                                 <span id="lastName_error" class="error-message text-danger"></span>
                                                                             </div>
                                                                         </div>
+                                                                        @if(Auth::check() && Auth::user()->isKycVerified())
+                                                                        <div class="col-lg-12">
+                                                                            <label class="form-label">{{ __('Display name on profile') }}</label>
+                                                                            <div class="input-icon mb-1 position-relative">
+                                                                                <select class="form-control" id="profile_display_name" name="profile_display_name">
+                                                                                    <option value="full_name">{{ __('Full name') }}</option>
+                                                                                    <option value="username">{{ __('Username') }}</option>
+                                                                                </select>
+                                                                                <span class="icon-addon"><i class="ti ti-user-circle"></i></span>
+                                                                                <small class="text-muted">{{ __('Verified users can show username instead of full name for privacy.') }}</small>
+                                                                            </div>
+                                                                        </div>
+                                                                        @endif
                                                                         <div class="col-lg-12">
                                                                             <div class="input-icon mb-1 position-relative">
                                                                                 <select class="form-control" id="gender">
@@ -896,7 +908,7 @@
                                                                             <div class="list-group-item d-flex flex-wrap align-items-center justify-content-between border rounded mb-2 p-3 website-row" data-website-id="{{ $w->id }}">
                                                                                 <div class="flex-grow-1 me-2">
                                                                                     @if($w->isVerified())
-                                                                                        <span class="badge bg-success me-2"><i class="ti ti-circle-check me-1"></i>{{ __('Verified') }}</span>
+                                                                                        <span class="badge verified-badge me-2"><i class="ti ti-circle-check me-1"></i>{{ __('Verified') }}</span>
                                                                                     @endif
                                                                                     <a href="{{ $w->getDisplayUrl() }}" target="_blank" rel="noopener" class="text-primary website-display-url">{{ $w->getDisplayUrl() }}</a>
                                                                                 </div>
@@ -907,6 +919,7 @@
                                                                                         <button type="button" class="btn btn-sm btn-success website-verify-btn" data-website-id="{{ $w->id }}">{{ __('Verify') }}</button>
                                                                                     </div>
                                                                                 @endif
+                                                                                <button type="button" class="btn btn-sm btn-outline-danger website-delete-btn ms-2" data-website-id="{{ $w->id }}" title="{{ __('Remove website') }}" aria-label="{{ __('Remove website') }}"><i class="ti ti-trash"></i></button>
                                                                             </div>
                                                                         @endforeach
                                                                     </div>
@@ -942,18 +955,23 @@
                                                                 @php
                                                                     $socialVerifiedPlatforms = Auth::check() ? Auth::user()->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray() : [];
                                                                     $socialAccountsByPlatform = Auth::check() ? Auth::user()->socialAccounts()->where('oauth_verified', true)->get()->keyBy('platform') : collect();
+                                                                    $linkedinUrl = '';
+                                                                    if (Auth::check()) {
+                                                                        $ud = Auth::user()->get_user_details;
+                                                                        $linkedinUrl = $ud && $ud->linkedin ? e($ud->linkedin) : '';
+                                                                        if ($linkedinUrl === '' && $socialAccountsByPlatform->has('linkedin')) {
+                                                                            $acc = $socialAccountsByPlatform->get('linkedin');
+                                                                            $linkedinUrl = ($acc && $acc->profile_url && $acc->profile_url !== 'https://www.linkedin.com/') ? e($acc->profile_url) : '';
+                                                                        }
+                                                                        $linkedinAcc = Auth::user()->socialAccounts()->where('platform', 'linkedin')->first();
+                                                                        if ($linkedinUrl === '' && $linkedinAcc && $linkedinAcc->profile_url && $linkedinAcc->profile_url !== 'https://www.linkedin.com/') {
+                                                                            $linkedinUrl = e($linkedinAcc->profile_url);
+                                                                        }
+                                                                    }
                                                                 @endphp
                                                                 <div class="chat-video">
                                                                     <div class="row">
-                                                                        <div class="col-lg-12">
-                                                                            <div class="input-icon mb-3 position-relative">
-                                                                                <input type="url" value="" class="form-control" placeholder="{{ __('Website')}} (https://...)" id="website_link">
-                                                                                <span class="icon-addon">
-                                                                                    <i class="ti ti-globe"></i>
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="col-lg-12">
+                                                                        <div class="col-lg-12" data-platform="facebook" data-connect-url="{{ route('social.connect', 'facebook') }}">
                                                                             <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
                                                                                 <div class="d-flex align-items-center">
                                                                                     <span class="avatar avatar-sm bg-soft-primary text-primary rounded-circle me-2">
@@ -961,11 +979,11 @@
                                                                                     </span>
                                                                                     <span class="fw-medium text-dark">{{ __('Facebook') }}</span>
                                                                                 </div>
-                                                                                <div>
+                                                                                <div class="social-profile-action">
                                                                                     @if(in_array('facebook', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('facebook'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -974,7 +992,7 @@
                                                                                 </div>
                                                                             </div>
                                                                         </div>
-                                                                        <div class="col-lg-12">
+                                                                        <div class="col-lg-12" data-platform="instagram" data-connect-url="{{ route('social.connect', 'instagram') }}">
                                                                             <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
                                                                                 <div class="d-flex align-items-center">
                                                                                     <span class="avatar avatar-sm bg-soft-danger text-danger rounded-circle me-2">
@@ -982,11 +1000,11 @@
                                                                                     </span>
                                                                                     <span class="fw-medium text-dark">{{ __('Instagram') }}</span>
                                                                                 </div>
-                                                                                <div>
+                                                                                <div class="social-profile-action">
                                                                                     @if(in_array('instagram', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('instagram'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -995,7 +1013,7 @@
                                                                                 </div>
                                                                             </div>
                                                                         </div>
-                                                                        <div class="col-lg-12">
+                                                                        <div class="col-lg-12" data-platform="x" data-connect-url="{{ route('social.connect', 'x') }}">
                                                                             <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
                                                                                 <div class="d-flex align-items-center">
                                                                                     <span class="avatar avatar-sm bg-soft-info text-info rounded-circle me-2">
@@ -1003,11 +1021,11 @@
                                                                                     </span>
                                                                                     <span class="fw-medium text-dark">{{ __('Twitter') }}</span>
                                                                                 </div>
-                                                                                <div>
+                                                                                <div class="social-profile-action">
                                                                                     @if(in_array('x', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('x'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -1017,36 +1035,21 @@
                                                                             </div>
                                                                         </div>
                                                                         <div class="col-lg-12">
-                                                                            <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
-                                                                                <div class="d-flex align-items-center">
+                                                                            <div class="mb-3 border p-2 rounded">
+                                                                                <div class="d-flex align-items-center mb-2">
                                                                                     <span class="avatar avatar-sm bg-soft-primary text-primary rounded-circle me-2">
                                                                                         <i class="ti ti-brand-linkedin fs-18"></i>
                                                                                     </span>
                                                                                     <span class="fw-medium text-dark">{{ __('LinkedIn') }}</span>
                                                                                 </div>
-                                                                                <div>
-                                                                                    @if(in_array('linkedin', $socialVerifiedPlatforms))
-                                                                                        @php $acc = $socialAccountsByPlatform->get('linkedin'); @endphp
-                                                                                        <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
-                                                                                            <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
-                                                                                        </div>
-                                                                                    @else
-                                                                                        <a href="{{ route('social.connect', 'linkedin') }}" class="btn btn-sm btn-outline-danger text-danger social-connect-btn">{{ __('Connect') }}</a>
-                                                                                    @endif
+                                                                                <label class="form-label small mb-1">{{ __('Your LinkedIn profile URL') }} (e.g. https://www.linkedin.com/in/yourname)</label>
+                                                                                <div class="input-group input-group-sm">
+                                                                                    <input type="url" id="linkedin-profile-url-input" class="form-control" placeholder="https://www.linkedin.com/in/yourname" value="{{ $linkedinUrl ?? '' }}">
+                                                                                    <button type="button" class="btn btn-outline-primary" id="linkedin-profile-url-save-btn">{{ __('Save') }}</button>
                                                                                 </div>
                                                                             </div>
-                                                                            @if(in_array('linkedin', $socialVerifiedPlatforms) && $acc)
-                                                                                <div class="mb-2 ps-2">
-                                                                                    <label class="form-label small mb-1">{{ __('LinkedIn does not provide your profile URL automatically. Paste your profile URL here') }} (e.g. https://www.linkedin.com/in/yourname)</label>
-                                                                                    <div class="input-group input-group-sm">
-                                                                                        <input type="url" class="form-control linkedin-profile-url-input" data-account-id="{{ $acc->id }}" placeholder="https://www.linkedin.com/in/yourname" value="{{ $acc->profile_url && $acc->profile_url !== 'https://www.linkedin.com/' ? e($acc->profile_url) : '' }}">
-                                                                                        <button type="button" class="btn btn-outline-primary linkedin-profile-url-btn">{{ __('Update URL') }}</button>
-                                                                                    </div>
-                                                                                </div>
-                                                                            @endif
                                                                         </div>
-                                                                        <div class="col-lg-12">
+                                                                        <div class="col-lg-12" data-platform="youtube" data-connect-url="{{ route('social.connect', 'youtube') }}">
                                                                             <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
                                                                                 <div class="d-flex align-items-center">
                                                                                     <span class="avatar avatar-sm bg-soft-danger text-danger rounded-circle me-2">
@@ -1054,11 +1057,11 @@
                                                                                     </span>
                                                                                     <span class="fw-medium text-dark">{{ __('YouTube') }}</span>
                                                                                 </div>
-                                                                                <div>
+                                                                                <div class="social-profile-action">
                                                                                     @if(in_array('youtube', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('youtube'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -1067,7 +1070,7 @@
                                                                                 </div>
                                                                             </div>
                                                                         </div>
-                                                                        <div class="col-lg-12">
+                                                                        <div class="col-lg-12" data-platform="kick" data-connect-url="{{ route('social.connect', 'kick') }}">
                                                                             <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
                                                                                 <div class="d-flex align-items-center">
                                                                                     <span class="avatar avatar-sm bg-soft-success text-success rounded-circle me-2">
@@ -1075,11 +1078,11 @@
                                                                                     </span>
                                                                                     <span class="fw-medium text-dark">{{ __('Kick') }}</span>
                                                                                 </div>
-                                                                                <div>
+                                                                                <div class="social-profile-action">
                                                                                     @if(in_array('kick', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('kick'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -1088,7 +1091,7 @@
                                                                                 </div>
                                                                             </div>
                                                                         </div>
-                                                                        <div class="col-lg-12">
+                                                                        <div class="col-lg-12" data-platform="twitch" data-connect-url="{{ route('social.connect', 'twitch') }}">
                                                                             <div class="d-flex align-items-center justify-content-between mb-3 border p-2 rounded">
                                                                                 <div class="d-flex align-items-center">
                                                                                     <span class="avatar avatar-sm bg-soft-primary text-primary rounded-circle me-2">
@@ -1096,11 +1099,11 @@
                                                                                     </span>
                                                                                     <span class="fw-medium text-dark">{{ __('Twitch') }}</span>
                                                                                 </div>
-                                                                                <div>
+                                                                                <div class="social-profile-action">
                                                                                     @if(in_array('twitch', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('twitch'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge bg-soft-success text-success"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -1145,17 +1148,76 @@
                                                                             });
                                                                         });
                                                                         document.querySelectorAll('.social-disconnect-btn').forEach(function(btn) {
+                                                                            btn.setAttribute('data-bound', '1');
                                                                             btn.addEventListener('click', function() {
                                                                                 var id = this.getAttribute('data-account-id');
                                                                                 if (!id || !confirm('{{ __("Remove this social account? You can connect again later.") }}')) return;
+                                                                                var row = this.closest('[data-platform]');
+                                                                                var platform = row ? row.getAttribute('data-platform') : null;
+                                                                                var connectUrl = row ? row.getAttribute('data-connect-url') : null;
                                                                                 var url = '{{ url("connect/social-accounts") }}/' + id + '/disconnect';
                                                                                 var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
                                                                                 var opts = { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' }, credentials: 'same-origin' };
                                                                                 fetch(url, opts).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); }).then(function(res) {
                                                                                     var success = res.ok && res.data && (res.data.code === '200' || res.data.code === 200);
-                                                                                    if (success) { window.location.reload(); } else { alert((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}'); }
-                                                                                }).catch(function() { alert('{{ __("Could not remove account.") }}'); });
+                                                                                    if (success) {
+                                                                                        var plat = (res.data.data && res.data.data.platform) || (res.data.platform) || platform;
+                                                                                        var actionCell = document.querySelector('[data-platform="' + plat + '"] .social-profile-action');
+                                                                                        var connectLinkUrl = connectUrl || (row && row.getAttribute('data-connect-url')) || ('{{ url("connect") }}/' + plat);
+                                                                                        if (actionCell && connectLinkUrl) {
+                                                                                            actionCell.innerHTML = '<a href="' + connectLinkUrl.replace(/"/g, '&quot;') + '" class="btn btn-sm btn-outline-danger text-danger social-connect-btn">{{ __("Connect") }}</a>';
+                                                                                            var newLink = actionCell.querySelector('a.social-connect-btn');
+                                                                                            if (newLink) {
+                                                                                                newLink.addEventListener('click', function(e) { e.preventDefault(); var w = 600, h = 700; window.open(this.href, 'socialLogin', 'width=' + w + ',height=' + h + ',top=' + ((screen.height/2)-(h/2)) + ',left=' + ((screen.width/2)-(w/2))); });
+                                                                                            }
+                                                                                        }
+                                                                                        if (typeof showToast === 'function') showToast(res.data.message || '{{ __("Account disconnected.") }}'); else alert(res.data.message || '{{ __("Account disconnected.") }}');
+                                                                                    } else {
+                                                                                        if (typeof showToast === 'function') showToast((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}', true); else alert((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}');
+                                                                                    }
+                                                                                }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Could not remove account.") }}', true); else alert('{{ __("Could not remove account.") }}'); });
                                                                             });
+                                                                        });
+                                                                        function attachSocialDisconnectHandlers() {
+                                                                            document.querySelectorAll('.social-disconnect-btn:not([data-bound])').forEach(function(btn) {
+                                                                                btn.setAttribute('data-bound', '1');
+                                                                                btn.addEventListener('click', function() {
+                                                                                    var id = this.getAttribute('data-account-id');
+                                                                                    if (!id || !confirm('{{ __("Remove this social account? You can connect again later.") }}')) return;
+                                                                                    var row = this.closest('[data-platform]');
+                                                                                    var platform = row ? row.getAttribute('data-platform') : null;
+                                                                                    var connectUrl = row ? row.getAttribute('data-connect-url') : null;
+                                                                                    var url = '{{ url("connect/social-accounts") }}/' + id + '/disconnect';
+                                                                                    var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                                    var opts = { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' }, credentials: 'same-origin' };
+                                                                                    fetch(url, opts).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); }).then(function(res) {
+                                                                                        var success = res.ok && res.data && (res.data.code === '200' || res.data.code === 200);
+                                                                                        if (success) {
+                                                                                            var plat = (res.data.data && res.data.data.platform) || (res.data.platform) || platform;
+                                                                                            var actionCell = document.querySelector('[data-platform="' + plat + '"] .social-profile-action');
+                                                                                            var connectLinkUrl = connectUrl || (row && row.getAttribute('data-connect-url')) || ('{{ url("connect") }}/' + plat);
+                                                                                            if (actionCell && connectLinkUrl) {
+                                                                                                actionCell.innerHTML = '<a href="' + connectLinkUrl.replace(/"/g, '&quot;') + '" class="btn btn-sm btn-outline-danger text-danger social-connect-btn">{{ __("Connect") }}</a>';
+                                                                                                var newLink = actionCell.querySelector('a.social-connect-btn');
+                                                                                                if (newLink) {
+                                                                                                    newLink.addEventListener('click', function(e) { e.preventDefault(); var w = 600, h = 700; window.open(this.href, 'socialLogin', 'width=' + w + ',height=' + h + ',top=' + ((screen.height/2)-(h/2)) + ',left=' + ((screen.width/2)-(w/2))); });
+                                                                                                }
+                                                                                            }
+                                                                                            if (typeof showToast === 'function') showToast(res.data.message || '{{ __("Account disconnected.") }}'); else alert(res.data.message || '{{ __("Account disconnected.") }}');
+                                                                                        } else {
+                                                                                            if (typeof showToast === 'function') showToast((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}', true); else alert((res.data && res.data.message) ? res.data.message : '{{ __("Could not remove account.") }}');
+                                                                                        }
+                                                                                    }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Could not remove account.") }}', true); else alert('{{ __("Could not remove account.") }}'); });
+                                                                                });
+                                                                            });
+                                                                        }
+                                                                        window.addEventListener('message', function(ev) {
+                                                                            if (!ev.data || ev.data.type !== 'social-connected' || !ev.data.platform || !ev.data.accountId) return;
+                                                                            var actionCell = document.querySelector('[data-platform="' + ev.data.platform + '"] .social-profile-action');
+                                                                            if (!actionCell) return;
+                                                                            var verifiedLabel = '{{ __("Verified") }}';
+                                                                            actionCell.innerHTML = '<div class="d-flex align-items-center gap-2"><span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> ' + verifiedLabel + '</span><button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="' + ev.data.accountId + '" title="{{ __("Remove") }}" aria-label="{{ __("Remove") }}"><i class="ti ti-x"></i></button></div>';
+                                                                            attachSocialDisconnectHandlers();
                                                                         });
                                                                         document.querySelectorAll('.website-verify-btn').forEach(function(btn) {
                                                                             btn.addEventListener('click', function() {
@@ -1172,11 +1234,11 @@
                                                                                                 var verifyBlock = row.querySelector('.website-verify-block');
                                                                                                 if (verifyBlock) verifyBlock.remove();
                                                                                                 var firstDiv = row.querySelector('.flex-grow-1');
-                                                                                                if (firstDiv && !firstDiv.querySelector('.badge.bg-success')) {
-                                                                                                    firstDiv.insertAdjacentHTML('afterbegin', '<span class="badge bg-success me-2"><i class="ti ti-circle-check me-1"></i>{{ __("Verified") }}</span>');
+                                                                                                if (firstDiv && !firstDiv.querySelector('.badge.verified-badge')) {
+                                                                                                    firstDiv.insertAdjacentHTML('afterbegin', '<span class="badge verified-badge me-2"><i class="ti ti-circle-check me-1"></i>{{ __("Verified") }}</span>');
                                                                                                 }
                                                                                             }
-                                                                                            showToast(res.message || '{{ __("Website verified.") }}');
+                                                                                            showToast(res.message || '{{ __("Website verified successfully!") }}');
                                                                                         } else {
                                                                                             showToast(res.message || '{{ __("Verification failed.") }}', true);
                                                                                         }
@@ -1185,29 +1247,47 @@
                                                                                     .finally(function() { btn.disabled = false; });
                                                                             });
                                                                         });
-                                                                        document.querySelectorAll('.linkedin-profile-url-btn').forEach(function(btn) {
+                                                                        document.querySelectorAll('.website-delete-btn').forEach(function(btn) {
                                                                             btn.addEventListener('click', function() {
-                                                                                var group = btn.closest('.input-group');
-                                                                                var input = group ? group.querySelector('.linkedin-profile-url-input') : null;
-                                                                                var id = input ? input.getAttribute('data-account-id') : null;
-                                                                                var url = input ? input.value.trim() : '';
+                                                                                var id = this.getAttribute('data-website-id');
                                                                                 if (!id) return;
-                                                                                btn.disabled = true;
+                                                                                if (!confirm('{{ __("Remove this website?") }}')) return;
+                                                                                var row = this.closest('.website-row');
+                                                                                this.disabled = true;
                                                                                 var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                                                                                fetch('{{ url("connect/social-accounts") }}/' + id + '/profile-url', {
-                                                                                    method: 'PUT',
-                                                                                    headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                                                                                    credentials: 'same-origin',
-                                                                                    body: JSON.stringify({ profile_url: url || null })
-                                                                                }).then(function(r) { return r.json(); }).then(function(res) {
-                                                                                    if (res.code === '200' || res.code === 200) {
-                                                                                        setProfileLink('profile-info-linkedin', url || null);
-                                                                                        showToast(res.message || '{{ __("Profile URL updated.") }}');
-                                                                                    } else {
-                                                                                        showToast(res.message || '{{ __("Could not update URL.") }}', true);
-                                                                                    }
-                                                                                }).catch(function() { showToast('{{ __("Could not update URL.") }}', true); }).finally(function() { btn.disabled = false; });
+                                                                                fetch('{{ url("/settings/websites") }}/' + id, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                                                                                    .then(function(r) { return r.json(); })
+                                                                                    .then(function(res) {
+                                                                                        if (res.code === '200' || res.code === 200) {
+                                                                                            if (row) row.remove();
+                                                                                            showToast(res.message || '{{ __("Website removed.") }}');
+                                                                                        } else {
+                                                                                            showToast(res.message || '{{ __("Could not remove website.") }}', true);
+                                                                                            btn.disabled = false;
+                                                                                        }
+                                                                                    })
+                                                                                    .catch(function() { showToast('{{ __("Could not remove website.") }}', true); btn.disabled = false; });
                                                                             });
+                                                                        });
+                                                                        document.getElementById('linkedin-profile-url-save-btn') && document.getElementById('linkedin-profile-url-save-btn').addEventListener('click', function() {
+                                                                            var btn = this;
+                                                                            var input = document.getElementById('linkedin-profile-url-input');
+                                                                            var url = input ? input.value.trim() : '';
+                                                                            btn.disabled = true;
+                                                                            var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                            fetch('{{ url("connect/linkedin-profile-url") }}', {
+                                                                                method: 'PUT',
+                                                                                headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                                                                                credentials: 'same-origin',
+                                                                                body: JSON.stringify({ profile_url: url || null })
+                                                                            }).then(function(r) { return r.json(); }).then(function(res) {
+                                                                                if (res.code === '200' || res.code === 200) {
+                                                                                    if (typeof setProfileLink === 'function') setProfileLink('profile-info-linkedin', url || null);
+                                                                                    showToast(res.message || '{{ __("Profile URL updated.") }}');
+                                                                                } else {
+                                                                                    showToast(res.message || '{{ __("Could not update URL.") }}', true);
+                                                                                }
+                                                                            }).catch(function() { showToast('{{ __("Could not update URL.") }}', true); }).finally(function() { btn.disabled = false; });
                                                                         });
                                                                     });
                                                                     </script>

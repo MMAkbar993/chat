@@ -1,9 +1,9 @@
 @extends('frontend.layout')
 
 @section('content')
-<div class="container-fuild">
+<div class="container-fluid">
     <div class="w-100 overflow-hidden position-relative flex-wrap d-block vh-100">
-        <div class="row">
+        <div class="row g-0 flex-nowrap">
             <div class="col-lg-6 col-md-12 col-sm-12">
                 <div class="row justify-content-center align-items-center vh-100 overflow-auto flex-wrap login-bg1">
                     <div class="col-md-9 mx-auto p-4">
@@ -44,8 +44,8 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6 p-0">
-                <div class="d-lg-flex align-items-center justify-content-center position-relative d-lg-block d-none flex-wrap vh-100 overflowy-auto login-bg2">
+            <div class="col-lg-6 p-0 min-vh-100">
+                <div class="d-lg-flex align-items-center justify-content-center position-relative d-lg-block d-none flex-wrap vh-100 overflow-hidden login-bg2">
                     <div class="floating-bg">
                         <img src="{{ asset('assets/img/bg/circle-1.png') }}" alt="Img">
                         <img src="{{ asset('assets/img/bg/circle-2.png') }}" alt="Img">
