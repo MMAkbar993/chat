@@ -606,4 +606,3 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
 @endif
 <!-- SPA Navigation -->
 <script src="{{ asset('assets/js/spa-navigation.js') }}"></script>
-@endif
