@@ -225,7 +225,7 @@
                     var modal = bootstrap.Modal.getInstance(modalEl);
                     if (modal) modal.hide();
                 }
-                window.location.href = baseUrl + '/chat';
+                window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(uid);
             });
         });
     }
@@ -303,7 +303,7 @@
                     try {
                         if (typeof localStorage !== 'undefined') localStorage.setItem('selectedUserId', userId);
                     } catch (err) {}
-                    window.location.href = baseUrl + '/chat';
+                    window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(userId);
                 });
             });
         }).catch(function () {

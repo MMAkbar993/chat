@@ -664,24 +664,40 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
 (function() {
     if (typeof window.FIREBASE_DISABLED === 'undefined' || !window.FIREBASE_DISABLED) return;
     var chatPath = '{{ route("chat") }}';
-    var pathname = (window.location.pathname || '').replace(/\/+/g, '/');
-    var isChatPage = pathname === '/chat' || pathname === chatPath.replace(/^https?:\/\/[^/]+/, '') || pathname.indexOf('/chat') !== -1;
-    if (!isChatPage) return;
+    function getPathname() {
+        return (window.location.pathname || '').replace(/\/+/g, '/');
+    }
+    function isChatPage(path) {
+        path = path || getPathname();
+        var pathNorm = chatPath.replace(/^https?:\/\/[^/]+/, '');
+        return path === '/chat' || path === pathNorm || path.indexOf('/chat') !== -1;
+    }
     var baseUrl = typeof APP_URL !== 'undefined' && APP_URL ? APP_URL : (window.location.origin || '');
     if (baseUrl.slice(-1) === '/') baseUrl = baseUrl.slice(0, -1);
-    var currentUserId = typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER ? window.LARAVEL_USER.id : null;
-    function run() {
+
+    function run(attempt) {
+        attempt = attempt || 0;
+        var currentUserId = typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER ? window.LARAVEL_USER.id : null;
         var selectedId = null;
         try { selectedId = localStorage.getItem('selectedUserId'); } catch (e) {}
         var params = typeof URLSearchParams !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         var userFromUrl = params ? params.get('user') : null;
         if (userFromUrl) selectedId = userFromUrl;
-        if (!selectedId || !currentUserId) return;
+        if (!selectedId || !currentUserId) {
+            if (selectedId && !currentUserId && attempt < 5) {
+                currentUserId = typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER ? window.LARAVEL_USER.id : null;
+                setTimeout(function() { run(attempt + 1); }, 200);
+            }
+            return;
+        }
         var welcome = document.getElementById('welcome-container');
         var middle = document.getElementById('middle');
         var chatBox = document.getElementById('chat-box');
         var chatForm = document.getElementById('message-form');
-        if (!middle || !chatBox) return;
+        if (!middle || !chatBox) {
+            if (attempt < 10) setTimeout(function() { run(attempt + 1); }, 150);
+            return;
+        }
         if (chatForm) {
             chatForm.onsubmit = function(e) {
                 e.preventDefault();
@@ -734,15 +750,21 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
                 });
                 if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
             })
-            .then(function() {
-                try { localStorage.removeItem('selectedUserId'); } catch (e) {}
-                if (params && params.get('user') && typeof history !== 'undefined' && history.replaceState) history.replaceState({}, '', pathname || '/chat');
-            })
             .catch(function() {});
     }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
-    else run();
-    setTimeout(run, 300);
+
+    function tryRun() {
+        if (!isChatPage()) return;
+        run(0);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tryRun);
+    else tryRun();
+    setTimeout(tryRun, 300);
+    setTimeout(tryRun, 800);
+    window.addEventListener('spa-page-applied', function(e) {
+        var path = e && e.detail && e.detail.pathname ? e.detail.pathname : getPathname();
+        if (path === '/chat' || path === '/index') tryRun();
+    });
 })();
 </script>
 @endif
