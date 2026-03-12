@@ -122,7 +122,29 @@ class SocialAccountController extends Controller
     public function callback(Request $request, string $platform): \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $settingsUrl = url()->route('settings');
-        $closeAndReload = '<script>try { if (window.opener) { window.opener.location.reload(); window.close(); } else { window.location.href="' . e($settingsUrl) . '"; } } catch(z) { window.location.href="' . e($settingsUrl) . '"; }</script>';
+        // On error: postMessage to opener so it can show a toast, then close the popup.
+        // Do NOT call opener.location.reload() — that would cause a full page refresh.
+        $closeWithError = function(string $errorMsg) use ($settingsUrl): \Illuminate\Http\Response {
+            $msgJs = json_encode($errorMsg);
+            $settingsUrlJs = json_encode($settingsUrl);
+            return response('<script>
+(function() {
+    var payload = { type: "social-connect-error", message: ' . $msgJs . ' };
+    try {
+        if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(payload, "*");
+        }
+    } catch (e) {}
+    try { window.close(); } catch (z) {}
+    // Only navigate if the popup is still open (window.close() was blocked)
+    setTimeout(function() {
+        try {
+            if (!window.closed) { window.location.href = ' . $settingsUrlJs . '; }
+        } catch (e) { window.location.href = ' . $settingsUrlJs . '; }
+    }, 300);
+})();
+</script>');
+        };
         try {
             $platform = strtolower($platform);
             if (!in_array($platform, SocialAccount::supportedPlatforms())) {
@@ -218,11 +240,15 @@ class SocialAccountController extends Controller
     try {
         if (window.opener && !window.opener.closed) {
             window.opener.postMessage(payload, "*");
-            if (typeof window.opener.showToast === "function") window.opener.showToast("Account connected successfully.");
         }
     } catch (e) {}
     try { window.close(); } catch (z) {}
-    setTimeout(function() { window.location.href = ' . $settingsUrlJs . '; }, 100);
+    // Only navigate to settings if the popup could not close itself
+    setTimeout(function() {
+        try {
+            if (!window.closed) { window.location.href = ' . $settingsUrlJs . '; }
+        } catch (e) { window.location.href = ' . $settingsUrlJs . '; }
+    }, 300);
 })();
 </script>');
         } catch (\Throwable $e) {
@@ -240,18 +266,11 @@ class SocialAccountController extends Controller
             if (str_contains($msg, 'invalid_grant') || str_contains($msg, 'access_denied')) {
                 $userMessage = __('Access was denied or the authorization expired. Try connecting again.');
             }
-            session()->flash('error', $userMessage);
-            return response($closeAndReload);
+            return $closeWithError($userMessage);
         }
         } catch (\Throwable $outer) {
             Log::error('Social connect callback outer failed', ['platform' => $platform ?? 'unknown', 'message' => $outer->getMessage()]);
-            try {
-                session()->flash('error', __('Could not connect account. Please try again.'));
-                $url = url()->route('settings');
-            } catch (\Throwable $u) {
-                $url = url('/');
-            }
-            return response('<script>try { if (window.opener) { window.opener.location.reload(); window.close(); } else { window.location.href="' . e($url) . '"; } } catch(z) { window.location.href="' . e($url) . '"; }</script>');
+            return $closeWithError(__('Could not connect account. Please try again.'));
         }
     }
 
