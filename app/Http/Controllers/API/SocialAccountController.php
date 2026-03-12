@@ -305,18 +305,31 @@ class SocialAccountController extends Controller
                         $details->save();
                     }
                 } catch (\Throwable $e) {
-                    Log::warning('Social disconnect: could not clear user_details', ['user_id' => $user->id, 'platform' => $platform, 'message' => $e->getMessage()]);
+                    try {
+                        Log::warning('Social disconnect: could not clear user_details', ['user_id' => $user->id, 'platform' => $platform, 'message' => $e->getMessage()]);
+                    } catch (\Throwable $logEx) {
+                        // ignore log failure
+                    }
                 }
             }
 
-            $userName = $user->user_name ?? '';
-            if ($userName !== '') {
-                Cache::forget('public_profile:' . strtolower($userName));
+            try {
+                $userName = $user->user_name ?? '';
+                if ($userName !== '') {
+                    Cache::forget('public_profile:' . strtolower($userName));
+                }
+            } catch (\Throwable $e) {
+                // Ignore cache failure
             }
+
             return send_success_response(['platform' => $platform], __('Account disconnected.'));
         } catch (\Throwable $e) {
-            Log::error('Social disconnect failed', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return send_success_response(['error' => true], __('Could not disconnect account. Please try again.'));
+            try {
+                Log::error('Social disconnect failed', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            } catch (\Throwable $logEx) {
+                // ignore log failure
+            }
+            return send_success_response(['error' => true], __('Could not disconnect account. Error: ') . $e->getMessage());
         }
     }
 

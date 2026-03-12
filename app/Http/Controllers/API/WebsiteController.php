@@ -329,6 +329,10 @@ class WebsiteController extends Controller
                     $website->representatives()->delete();
                     $website->delete();
                 }
+            } elseif ($userWebsite->isRepresentative() && $userWebsite->website_id) {
+                WebsiteRepresentative::where('website_id', $userWebsite->website_id)
+                    ->where('user_id', $user->id)
+                    ->delete();
             }
 
             $userWebsite->delete();
@@ -416,9 +420,7 @@ class WebsiteController extends Controller
                 if ($existing->status === 'pending') {
                     return send_bad_request_response('You already have a pending representation request.');
                 }
-                if ($existing->status === 'approved') {
-                    return send_bad_request_response('You already represent this website.');
-                }
+                $existing->delete();
             }
 
             $rep = WebsiteRepresentative::create([
@@ -482,9 +484,7 @@ class WebsiteController extends Controller
             if ($existing->status === 'pending') {
                 return response()->json(['code' => -1, 'message' => __('You already have a pending representation request.'), 'data' => ['error' => ['user_message' => __('You already have a pending representation request.')]]], 200);
             }
-            if ($existing->status === 'approved') {
-                return response()->json(['code' => -1, 'message' => __('You already represent this website.'), 'data' => ['error' => ['user_message' => __('You already represent this website.')]]], 200);
-            }
+            $existing->delete();
         }
 
         $rep = WebsiteRepresentative::create([
@@ -631,6 +631,10 @@ class WebsiteController extends Controller
             if (!$userWebsite) {
                 return send_bad_request_response('Representative not found.');
             }
+
+            WebsiteRepresentative::where('website_id', $websiteId)
+                ->where('user_id', $userId)
+                ->delete();
 
             $userWebsite->delete();
 
