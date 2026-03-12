@@ -897,7 +897,7 @@
                                                                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                                                                     </div>
                                                                 @endif
-                                                                <form method="post" action="{{ route('settings.websites.add') }}" class="mb-3">
+                                                                <form method="post" action="{{ route('settings.websites.add') }}" class="mb-3" id="add-website-form">
                                                                     @csrf
                                                                     <div class="input-group">
                                                                         <input type="url" name="url" class="form-control" placeholder="https://example.com" value="{{ old('url') }}" required>
@@ -906,7 +906,7 @@
                                                                 </form>
                                                                 @php $userWebsites = Auth::check() ? Auth::user()->websites : collect(); @endphp
                                                                 @if($userWebsites->count() > 0)
-                                                                    <div class="list-group list-group-flush">
+                                                                    <div class="list-group list-group-flush" id="website-list-group">
                                                                         @foreach($userWebsites as $w)
                                                                             <div class="list-group-item d-flex flex-wrap align-items-center justify-content-between border rounded mb-2 p-3 website-row" data-website-id="{{ $w->id }}">
                                                                                 <div class="flex-grow-1 me-2">
@@ -927,7 +927,7 @@
                                                                         @endforeach
                                                                     </div>
                                                                 @else
-                                                                    <p class="text-muted small mb-0">{{ __('No websites added yet. Add a website above to get your verification meta tag.') }}</p>
+                                                                    <p class="text-muted small mb-0" id="website-list-empty">{{ __('No websites added yet. Add a website above to get your verification meta tag.') }}</p>
                                                                 @endif
                                                             </div>
                                                         </div>
@@ -1228,56 +1228,140 @@
                                                                             actionCell.innerHTML = '<div class="d-flex align-items-center gap-2"><span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> ' + verifiedLabel + '</span><button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="' + ev.data.accountId + '" title="{{ __("Remove") }}" aria-label="{{ __("Remove") }}"><i class="ti ti-x"></i></button></div>';
                                                                             attachSocialDisconnectHandlers();
                                                                         });
-                                                                        document.querySelectorAll('.website-verify-btn').forEach(function(btn) {
-                                                                            btn.addEventListener('click', function() {
-                                                                                var id = this.getAttribute('data-website-id');
-                                                                                if (!id) return;
-                                                                                this.disabled = true;
-                                                                                var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                                                                                fetch('{{ url("/settings/websites") }}/' + id + '/verify', { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
-                                                                                    .then(function(r) { return r.json(); })
-                                                                                    .then(function(res) {
-                                                                                        if (res.code === '200' || res.code === 200) {
-                                                                                            var row = btn.closest('.website-row');
-                                                                                            if (row) {
-                                                                                                var verifyBlock = row.querySelector('.website-verify-block');
-                                                                                                if (verifyBlock) verifyBlock.remove();
-                                                                                                var firstDiv = row.querySelector('.flex-grow-1');
-                                                                                                if (firstDiv && !firstDiv.querySelector('.badge.verified-badge')) {
-                                                                                                    firstDiv.insertAdjacentHTML('afterbegin', '<span class="badge verified-badge me-2"><i class="ti ti-circle-check me-1"></i>{{ __("Verified") }}</span>');
+                                                                        function attachWebsiteHandlers(scope) {
+                                                                            scope = scope || document;
+                                                                            scope.querySelectorAll('.website-verify-btn:not([data-website-bound])').forEach(function(btn) {
+                                                                                btn.setAttribute('data-website-bound', '1');
+                                                                                btn.addEventListener('click', function() {
+                                                                                    var id = this.getAttribute('data-website-id');
+                                                                                    if (!id) return;
+                                                                                    this.disabled = true;
+                                                                                    var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                                    fetch('{{ url("/settings/websites") }}/' + id + '/verify', { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                                                                                        .then(function(r) { return r.json(); })
+                                                                                        .then(function(res) {
+                                                                                            if (res.code === '200' || res.code === 200) {
+                                                                                                var row = btn.closest('.website-row');
+                                                                                                if (row) {
+                                                                                                    var verifyBlock = row.querySelector('.website-verify-block');
+                                                                                                    if (verifyBlock) verifyBlock.remove();
+                                                                                                    var firstDiv = row.querySelector('.flex-grow-1');
+                                                                                                    if (firstDiv && !firstDiv.querySelector('.badge.verified-badge')) {
+                                                                                                        firstDiv.insertAdjacentHTML('afterbegin', '<span class="badge verified-badge me-2"><i class="ti ti-circle-check me-1"></i>{{ __("Verified") }}</span>');
+                                                                                                    }
                                                                                                 }
+                                                                                                showToast(res.message || '{{ __("Website verified successfully!") }}');
+                                                                                            } else {
+                                                                                                showToast(res.message || '{{ __("Verification failed.") }}', true);
                                                                                             }
-                                                                                            showToast(res.message || '{{ __("Website verified successfully!") }}');
-                                                                                        } else {
-                                                                                            showToast(res.message || '{{ __("Verification failed.") }}', true);
-                                                                                        }
-                                                                                    })
-                                                                                    .catch(function() { showToast('{{ __("Verification request failed.") }}', true); })
-                                                                                    .finally(function() { btn.disabled = false; });
+                                                                                        })
+                                                                                        .catch(function() { showToast('{{ __("Verification request failed.") }}', true); })
+                                                                                        .finally(function() { btn.disabled = false; });
+                                                                                });
                                                                             });
-                                                                        });
-                                                                        document.querySelectorAll('.website-delete-btn').forEach(function(btn) {
-                                                                            btn.addEventListener('click', function() {
-                                                                                var id = this.getAttribute('data-website-id');
-                                                                                if (!id) return;
-                                                                                if (!confirm('{{ __("Remove this website?") }}')) return;
-                                                                                var row = this.closest('.website-row');
-                                                                                this.disabled = true;
-                                                                                var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                                                                                fetch('{{ url("/settings/websites") }}/' + id, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
-                                                                                    .then(function(r) { return r.json(); })
-                                                                                    .then(function(res) {
-                                                                                        if (res.code === '200' || res.code === 200) {
-                                                                                            if (row) row.remove();
-                                                                                            showToast(res.message || '{{ __("Website removed.") }}');
-                                                                                        } else {
-                                                                                            showToast(res.message || '{{ __("Could not remove website.") }}', true);
-                                                                                            btn.disabled = false;
-                                                                                        }
-                                                                                    })
-                                                                                    .catch(function() { showToast('{{ __("Could not remove website.") }}', true); btn.disabled = false; });
+                                                                            scope.querySelectorAll('.website-delete-btn:not([data-website-bound])').forEach(function(btn) {
+                                                                                btn.setAttribute('data-website-bound', '1');
+                                                                                btn.addEventListener('click', function() {
+                                                                                    var id = this.getAttribute('data-website-id');
+                                                                                    if (!id) return;
+                                                                                    if (!confirm('{{ __("Remove this website?") }}')) return;
+                                                                                    var row = this.closest('.website-row');
+                                                                                    this.disabled = true;
+                                                                                    var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                                    fetch('{{ url("/settings/websites") }}/' + id, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                                                                                        .then(function(r) { return r.json(); })
+                                                                                        .then(function(res) {
+                                                                                            if (res.code === '200' || res.code === 200) {
+                                                                                                if (row) row.remove();
+                                                                                                showToast(res.message || '{{ __("Website removed.") }}');
+                                                                                                var listGroup = document.getElementById('website-list-group');
+                                                                                                if (listGroup && listGroup.querySelectorAll('.website-row').length === 0) {
+                                                                                                    var empty = document.getElementById('website-list-empty');
+                                                                                                    if (!empty) {
+                                                                                                        var p = document.createElement('p');
+                                                                                                        p.id = 'website-list-empty';
+                                                                                                        p.className = 'text-muted small mb-0';
+                                                                                                        p.textContent = '{{ __("No websites added yet. Add a website above to get your verification meta tag.") }}';
+                                                                                                        listGroup.parentNode.replaceChild(p, listGroup);
+                                                                                                    }
+                                                                                                }
+                                                                                            } else {
+                                                                                                showToast(res.message || '{{ __("Could not remove website.") }}', true);
+                                                                                                btn.disabled = false;
+                                                                                            }
+                                                                                        })
+                                                                                        .catch(function() { showToast('{{ __("Could not remove website.") }}', true); btn.disabled = false; });
+                                                                                });
                                                                             });
+                                                                        }
+                                                                        document.getElementById('add-website-form') && document.getElementById('add-website-form').addEventListener('submit', function(e) {
+                                                                            e.preventDefault();
+                                                                            var form = this;
+                                                                            var urlInput = form.querySelector('input[name="url"]');
+                                                                            var submitBtn = form.querySelector('button[type="submit"]');
+                                                                            var url = urlInput ? urlInput.value.trim() : '';
+                                                                            if (!url) return;
+                                                                            var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                            if (submitBtn) submitBtn.disabled = true;
+                                                                            var fd = new FormData(form);
+                                                                            fetch(form.action, { method: 'POST', body: fd, headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                                                                                .then(function(r) { return r.json(); })
+                                                                                .then(function(res) {
+                                                                                    if (submitBtn) submitBtn.disabled = false;
+                                                                                    if (res.code === '200' || res.code === 200) {
+                                                                                        if (res.data && res.data.website) {
+                                                                                            var w = res.data.website;
+                                                                                            var displayUrlRaw = w.display_url || w.url || '';
+                                                                                            var displayUrlEsc = displayUrlRaw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                                                                                            var metaContent = (w.verification_token || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                                                                                            var rowHtml = '<div class="list-group-item d-flex flex-wrap align-items-center justify-content-between border rounded mb-2 p-3 website-row" data-website-id="' + w.id + '"><div class="flex-grow-1 me-2"><a href="' + displayUrlEsc + '" target="_blank" rel="noopener" class="text-primary website-display-url">' + displayUrlEsc + '</a></div><div class="mt-2 mt-md-0 website-verify-block"><small class="d-block text-muted mb-1">{{ __("Add this to your site's <head>:") }}</small><code class="d-block small bg-light p-2 rounded mb-2" style="word-break: break-all;">&lt;meta name="greenunimind-verification" content="' + metaContent + '" /&gt;</code><button type="button" class="btn btn-sm btn-success website-verify-btn" data-website-id="' + w.id + '">{{ __("Verify") }}</button></div><button type="button" class="btn btn-sm btn-outline-danger website-delete-btn ms-2" data-website-id="' + w.id + '" title="{{ __("Remove website") }}" aria-label="{{ __("Remove website") }}"><i class="ti ti-trash"></i></button></div>';
+                                                                                            var listGroup = document.getElementById('website-list-group');
+                                                                                            var emptyEl = document.getElementById('website-list-empty');
+                                                                                            if (listGroup) {
+                                                                                                listGroup.insertAdjacentHTML('beforeend', rowHtml);
+                                                                                                attachWebsiteHandlers(listGroup);
+                                                                                            } else if (emptyEl) {
+                                                                                                var newList = document.createElement('div');
+                                                                                                newList.id = 'website-list-group';
+                                                                                                newList.className = 'list-group list-group-flush';
+                                                                                                newList.innerHTML = rowHtml;
+                                                                                                emptyEl.parentNode.replaceChild(newList, emptyEl);
+                                                                                                attachWebsiteHandlers(newList);
+                                                                                            }
+                                                                                            if (urlInput) urlInput.value = '';
+                                                                                            showToast(res.message || '{{ __("Website added.") }}');
+                                                                                        } else if (res.data && res.data.already_approved) {
+                                                                                            var alertHtml = '<div class="alert alert-info alert-dismissible fade show mb-3" role="alert" id="website-already-approved-alert"><p class="mb-2">{{ __("This website is already approved. Please request the owner.") }}</p><p class="mb-2 small">' + (res.data.domain || '').replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</p><button type="button" class="btn btn-sm btn-primary website-request-representation-btn" data-website-id="' + res.data.website_id + '">{{ __("Request") }}</button><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
+                                                                                            var accordionBody = document.getElementById('website-verification-id');
+                                                                                            if (accordionBody) {
+                                                                                                var existingAlert = document.getElementById('website-already-approved-alert');
+                                                                                                if (existingAlert) existingAlert.remove();
+                                                                                                var formEl = document.getElementById('add-website-form');
+                                                                                                if (formEl && formEl.nextElementSibling) formEl.nextElementSibling.insertAdjacentHTML('beforebegin', alertHtml);
+                                                                                                else accordionBody.insertAdjacentHTML('afterbegin', alertHtml);
+                                                                                                document.querySelectorAll('.website-request-representation-btn').forEach(function(btn) {
+                                                                                                    if (btn.getAttribute('data-website-id') === String(res.data.website_id)) {
+                                                                                                        btn.addEventListener('click', function() {
+                                                                                                            var websiteId = this.getAttribute('data-website-id');
+                                                                                                            if (!websiteId) return;
+                                                                                                            this.disabled = true;
+                                                                                                            var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                                                            fetch('{{ route("settings.websites.request-representation") }}', { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin', body: JSON.stringify({ website_id: parseInt(websiteId, 10), message: '' }) }).then(function(r) { return r.json(); }).then(function(res) { if (res.code === '200' || res.code === 200) { var ae = document.getElementById('website-already-approved-alert'); if (ae) ae.remove(); showToast(res.message || '{{ __("Representation request sent.") }}'); } else { showToast(res.message || '{{ __("Could not send request.") }}', true); } }).catch(function() { showToast('{{ __("Could not send request.") }}', true); }).finally(function() { btn.disabled = false; });
+                                                                                                        });
+                                                                                                    }
+                                                                                                });
+                                                                                            }
+                                                                                            showToast(res.message || '{{ __("This website is already approved. Please request the owner.") }}');
+                                                                                        } else {
+                                                                                            showToast(res.message || '{{ __("Website added.") }}');
+                                                                                        }
+                                                                                    } else {
+                                                                                        showToast(res.message || (res.data && res.data.error && res.data.error.user_message) || '{{ __("Could not add website.") }}', true);
+                                                                                    }
+                                                                                })
+                                                                                .catch(function() { if (submitBtn) submitBtn.disabled = false; showToast('{{ __("Could not add website.") }}', true); });
                                                                         });
+                                                                        attachWebsiteHandlers();
                                                                         document.querySelectorAll('.website-request-representation-btn').forEach(function(btn) {
                                                                             btn.addEventListener('click', function() {
                                                                                 var websiteId = this.getAttribute('data-website-id');

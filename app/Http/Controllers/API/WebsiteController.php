@@ -154,24 +154,24 @@ class WebsiteController extends Controller
     /**
      * Add a website from the Settings form (plain request, no encryption). Redirects back with flash message.
      */
-    public function storeFromWeb(Request $request): \Illuminate\Http\RedirectResponse
+    public function storeFromWeb(Request $request): \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
     {
         $request->validate(['url' => 'required|string|max:500']);
 
         $user = Auth::user();
         if (!$user) {
-            return redirect()->route('settings')->with('error', __('You must be logged in.'));
+            return $this->webResponse($request, redirect()->route('settings')->with('error', __('You must be logged in.')));
         }
 
         if ($user->websites()->count() >= self::MAX_WEBSITES) {
-            return redirect()->route('settings')->with('error', __('Maximum of :max websites allowed.', ['max' => self::MAX_WEBSITES]));
+            return $this->webResponse($request, redirect()->route('settings')->with('error', __('Maximum of :max websites allowed.', ['max' => self::MAX_WEBSITES])));
         }
 
         $domain = $this->verificationService->normalizeDomain($request->url);
         $url = $this->verificationService->normalizeUrl($request->url);
 
         if (empty($domain)) {
-            return redirect()->route('settings')->with('error', __('Invalid website URL.'));
+            return $this->webResponse($request, redirect()->route('settings')->with('error', __('Invalid website URL.')));
         }
 
         $existingUserWebsite = $user->websites()
@@ -181,29 +181,76 @@ class WebsiteController extends Controller
             ->first();
 
         if ($existingUserWebsite) {
-            return redirect()->route('settings')->with('error', __('This website has already been added.'));
+            return $this->webResponse($request, redirect()->route('settings')->with('error', __('This website has already been added.')));
         }
 
         $verifiedWebsite = $this->verificationService->getVerifiedWebsite($domain);
         if ($verifiedWebsite) {
-            return redirect()->route('settings')
+            return $this->webResponse($request, redirect()->route('settings')
                 ->with('website_already_approved', true)
                 ->with('website_already_approved_id', $verifiedWebsite->id)
                 ->with('website_already_approved_domain', $verifiedWebsite->domain)
-                ->with('info', __('This website is already approved. Please request the owner.'));
+                ->with('info', __('This website is already approved. Please request the owner.')));
         }
 
         $token = $this->verificationService->generateVerificationToken();
         $nextOrder = ($user->websites()->max('sort_order') ?? -1) + 1;
 
-        $user->websites()->create([
+        $userWebsite = $user->websites()->create([
             'url' => $url,
             'verification_token' => $token,
             'sort_order' => $nextOrder,
             'relationship_type' => UserWebsite::RELATIONSHIP_OWNER,
         ]);
 
-        return redirect()->route('settings')->with('success', __('Website added. Add the meta tag to your site’s &lt;head&gt; section below and click Verify.'));
+        return $this->webResponse($request, redirect()->route('settings')->with('success', __('Website added. Add the meta tag to your site\'s &lt;head&gt; section below and click Verify.')), $userWebsite);
+    }
+
+    /**
+     * For AJAX requests return JSON; for normal requests return redirect.
+     */
+    private function webResponse(Request $request, $redirect, ?UserWebsite $userWebsite = null)
+    {
+        $wantsJson = $request->wantsJson() || $request->ajax();
+        if (!$wantsJson) {
+            return $redirect;
+        }
+        if ($redirect instanceof \Illuminate\Http\RedirectResponse) {
+            $session = $redirect->getSession();
+            $error = $session->get('error');
+            $websiteAlreadyApproved = $session->get('website_already_approved');
+            $websiteAlreadyApprovedId = $session->get('website_already_approved_id');
+            $websiteAlreadyApprovedDomain = $session->get('website_already_approved_domain');
+            if ($error) {
+                return response()->json(['code' => -1, 'message' => $error, 'data' => ['error' => ['user_message' => $error]]], 200);
+            }
+            if ($websiteAlreadyApproved && $websiteAlreadyApprovedId) {
+                return response()->json([
+                    'code' => '200',
+                    'message' => __('This website is already approved. Please request the owner.'),
+                    'data' => ['already_approved' => true, 'website_id' => $websiteAlreadyApprovedId, 'domain' => $websiteAlreadyApprovedDomain],
+                ], 200);
+            }
+        }
+        if ($userWebsite) {
+            $displayUrl = $userWebsite->getDisplayUrl();
+            $metaTag = '<meta name="' . self::META_TAG_NAME . '" content="' . e($userWebsite->verification_token) . '" />';
+            return response()->json([
+                'code' => '200',
+                'message' => __('Website added. Add the meta tag to your site\'s <head> section below and click Verify.'),
+                'data' => [
+                    'website' => [
+                        'id' => $userWebsite->id,
+                        'url' => $userWebsite->url,
+                        'display_url' => $displayUrl,
+                        'verification_token' => $userWebsite->verification_token,
+                        'verified' => false,
+                        'meta_tag' => $metaTag,
+                    ],
+                ],
+            ], 200);
+        }
+        return $redirect;
     }
 
     public function verify(Request $request, int $id): \Illuminate\Http\JsonResponse
