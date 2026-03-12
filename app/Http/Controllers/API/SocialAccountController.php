@@ -119,7 +119,7 @@ class SocialAccountController extends Controller
         return response()->json(['error' => $message], 400);
     }
 
-    public function callback(Request $request, string $platform): \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+    public function callback(Request $request, string $platform): \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse|\Illuminate\Http\Response
     {
         $settingsUrl = url()->route('settings');
         // On error: postMessage to opener so it can show a toast, then close the popup.

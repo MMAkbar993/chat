@@ -466,7 +466,7 @@
                                             <div
                                                 class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
                                                 <div>
-                                                    <h6 class="fs-14">{{ __('Linkedin') }}</h6>
+                                                    <h6 class="fs-14">{{ __('Linkedin') }} <i class="linkedin-info-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ __('LinkedIn does not allow OAuth to verify profile') }}">i</i></h6>
                                                     <p class="fs-16" id="profile-info-linkedin">{{ __('Loading...') }}</p>
                                                 </div>
                                                 <span><i class="ti ti-brand-linkedin fs-16"></i></span>
@@ -891,7 +891,7 @@
                                                                 <p class="text-muted small mb-3"><i class="ti ti-info-circle me-1"></i>{{ __('Add your website URL below. Then add the meta tag to your site’s <head> section and click Verify.') }}</p>
                                                                 @if(session('website_already_approved') && session('website_already_approved_id'))
                                                                     <div class="alert alert-info alert-dismissible fade show mb-3" role="alert" id="website-already-approved-alert">
-                                                                        <p class="mb-2">{{ __('This website is already approved. Please request the owner.') }}</p>
+                                                                        <p class="mb-2">{{ __('This website has already been approved. Please request representation from the owner. Your name and email address will be shared.') }}</p>
                                                                         <p class="mb-2 small">{{ session('website_already_approved_domain') }}</p>
                                                                         <button type="button" class="btn btn-sm btn-primary website-request-representation-btn" data-website-id="{{ session('website_already_approved_id') }}">{{ __('Request') }}</button>
                                                                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -908,21 +908,26 @@
                                                                 @if($userWebsites->count() > 0)
                                                                     <div class="list-group list-group-flush" id="website-list-group">
                                                                         @foreach($userWebsites as $w)
-                                                                            <div class="list-group-item d-flex flex-wrap align-items-center justify-content-between border rounded mb-2 p-3 website-row" data-website-id="{{ $w->id }}">
-                                                                                <div class="flex-grow-1 me-2">
-                                                                                    @if($w->isVerified())
-                                                                                        <span class="badge verified-badge me-2"><i class="ti ti-circle-check me-1"></i>{{ __('Verified') }}</span>
-                                                                                    @endif
-                                                                                    <a href="{{ $w->getDisplayUrl() }}" target="_blank" rel="noopener" class="text-primary website-display-url">{{ $w->getDisplayUrl() }}</a>
-                                                                                </div>
-                                                                                @if(!$w->isVerified())
-                                                                                    <div class="mt-2 mt-md-0 website-verify-block">
-                                                                                        <small class="d-block text-muted mb-1">{{ __('Add this to your site’s <head>:') }}</small>
-                                                                                        <code class="d-block small bg-light p-2 rounded mb-2" style="word-break: break-all;">&lt;meta name="greenunimind-verification" content="{{ $w->verification_token }}" /&gt;</code>
-                                                                                        <button type="button" class="btn btn-sm btn-success website-verify-btn" data-website-id="{{ $w->id }}">{{ __('Verify') }}</button>
+                                                                            <div class="border rounded mb-2 p-3 website-row" data-website-id="{{ $w->id }}">
+                                                                                @if($w->isVerified())
+                                                                                    <div class="d-flex align-items-center justify-content-between">
+                                                                                        <a href="{{ $w->getDisplayUrl() }}" target="_blank" rel="noopener" class="text-primary website-display-url">{{ $w->getDisplayUrl() }}</a>
+                                                                                        <div class="d-flex align-items-center gap-2">
+                                                                                            <span class="badge verified-badge">{{ __('Verified') }}</span>
+                                                                                            <button type="button" class="btn btn-sm btn-outline-danger website-delete-btn" data-website-id="{{ $w->id }}" title="{{ __('Remove website') }}" aria-label="{{ __('Remove website') }}"><i class="ti ti-x"></i></button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                @else
+                                                                                    <div class="mb-2">
+                                                                                        <a href="{{ $w->getDisplayUrl() }}" target="_blank" rel="noopener" class="text-primary website-display-url">{{ $w->getDisplayUrl() }}</a>
+                                                                                    </div>
+                                                                                    <small class="d-block text-muted mb-1">{{ __('Add this to your site\'s <head>:') }}</small>
+                                                                                    <code class="d-block small bg-light p-2 rounded mb-2" style="word-break: break-all;">&lt;meta name="greenunimind-verification" content="{{ $w->verification_token }}" /&gt;</code>
+                                                                                    <div class="d-flex align-items-center gap-2">
+                                                                                        <button type="button" class="btn btn-sm btn-outline-success website-verify-btn" data-website-id="{{ $w->id }}">{{ __('Verify') }}</button>
+                                                                                        <button type="button" class="btn btn-sm btn-outline-danger website-delete-btn" data-website-id="{{ $w->id }}" title="{{ __('Remove website') }}" aria-label="{{ __('Remove website') }}"><i class="ti ti-x"></i></button>
                                                                                     </div>
                                                                                 @endif
-                                                                                <button type="button" class="btn btn-sm btn-outline-danger website-delete-btn ms-2" data-website-id="{{ $w->id }}" title="{{ __('Remove website') }}" aria-label="{{ __('Remove website') }}"><i class="ti ti-trash"></i></button>
                                                                             </div>
                                                                         @endforeach
                                                                     </div>
@@ -986,7 +991,7 @@
                                                                                     @if(in_array('facebook', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('facebook'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge">{{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -1007,7 +1012,7 @@
                                                                                     @if(in_array('instagram', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('instagram'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge">{{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -1028,7 +1033,7 @@
                                                                                     @if(in_array('x', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('x'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge">{{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -1064,7 +1069,7 @@
                                                                                     @if(in_array('youtube', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('youtube'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge">{{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -1085,7 +1090,7 @@
                                                                                     @if(in_array('kick', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('kick'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge">{{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -1106,7 +1111,7 @@
                                                                                     @if(in_array('twitch', $socialVerifiedPlatforms))
                                                                                         @php $acc = $socialAccountsByPlatform->get('twitch'); @endphp
                                                                                         <div class="d-flex align-items-center gap-2">
-                                                                                            <span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> {{ __('Verified') }}</span>
+                                                                                            <span class="badge verified-badge">{{ __('Verified') }}</span>
                                                                                             <button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="{{ $acc->id }}" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-x"></i></button>
                                                                                         </div>
                                                                                     @else
@@ -1227,7 +1232,7 @@
                                                                                     if (errAlert) errAlert.remove();
                                                                                 }
                                                                                 var verifiedLabel = '{{ __("Verified") }}';
-                                                                                actionCell.innerHTML = '<div class="d-flex align-items-center gap-2"><span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i> ' + verifiedLabel + '</span><button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="' + ev.data.accountId + '" title="{{ __("Remove") }}" aria-label="{{ __("Remove") }}"><i class="ti ti-x"></i></button></div>';
+                                                                                actionCell.innerHTML = '<div class="d-flex align-items-center gap-2"><span class="badge verified-badge">' + verifiedLabel + '</span><button type="button" class="btn btn-sm btn-outline-danger social-disconnect-btn" data-account-id="' + ev.data.accountId + '" title="{{ __("Remove") }}" aria-label="{{ __("Remove") }}"><i class="ti ti-x"></i></button></div>';
                                                                                 attachSocialDisconnectHandlers();
                                                                                 showToast('{{ __("Account connected successfully.") }}');
                                                                                 return;
@@ -1253,12 +1258,12 @@
                                                                                             if (res.code === '200' || res.code === 200) {
                                                                                                 var row = btn.closest('.website-row');
                                                                                                 if (row) {
-                                                                                                    var verifyBlock = row.querySelector('.website-verify-block');
-                                                                                                    if (verifyBlock) verifyBlock.remove();
-                                                                                                    var firstDiv = row.querySelector('.flex-grow-1');
-                                                                                                    if (firstDiv && !firstDiv.querySelector('.badge.verified-badge')) {
-                                                                                                        firstDiv.insertAdjacentHTML('afterbegin', '<span class="badge verified-badge me-2"><i class="ti ti-circle-check me-1"></i>{{ __("Verified") }}</span>');
-                                                                                                    }
+                                                                                                    var urlEl = row.querySelector('.website-display-url');
+                                                                                                    var urlHref = urlEl ? urlEl.getAttribute('href') : '';
+                                                                                                    var urlText = urlEl ? urlEl.textContent : '';
+                                                                                                    var websiteId = row.getAttribute('data-website-id');
+                                                                                                    row.innerHTML = '<div class="d-flex align-items-center justify-content-between"><a href="' + urlHref + '" target="_blank" rel="noopener" class="text-primary website-display-url">' + urlText + '</a><div class="d-flex align-items-center gap-2"><span class="badge verified-badge"><i class="ti ti-circle-check me-1"></i>{{ __("Verified") }}</span><button type="button" class="btn btn-sm btn-outline-danger website-delete-btn" data-website-id="' + websiteId + '" title="{{ __("Remove website") }}" aria-label="{{ __("Remove website") }}"><i class="ti ti-x"></i></button></div></div>';
+                                                                                                    attachWebsiteHandlers(row);
                                                                                                 }
                                                                                                 showToast(res.message || '{{ __("Website verified successfully!") }}');
                                                                                             } else {
@@ -1324,7 +1329,7 @@
                                                                                             var displayUrlRaw = w.display_url || w.url || '';
                                                                                             var displayUrlEsc = displayUrlRaw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
                                                                                             var metaContent = (w.verification_token || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-                                                                                            var rowHtml = '<div class="list-group-item d-flex flex-wrap align-items-center justify-content-between border rounded mb-2 p-3 website-row" data-website-id="' + w.id + '"><div class="flex-grow-1 me-2"><a href="' + displayUrlEsc + '" target="_blank" rel="noopener" class="text-primary website-display-url">' + displayUrlEsc + '</a></div><div class="mt-2 mt-md-0 website-verify-block"><small class="d-block text-muted mb-1">{{ __("Add this to your site's <head>:") }}</small><code class="d-block small bg-light p-2 rounded mb-2" style="word-break: break-all;">&lt;meta name="greenunimind-verification" content="' + metaContent + '" /&gt;</code><button type="button" class="btn btn-sm btn-success website-verify-btn" data-website-id="' + w.id + '">{{ __("Verify") }}</button></div><button type="button" class="btn btn-sm btn-outline-danger website-delete-btn ms-2" data-website-id="' + w.id + '" title="{{ __("Remove website") }}" aria-label="{{ __("Remove website") }}"><i class="ti ti-trash"></i></button></div>';
+                                                                                            var rowHtml = '<div class="border rounded mb-2 p-3 website-row" data-website-id="' + w.id + '"><div class="mb-2"><a href="' + displayUrlEsc + '" target="_blank" rel="noopener" class="text-primary website-display-url">' + displayUrlEsc + '</a></div><small class="d-block text-muted mb-1">{{ __("Add this to your site\'s <head>:") }}</small><code class="d-block small bg-light p-2 rounded mb-2" style="word-break: break-all;">&lt;meta name="greenunimind-verification" content="' + metaContent + '" /&gt;</code><div class="d-flex align-items-center gap-2"><button type="button" class="btn btn-sm btn-outline-success website-verify-btn" data-website-id="' + w.id + '">{{ __("Verify") }}</button><button type="button" class="btn btn-sm btn-outline-danger website-delete-btn" data-website-id="' + w.id + '" title="{{ __("Remove website") }}" aria-label="{{ __("Remove website") }}"><i class="ti ti-x"></i></button></div></div>';
                                                                                             var listGroup = document.getElementById('website-list-group');
                                                                                             var emptyEl = document.getElementById('website-list-empty');
                                                                                             if (listGroup) {
@@ -1341,7 +1346,7 @@
                                                                                             if (urlInput) urlInput.value = '';
                                                                                             showToast(res.message || '{{ __("Website added.") }}');
                                                                                         } else if (res.data && res.data.already_approved) {
-                                                                                            var alertHtml = '<div class="alert alert-info alert-dismissible fade show mb-3" role="alert" id="website-already-approved-alert"><p class="mb-2">{{ __("This website is already approved. Please request the owner.") }}</p><p class="mb-2 small">' + (res.data.domain || '').replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</p><button type="button" class="btn btn-sm btn-primary website-request-representation-btn" data-website-id="' + res.data.website_id + '">{{ __("Request") }}</button><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
+                                                                                            var alertHtml = '<div class="alert alert-info alert-dismissible fade show mb-3" role="alert" id="website-already-approved-alert"><p class="mb-2">{{ __("This website has already been approved. Please request representation from the owner. Your name and email address will be shared.") }}</p><p class="mb-2 small">' + (res.data.domain || '').replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</p><button type="button" class="btn btn-sm btn-primary website-request-representation-btn" data-website-id="' + res.data.website_id + '">{{ __("Request") }}</button><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
                                                                                             var accordionBody = document.getElementById('website-verification-id');
                                                                                             if (accordionBody) {
                                                                                                 var existingAlert = document.getElementById('website-already-approved-alert');
@@ -1361,7 +1366,7 @@
                                                                                                     }
                                                                                                 });
                                                                                             }
-                                                                                            showToast(res.message || '{{ __("This website is already approved. Please request the owner.") }}');
+                                                                                            showToast(res.message || '{{ __("This website has already been approved. Please request representation from the owner. Your name and email address will be shared.") }}');
                                                                                         } else {
                                                                                             showToast(res.message || '{{ __("Website added.") }}');
                                                                                         }
@@ -1421,7 +1426,7 @@
                                                                                         if (w.authorized_representatives && w.authorized_representatives.length) {
                                                                                             repsHtml += '<div class="mb-2"><small class="text-muted d-block">' + domain + '</small>';
                                                                                             w.authorized_representatives.forEach(function(rep) {
-                                                                                                repsHtml += '<div class="d-flex align-items-center border rounded p-2 mb-1"><span class="badge verified-badge me-2"><i class="ti ti-circle-check me-1"></i>{{ __("Verified") }}</span>' + (rep.name || rep.email || '') + ' <small class="text-muted ms-2">' + (rep.email || '') + '</small></div>';
+                                                                                                repsHtml += '<div class="d-flex align-items-center border rounded p-2 mb-1"><span class="badge verified-badge me-2">{{ __("Verified") }}</span>' + (rep.name || rep.email || '') + ' <small class="text-muted ms-2">' + (rep.email || '') + '</small></div>';
                                                                                             });
                                                                                             repsHtml += '</div>';
                                                                                         }

@@ -14,13 +14,13 @@
                 <div class="card-body text-center py-4">
                     <div class="mb-3">
                         <span class="avatar avatar-lg bg-primary-transparent rounded-circle">
-                            <i class="ti ti-video fs-24 text-primary"></i>
+                            <img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" style="width: 24px; height: 24px;">
                         </span>
                     </div>
                     <h5 class="mb-2">{{ __('Video & Voice Calls') }}</h5>
                     <p class="text-muted mb-3">{{ __('Start a meeting with Google Meet. Share the link with your contacts to invite them.') }}</p>
                     <a href="https://meet.google.com/new" target="_blank" class="btn btn-primary me-2">
-                        <i class="ti ti-video me-1"></i>{{ __('Start Google Meet') }}
+                        <img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon me-1">{{ __('Start Google Meet') }}
                     </a>
                     <button type="button" class="btn btn-outline-primary" id="copy-meet-link-btn">
                         <i class="ti ti-copy me-1"></i>{{ __('Copy Meet Link') }}

@@ -43,7 +43,7 @@
                         @if($callsProvider === 'meet')
                         <li data-bs-toggle="tooltip" data-bs-placement="bottom" title="Start Google Meet">
                             <a href="https://meet.google.com/new" target="_blank" class="btn" id="google-meet-btn">
-                                <i class="ti ti-video"></i>
+                                <img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon">
                             </a>
                         </li>
                         @else
@@ -155,7 +155,7 @@
                         @if($callsProvider === 'meet')
                         <div class="form-item emoj-action-foot">
                             <a href="javascript:void(0);" id="send-meet-link-btn" class="action-circle" title="Send Google Meet link">
-                                <i class="ti ti-video"></i>
+                                <img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon">
                             </a>
                         </div>
                         @endif
@@ -210,16 +210,15 @@
                         <div class="d-flex align-items-center justify-content-center gap-1">
                             <h6 id="contact-full-name"></h6>
                             <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
-                                <i class="ti ti-shield-check"></i> {{ __('Verified') }}
+                                {{ __('Verified') }}
                             </span>
                         </div>
                         <p id="contact-last-seen"></p>
                         <div class="d-flex align-items-center justify-content-center gap-2 mt-2">
-                            @if($callsProvider === 'meet')
-                            <a href="https://meet.google.com/new" target="_blank" class="btn btn-sm btn-outline-primary" title="{{ __('Video') }}"><i class="ti ti-video"></i></a>
-                            @else
                             <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-profile-audio-btn" title="{{ __('Audio') }}"><i class="ti ti-phone"></i></a>
                             <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-profile-video-btn" title="{{ __('Video') }}"><i class="ti ti-video"></i></a>
+                            @if($callsProvider === 'meet')
+                            <a href="https://meet.google.com/new" target="_blank" class="btn btn-sm btn-outline-primary" title="{{ __('Google Meet') }}"><img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon"></a>
                             @endif
                             <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" title="{{ __('Chat') }}"><i class="ti ti-message"></i></a>
                             <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" title="{{ __('Search') }}"><i class="ti ti-search"></i></a>
@@ -236,7 +235,7 @@
                                             <p id="contact-name" class="d-flex align-items-center flex-wrap gap-1">
                                                 <span id="contact-name-text"></span>
                                                 <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
-                                                    <i class="ti ti-shield-check"></i> {{ __('Verified') }}
+                                                    {{ __('Verified') }}
                                                 </span>
                                             </p>
                                         </div>
@@ -293,9 +292,7 @@
                                     <a id="twitter-link" href="javascript:void(0);"><i class="ti ti-brand-twitter"></i></a>
                                     <a id="google-link" href="javascript:void(0);"><i class="ti ti-brand-google"></i></a>
                                     <a id="linkedin-link" href="javascript:void(0);"><i class="ti ti-brand-linkedin"></i></a>
-                                    <span class="contact-social-verified badge verified-badge badge-xs ms-1" style="display:none;" title="{{ __('Verified') }}">
-                                        <i class="ti ti-circle-check"></i> {{ __('Verified') }}
-                                    </span>
+                                    <span class="contact-social-verified badge verified-badge badge-xs ms-1" style="display:none;" title="{{ __('Verified') }}">{{ __('Verified') }}</span>
                                 </div>
                             </div>
                         </div>
@@ -1012,12 +1009,11 @@
                                 </div>
                                 <div class="contact-actions d-flex align-items-center mb-3">
                                     <a href="{{ route('chat') }}" class="me-2"><i class="ti ti-message"></i></a>
-                                    @if($callsProvider === 'meet')
-                                    <a href="https://meet.google.com/new" target="_blank" class="me-2" title="Start Google Meet"><i class="ti ti-video"></i></a>
-                                    @else
                                     <a href="javascript:void(0);" class="me-2" data-bs-toggle="modal"
                                         data-bs-target="#voice_call"><i class="ti ti-phone"></i></a>
                                     <a href="javascript:void(0);" class="me-2"><i class="ti ti-video"></i></a>
+                                    @if($callsProvider === 'meet')
+                                    <a href="https://meet.google.com/new" target="_blank" class="me-2" title="Start Google Meet"><img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon"></a>
                                     @endif
                                 </div>
                             </div>

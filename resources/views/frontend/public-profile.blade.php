@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ asset('assets/css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/icons/tabler-icons/tabler-icons.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/verified-badge.css') }}">
     @php $details = $user->get_user_details; @endphp
     <meta property="og:title" content="{{ $user->public_display_name }}">
     <meta property="og:description" content="{{ $details->user_about ?? ($user->public_display_name ?? config('app.name')) }}">
@@ -33,7 +34,7 @@
                                 {{ $user->public_display_name }}
                                 @if($user->isKycVerified())
                                     <span class="badge verified-badge badge-sm ms-1" title="{{ __('ID Verified') }}">
-                                        <i class="ti ti-shield-check me-1"></i>{{ __('Verified') }}
+                                        {{ __('Verified') }}
                                     </span>
                                 @endif
                             </h3>
@@ -101,7 +102,7 @@
                                 <h6 class="text-muted text-uppercase small mb-3 d-flex align-items-center flex-wrap gap-2">
                                     {{ __('Social Channels') }}
                                     @if(count($verifiedSocialPlatforms) > 0)
-                                        <span class="badge verified-badge badge-sm"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
+                                        <span class="badge verified-badge badge-sm">{{ __('Verified') }}</span>
                                     @endif
                                 </h6>
                                 <div class="d-flex flex-wrap gap-2">
@@ -119,7 +120,7 @@
                                             <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center">
                                                 <i class="ti {{ $cfg['icon'] }} me-1"></i>{{ $cfg['label'] }}
                                                 @if($isVerified)
-                                                    <span class="badge verified-badge badge-sm ms-1"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
+                                                    <span class="badge verified-badge badge-sm ms-1">{{ __('Verified') }}</span>
                                                 @endif
                                             </a>
                                         @endif

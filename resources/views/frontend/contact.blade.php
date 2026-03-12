@@ -247,7 +247,7 @@
                                     <div class="d-flex align-items-center gap-1 flex-wrap">
                                         <h6 id="contact-detail-name"></h6>
                                         <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
-                                            <i class="ti ti-shield-check"></i> {{ __('Verified') }}
+                                            {{ __('Verified') }}
                                         </span>
                                     </div>
                                     <p class="mb-0 small text-muted" id="contact-detail-title"></p>
@@ -255,11 +255,10 @@
                             </div>
                             <div class="contact-actions d-flex align-items-center gap-2 mb-3">
                                 <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-detail-chat-btn" title="{{ __('Chat') }}"><i class="ti ti-message"></i></a>
-                                @if(config('calls.provider') === 'meet')
-                                <a href="https://meet.google.com/new" target="_blank" class="btn btn-sm btn-outline-primary" title="{{ __('Video') }}"><i class="ti ti-video"></i></a>
-                                @else
                                 <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-detail-voice-btn" title="{{ __('Voice Call') }}"><i class="ti ti-phone"></i></a>
                                 <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-detail-video-btn" title="{{ __('Video Call') }}"><i class="ti ti-video"></i></a>
+                                @if(config('calls.provider') === 'meet')
+                                <a href="https://meet.google.com/new" target="_blank" class="btn btn-sm btn-outline-primary" title="{{ __('Google Meet') }}"><img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon"></a>
                                 @endif
                             </div>
                         </div>
@@ -293,7 +292,7 @@
                 <div class="card border mb-0">
                     <div class="card-header border-bottom d-flex align-items-center flex-wrap gap-2">
                         <h6 class="mb-0">{{ __('Social Information')}}</h6>
-                        <span class="contact-social-verified badge verified-badge badge-xs" style="display:none;"><i class="ti ti-circle-check"></i> {{ __('Verified') }}</span>
+                        <span class="contact-social-verified badge verified-badge badge-xs" style="display:none;">{{ __('Verified') }}</span>
                     </div>
                     <div class="card-body pb-1">
                         <div class="mb-2">
@@ -304,7 +303,7 @@
                                 <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="twitter">—</h6></div>
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-instagram me-1"></i>Instagram</p></div>
                                 <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="instagram">—</h6></div>
-                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-linkedin me-1"></i>LinkedIn</p></div>
+                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-linkedin me-1"></i>LinkedIn <i class="linkedin-info-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ __('LinkedIn does not allow OAuth to verify profile') }}">i</i></p></div>
                                 <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="linkedin">—</h6></div>
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-youtube me-1"></i>YouTube</p></div>
                                 <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="youtube">—</h6></div>

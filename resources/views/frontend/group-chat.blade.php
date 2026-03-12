@@ -1,4 +1,4 @@
-﻿@extends('frontend.layout')
+@extends('frontend.layout')
 
 @section('content')
 
@@ -42,7 +42,7 @@
                         @if(config('calls.provider') === 'meet')
                         <li data-bs-toggle="tooltip" data-bs-placement="bottom" title="Start Google Meet">
                             <a href="https://meet.google.com/new" target="_blank" class="btn" id="google-meet-btn-group">
-                                <i class="ti ti-video"></i>
+                                <img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon">
                             </a>
                         </li>
                         @else

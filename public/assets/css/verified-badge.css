@@ -10,9 +10,9 @@
   background-color: #fff !important;
   color: var(--verified-green) !important;
   border: 1.5px solid var(--verified-green) !important;
-  border-radius: 50px !important;
+  border-radius: 6px !important;
   font-weight: 600 !important;
-  padding: 4px 10px !important;
+  padding: 4px 12px !important;
   display: inline-flex !important;
   align-items: center;
 }
@@ -71,4 +71,43 @@
 .kyc-badge .ti,
 .kyc-badge i {
   color: inherit;
+}
+
+/* Google Meet logo icon in buttons */
+.google-meet-icon {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  display: inline-block;
+}
+.btn-sm .google-meet-icon {
+  width: 15px;
+  height: 15px;
+}
+.btn-lg .google-meet-icon,
+.action-circle .google-meet-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* LinkedIn info tooltip icon */
+.linkedin-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  border: 1.5px solid #d1d5db;
+  border-radius: 50%;
+  cursor: help;
+  margin-left: 4px;
+  font-style: normal;
+  line-height: 1;
+}
+.linkedin-info-icon:hover {
+  color: #374151;
+  border-color: #9ca3af;
 }

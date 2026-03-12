@@ -190,7 +190,7 @@ class WebsiteController extends Controller
                 ->with('website_already_approved', true)
                 ->with('website_already_approved_id', $verifiedWebsite->id)
                 ->with('website_already_approved_domain', $verifiedWebsite->domain)
-                ->with('info', __('This website is already approved. Please request the owner.')));
+                ->with('info', __('This website has already been approved. Please request representation from the owner. Your name and email address will be shared.')));
         }
 
         $token = $this->verificationService->generateVerificationToken();
@@ -227,7 +227,7 @@ class WebsiteController extends Controller
             if ($websiteAlreadyApproved && $websiteAlreadyApprovedId) {
                 return response()->json([
                     'code' => '200',
-                    'message' => __('This website is already approved. Please request the owner.'),
+                    'message' => __('This website has already been approved. Please request representation from the owner. Your name and email address will be shared.'),
                     'data' => ['already_approved' => true, 'website_id' => $websiteAlreadyApprovedId, 'domain' => $websiteAlreadyApprovedDomain],
                 ], 200);
             }

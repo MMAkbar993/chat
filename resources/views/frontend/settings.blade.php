@@ -348,6 +348,9 @@
                                 </a>
                                 <a href="javascript:void(0);" class="me-2" data-bs-toggle="modal" data-bs-target="#voice_call"><i class="ti ti-phone"></i></a>
                                 <a href="javascript:void(0);" class="me-2"><i class="ti ti-video"></i></a>
+                                @if(config('calls.provider') === 'meet')
+                                <a href="https://meet.google.com/new" target="_blank" class="me-2" title="Start Google Meet"><img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon"></a>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -413,7 +416,7 @@
                                     <h6 class="fw-medium fs-14 mb-2" data-field="instagram"></h6>
                                 </div>
                                 <div class="col-sm-6">
-                                    <p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-linkedin me-1"></i>Linkedin</p>
+                                    <p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-linkedin me-1"></i>Linkedin <i class="linkedin-info-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="LinkedIn does not allow OAuth to verify profile">i</i></p>
                                 </div>
                                 <div class="col-sm-6">
                                     <h6 class="fw-medium fs-14 mb-2" data-field="linkedin"></h6>
