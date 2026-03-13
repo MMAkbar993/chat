@@ -6374,7 +6374,7 @@ initializeFirebase(function (app, auth, database, storage) {
             // Retrieve the user data from Firebase
             const usersRef = ref(database, "data/users/" + userId);
             onValue(usersRef, (data) => {
-                const userData = data.val();
+                const userData = data.val() || {};
                 const userAvatarImage = document.createElement("img");
                 userAvatarImage.src =
                     userData.image ||
@@ -6392,9 +6392,8 @@ initializeFirebase(function (app, auth, database, storage) {
                     `data/contacts/${currentUser.uid}/${userId}`
                 );
                 onValue(contactsRef, (contactSnapshot) => {
-                    const contactData = contactSnapshot.val();
-                    let displayName =
-                        contactData.firstName || contactData.mobile_number; // Default to user's username
+                    const contactData = contactSnapshot.val() || {};
+                    let displayName = contactData.firstName || contactData.mobile_number || 'Unknown';
 
                     // Create the userTitle element
                     const userTitle = document.createElement("h6");
@@ -6403,24 +6402,26 @@ initializeFirebase(function (app, auth, database, storage) {
                     if (contactData && contactData.firstName) {
                         // If contact data exists, use it for the display name
                         displayName =
-                            contactData.firstName + " " + contactData.lastName;
+                            contactData.firstName + " " + (contactData.lastName || "");
                         userTitle.textContent =
                             capitalizeFirstLetter(displayName);
                     } else {
                         // Fallback to the "users" table if contact data is unavailable
                         const userRef = ref(database, `data/users/${userId}`);
                         onValue(userRef, (userSnapshot) => {
-                            const userData = userSnapshot.val();
+                            const userData = userSnapshot.val() || {};
                             displayName = `${
-                                contactData.firstName ||
-                                `${contactData.mobile_number}`
-                            } ${contactData.lastName || ""}`.trim(); // Fallback logic
+                                userData.firstName ||
+                                contactData.mobile_number || 
+                                ""
+                            } ${userData.lastName || ""}`.trim(); // Fallback logic
                             userTitle.textContent =
-                                capitalizeFirstLetter(displayName);
+                                capitalizeFirstLetter(displayName) || 'Unknown';
                         });
                     }
 
                     // Append the element after determining the display name
+                    userDetailsDiv.innerHTML = ''; // Prevent duplicates
                     userDetailsDiv.appendChild(userTitle);
                 });
 
