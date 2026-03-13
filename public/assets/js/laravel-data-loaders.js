@@ -191,9 +191,11 @@
     }
 
     // --- New Chat modal: populate contacts when modal is shown (so + New Chat shows contacts) ---
-    function populateNewChatModal() {
-        var mainContainer = document.getElementById('main-container');
+    // Uses event delegation so it works after SPA navigation (new #new-chat has no listener otherwise).
+    function populateNewChatModal(container, modalEl) {
+        var mainContainer = container || document.getElementById('main-container');
         if (!mainContainer) return;
+        var modalToClose = modalEl || document.getElementById('new-chat');
         var contacts = window.__laravelContacts;
         if (!contacts || Object.keys(contacts).length === 0) {
             mainContainer.innerHTML = '<p class="text-muted text-center py-3">No contacts yet. Add contacts from the Contacts page or use Invite Others.</p>';
@@ -220,18 +222,75 @@
             el.addEventListener('click', function () {
                 var uid = this.getAttribute('data-user-id');
                 try { localStorage.setItem('selectedUserId', uid); } catch (e) {}
-                var modalEl = document.getElementById('new-chat');
-                if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-                    var modal = bootstrap.Modal.getInstance(modalEl);
+                if (modalToClose && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    var modal = bootstrap.Modal.getInstance(modalToClose);
                     if (modal) modal.hide();
                 }
                 window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(uid);
             });
         });
     }
-    var newChatModalEl = document.getElementById('new-chat');
-    if (newChatModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-        newChatModalEl.addEventListener('show.bs.modal', function () {
+
+    document.addEventListener('show.bs.modal', function (e) {
+        if (e.target.id !== 'new-chat') return;
+        var mainContainer = e.target.querySelector('#main-container');
+        if (!mainContainer) return;
+        if (Object.keys(window.__laravelContacts || {}).length === 0) {
+            fetch(baseUrl + '/contacts', { method: 'GET', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (contacts) {
+                    if (Array.isArray(contacts)) {
+                        window.__laravelContacts = {};
+                        contacts.forEach(function (c) { window.__laravelContacts[c.uid] = c; });
+                    }
+                    populateNewChatModal(mainContainer, e.target);
+                })
+                .catch(function () {
+                    mainContainer.innerHTML = '<p class="text-danger text-center py-3">Failed to load contacts.</p>';
+                });
+        } else {
+            populateNewChatModal(mainContainer, e.target);
+        }
+    });
+
+    // --- Add Members modal (group-chat): populate #users-list when modal is shown ---
+    function populateAddMembersModal() {
+        var usersList = document.getElementById('users-list');
+        if (!usersList) return;
+        var contacts = window.__laravelContacts;
+        if (!contacts || Object.keys(contacts).length === 0) {
+            usersList.innerHTML = '<p class="text-muted text-center py-3">No contacts yet. Add contacts from the Contacts page or use Invite Others.</p>';
+            return;
+        }
+        var list = Object.keys(contacts).map(function (uid) {
+            var c = contacts[uid];
+            var first = (c.firstName || '').trim();
+            var last = (c.lastName || '').trim();
+            var name = (first + ' ' + last).trim() || c.userName || c.email || 'Unknown';
+            return { uid: uid, c: c, name: name };
+        });
+        list.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+        var html = '';
+        list.forEach(function (item) {
+            var img = item.c.image || baseUrl + '/assets/img/profiles/avatar-03.jpg';
+            if (img && img.indexOf('/') === 0 && img.indexOf('//') !== 0) img = baseUrl + img;
+            var displayName = item.name;
+            if (displayName && displayName.charAt(0)) displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+            html += '<div class="contact-user">';
+            html += '<div class="d-flex align-items-center justify-content-between">';
+            html += '<div class="d-flex align-items-center">';
+            html += '<div class="avatar avatar-lg"><img src="' + escapeAttr(img) + '" class="rounded-circle" alt="image"></div>';
+            html += '<div class="ms-2"><h6>' + escapeHtml(displayName) + '</h6><p></p></div>';
+            html += '</div>';
+            html += '<div class="form-check"><input class="form-check-input" type="checkbox" name="contact" value="' + escapeAttr(item.uid) + '"></div>';
+            html += '</div></div>';
+        });
+        usersList.innerHTML = html;
+    }
+
+    var addGroupModalEl = document.getElementById('add-group');
+    if (addGroupModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        addGroupModalEl.addEventListener('show.bs.modal', function () {
             if (Object.keys(window.__laravelContacts || {}).length === 0) {
                 fetch(baseUrl + '/contacts', { method: 'GET', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
                     .then(function (r) { return r.json(); })
@@ -240,15 +299,37 @@
                             window.__laravelContacts = {};
                             contacts.forEach(function (c) { window.__laravelContacts[c.uid] = c; });
                         }
-                        populateNewChatModal();
+                        populateAddMembersModal();
                     })
                     .catch(function () {
-                        var mc = document.getElementById('main-container');
-                        if (mc) mc.innerHTML = '<p class="text-danger text-center py-3">Failed to load contacts.</p>';
+                        var ul = document.getElementById('users-list');
+                        if (ul) ul.innerHTML = '<p class="text-danger text-center py-3">Failed to load contacts.</p>';
                     });
             } else {
-                populateNewChatModal();
+                populateAddMembersModal();
             }
+        });
+    }
+
+    // Add Members modal search: filter #users-list by name when Laravel populated the list
+    var groupContactSearchInput = document.getElementById('groupcontactSearchInput');
+    if (groupContactSearchInput && !groupContactSearchInput.dataset.laravelSearchBound) {
+        groupContactSearchInput.dataset.laravelSearchBound = '1';
+        groupContactSearchInput.addEventListener('input', function () {
+            var usersList = document.getElementById('users-list');
+            if (!usersList) return;
+            var searchValue = (this.value || '').toLowerCase().trim();
+            var contactUsers = usersList.querySelectorAll('.contact-user');
+            var anyVisible = false;
+            contactUsers.forEach(function (el) {
+                var h6 = el.querySelector('.ms-2 h6');
+                var name = h6 ? (h6.textContent || '').toLowerCase() : '';
+                var show = !searchValue || name.indexOf(searchValue) !== -1;
+                el.style.display = show ? '' : 'none';
+                if (show) anyVisible = true;
+            });
+            var noMsg = document.getElementById('noGroupMatchesModalMessage');
+            if (noMsg) noMsg.style.display = anyVisible ? 'none' : 'block';
         });
     }
 
