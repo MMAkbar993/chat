@@ -491,4 +491,23 @@
         var pathname = (e && e.detail && e.detail.pathname) ? e.detail.pathname : getPathname(window.location.href);
         runForPathname(pathname);
     });
+
+    // Contact Detail Chat button: delegated handler so it works even when modal was opened without list-click binding
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('#contact-detail-chat-btn, #chat-button');
+        if (!btn) return;
+        var modal = btn.closest('#contact-details');
+        if (!modal) modal = document.getElementById('contact-details');
+        var editInput = modal ? modal.querySelector('input#edit-user-id') : null;
+        var userId = editInput && editInput.value ? editInput.value.trim() : '';
+        if (!userId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try { localStorage.setItem('selectedUserId', userId); } catch (err) {}
+        if (modal && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            var m = bootstrap.Modal.getInstance(modal);
+            if (m) m.hide();
+        }
+        window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(userId);
+    }, true);
 })();
