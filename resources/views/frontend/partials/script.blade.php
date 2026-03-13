@@ -761,6 +761,10 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
     else tryRun();
     setTimeout(tryRun, 300);
     setTimeout(tryRun, 800);
+    if (isChatPage() && typeof URLSearchParams !== 'undefined') {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('user')) setTimeout(tryRun, 1200);
+    }
     window.addEventListener('spa-page-applied', function(e) {
         var path = e && e.detail && e.detail.pathname ? e.detail.pathname : getPathname();
         if (path === '/chat' || path === '/index') tryRun();

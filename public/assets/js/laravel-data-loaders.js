@@ -510,4 +510,19 @@
         }
         window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(userId);
     }, true);
+
+    // Chat list: delegated handler so clicking a chat opens conversation with that person
+    document.addEventListener('click', function (e) {
+        var link = e.target.closest('.chat-user-list');
+        if (!link) return;
+        var listEl = link.closest('.chat-list[data-user-id]');
+        if (!listEl) return;
+        if (!listEl.closest('#chat-users-wrap')) return;
+        var userId = listEl.getAttribute('data-user-id');
+        if (!userId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try { localStorage.setItem('selectedUserId', userId); } catch (err) {}
+        window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(userId);
+    }, true);
 })();
