@@ -247,27 +247,27 @@ initializeFirebase(function (app, auth, database, storage) {
     function handleVoiceCallClick() {
         const userId = document.getElementById("edit-user-id").value;
         if (!currentUserId || !userId) return;
-        const channelName = 'call_' + [currentUserId, userId].sort().join('_');
         
         const modalEl = document.getElementById('contact-details');
         if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             const m = bootstrap.Modal.getInstance(modalEl);
             if (m) m.hide();
         }
-        window.location.href = `/audio-call?caller=${encodeURIComponent(currentUserId)}&receiver=${encodeURIComponent(userId)}&channelname=${encodeURIComponent(channelName)}&call_type=audio&currentuser=${encodeURIComponent(currentUserId)}`;
+        var callBtn = document.getElementById('audio-call-btn') || document.getElementById('audio-new-btn-group');
+        if (callBtn) callBtn.click();
     }
 
     function handleVideoCallClick() {
         const userId = document.getElementById("edit-user-id").value;
         if (!currentUserId || !userId) return;
-        const channelName = 'call_' + [currentUserId, userId].sort().join('_');
         
         const modalEl = document.getElementById('contact-details');
         if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             const m = bootstrap.Modal.getInstance(modalEl);
             if (m) m.hide();
         }
-        window.location.href = `/video-call?caller=${encodeURIComponent(currentUserId)}&receiver=${encodeURIComponent(userId)}&channelname=${encodeURIComponent(channelName)}&call_type=video&currentuser=${encodeURIComponent(currentUserId)}`;
+        var callBtn = document.getElementById('video-call-new-btn') || document.getElementById('video-call-new-btn-group');
+        if (callBtn) callBtn.click();
     }
 
     function handleChatButtonClick() {

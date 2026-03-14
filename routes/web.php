@@ -201,7 +201,7 @@ Route::get('/', function () {
    Route::post('/send-encrypted-message', [MessageController::class, 'sendEncryptedMessage']);
 
 Route::get('/video-call', function () {
-   return view('frontend/video-call');
+   return view('frontend/video_call');
 })->name('video-call');
 
 Route::get('/audio-call', function () {

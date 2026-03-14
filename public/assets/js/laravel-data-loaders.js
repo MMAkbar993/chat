@@ -167,16 +167,16 @@
                     var goToVoiceCall = function (e) {
                         if (e) { e.preventDefault(); e.stopPropagation(); }
                         if (!currentUserId || !uid) return;
-                        var channelName = 'call_' + [currentUserId, uid].sort().join('_');
                         closeContactDetailModal();
-                        window.location.href = baseUrl + '/audio-call?caller=' + encodeURIComponent(currentUserId) + '&receiver=' + encodeURIComponent(uid) + '&channelname=' + encodeURIComponent(channelName) + '&call_type=audio&currentuser=' + encodeURIComponent(currentUserId);
+                        var callBtn = document.getElementById('audio-call-btn') || document.getElementById('audio-new-btn-group');
+                        if (callBtn) callBtn.click();
                     };
                     var goToVideoCall = function (e) {
                         if (e) { e.preventDefault(); e.stopPropagation(); }
                         if (!currentUserId || !uid) return;
-                        var channelName = 'call_' + [currentUserId, uid].sort().join('_');
                         closeContactDetailModal();
-                        window.location.href = baseUrl + '/video-call?caller=' + encodeURIComponent(currentUserId) + '&receiver=' + encodeURIComponent(uid) + '&channelname=' + encodeURIComponent(channelName) + '&call_type=video&currentuser=' + encodeURIComponent(currentUserId);
+                        var callBtn = document.getElementById('video-call-new-btn') || document.getElementById('video-call-new-btn-group');
+                        if (callBtn) callBtn.click();
                     };
                     if (chatBtn) { chatBtn.onclick = goToChat; chatBtn.href = 'javascript:void(0);'; }
                     if (voiceBtn) { voiceBtn.onclick = goToVoiceCall; voiceBtn.href = 'javascript:void(0);'; }

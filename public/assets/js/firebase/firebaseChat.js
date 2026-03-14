@@ -7075,6 +7075,16 @@ initializeFirebase(function (app, auth, database, storage) {
                 : ringingCall.userId;
             updateModalUserDetails(otherUserId);
             $('#voice-attend-new').modal('hide');
+            
+            // Adjust the modal UI based on whether it is an outgoing or incoming call
+            if (ringingCall.inOrOut === 'OUT') {
+                $('#join-audio-call').hide();
+                $('#audio-call-modal .modal-title').text('Calling...');
+            } else {
+                $('#join-audio-call').show();
+                $('#audio-call-modal .modal-title').text('Incoming Audio Call...');
+            }
+            
             $('#audio-call-modal').modal('show');
         }
         else if (currentCallId) {
