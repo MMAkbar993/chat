@@ -221,9 +221,54 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    document.getElementById("chat-button").addEventListener("click", function (event) {
-        handleChatButtonClick();
+    document.addEventListener("click", function (event) {
+        const chatBtn = event.target.closest("#chat-button, #contact-detail-chat-btn");
+        if (chatBtn) {
+            event.preventDefault();
+            handleChatButtonClick();
+            return;
+        }
+
+        const voiceBtn = event.target.closest("#contact-detail-voice-btn");
+        if (voiceBtn) {
+            event.preventDefault();
+            handleVoiceCallClick();
+            return;
+        }
+
+        const videoBtn = event.target.closest("#contact-detail-video-btn");
+        if (videoBtn) {
+            event.preventDefault();
+            handleVideoCallClick();
+            return;
+        }
     });
+
+    function handleVoiceCallClick() {
+        const userId = document.getElementById("edit-user-id").value;
+        if (!currentUserId || !userId) return;
+        const channelName = 'call_' + [currentUserId, userId].sort().join('_');
+        
+        const modalEl = document.getElementById('contact-details');
+        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const m = bootstrap.Modal.getInstance(modalEl);
+            if (m) m.hide();
+        }
+        window.location.href = `/audio-call?caller=${encodeURIComponent(currentUserId)}&receiver=${encodeURIComponent(userId)}&channelname=${encodeURIComponent(channelName)}&call_type=audio&currentuser=${encodeURIComponent(currentUserId)}`;
+    }
+
+    function handleVideoCallClick() {
+        const userId = document.getElementById("edit-user-id").value;
+        if (!currentUserId || !userId) return;
+        const channelName = 'call_' + [currentUserId, userId].sort().join('_');
+        
+        const modalEl = document.getElementById('contact-details');
+        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const m = bootstrap.Modal.getInstance(modalEl);
+            if (m) m.hide();
+        }
+        window.location.href = `/video-call?caller=${encodeURIComponent(currentUserId)}&receiver=${encodeURIComponent(userId)}&channelname=${encodeURIComponent(channelName)}&call_type=video&currentuser=${encodeURIComponent(currentUserId)}`;
+    }
 
     function handleChatButtonClick() {
         const userId = document.getElementById("edit-user-id").value; // Get the user ID from the modal
@@ -775,13 +820,7 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    // Add click event listener to the chat button
-    document.getElementById('chat-button').addEventListener('click', () => {
 
-        const otherUserId = document.querySelector(".user-click-id").value;
-        const loggedInUserId = currentUserId;
-        showChatForm(loggedInUserId, otherUserId);
-    });
 
     const contactSearchEl = document.getElementById("contactSearchInput");
     if (contactSearchEl) contactSearchEl.addEventListener("input", function () {

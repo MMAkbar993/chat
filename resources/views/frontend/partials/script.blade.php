@@ -147,7 +147,20 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
                 $laravelUserJson = json_encode($laravelUserArr);
             }
         } catch (\Throwable $e) {
-            $laravelUserJson = 'null';
+            try {
+                $u = Auth::user();
+                if ($u) {
+                    $laravelUserJson = json_encode([
+                        'id' => $u->id,
+                        'full_name' => $u->full_name ?? trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')),
+                        'email' => $u->email,
+                    ]);
+                } else {
+                    $laravelUserJson = 'null';
+                }
+            } catch (\Throwable $inner) {
+                $laravelUserJson = 'null';
+            }
             $socialVerified = [];
         }
     @endphp
@@ -677,12 +690,16 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
 
     function run(attempt) {
         attempt = attempt || 0;
+        console.log("[Fallback Chat] run() attempt:", attempt);
         var currentUserId = typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER ? window.LARAVEL_USER.id : null;
         var selectedId = null;
         try { selectedId = localStorage.getItem('selectedUserId'); } catch (e) {}
         var params = typeof URLSearchParams !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         var userFromUrl = params ? params.get('user') : null;
+        console.log("[Fallback Chat] LocalStorage ID:", selectedId, "URL ID:", userFromUrl);
         if (userFromUrl) selectedId = userFromUrl;
+        
+        console.log("[Fallback Chat] Using selectedId:", selectedId, "currentUserId:", currentUserId);
         if (!selectedId || !currentUserId) {
             if (selectedId && !currentUserId && attempt < 5) {
                 currentUserId = typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER ? window.LARAVEL_USER.id : null;
@@ -694,10 +711,31 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
         var middle = document.getElementById('middle');
         var chatBox = document.getElementById('chat-box');
         var chatForm = document.getElementById('message-form');
+        console.log("[Fallback Chat] Elements found:", { welcome: !!welcome, middle: !!middle, chatBox: !!chatBox, chatForm: !!chatForm });
         if (!middle || !chatBox) {
+            console.log("[Fallback Chat] Retrying, attempt:", attempt);
             if (attempt < 10) setTimeout(function() { run(attempt + 1); }, 150);
             return;
         }
+        console.log("[Fallback Chat] Modifying DOM styles");
+        if (welcome) welcome.style.setProperty('display', 'none', 'important');
+        middle.style.setProperty('display', 'flex', 'important');
+        middle.classList.add('show', 'show-chatbar');
+        
+        // Also force parent .chat and sibling .left-sidebar toggles (for mobile/tablet layouts)
+        var chatParent = document.querySelector('.chat');
+        if (chatParent) chatParent.classList.add('show-chatbar', 'show');
+        
+        var leftSidebar = document.querySelector('.left-sidebar');
+        if (leftSidebar) leftSidebar.classList.add('hide-left-sidebar');
+        
+        var sidebarMenu = document.querySelector('.sidebar-menu');
+        if (sidebarMenu && window.innerWidth <= 991) sidebarMenu.classList.add('d-none');
+        
+        var fallbackH6 = middle.querySelector('.chat-header h6');
+        if (fallbackH6) fallbackH6.textContent = 'User ' + selectedId;
+        var fallbackAvatar = middle.querySelector('.chat-header .avatar img');
+        if (fallbackAvatar) fallbackAvatar.src = baseUrl + '/assets/img/profiles/avatar-06.jpg';
         if (chatForm) {
             chatForm.onsubmit = function(e) {
                 e.preventDefault();
@@ -728,8 +766,6 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
                 if (Array.isArray(list)) other = list.find(function(item) { return String(item.other_user_id) === String(selectedId); });
                 var name = other ? (other.display_name || 'User') : ('User ' + selectedId);
                 var img = (other && other.other_user && other.other_user.profile_image_link) ? other.other_user.profile_image_link : (baseUrl + '/assets/img/profiles/avatar-06.jpg');
-                if (welcome) welcome.style.display = 'none';
-                middle.style.display = 'block';
                 var h6 = middle.querySelector('.chat-header h6');
                 if (h6) h6.textContent = name;
                 var avatar = middle.querySelector('.chat-header .avatar img');
@@ -750,7 +786,9 @@ try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) 
                 });
                 if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
             })
-            .catch(function() {});
+            .catch(function() {
+                if (chatBox) chatBox.innerHTML = '<p class="text-muted text-center py-3 mb-0">Could not load conversation.</p>';
+            });
     }
 
     function tryRun() {

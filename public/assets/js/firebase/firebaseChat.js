@@ -58,16 +58,30 @@ initializeFirebase(function (app, auth, database, storage) {
                         // Redirect to chat if they try to visit the login page while logged in
                         window.location.href = "/chat";
                     }
+                    // fetchUsers creates the usersMap asynchronously.
+                    // We need to wait for it before calling selectUser.
                     fetchUsers();
 
                     // Check localStorage and trigger `selectUser` if a user ID is present
-
-                    const storedUserId = localStorage.getItem("selectedUserId"); // Retrieve the stored user ID
+                    let storedUserId = localStorage.getItem("selectedUserId"); // Retrieve the stored user ID
+                    if (!storedUserId) {
+                        const urlParams = new URLSearchParams(window.location.search);
+                        storedUserId = urlParams.get('user');
+                    }
 
                     if (storedUserId) {
-                        // Trigger the selectUser function with the stored user ID
-                        selectUser(storedUserId);
-                        localStorage.removeItem("selectedUserId");
+                        // wait for usersMap to populate before selecting
+                        const checkInterval = setInterval(() => {
+                            if (Object.keys(usersMap).length > 0 || usersMap[storedUserId]) {
+                                clearInterval(checkInterval);
+                                selectUser(storedUserId);
+                            }
+                        }, 100);
+                        
+                        // Fallback clear after some time to prevent infinite loop
+                        setTimeout(() => clearInterval(checkInterval), 5000); 
+
+                        // localStorage.removeItem("selectedUserId"); // keep this if you want it to persist during refresh
                     }
                     document.getElementById("chat-users-wrap").innerHTML = "";
                     document.getElementById(
@@ -102,7 +116,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             });
         })
-        .catch((error) => {});
+        .catch((error) => { });
 
     const generateAgoraToken = async (channelName, uid) => {
         if (!channelName || !uid) {
@@ -194,7 +208,7 @@ initializeFirebase(function (app, auth, database, storage) {
         try {
             const dbRef = ref(database, `data/tokens/${uid}`); // Create a reference to the 'tokens' table with the unique UID
             await set(dbRef, tokenData); // Save the token data to Firebase
-        } catch (error) {}
+        } catch (error) { }
     };
 
     const generateTokenAndLog = async (channelName, uid) => {
@@ -480,9 +494,9 @@ initializeFirebase(function (app, auth, database, storage) {
                                                         ref(
                                                             database,
                                                             "data/contacts/" +
-                                                                loggedInUserId +
-                                                                "/" +
-                                                                data.uid
+                                                            loggedInUserId +
+                                                            "/" +
+                                                            data.uid
                                                         );
                                                     set(
                                                         loggedInUserContactsRef,
@@ -962,11 +976,11 @@ initializeFirebase(function (app, auth, database, storage) {
 
                 timeElement.textContent = lastMessageTimestamp
                     ? moment(lastMessageTimestamp).calendar(null, {
-                          sameDay: "h:mm A", // Today
-                          lastDay: "[Yesterday]", // Yesterday
-                          lastWeek: "MM/D/YYYY", // Last week
-                          sameElse: "MM/D/YYYY", // Older dates
-                      })
+                        sameDay: "h:mm A", // Today
+                        lastDay: "[Yesterday]", // Yesterday
+                        lastWeek: "MM/D/YYYY", // Last week
+                        sameElse: "MM/D/YYYY", // Older dates
+                    })
                     : "No time";
                 // messageCountSpan.textContent = unseenMessageCount > 0 ? unseenMessageCount.toString() : "";
 
@@ -1010,7 +1024,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                     const message = childSnapshot.val();
                                     if (
                                         message.recipientId ===
-                                            currentUser.uid &&
+                                        currentUser.uid &&
                                         !message.seen
                                     ) {
                                         update(
@@ -1172,10 +1186,10 @@ initializeFirebase(function (app, auth, database, storage) {
                     lastMessage.attachmentType === 6
                         ? decryptMessage(lastMessage.body)
                         : lastMessage.attachmentType === 2
-                        ? "Image sent"
-                        : lastMessage.attachmentType === 5
-                        ? "File sent"
-                        : "Unknown message type";
+                            ? "Image sent"
+                            : lastMessage.attachmentType === 5
+                                ? "File sent"
+                                : "Unknown message type";
 
                 userMessageElement.textContent = displayMessage;
             } else {
@@ -1441,11 +1455,11 @@ initializeFirebase(function (app, auth, database, storage) {
 
                 timeElement.textContent = lastMessageTimestamp
                     ? moment(lastMessageTimestamp).calendar(null, {
-                          sameDay: "h:mm A", // Today
-                          lastDay: "[Yesterday]", // Yesterday
-                          lastWeek: "MM/D/YYYY", // Last week
-                          sameElse: "MM/D/YYYY", // Older dates
-                      })
+                        sameDay: "h:mm A", // Today
+                        lastDay: "[Yesterday]", // Yesterday
+                        lastWeek: "MM/D/YYYY", // Last week
+                        sameElse: "MM/D/YYYY", // Older dates
+                    })
                     : "No time";
                 // messageCountSpan.textContent = unseenMessageCount > 0 ? unseenMessageCount.toString() : "";
 
@@ -1474,13 +1488,13 @@ initializeFirebase(function (app, auth, database, storage) {
                                     const message = childSnapshot.val();
                                     if (
                                         message.recipientId ===
-                                            currentUser.uid &&
+                                        currentUser.uid &&
                                         !message.seen
                                     ) {
 
                                         update(
-                                        child(chatRef, childSnapshot.key), 
-                                        { seen: true }
+                                            child(chatRef, childSnapshot.key),
+                                            { seen: true }
                                         );
                                     }
                                 });
@@ -1602,11 +1616,11 @@ initializeFirebase(function (app, auth, database, storage) {
 
                     timeElement.textContent = lastMessageTimestamp
                         ? moment(lastMessageTimestamp).calendar(null, {
-                              sameDay: "h:mm A", // Today
-                              lastDay: "[Yesterday]", // Yesterday
-                              lastWeek: "MM/D/YYYY", // Last week
-                              sameElse: "MM/D/YYYY", // Older dates
-                          })
+                            sameDay: "h:mm A", // Today
+                            lastDay: "[Yesterday]", // Yesterday
+                            lastWeek: "MM/D/YYYY", // Last week
+                            sameElse: "MM/D/YYYY", // Older dates
+                        })
                         : "No time";
                 }
             }
@@ -1666,14 +1680,14 @@ initializeFirebase(function (app, auth, database, storage) {
                             latestMessage.attachmentType === 2
                                 ? "Image sent"
                                 : latestMessage.attachmentType === 5
-                                ? "File sent"
-                                : latestMessage.attachmentType === 3
-                                ? "Audio sent"
-                                : latestMessage.attachmentType === 8
-                                ? "Audio Record sent"
-                                : latestMessage.attachmentType === 1
-                                ? "Video sent"
-                                : "Unknown message type";
+                                    ? "File sent"
+                                    : latestMessage.attachmentType === 3
+                                        ? "Audio sent"
+                                        : latestMessage.attachmentType === 8
+                                            ? "Audio Record sent"
+                                            : latestMessage.attachmentType === 1
+                                                ? "Video sent"
+                                                : "Unknown message type";
                     }
 
                     // Update message and timestamp
@@ -1873,7 +1887,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 .then(data => {
                     kycBadges.forEach(b => b.style.display = data.verified ? 'inline-flex' : 'none');
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
 
         // Show the chat container
@@ -1987,7 +2001,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 body: body,
             });
 
-            notification.onclick = () => {};
+            notification.onclick = () => { };
         } else if (Notification.permission !== "denied") {
             Notification.requestPermission().then((permission) => {
                 if (permission === "granted") {
@@ -2135,7 +2149,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                 database,
                                 `data/chats/${mirrorChatRoomId}/${newReplyKey}`
                             );
-                            set(mirrorReplyRef, replyMessage).catch(() => {});
+                            set(mirrorReplyRef, replyMessage).catch(() => { });
                             // Close the reply box and clear the input field
                             closeReplyBox();
                             document.getElementById("message-input").value = "";
@@ -2160,17 +2174,17 @@ initializeFirebase(function (app, auth, database, storage) {
                         ...message, // Spread the original message properties
                         id: newKey, // Add the generated key as the id
                     };
-                    let msg =  await decryptlibsodiumMessage(
+                    let msg = await decryptlibsodiumMessage(
                         message.body
                     );
                     const userMsgRef = ref(
                         database,
                         `data/users/${message.id}`
                     );
-                    
-                     const snapshot = await get(userMsgRef);
-                     const excludedUsers = snapshot.val() || [];
-                     
+
+                    const snapshot = await get(userMsgRef);
+                    const excludedUsers = snapshot.val() || [];
+
                     sendCallNotification(message.recipientId, msg, excludedUsers.mobile_number, message.senderId, message.senderId, "")
 
                     set(newMessageRef, messageWithId)
@@ -2180,7 +2194,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                 database,
                                 `data/chats/${mirrorChatRoomId}/${newKey}`
                             );
-                            set(mirrorRef, messageWithId).catch(() => {});
+                            set(mirrorRef, messageWithId).catch(() => { });
                             // Message sent successfully
                             document.getElementById("message-input").value = ""; // Clear the input field
                         })
@@ -2206,7 +2220,7 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
-   async function displayMessage(message) {
+    async function displayMessage(message) {
         const chatBox = document.getElementById("chat-box");
         // Check if chatBox element exists
         if (!chatBox) {
@@ -2273,18 +2287,18 @@ initializeFirebase(function (app, auth, database, storage) {
 
                 let originalMessageChat;
 
-        if (message.isOptimistic) {
-            // For optimistic messages, the body is already plain text.
-            originalMessageChat = message.body;
-        } else if ([6].includes(message.attachmentType)) {
-            // For real messages, decrypt as before.
-            const decryptedText = await decryptlibsodiumMessage(
-                message.body
-            );
-            originalMessageChat = decryptedText;
-        } else if (message.attachmentType != 6) {
-            originalMessageChat = message.attachment.url;
-        }
+                if (message.isOptimistic) {
+                    // For optimistic messages, the body is already plain text.
+                    originalMessageChat = message.body;
+                } else if ([6].includes(message.attachmentType)) {
+                    // For real messages, decrypt as before.
+                    const decryptedText = await decryptlibsodiumMessage(
+                        message.body
+                    );
+                    originalMessageChat = decryptedText;
+                } else if (message.attachmentType != 6) {
+                    originalMessageChat = message.attachment.url;
+                }
 
                 const forwardedLabel = message.isForward
                     ? `<div class="forwarded-label" style="color: #FFF; font-size: 12px; margin-bottom: 5px;">
@@ -2301,12 +2315,12 @@ initializeFirebase(function (app, auth, database, storage) {
                 // Handle original message content
                 switch (message.attachmentType) {
                     case 6:
-						// If text looks like a Google Maps link, render as clickable link
-						if (typeof originalMessageChat === "string" && /https?:\/\/(maps\.google\.com|goo\.gl)\//.test(originalMessageChat)) {
-							messageContent = `<a href="${originalMessageChat}" target="_blank" rel="noopener noreferrer">${originalMessageChat}</a>`;
-						} else {
-							messageContent = originalMessageChat;
-						}
+                        // If text looks like a Google Maps link, render as clickable link
+                        if (typeof originalMessageChat === "string" && /https?:\/\/(maps\.google\.com|goo\.gl)\//.test(originalMessageChat)) {
+                            messageContent = `<a href="${originalMessageChat}" target="_blank" rel="noopener noreferrer">${originalMessageChat}</a>`;
+                        } else {
+                            messageContent = originalMessageChat;
+                        }
                         break;
                     case 4:
                         // Map attachment: show static map image linking to live Google Maps
@@ -2327,39 +2341,39 @@ initializeFirebase(function (app, auth, database, storage) {
                         break;
                     case 2:
                         const uniqueId = `imagePreview-${message.timestamp}`;
-						// If the image is a Google Static Map, wrap it with a link to open live map
-						let wrappedImageHtml = `
+                        // If the image is a Google Static Map, wrap it with a link to open live map
+                        let wrappedImageHtml = `
 							<img src="${originalMessageChat}" alt="Image Preview" class="message-image-preview video-style">
 						`;
-						if (typeof originalMessageChat === "string" && originalMessageChat.includes("maps.googleapis.com/maps/api/staticmap")) {
-							// Try to extract coordinates from URL
-							let latLngMatch = originalMessageChat.match(/center=([-0-9.]+),([-0-9.]+)/);
-							if (!latLngMatch) {
-								latLngMatch = originalMessageChat.match(/markers=[^|]*%7C([-0-9.]+),([-0-9.]+)/);
-							}
-							if (latLngMatch) {
-								const lat = latLngMatch[1];
-								const lng = latLngMatch[2];
-								const liveLink = `https://maps.google.com/?q=${lat},${lng}`;
-								wrappedImageHtml = `<a href="${liveLink}" target="_blank" rel="noopener noreferrer">${wrappedImageHtml}</a>`;
-							}
-						}
-						messageContent = `
+                        if (typeof originalMessageChat === "string" && originalMessageChat.includes("maps.googleapis.com/maps/api/staticmap")) {
+                            // Try to extract coordinates from URL
+                            let latLngMatch = originalMessageChat.match(/center=([-0-9.]+),([-0-9.]+)/);
+                            if (!latLngMatch) {
+                                latLngMatch = originalMessageChat.match(/markers=[^|]*%7C([-0-9.]+),([-0-9.]+)/);
+                            }
+                            if (latLngMatch) {
+                                const lat = latLngMatch[1];
+                                const lng = latLngMatch[2];
+                                const liveLink = `https://maps.google.com/?q=${lat},${lng}`;
+                                wrappedImageHtml = `<a href="${liveLink}" target="_blank" rel="noopener noreferrer">${wrappedImageHtml}</a>`;
+                            }
+                        }
+                        messageContent = `
 						<div class="image-preview-container" id="${uniqueId}">
 							${wrappedImageHtml}
 						</div>`;
                         setTimeout(() => {
                             const imageContainer =
                                 document.getElementById(uniqueId);
-							if (imageContainer) {
-								// If wrapped with link (map), let the anchor handle the click; else open preview
-								const hasAnchor = !!imageContainer.querySelector('a');
-								if (!hasAnchor) {
-									imageContainer.addEventListener("click", () =>
-										openImagePreview(originalMessageChat)
-									);
-								}
-							}
+                            if (imageContainer) {
+                                // If wrapped with link (map), let the anchor handle the click; else open preview
+                                const hasAnchor = !!imageContainer.querySelector('a');
+                                if (!hasAnchor) {
+                                    imageContainer.addEventListener("click", () =>
+                                        openImagePreview(originalMessageChat)
+                                    );
+                                }
+                            }
                         }, 0);
                         break;
                     case 3:
@@ -2482,22 +2496,22 @@ initializeFirebase(function (app, auth, database, storage) {
                 const formattedTime = formatTimestamp(message.timestamp);
 
                 let statusIcon = "";
-        if (message.senderId === currentUserId) {
-            if (message.isOptimistic) {
-                // Use a clock icon for the "sending" state.
-                // Make sure your icon library (e.g., Tabler Icons) has 'ti-clock'.
-                statusIcon = `<i class="ti ti-clock"></i>`;
-            } else {
-                // This is the existing logic for real messages
-                if (!message.delivered && !message.readMsg) {
-                    statusIcon = `<i class="ti ti-check"></i>`; // Sent (single tick)
-                } else if (message.delivered && !message.readMsg) {
-                    statusIcon = `<i class="ti ti-checks"></i>`; // Delivered (double ticks)
-                } else if (message.delivered && message.readMsg) {
-                    statusIcon = `<i class="ti ti-checks text-success">5</i>`; // Read (green double ticks)
+                if (message.senderId === currentUserId) {
+                    if (message.isOptimistic) {
+                        // Use a clock icon for the "sending" state.
+                        // Make sure your icon library (e.g., Tabler Icons) has 'ti-clock'.
+                        statusIcon = `<i class="ti ti-clock"></i>`;
+                    } else {
+                        // This is the existing logic for real messages
+                        if (!message.delivered && !message.readMsg) {
+                            statusIcon = `<i class="ti ti-check"></i>`; // Sent (single tick)
+                        } else if (message.delivered && !message.readMsg) {
+                            statusIcon = `<i class="ti ti-checks"></i>`; // Delivered (double ticks)
+                        } else if (message.delivered && message.readMsg) {
+                            statusIcon = `<i class="ti ti-checks text-success">5</i>`; // Read (green double ticks)
+                        }
+                    }
                 }
-            }
-        }
 
                 // Check if the message is cleared for the current user
                 if (
@@ -2536,11 +2550,10 @@ initializeFirebase(function (app, auth, database, storage) {
                                 </div>   
                                 <div class="message-content">
                                  ${forwardedLabel} <!-- Forwarded Label -->
-                                 ${
-                                     message.replyId != "0"
-                                         ? `<div class="message-reply">${replyContent}</div>`
-                                         : ""
-                                 } <!-- Reply Content only if it's a reply -->
+                                 ${message.replyId != "0"
+                            ? `<div class="message-reply">${replyContent}</div>`
+                            : ""
+                        } <!-- Reply Content only if it's a reply -->
                                     ${messageBody} <!-- Default Message -->
                                 </div>   
                             </div>
@@ -2562,11 +2575,10 @@ initializeFirebase(function (app, auth, database, storage) {
                             <div class="chat-info">
                                 <div class="message-content">
                                  ${forwardedLabel} <!-- Forwarded Label -->
-                                 ${
-                                     message.replyId != "0"
-                                         ? `<div class="message-reply">${replyContent}</div>`
-                                         : ""
-                                 } <!-- Reply Content only if it's a reply -->
+                                 ${message.replyId != "0"
+                            ? `<div class="message-reply">${replyContent}</div>`
+                            : ""
+                        } <!-- Reply Content only if it's a reply -->
                                     ${messageBody} <!-- Default Message -->
                                 </div>   
                                 <div class="chat-actions">
@@ -3203,14 +3215,14 @@ initializeFirebase(function (app, auth, database, storage) {
     // Play the message sent sound (to be called from chat.js)
     function playMessageSentSound() {
         if (isMessageNotificationSoundEnabled) {
-            messagenotificationSound.play().catch((error) => {});
+            messagenotificationSound.play().catch((error) => { });
         }
     }
 
     // Play the message received sound (can be called in other scripts too)
     function playMessageReceivedSound() {
         if (isMessageNotificationSoundEnabled) {
-            messagenotificationSound.play().catch((error) => {});
+            messagenotificationSound.play().catch((error) => { });
         }
     }
 
@@ -3265,7 +3277,7 @@ initializeFirebase(function (app, auth, database, storage) {
     let messageListener = null;
     const displayedMessages = new Set(); // Keep track of displayed message keys
 
-  function listenForMessages(fromUserId, toUserId, chatRoomId) {
+    function listenForMessages(fromUserId, toUserId, chatRoomId) {
         // Remove the previous listener before adding a new one
         if (messageListener) {
             messageListener(); // Detach previous listener
@@ -3278,7 +3290,7 @@ initializeFirebase(function (app, auth, database, storage) {
         // Generate both possible chat room IDs
         const chatRoomId1 = `${fromUserId}-${toUserId}`; // A-B
         const chatRoomId2 = `${toUserId}-${fromUserId}`; // B-A
-        
+
         console.log("Starting to listen for messages between:", fromUserId, "and", toUserId);
         console.log("Chat room IDs:", chatRoomId1, "and", chatRoomId2);
 
@@ -3309,12 +3321,12 @@ initializeFirebase(function (app, auth, database, storage) {
                     return; // We're done, so we exit the function here.
                 }
             }
-            
+
             // Ensure we only process the message once
             if (!displayedMessages.has(messageKey)) {
-                displayedMessages.add(messageKey); 
-                message.key = messageKey; 
-                
+                displayedMessages.add(messageKey);
+                message.key = messageKey;
+
                 if (
                     (message.senderId === fromUserId &&
                         message.recipientId === toUserId) ||
@@ -3386,10 +3398,10 @@ initializeFirebase(function (app, auth, database, storage) {
             get(messageRef2)
         ]).then(([snapshot1, snapshot2]) => {
             const allMessages = [];
-            
+
             console.log("Loading existing messages...");
             console.log("Snapshot1 exists:", snapshot1.exists(), "Snapshot2 exists:", snapshot2.exists());
-            
+
             // Collect messages from first path
             if (snapshot1.exists()) {
                 snapshot1.forEach((childSnapshot) => {
@@ -3399,7 +3411,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 });
                 console.log("Messages from path1:", snapshot1.numChildren());
             }
-            
+
             // Collect messages from second path
             if (snapshot2.exists()) {
                 snapshot2.forEach((childSnapshot) => {
@@ -3409,12 +3421,12 @@ initializeFirebase(function (app, auth, database, storage) {
                 });
                 console.log("Messages from path2:", snapshot2.numChildren());
             }
-            
+
             console.log("Total messages collected:", allMessages.length);
-            
+
             // Sort messages by timestamp and display them
             allMessages.sort((a, b) => a.timestamp - b.timestamp);
-            
+
             allMessages.forEach((message) => {
                 if (
                     (message.senderId === fromUserId &&
@@ -3427,7 +3439,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     displayMessage(message);
                 }
             });
-            
+
             // Scroll to bottom after loading messages
             const chatBox = document.getElementById("chat-box");
             if (chatBox) {
@@ -3441,14 +3453,14 @@ initializeFirebase(function (app, auth, database, storage) {
     function markMessageAsSeen(chatRoomId, messageId) {
         // Try to mark message as seen in both possible chat room paths
         const chatRoomId1 = chatRoomId;
-        const chatRoomId2 = chatRoomId.includes('-') ? 
+        const chatRoomId2 = chatRoomId.includes('-') ?
             chatRoomId.split('-').reverse().join('-') : chatRoomId;
-        
+
         const messageRef1 = ref(
             database,
             `data/chats/${chatRoomId1}/${messageId}`
         );
-        
+
         const messageRef2 = ref(
             database,
             `data/chats/${chatRoomId2}/${messageId}`
@@ -3506,8 +3518,8 @@ initializeFirebase(function (app, auth, database, storage) {
     const sendButton = document.getElementById("send-button");
     const fileInput = document.getElementById("files");
     const messageInput = document.getElementById("message-input");
-	const locationButton = document.getElementById("location-button");
-	const GOOGLE_MAPS_API_KEY = "AIzaSyCAcoMewuBBAdWw5CEv6VfBcHPMl-k8uc8";
+    const locationButton = document.getElementById("location-button");
+    const GOOGLE_MAPS_API_KEY = "AIzaSyCAcoMewuBBAdWw5CEv6VfBcHPMl-k8uc8";
 
     // Create a container for file preview and the Clear button
     const messagePreview = document.createElement("div");
@@ -3526,13 +3538,13 @@ initializeFirebase(function (app, auth, database, storage) {
     document.querySelector(".chat-footer-wrap").appendChild(messagePreview); // Add preview container to footer
     messagePreview.appendChild(clearButton); // Add Clear button to preview container
 
-  if (sendButton) {
+    if (sendButton) {
         sendButton.onclick = async function (e) {
             e.preventDefault(); // Prevent page reload
 
             const messageText = messageInput?.value.trim();
             const selectedFile = fileInput?.files[0];
-            
+
             if (!messageText && !selectedFile) {
                 return; // Do nothing if there's no message or file
             }
@@ -3555,8 +3567,8 @@ initializeFirebase(function (app, auth, database, storage) {
                     readMsg: false,
                     replyId: replyToMessage ? replyToMessage.key : "0",
                     // Add reply content if needed for the optimistic display
-                    ...(replyToMessage && { 
-                        replyContent: replyToMessage.body, 
+                    ...(replyToMessage && {
+                        replyContent: replyToMessage.body,
                         replyUser: replyToMessage.senderId,
                         replyType: replyToMessage.attachmentType
                     })
@@ -3564,7 +3576,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
                 // 3. Display the message immediately
                 displayMessage(optimisticMessage);
-                
+
                 // 4. Clear the input and close the reply box
                 messageInput.value = "";
                 closeReplyBox();
@@ -3602,95 +3614,95 @@ initializeFirebase(function (app, auth, database, storage) {
                     default: messageType = 5; break;
                 }
                 sendMessage(selectedUserId, attachment, messageType);
-                
+
                 // Clear file preview
                 fileInput.value = "";
                 messagePreview.innerHTML = "";
                 clearButton.style.display = "none";
             }
-            
+
             sendButton.disabled = false;
         };
     }
 
-	// Handle sending current location as a message
-	if (locationButton) {
-		locationButton.onclick = function (e) {
-			e.preventDefault();
-			if (!navigator.geolocation) {
-				Toastify({
-					text: "Geolocation is not supported by this browser.",
-					duration: 3000,
-					gravity: "top",
-					position: "right",
-					backgroundColor: "#ff3d00",
-					stopOnFocus: true,
-				}).showToast();
-				return;
-			}
+    // Handle sending current location as a message
+    if (locationButton) {
+        locationButton.onclick = function (e) {
+            e.preventDefault();
+            if (!navigator.geolocation) {
+                Toastify({
+                    text: "Geolocation is not supported by this browser.",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ff3d00",
+                    stopOnFocus: true,
+                }).showToast();
+                return;
+            }
 
-			locationButton.disabled = true;
+            locationButton.disabled = true;
 
-			navigator.geolocation.getCurrentPosition(
-				async (pos) => {
-					try {
-						const { latitude, longitude } = pos.coords;
-						const mapsLink = `https://maps.google.com/?q=${latitude},${longitude}`;
-						const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${latitude},${longitude}&zoom=15&size=640x320&scale=2&maptype=roadmap&markers=color:red%7C${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`;
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    try {
+                        const { latitude, longitude } = pos.coords;
+                        const mapsLink = `https://maps.google.com/?q=${latitude},${longitude}`;
+                        const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${latitude},${longitude}&zoom=15&size=640x320&scale=2&maptype=roadmap&markers=color:red%7C${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`;
 
-						// Optimistic map attachment (type 4)
-						const tempKey = `temp_${Date.now()}_${Math.random()}`;
-						const optimisticMessage = {
-							attachment: { url: staticMapUrl, link: mapsLink, lat: latitude, lng: longitude },
-							timestamp: Date.now(),
-							senderId: currentUser.uid,
-							attachmentType: 4,
-							key: tempKey,
-							isOptimistic: true,
-							delivered: false,
-							readMsg: false,
-							replyId: replyToMessage ? replyToMessage.key : "0",
-							...(replyToMessage && {
-								replyContent: replyToMessage.body,
-								replyUser: replyToMessage.senderId,
-								replyType: replyToMessage.attachmentType,
-							}),
-						};
-						displayMessage(optimisticMessage);
-						closeReplyBox();
+                        // Optimistic map attachment (type 4)
+                        const tempKey = `temp_${Date.now()}_${Math.random()}`;
+                        const optimisticMessage = {
+                            attachment: { url: staticMapUrl, link: mapsLink, lat: latitude, lng: longitude },
+                            timestamp: Date.now(),
+                            senderId: currentUser.uid,
+                            attachmentType: 4,
+                            key: tempKey,
+                            isOptimistic: true,
+                            delivered: false,
+                            readMsg: false,
+                            replyId: replyToMessage ? replyToMessage.key : "0",
+                            ...(replyToMessage && {
+                                replyContent: replyToMessage.body,
+                                replyUser: replyToMessage.senderId,
+                                replyType: replyToMessage.attachmentType,
+                            }),
+                        };
+                        displayMessage(optimisticMessage);
+                        closeReplyBox();
 
-						// Send only the map as attachmentType 4
-						const attachment = {
-							bytesCount: 0,
-							name: "Location",
-							url: staticMapUrl,
-							link: mapsLink,
-							lat: latitude,
-							lng: longitude,
-						};
-						sendMessage(selectedUserId, attachment, 4, null, tempKey);
-					} catch (err) {
-						console.error("Error preparing location message:", err);
-					} finally {
-						locationButton.disabled = false;
-					}
-				},
-				(error) => {
-					console.error("Geolocation error:", error);
-					Toastify({
-						text: error.message || "Unable to retrieve location.",
-						duration: 3000,
-						gravity: "top",
-						position: "right",
-						backgroundColor: "#ff3d00",
-						stopOnFocus: true,
-					}).showToast();
-					locationButton.disabled = false;
-				},
-				{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-			);
-		};
-	}
+                        // Send only the map as attachmentType 4
+                        const attachment = {
+                            bytesCount: 0,
+                            name: "Location",
+                            url: staticMapUrl,
+                            link: mapsLink,
+                            lat: latitude,
+                            lng: longitude,
+                        };
+                        sendMessage(selectedUserId, attachment, 4, null, tempKey);
+                    } catch (err) {
+                        console.error("Error preparing location message:", err);
+                    } finally {
+                        locationButton.disabled = false;
+                    }
+                },
+                (error) => {
+                    console.error("Geolocation error:", error);
+                    Toastify({
+                        text: error.message || "Unable to retrieve location.",
+                        duration: 3000,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "#ff3d00",
+                        stopOnFocus: true,
+                    }).showToast();
+                    locationButton.disabled = false;
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        };
+    }
     async function encryptMessage(messageText) {
         // Get CSRF token from meta tag
         const csrfToken = document
@@ -3771,15 +3783,15 @@ initializeFirebase(function (app, auth, database, storage) {
             } else if (fileType === "audio") {
                 filePreview = `<audio controls  width="240">
                                <source src="${URL.createObjectURL(
-                                   selectedFile
-                               )}" type="${selectedFile.type}">
+                    selectedFile
+                )}" type="${selectedFile.type}">
                              
                            </audio>`;
             } else if (fileType === "video") {
                 filePreview = `<video width="150" controls>
                                <source src="${URL.createObjectURL(
-                                   selectedFile
-                               )}" type="video/mp4">
+                    selectedFile
+                )}" type="video/mp4">
                             
                            </video>`;
             } else {
@@ -3863,10 +3875,10 @@ initializeFirebase(function (app, auth, database, storage) {
         update(blockedUserRef, blockedUserData)
             .then(() => {
                 get(ref(database, `data/blocked_users/${currentUserId}`)).then(
-                    (snapshot) => {}
+                    (snapshot) => { }
                 );
             })
-            .catch((error) => {});
+            .catch((error) => { });
     }
 
     // Add an event listener to the 'Block' button in the modal
@@ -3973,13 +3985,13 @@ initializeFirebase(function (app, auth, database, storage) {
 
     function logoutUser() {
         var loginUrl = "/login";
-        var doServerLogout = function() {
+        var doServerLogout = function () {
             var csrfToken = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
             return fetch('/logout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken || '', 'Accept': 'application/json' },
                 credentials: 'same-origin'
-            }).catch(function() {});
+            }).catch(function () { });
         };
         if (auth.currentUser) {
             const userId = auth.currentUser.uid; // Get the current user's ID
@@ -4000,18 +4012,18 @@ initializeFirebase(function (app, auth, database, storage) {
                     // After lastSeen is updated, log the user out from Firebase
                     return auth.signOut(); // Sign out from Firebase
                 })
-                .then(function() {
+                .then(function () {
                     return doServerLogout();
                 })
-                .then(function() {
+                .then(function () {
                     // Redirect to the login page after successful logout
                     window.location.href = loginUrl;
                 })
                 .catch((error) => {
-                    doServerLogout().then(function() { window.location.href = loginUrl; });
+                    doServerLogout().then(function () { window.location.href = loginUrl; });
                 });
         } else {
-            doServerLogout().then(function() { window.location.href = loginUrl; });
+            doServerLogout().then(function () { window.location.href = loginUrl; });
         }
     }
 
@@ -4101,7 +4113,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             backgroundColor: "#28a745",
                         }).showToast();
                     })
-                    .catch((error) => {});
+                    .catch((error) => { });
             }
         });
     }
@@ -4192,7 +4204,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             backgroundColor: "#28a745",
                         }).showToast();
                     })
-                    .catch((error) => {});
+                    .catch((error) => { });
             }
         });
     }
@@ -4223,7 +4235,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         "Last Seen: Not available";
                 }
             })
-            .catch((error) => {});
+            .catch((error) => { });
     }
 
     document
@@ -4244,7 +4256,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     return null;
                 }
             })
-            .catch((error) => {});
+            .catch((error) => { });
     }
 
     // Function to get the excluded users for the current profile
@@ -4290,9 +4302,8 @@ initializeFirebase(function (app, auth, database, storage) {
 
                 if (contactData && contactData.firstName) {
                     // Use contact's first and last name if available
-                    displayName = `${contactData.firstName} ${
-                        contactData.lastName || ""
-                    }`.trim();
+                    displayName = `${contactData.firstName} ${contactData.lastName || ""
+                        }`.trim();
                     updateContactUI(displayName, contactData);
                 } else if (contactData && contactData.mobile_number) {
                     // Use mobile number if available in contacts
@@ -4359,18 +4370,18 @@ initializeFirebase(function (app, auth, database, storage) {
             if (joinEl) joinEl.textContent = (pub && pub.join_date) ? pub.join_date : "—";
             if (webEl) {
                 if (pub && pub.websites && pub.websites.length > 0) {
-                    webEl.innerHTML = pub.websites.map(function(w) { return '<a href="' + w.url + '" target="_blank" rel="noopener">' + w.url + '</a>'; }).join(", ");
+                    webEl.innerHTML = pub.websites.map(function (w) { return '<a href="' + w.url + '" target="_blank" rel="noopener">' + w.url + '</a>'; }).join(", ");
                 } else { webEl.textContent = "—"; }
             }
-            contactKycBadges.forEach(function(b) { b.style.display = (pub && pub.kyc_verified) ? 'inline-flex' : 'none'; });
-            socialVerifiedEls.forEach(function(b) { b.style.display = (pub && pub.social_verified) ? 'inline-flex' : 'none'; });
+            contactKycBadges.forEach(function (b) { b.style.display = (pub && pub.kyc_verified) ? 'inline-flex' : 'none'; });
+            socialVerifiedEls.forEach(function (b) { b.style.display = (pub && pub.social_verified) ? 'inline-flex' : 'none'; });
         }
 
         if (userData && userData.email) {
             fetch('/api/public-profile-by-email?email=' + encodeURIComponent(userData.email))
-                .then(function(r) { return r.json(); })
+                .then(function (r) { return r.json(); })
                 .then(setPublicFields)
-                .catch(function() { setPublicFields(null); });
+                .catch(function () { setPublicFields(null); });
         } else {
             const bioEl = document.getElementById("contact-bio");
             if (bioEl) bioEl.textContent = userData && userData.about ? userData.about : "—";
@@ -4490,7 +4501,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (commonGroups.length === 0) {
                 }
             })
-            .catch((error) => {});
+            .catch((error) => { });
     }
 
     // Fetch groups function
@@ -4754,7 +4765,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 );
                 if (blockModal) blockModal.hide();
             })
-            .catch((error) => {});
+            .catch((error) => { });
     }
 
     // Unblock user function
@@ -4782,7 +4793,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 );
                 if (unblockModal) unblockModal.hide();
             })
-            .catch((error) => {});
+            .catch((error) => { });
     }
 
     // Event listener for 'Block' button
@@ -4852,7 +4863,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     fetchTrashChats(currentUserId);
                 }
             })
-            .catch((error) => {});
+            .catch((error) => { });
     }
 
     populateUsersMap();
@@ -4974,7 +4985,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         senderName = `${userFirstName}`;
                     }
                 }
-            } catch (error) {}
+            } catch (error) { }
 
             // Create the user element
             const userElement = document.createElement("div");
@@ -5052,8 +5063,8 @@ initializeFirebase(function (app, auth, database, storage) {
                         archivedUserIds
                     )
                         ? archivedUserIds.filter(
-                              (userId) => userId !== chatUserId
-                          )
+                            (userId) => userId !== chatUserId
+                        )
                         : [];
 
                     // Update the database with the new array
@@ -5226,7 +5237,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     const unpinButton = userDiv.querySelector(".unpin-chat");
                     unpinButton.addEventListener("click", handleUnpinClick);
                 })
-                .catch((error) => {});
+                .catch((error) => { });
         });
     }
 
@@ -5317,7 +5328,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     displayFavouriteUsers(usersMap, []);
                 }
             },
-            (error) => {}
+            (error) => { }
         );
     }
 
@@ -5344,9 +5355,8 @@ initializeFirebase(function (app, auth, database, storage) {
             <div class="chat-list">
                 <a href="#" class="chat-user-list">
                     <div class="avatar avatar-lg me-2">
-                        <img src="${
-                            user.profileImage
-                        }" class="rounded-circle" alt="image" />
+                        <img src="${user.profileImage
+                }" class="rounded-circle" alt="image" />
                     </div>
                     <div class="chat-user-info">
                         <div class="chat-user-msg">
@@ -5355,8 +5365,8 @@ initializeFirebase(function (app, auth, database, storage) {
                         </div>
                         <div class="chat-user-time">
                             <span class="time">${formatedTimestamp(
-                                user.timestamp
-                            )}</span>
+                    user.timestamp
+                )}</span>
                             <div class="chat-pin">
                                 <i class="ti me-2"></i>
                                 <span class="count-message fs-12 fw-semibold"></span>
@@ -5427,7 +5437,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     displayTrashUsers(usersMap, []);
                 }
             },
-            (error) => {}
+            (error) => { }
         );
     }
 
@@ -5508,8 +5518,8 @@ initializeFirebase(function (app, auth, database, storage) {
                                 </div>
                                 <div class="chat-user-time">
                                     <span class="time">${formatedTimestamp(
-                                        user.timestamp
-                                    )}</span>
+                        user.timestamp
+                    )}</span>
                                 </div>
                             </div>
                 `;
@@ -5550,7 +5560,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         );
                     }
                 })
-                .catch((error) => {});
+                .catch((error) => { });
         });
     }
 
@@ -5576,7 +5586,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 );
                 displayTrashUsers(usersMap, updatedDeletedUsers);
             })
-            .catch((error) => {});
+            .catch((error) => { });
     }
 
     document
@@ -6200,7 +6210,7 @@ initializeFirebase(function (app, auth, database, storage) {
     emojiButton.addEventListener("click", () => {
         emojiPicker.style.display =
             emojiPicker.style.display === "none" ||
-            emojiPicker.style.display === ""
+                emojiPicker.style.display === ""
                 ? "block"
                 : "none";
     });
@@ -6410,11 +6420,10 @@ initializeFirebase(function (app, auth, database, storage) {
                         const userRef = ref(database, `data/users/${userId}`);
                         onValue(userRef, (userSnapshot) => {
                             const userData = userSnapshot.val() || {};
-                            displayName = `${
-                                userData.firstName ||
-                                contactData.mobile_number || 
+                            displayName = `${userData.firstName ||
+                                contactData.mobile_number ||
                                 ""
-                            } ${userData.lastName || ""}`.trim(); // Fallback logic
+                                } ${userData.lastName || ""}`.trim(); // Fallback logic
                             userTitle.textContent =
                                 capitalizeFirstLetter(displayName) || 'Unknown';
                         });
@@ -6511,236 +6520,271 @@ initializeFirebase(function (app, auth, database, storage) {
         newChatBtn.addEventListener("click", openNewChatModal);
     }
 
-// =================================================================
-// AGORA AUDIO CALL IMPLEMENTATION (REVISED)
-// =================================================================
+    // =================================================================
+    // AGORA AUDIO CALL IMPLEMENTATION (REVISED)
+    // =================================================================
 
-// Use Agora App ID from server (script.blade.php sets window.APP_ID from .env) or fallback
-const APP_ID = typeof window.APP_ID !== "undefined" && window.APP_ID ? window.APP_ID : "e368b7a2b5d84c34a1b31da838758a32";
-let audioClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-let localAudioTrack = null;
-let callTimerInterval = null;
-let currentCallId = null; // Keep track of the active call
+    // Use Agora App ID from server (script.blade.php sets window.APP_ID from .env) or fallback
+    const APP_ID = typeof window.APP_ID !== "undefined" && window.APP_ID ? window.APP_ID : "e368b7a2b5d84c34a1b31da838758a32";
+    let audioClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+    let localAudioTrack = null;
+    let callTimerInterval = null;
+    let currentCallId = null; // Keep track of the active call
 
-// Firebase references
-const callRef = ref(database, 'data/calls');
-const usersRef = ref(database, 'data/users');
+    // Firebase references
+    const callRef = ref(database, 'data/calls');
+    const usersRef = ref(database, 'data/users');
 
-const audioCallButton = document.getElementById("audio-call-btn");
-const joinCallButton = document.getElementById('join-audio-call');
-const endCallButton = document.getElementById("end-audio-call");
-const muteButton = document.getElementById("mute-btn");
-const declineButton = document.getElementById("decline-audio-call");
+    const audioCallButton = document.getElementById("audio-call-btn");
+    const joinCallButton = document.getElementById('join-audio-call');
+    const endCallButton = document.getElementById("end-audio-call");
+    const muteButton = document.getElementById("mute-btn");
+    const declineButton = document.getElementById("decline-audio-call");
 
-// 1. INITIATE A CALL
-if (audioCallButton) {
-    audioCallButton.onclick = async (e) => {
-        e.preventDefault();
+    // 1. INITIATE A CALL
+    if (audioCallButton) {
+        audioCallButton.onclick = async (e) => {
+            e.preventDefault();
 
-        const receiverId = selectedUserId;
-        if (!receiverId) {
-            console.error("No user selected for the call.");
-            return;
-        }
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-            console.error("User not authenticated.");
-            return;
-        }
+            const receiverId = selectedUserId;
+            if (!receiverId) {
+                console.error("No user selected for the call.");
+                return;
+            }
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+                console.error("User not authenticated.");
+                return;
+            }
 
-        const callerId = currentUser.uid;
-        const newCallId = push(callRef).key;
-        const channelName = newCallId;
-        
-        // Fetch details for both users to construct the incomingcall string
-        const [callerSnapshot, receiverSnapshot] = await Promise.all([
-            get(child(usersRef, callerId)),
-            get(child(usersRef, receiverId))
-        ]);
-        const callerData = callerSnapshot.val();
-        const receiverData = receiverSnapshot.val();
+            const callerId = currentUser.uid;
+            const newCallId = push(callRef).key;
+            const channelName = newCallId;
 
-        const callerName = `${callerData.firstName} ${callerData.lastName}`.trim() || "Unknown User";
-        const callerImg = callerData.image || 'assets/img/profiles/avatar-03.jpg';
-        const callerMobile = callerData.mobile_number || callerId;
-        const receiverMobile = receiverData.mobile_number || receiverId;
+            // Fetch details for both users to construct the incomingcall string
+            const [callerSnapshot, receiverSnapshot] = await Promise.all([
+                get(child(usersRef, callerId)),
+                get(child(usersRef, receiverId))
+            ]);
+            const callerData = callerSnapshot.val();
+            const receiverData = receiverSnapshot.val();
 
-        const callData = {
-            callerId: [receiverId],
-            callerImg: callerImg,
-            callerName: callerName,
-            currentMills: Date.now(),
-            duration: "Ringing",
-            id: newCallId,
-            inOrOut: "OUT",
-            type: "single",
-            userId: callerId,
-            video: false,
-            channelName: channelName
+            const callerName = `${callerData.firstName} ${callerData.lastName}`.trim() || "Unknown User";
+            const callerImg = callerData.image || 'assets/img/profiles/avatar-03.jpg';
+            const callerMobile = callerData.mobile_number || callerId;
+            const receiverMobile = receiverData.mobile_number || receiverId;
+
+            const callData = {
+                callerId: [receiverId],
+                callerImg: callerImg,
+                callerName: callerName,
+                currentMills: Date.now(),
+                duration: "Ringing",
+                id: newCallId,
+                inOrOut: "OUT",
+                type: "single",
+                userId: callerId,
+                video: false,
+                channelName: channelName
+            };
+
+            await set(ref(database, `data/calls/${callerId}/${newCallId}`), callData);
+            await set(ref(database, `data/calls/${receiverId}/${newCallId}`), {
+                ...callData,
+                inOrOut: "IN",
+                userId: receiverId,
+                callerId: [callerId]
+            });
+
+            const incomingCallString = `user_type=onetoone&call_type=audio&channelname=${channelName}&caller=${callerMobile}&receiver=${receiverMobile}&group=&currentuser=${callerMobile}`;
+            await update(child(usersRef, callerId), {
+                incomingcall: incomingCallString,
+                call_status: false
+            });
+            await update(child(usersRef, receiverId), {
+                incomingcall: incomingCallString,
+                call_status: false
+            });
+            sendCallNotification(receiverId, callerMobile, "Audio call", channelName, callerId, callerName);
+
         };
-
-        await set(ref(database, `data/calls/${callerId}/${newCallId}`), callData);
-        await set(ref(database, `data/calls/${receiverId}/${newCallId}`), {
-            ...callData,
-            inOrOut: "IN",
-            userId: receiverId,
-            callerId: [callerId]
-        });
-
-        const incomingCallString = `user_type=onetoone&call_type=audio&channelname=${channelName}&caller=${callerMobile}&receiver=${receiverMobile}&group=&currentuser=${callerMobile}`;
-        await update(child(usersRef, callerId), {
-            incomingcall: incomingCallString,
-            call_status: false
-        });
-        await update(child(usersRef, receiverId), {
-            incomingcall: incomingCallString,
-            call_status: false
-        });
-        sendCallNotification(receiverId, callerMobile, "Audio call", channelName, callerId, callerName);
-
-    };
-}
+    }
 
 
 
-// 3. ACCEPT A CALL
-if (joinCallButton) {
-    joinCallButton.onclick = async () => {
-        if (!currentCallId) return;
-        const currentUser = auth.currentUser;
-        const callSnapshot = await get(ref(database, `data/calls/${currentUser.uid}/${currentCallId}`));
-        if (!callSnapshot.exists()) return;
+    // 3. ACCEPT A CALL
+    if (joinCallButton) {
+        joinCallButton.onclick = async () => {
+            if (!currentCallId) return;
+            const currentUser = auth.currentUser;
+            const callSnapshot = await get(ref(database, `data/calls/${currentUser.uid}/${currentCallId}`));
+            if (!callSnapshot.exists()) return;
 
-        const callData = callSnapshot.val();
-        const callerId = callData.callerId[0];
+            const callData = callSnapshot.val();
+            const callerId = callData.callerId[0];
 
-        // This update triggers the onValue listener for both users to join the channel
-        await update(ref(database, `data/calls/${currentUser.uid}/${currentCallId}`), { duration: "00:00:00" });
-        await update(ref(database, `data/calls/${callerId}/${currentCallId}`), { duration: "00:00:00" });
-    };
-}
-
-if (declineButton) {
-    declineButton.onclick = async () => {
-         if (!currentCallId) return;
-
-        const currentUser = auth.currentUser;
-        const callSnapshot = await get(ref(database, `data/calls/${currentUser.uid}/${currentCallId}`));
-        if (!callSnapshot.exists()) return;
-
-        const callData = callSnapshot.val();
-        const otherUserId =
-            callData.userId === currentUser.uid
-                ? callData.callerId[0]
-                : callData.userId;
-
-        const [currentUserCall, otherUserCall] = await Promise.all([
-            get(
-                ref(database, `data/calls/${currentUser.uid}/${currentCallId}`)
-            ),
-            get(ref(database, `data/calls/${otherUserId}/${currentCallId}`)),
-        ]);
-
-        // 2. Update DB with final duration while preserving other data
-        const updates = {};
-        updates[`data/calls/${currentUser.uid}/${currentCallId}`] = {
-            ...currentUserCall.val(),
-            duration: "Declined",
+            // This update triggers the onValue listener for both users to join the channel
+            await update(ref(database, `data/calls/${currentUser.uid}/${currentCallId}`), { duration: "00:00:00" });
+            await update(ref(database, `data/calls/${callerId}/${currentCallId}`), { duration: "00:00:00" });
         };
-        updates[`data/calls/${otherUserId}/${currentCallId}`] = {
-            ...otherUserCall.val(),
-            duration: "Declined",
+    }
+
+    if (declineButton) {
+        declineButton.onclick = async () => {
+            if (!currentCallId) return;
+
+            const currentUser = auth.currentUser;
+            const callSnapshot = await get(ref(database, `data/calls/${currentUser.uid}/${currentCallId}`));
+            if (!callSnapshot.exists()) return;
+
+            const callData = callSnapshot.val();
+            const otherUserId =
+                callData.userId === currentUser.uid
+                    ? callData.callerId[0]
+                    : callData.userId;
+
+            const [currentUserCall, otherUserCall] = await Promise.all([
+                get(
+                    ref(database, `data/calls/${currentUser.uid}/${currentCallId}`)
+                ),
+                get(ref(database, `data/calls/${otherUserId}/${currentCallId}`)),
+            ]);
+
+            // 2. Update DB with final duration while preserving other data
+            const updates = {};
+            updates[`data/calls/${currentUser.uid}/${currentCallId}`] = {
+                ...currentUserCall.val(),
+                duration: "Declined",
+            };
+            updates[`data/calls/${otherUserId}/${currentCallId}`] = {
+                ...otherUserCall.val(),
+                duration: "Declined",
+            };
+
+            await update(ref(database), updates);
+
+
+            // 2. Immediately clean up local state (don't wait for the listener)
+            cleanUpLocalState();
+
+            // 3. Clean up user status fields
+            const userUpdates = {};
+            userUpdates[`data/users/${currentUser.uid}/incomingcall`] = "";
+            userUpdates[`data/users/${currentUser.uid}/call_status`] = true;
+            userUpdates[`data/users/${otherUserId}/incomingcall`] = "";
+            userUpdates[`data/users/${otherUserId}/call_status`] = true;
+
+            await update(ref(database), userUpdates);
         };
+    }
 
-        await update(ref(database), updates);
-        
+    // 4. END A CALL
+    if (endCallButton) {
+        endCallButton.onclick = async () => {
+            if (!currentCallId) return;
 
-        // 2. Immediately clean up local state (don't wait for the listener)
-        cleanUpLocalState();
+            const finalDuration = stopCallTimer();
+            const currentUser = auth.currentUser;
+            const callSnapshot = await get(ref(database, `data/calls/${currentUser.uid}/${currentCallId}`));
+            if (!callSnapshot.exists()) return;
 
-        // 3. Clean up user status fields
-        const userUpdates = {};
-        userUpdates[`data/users/${currentUser.uid}/incomingcall`] = "";
-        userUpdates[`data/users/${currentUser.uid}/call_status`] = true;
-        userUpdates[`data/users/${otherUserId}/incomingcall`] = "";
-        userUpdates[`data/users/${otherUserId}/call_status`] = true;
-        
-        await update(ref(database), userUpdates);
-    };
-}
+            const callData = callSnapshot.val();
+            const otherUserId =
+                callData.userId === currentUser.uid
+                    ? callData.callerId[0]
+                    : callData.userId;
 
-// 4. END A CALL
-if (endCallButton) {
-    endCallButton.onclick = async () => {
-        if (!currentCallId) return;
+            const [currentUserCall, otherUserCall] = await Promise.all([
+                get(
+                    ref(database, `data/calls/${currentUser.uid}/${currentCallId}`)
+                ),
+                get(ref(database, `data/calls/${otherUserId}/${currentCallId}`)),
+            ]);
 
-        const finalDuration = stopCallTimer();
-        const currentUser = auth.currentUser;
-        const callSnapshot = await get(ref(database, `data/calls/${currentUser.uid}/${currentCallId}`));
-        if (!callSnapshot.exists()) return;
+            // 2. Update DB with final duration while preserving other data
+            const updates = {};
+            updates[`data/calls/${currentUser.uid}/${currentCallId}`] = {
+                ...currentUserCall.val(),
+                duration: finalDuration,
+            };
+            updates[`data/calls/${otherUserId}/${currentCallId}`] = {
+                ...otherUserCall.val(),
+                duration: finalDuration,
+            };
 
-        const callData = callSnapshot.val();
-        const otherUserId =
-            callData.userId === currentUser.uid
-                ? callData.callerId[0]
-                : callData.userId;
+            await update(ref(database), updates);
 
-        const [currentUserCall, otherUserCall] = await Promise.all([
-            get(
-                ref(database, `data/calls/${currentUser.uid}/${currentCallId}`)
-            ),
-            get(ref(database, `data/calls/${otherUserId}/${currentCallId}`)),
-        ]);
 
-        // 2. Update DB with final duration while preserving other data
-        const updates = {};
-        updates[`data/calls/${currentUser.uid}/${currentCallId}`] = {
-            ...currentUserCall.val(),
-            duration: finalDuration,
+            // 2. Immediately clean up local state (don't wait for the listener)
+            cleanUpLocalState();
+
+            // 3. Clean up user status fields
+            const userUpdates = {};
+            userUpdates[`data/users/${currentUser.uid}/incomingcall`] = "";
+            userUpdates[`data/users/${currentUser.uid}/call_status`] = true;
+            userUpdates[`data/users/${otherUserId}/incomingcall`] = "";
+            userUpdates[`data/users/${otherUserId}/call_status`] = true;
+
+            await update(ref(database), userUpdates);
         };
-        updates[`data/calls/${otherUserId}/${currentCallId}`] = {
-            ...otherUserCall.val(),
-            duration: finalDuration,
-        };
-
-        await update(ref(database), updates);
-        
-
-        // 2. Immediately clean up local state (don't wait for the listener)
-        cleanUpLocalState();
-
-        // 3. Clean up user status fields
-        const userUpdates = {};
-        userUpdates[`data/users/${currentUser.uid}/incomingcall`] = "";
-        userUpdates[`data/users/${currentUser.uid}/call_status`] = true;
-        userUpdates[`data/users/${otherUserId}/incomingcall`] = "";
-        userUpdates[`data/users/${otherUserId}/call_status`] = true;
-        
-        await update(ref(database), userUpdates);
-    };
-}
+    }
 
 
 
-// 5. HELPER FUNCTIONS
+    // 5. HELPER FUNCTIONS
 
-async function joinAgoraChannel(channelName, uid) {
-    try {
-        if (localAudioTrack) return; // Prevent joining twice
-        await audioClient.join(APP_ID, channelName, null, uid);
-        localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-        await audioClient.publish([localAudioTrack]);
-        
-        // Alternative approach: Use user-joined event instead of user-published
-        audioClient.on("user-joined", async (user) => {
-            console.log(`User ${user.uid} joined the channel ${channelName}`);
-            
-            try {
-                // Subscribe to audio immediately when user joins
-                await audioClient.subscribe(user, "audio");
-                console.log(`Successfully subscribed to audio for user ${user.uid}`);
-                
-                // Store user info for better tracking
+    async function joinAgoraChannel(channelName, uid) {
+        try {
+            if (localAudioTrack) return; // Prevent joining twice
+            await audioClient.join(APP_ID, channelName, null, uid);
+            localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+            await audioClient.publish([localAudioTrack]);
+
+            // Alternative approach: Use user-joined event instead of user-published
+            audioClient.on("user-joined", async (user) => {
+                console.log(`User ${user.uid} joined the channel ${channelName}`);
+
+                try {
+                    // Subscribe to audio immediately when user joins
+                    await audioClient.subscribe(user, "audio");
+                    console.log(`Successfully subscribed to audio for user ${user.uid}`);
+
+                    // Store user info for better tracking
+                    if (!window.agoraUsers) window.agoraUsers = {};
+                    window.agoraUsers[user.uid] = {
+                        uid: user.uid,
+                        channelName: channelName,
+                        appId: APP_ID,
+                        joinedAt: Date.now()
+                    };
+
+                    // Check if user has audio track and play it
+                    if (user.audioTrack) {
+                        console.log(`Attempting to play audio for user ${user.uid} in channel ${channelName}...`);
+
+                        user.audioTrack.play().then(() => {
+                            console.log(`Successfully playing audio for user ${user.uid} in channel ${channelName}.`);
+                        }).catch(error => {
+                            console.error(`Playback failed for user ${user.uid}:`, error);
+
+                            // Create play button for user interaction
+                            const playButton = document.createElement('button');
+                            playButton.textContent = `Click to play audio from user ${user.uid}`;
+                            playButton.onclick = () => {
+                                user.audioTrack.play().catch(e => console.error("Still failed to play:", e));
+                                playButton.remove();
+                            };
+                            document.body.appendChild(playButton);
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Failed to subscribe to user ${user.uid}:`, error);
+                }
+            });
+
+            // Additional event listeners for better user tracking
+            audioClient.on("user-joined", (user) => {
+                console.log(`User ${user.uid} joined the channel ${channelName}`);
                 if (!window.agoraUsers) window.agoraUsers = {};
                 window.agoraUsers[user.uid] = {
                     uid: user.uid,
@@ -6748,1059 +6792,1023 @@ async function joinAgoraChannel(channelName, uid) {
                     appId: APP_ID,
                     joinedAt: Date.now()
                 };
-                
-                // Check if user has audio track and play it
-                if (user.audioTrack) {
-                    console.log(`Attempting to play audio for user ${user.uid} in channel ${channelName}...`);
-                    
-                    user.audioTrack.play().then(() => {
-                        console.log(`Successfully playing audio for user ${user.uid} in channel ${channelName}.`);
-                    }).catch(error => {
-                        console.error(`Playback failed for user ${user.uid}:`, error);
-                        
-                        // Create play button for user interaction
-                        const playButton = document.createElement('button');
-                        playButton.textContent = `Click to play audio from user ${user.uid}`;
-                        playButton.onclick = () => {
-                            user.audioTrack.play().catch(e => console.error("Still failed to play:", e));
-                            playButton.remove();
-                        };
-                        document.body.appendChild(playButton);
-                    });
+            });
+
+            audioClient.on("user-left", (user) => {
+                console.log(`User ${user.uid} left the channel ${channelName}`);
+                if (window.agoraUsers && window.agoraUsers[user.uid]) {
+                    delete window.agoraUsers[user.uid];
                 }
-            } catch (error) {
-                console.error(`Failed to subscribe to user ${user.uid}:`, error);
-            }
-        });
-        
-        // Additional event listeners for better user tracking
-        audioClient.on("user-joined", (user) => {
-            console.log(`User ${user.uid} joined the channel ${channelName}`);
-            if (!window.agoraUsers) window.agoraUsers = {};
-            window.agoraUsers[user.uid] = {
-                uid: user.uid,
-                channelName: channelName,
-                appId: APP_ID,
-                joinedAt: Date.now()
+            });
+
+            audioClient.on("user-unpublished", (user, mediaType) => {
+                console.log(`User ${user.uid} unpublished ${mediaType} in channel ${channelName}`);
+            });
+
+            // Log all users in the channel
+            audioClient.on("user-list-updated", (users) => {
+                console.log(`Users in channel ${channelName}:`, users.map(u => u.uid));
+            });
+
+            // Alternative 3: Manual subscription check every few seconds
+            const manualSubscriptionInterval = setInterval(async () => {
+                try {
+                    const remoteUsers = audioClient.remoteUsers;
+                    console.log(`Manual check - Remote users in channel:`, remoteUsers.map(u => u.uid));
+
+                    for (const remoteUser of remoteUsers) {
+                        if (remoteUser.hasAudio && !remoteUser.audioTrack) {
+                            console.log(`Attempting manual subscription to user ${remoteUser.uid}`);
+                            await audioClient.subscribe(remoteUser, "audio");
+
+                            if (remoteUser.audioTrack) {
+                                console.log(`Manual subscription successful for user ${remoteUser.uid}`);
+                                remoteUser.audioTrack.play().catch(error => {
+                                    console.error(`Manual playback failed for user ${remoteUser.uid}:`, error);
+                                });
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Manual subscription check error:", error);
+                }
+            }, 3000); // Check every 3 seconds
+
+            // Store interval ID for cleanup
+            if (!window.agoraIntervals) window.agoraIntervals = {};
+            window.agoraIntervals[channelName] = manualSubscriptionInterval;
+
+            // Alternative 4: Add manual trigger function
+            window.manualSubscribeToUsers = async () => {
+                try {
+                    console.log("Manual subscription triggered");
+                    const remoteUsers = audioClient.remoteUsers;
+                    console.log("Available remote users:", remoteUsers);
+
+                    for (const remoteUser of remoteUsers) {
+                        console.log(`Processing user ${remoteUser.uid}:`, {
+                            hasAudio: remoteUser.hasAudio,
+                            audioTrack: !!remoteUser.audioTrack,
+                            uid: remoteUser.uid
+                        });
+
+                        if (remoteUser.hasAudio && !remoteUser.audioTrack) {
+                            console.log(`Subscribing to user ${remoteUser.uid}`);
+                            await audioClient.subscribe(remoteUser, "audio");
+
+                            if (remoteUser.audioTrack) {
+                                console.log(`Playing audio for user ${remoteUser.uid}`);
+                                remoteUser.audioTrack.play().catch(error => {
+                                    console.error(`Playback failed for user ${remoteUser.uid}:`, error);
+                                });
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Manual subscription error:", error);
+                }
             };
-        });
-        
-        audioClient.on("user-left", (user) => {
-            console.log(`User ${user.uid} left the channel ${channelName}`);
-            if (window.agoraUsers && window.agoraUsers[user.uid]) {
-                delete window.agoraUsers[user.uid];
-            }
-        });
-        
-        audioClient.on("user-unpublished", (user, mediaType) => {
-            console.log(`User ${user.uid} unpublished ${mediaType} in channel ${channelName}`);
-        });
-        
-        // Log all users in the channel
-        audioClient.on("user-list-updated", (users) => {
-            console.log(`Users in channel ${channelName}:`, users.map(u => u.uid));
-        });
-        
-        // Alternative 3: Manual subscription check every few seconds
-        const manualSubscriptionInterval = setInterval(async () => {
-            try {
-                const remoteUsers = audioClient.remoteUsers;
-                console.log(`Manual check - Remote users in channel:`, remoteUsers.map(u => u.uid));
-                
-                for (const remoteUser of remoteUsers) {
-                    if (remoteUser.hasAudio && !remoteUser.audioTrack) {
-                        console.log(`Attempting manual subscription to user ${remoteUser.uid}`);
-                        await audioClient.subscribe(remoteUser, "audio");
-                        
-                        if (remoteUser.audioTrack) {
-                            console.log(`Manual subscription successful for user ${remoteUser.uid}`);
-                            remoteUser.audioTrack.play().catch(error => {
-                                console.error(`Manual playback failed for user ${remoteUser.uid}:`, error);
-                            });
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error("Manual subscription check error:", error);
-            }
-        }, 3000); // Check every 3 seconds
-        
-        // Store interval ID for cleanup
-        if (!window.agoraIntervals) window.agoraIntervals = {};
-        window.agoraIntervals[channelName] = manualSubscriptionInterval;
-        
-        // Alternative 4: Add manual trigger function
-        window.manualSubscribeToUsers = async () => {
-            try {
-                console.log("Manual subscription triggered");
-                const remoteUsers = audioClient.remoteUsers;
-                console.log("Available remote users:", remoteUsers);
-                
-                for (const remoteUser of remoteUsers) {
-                    console.log(`Processing user ${remoteUser.uid}:`, {
-                        hasAudio: remoteUser.hasAudio,
-                        audioTrack: !!remoteUser.audioTrack,
-                        uid: remoteUser.uid
-                    });
-                    
-                    if (remoteUser.hasAudio && !remoteUser.audioTrack) {
-                        console.log(`Subscribing to user ${remoteUser.uid}`);
-                        await audioClient.subscribe(remoteUser, "audio");
-                        
-                        if (remoteUser.audioTrack) {
-                            console.log(`Playing audio for user ${remoteUser.uid}`);
-                            remoteUser.audioTrack.play().catch(error => {
-                                console.error(`Playback failed for user ${remoteUser.uid}:`, error);
-                            });
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error("Manual subscription error:", error);
-            }
-        };
-        
-        // Alternative 5: Add button to trigger manual subscription
-        const manualButton = document.createElement('button');
-        manualButton.textContent = 'Manual Subscribe to Users';
-        manualButton.style.position = 'fixed';
-        manualButton.style.top = '10px';
-        manualButton.style.right = '10px';
-        manualButton.style.zIndex = '9999';
-        manualButton.onclick = window.manualSubscribeToUsers;
-        document.body.appendChild(manualButton);
-        
-    } catch (error) {
-        console.error("Agora Join Error:", error);
-    }
-}
 
-function cleanUpLocalState() {
-    stopCallTimer();
-    
-    // Clean up Agora resources
-    if (localAudioTrack) {
-        localAudioTrack.stop();
-        localAudioTrack.close();
-        localAudioTrack = null;
-    }
-    
-    if (audioClient.connectionState === 'CONNECTED' || audioClient.connectionState === 'CONNECTING') {
-        audioClient.leave().catch(e => console.error("Agora leave error:", e));
-    }
-    
-    // Force close all call-related modals
-    $('#voice-attend-new').modal('hide');
-    $('#audio-call-modal').modal('hide');
-    
-    // Reset call tracking
-    currentCallId = null;
-    
-    // Clear any pending call status in Firebase
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        update(ref(database, `data/users/${currentUser.uid}`), {
-            incomingcall: "",
-            call_status: true
-        }).catch(console.error);
-    }
-}
+            // Alternative 5: Add button to trigger manual subscription
+            const manualButton = document.createElement('button');
+            manualButton.textContent = 'Manual Subscribe to Users';
+            manualButton.style.position = 'fixed';
+            manualButton.style.top = '10px';
+            manualButton.style.right = '10px';
+            manualButton.style.zIndex = '9999';
+            manualButton.onclick = window.manualSubscribeToUsers;
+            document.body.appendChild(manualButton);
 
-if (muteButton) {
-    let isMuted = false;
-    muteButton.onclick = async () => {
+        } catch (error) {
+            console.error("Agora Join Error:", error);
+        }
+    }
+
+    function cleanUpLocalState() {
+        stopCallTimer();
+
+        // Clean up Agora resources
         if (localAudioTrack) {
-            isMuted = !isMuted;
-            await localAudioTrack.setMuted(isMuted);
-            muteButton.innerHTML = isMuted ? '<i class="ti ti-microphone-off"></i>' : '<i class="ti ti-microphone"></i>';
+            localAudioTrack.stop();
+            localAudioTrack.close();
+            localAudioTrack = null;
         }
-    };
-}
 
-function startCallTimer() {
-    let seconds = 0;
-    const timerDisplay = document.getElementById('call-timer-display');
-    const loadingDisplay = timerDisplay ? timerDisplay.previousElementSibling : null;
-
-    if (callTimerInterval) clearInterval(callTimerInterval);
-    if(timerDisplay) timerDisplay.textContent = "00:00:00";
-    if(loadingDisplay) loadingDisplay.style.display = 'none';
-    if(timerDisplay) timerDisplay.style.display = 'block';
-
-    callTimerInterval = setInterval(() => {
-        seconds++;
-        const format = (val) => `0${Math.floor(val)}`.slice(-2);
-        const hours = seconds / 3600;
-        const minutes = (seconds % 3600) / 60;
-        const secs = seconds % 60;
-        const timeString = `${format(hours)}:${format(minutes)}:${format(secs)}`;
-        if (timerDisplay) {
-            timerDisplay.textContent = timeString;
+        if (audioClient.connectionState === 'CONNECTED' || audioClient.connectionState === 'CONNECTING') {
+            audioClient.leave().catch(e => console.error("Agora leave error:", e));
         }
-    }, 1000);
-}
 
-function stopCallTimer() {
-    clearInterval(callTimerInterval);
-    const timerDisplay = document.getElementById('call-timer-display');
-    const loadingDisplay = timerDisplay ? timerDisplay.previousElementSibling : null;
-    let finalDuration = "00:00:00";
-
-    if (timerDisplay) {
-        finalDuration = timerDisplay.textContent;
-        timerDisplay.style.display = 'none';
-    }
-    if (loadingDisplay) {
-        loadingDisplay.style.display = 'block';
-    }
-    return finalDuration;
-}
-
-async function updateModalUserDetails(userId) {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
-
-    // Get the other user's details
-    const otherUserSnapshot = await get(child(usersRef, userId));
-    // Get current user's details
-    const currentUserSnapshot = await get(child(usersRef, currentUser.uid));
-
-    if (otherUserSnapshot.exists()) {
-        const userData = otherUserSnapshot.val();
-        const userName = `${userData.firstName} ${userData.lastName}`.trim() || 'Unknown User';
-        const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
-
-        // Update audio call modal (incoming call screen)
-        $('.audio-name').text(userName);
-        $('.avatar-audio img').attr('src', userImage);
-        
-        // Update voice attend modal (active call screen)
-        $('.new-name h6').first().text(userName);
-        $('.avatar-new-audio img').attr('src', userImage);
-        $('.avatar-new-audio-big img').attr('src', userImage);
-    }
-
-    if (currentUserSnapshot.exists()) {
-        const currentUserData = currentUserSnapshot.val();
-        const currentUserImage = currentUserData.image || 'assets/img/profiles/avatar-03.jpg';
-        
-        // Update current user's image in voice attend modal
-        $('.current-image img').attr('src', currentUserImage);
-    }
-}
-
-async function sendCallNotification(toId, phone, title, channelName, fromId, callerName) {
-    try {
-        const snapshot = await get(ref(database, `data/users/${toId}/deviceToken`));
-        if (!snapshot.exists()) {
-            console.error(`Device token not found for user: ${toId}`);
-            return;
-        }
-        const deviceToken = snapshot.val();
-        await fetch('/api/send-call-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                body: phone, toId, callerName, title, fromId, channelName, device_token: deviceToken
-            })
-        });
-    } catch (error) {
-        console.error('Error sending notification:', error);
-    }
-}
-
-
-onValue(ref(database, `data/calls`), (snapshot) => {
-    const allCalls = snapshot.val();
-    const currentUser = auth.currentUser;
-    if (!currentUser || !allCalls) {
-        cleanUpLocalState();
-        return;
-    }
-
-    let activeCall = null;
-    let ringingCall = null;
-
-    if (allCalls[currentUser.uid]) {
-        for (const callId in allCalls[currentUser.uid]) {
-            const call = allCalls[currentUser.uid][callId];
-            
-            if (call.duration === "Declined" || call.duration === "Ended") {
-                continue;
-            }
-            
-            if(call.video == false)
-            {
-            if (call.duration === "00:00:00") {
-                activeCall = call;
-                break;
-            }
-            
-            if (call.duration === "Ringing") {
-                ringingCall = call;
-            }
-            }
-        }
-    }
-
-    if (activeCall) {
-        console.log("Active call found:", activeCall);
-        currentCallId = activeCall.id;
-        if (!localAudioTrack) {
-            // Determine who is the other participant
-            const otherUserId = activeCall.userId === currentUser.uid 
-                ? activeCall.callerId[0] 
-                : activeCall.userId;
-            updateModalUserDetails(otherUserId);
-            joinAgoraChannel(activeCall.channelName, currentUser.uid);
-            $('#audio-call-modal').modal('hide');
-            $('#voice-attend-new').modal('show');
-            startCallTimer();
-        }
-    } 
-    else if (ringingCall) {
-        console.log("Ringing call found:", ringingCall);
-        currentCallId = ringingCall.id;
-        // The other user is the caller if this is an incoming call
-        const otherUserId = ringingCall.inOrOut === 'IN' 
-            ? ringingCall.callerId[0] 
-            : ringingCall.userId;
-        updateModalUserDetails(otherUserId);
+        // Force close all call-related modals
         $('#voice-attend-new').modal('hide');
-        $('#audio-call-modal').modal('show');
-    }
-    else if (currentCallId) {
-        cleanUpLocalState();
-    }
-});
+        $('#audio-call-modal').modal('hide');
 
-// =================================================================
-// AGORA VIDEO CALL IMPLEMENTATION (REVISED)
-// =================================================================
+        // Reset call tracking
+        currentCallId = null;
 
-const VIDEO_APP_ID = typeof window.APP_ID !== "undefined" && window.APP_ID ? window.APP_ID : "e368b7a2b5d84c34a1b31da838758a32"; // Same as APP_ID from .env when using Agora
-let videoClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-let localVideoTrack = null;
-let localAudioTrackForVideo = null;
-let videoCallTimerInterval = null;
-let currentVideoCallId = null;
-
-// Video call UI elements
-const videoCallButton = document.getElementById("video-call-new-btn");
-const joinVideoCallButton = document.getElementById("join-video-call");
-const endVideoCallButton = document.getElementById("leave-video-call");
-const muteVideoAudioButton = document.getElementById("mute-call");
-const muteVideoButton = document.getElementById("video-mute-call");
-const declineVideoButton = document.getElementById("decline-video-call");
-
-// 1. INITIATE A VIDEO CALL (No major changes needed here, logic is sound)
-if (videoCallButton) {
-    videoCallButton.onclick = async (e) => {
-        e.preventDefault();
-
-        const receiverId = selectedUserId;
-        if (!receiverId) {
-            console.error("No user selected for the call.");
-            return;
-        }
+        // Clear any pending call status in Firebase
         const currentUser = auth.currentUser;
-        if (!currentUser) {
-            console.error("User not authenticated.");
-            return;
+        if (currentUser) {
+            update(ref(database, `data/users/${currentUser.uid}`), {
+                incomingcall: "",
+                call_status: true
+            }).catch(console.error);
         }
+    }
 
-        const callerId = currentUser.uid;
-        const newCallId = push(callRef).key;
-        const channelName = newCallId;
-        
-        const [callerSnapshot, receiverSnapshot] = await Promise.all([
-            get(child(usersRef, callerId)),
-            get(child(usersRef, receiverId))
-        ]);
-        const callerData = callerSnapshot.val();
-        const receiverData = receiverSnapshot.val();
-
-        const callerName = `${callerData.firstName} ${callerData.lastName}`.trim() || "Unknown User";
-        const callerImg = callerData.image || 'assets/img/profiles/avatar-03.jpg';
-        
-        const callData = {
-            callerId: [receiverId], // The other person in the call
-            callerImg: callerImg,
-            callerName: callerName,
-            currentMills: Date.now(),
-            duration: "Ringing",
-            id: newCallId,
-            inOrOut: "OUT",
-            type: "single",
-            userId: callerId, // The owner of this call record
-            video: true,
-            channelName: channelName
+    if (muteButton) {
+        let isMuted = false;
+        muteButton.onclick = async () => {
+            if (localAudioTrack) {
+                isMuted = !isMuted;
+                await localAudioTrack.setMuted(isMuted);
+                muteButton.innerHTML = isMuted ? '<i class="ti ti-microphone-off"></i>' : '<i class="ti ti-microphone"></i>';
+            }
         };
+    }
 
-        // Create call records for both users
-        const updates = {};
-        updates[`data/calls/${callerId}/${newCallId}`] = callData;
-        updates[`data/calls/${receiverId}/${newCallId}`] = {
-            ...callData,
-            callerId: [callerId], // The other person is the original caller
-            inOrOut: "IN",
-            userId: receiverId, // The owner of this record is the receiver
-        };
-        
-        await update(ref(database), updates);
+    function startCallTimer() {
+        let seconds = 0;
+        const timerDisplay = document.getElementById('call-timer-display');
+        const loadingDisplay = timerDisplay ? timerDisplay.previousElementSibling : null;
 
-        // Send notification
-        sendCallNotification(receiverId, callerData.mobile_number, "Video call", channelName, callerId, callerName);
-    };
-}
+        if (callTimerInterval) clearInterval(callTimerInterval);
+        if (timerDisplay) timerDisplay.textContent = "00:00:00";
+        if (loadingDisplay) loadingDisplay.style.display = 'none';
+        if (timerDisplay) timerDisplay.style.display = 'block';
 
-// 2. ACCEPT A VIDEO CALL
-if (joinVideoCallButton) {
-    joinVideoCallButton.onclick = async () => {
-        if (!currentVideoCallId) {
-            console.error("Cannot accept call, currentVideoCallId is not set.");
-            return;
+        callTimerInterval = setInterval(() => {
+            seconds++;
+            const format = (val) => `0${Math.floor(val)}`.slice(-2);
+            const hours = seconds / 3600;
+            const minutes = (seconds % 3600) / 60;
+            const secs = seconds % 60;
+            const timeString = `${format(hours)}:${format(minutes)}:${format(secs)}`;
+            if (timerDisplay) {
+                timerDisplay.textContent = timeString;
+            }
+        }, 1000);
+    }
+
+    function stopCallTimer() {
+        clearInterval(callTimerInterval);
+        const timerDisplay = document.getElementById('call-timer-display');
+        const loadingDisplay = timerDisplay ? timerDisplay.previousElementSibling : null;
+        let finalDuration = "00:00:00";
+
+        if (timerDisplay) {
+            finalDuration = timerDisplay.textContent;
+            timerDisplay.style.display = 'none';
         }
+        if (loadingDisplay) {
+            loadingDisplay.style.display = 'block';
+        }
+        return finalDuration;
+    }
+
+    async function updateModalUserDetails(userId) {
         const currentUser = auth.currentUser;
+        if (!currentUser) return;
 
-        // Immediately hide the ringing modal for a faster UI response
-        $('#video-call').modal('hide');
+        // Get the other user's details
+        const otherUserSnapshot = await get(child(usersRef, userId));
+        // Get current user's details
+        const currentUserSnapshot = await get(child(usersRef, currentUser.uid));
 
+        if (otherUserSnapshot.exists()) {
+            const userData = otherUserSnapshot.val();
+            const userName = `${userData.firstName} ${userData.lastName}`.trim() || 'Unknown User';
+            const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
+
+            // Update audio call modal (incoming call screen)
+            $('.audio-name').text(userName);
+            $('.avatar-audio img').attr('src', userImage);
+
+            // Update voice attend modal (active call screen)
+            $('.new-name h6').first().text(userName);
+            $('.avatar-new-audio img').attr('src', userImage);
+            $('.avatar-new-audio-big img').attr('src', userImage);
+        }
+
+        if (currentUserSnapshot.exists()) {
+            const currentUserData = currentUserSnapshot.val();
+            const currentUserImage = currentUserData.image || 'assets/img/profiles/avatar-03.jpg';
+
+            // Update current user's image in voice attend modal
+            $('.current-image img').attr('src', currentUserImage);
+        }
+    }
+
+    async function sendCallNotification(toId, phone, title, channelName, fromId, callerName) {
+        try {
+            const snapshot = await get(ref(database, `data/users/${toId}/deviceToken`));
+            if (!snapshot.exists()) {
+                console.error(`Device token not found for user: ${toId}`);
+                return;
+            }
+            const deviceToken = snapshot.val();
+            await fetch('/api/send-call-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    body: phone, toId, callerName, title, fromId, channelName, device_token: deviceToken
+                })
+            });
+        } catch (error) {
+            console.error('Error sending notification:', error);
+        }
+    }
+
+
+    onValue(ref(database, `data/calls`), (snapshot) => {
+        const allCalls = snapshot.val();
+        const currentUser = auth.currentUser;
+        if (!currentUser || !allCalls) {
+            cleanUpLocalState();
+            return;
+        }
+
+        let activeCall = null;
+        let ringingCall = null;
+
+        if (allCalls[currentUser.uid]) {
+            for (const callId in allCalls[currentUser.uid]) {
+                const call = allCalls[currentUser.uid][callId];
+
+                if (call.duration === "Declined" || call.duration === "Ended") {
+                    continue;
+                }
+
+                if (call.video == false) {
+                    if (call.duration === "00:00:00") {
+                        activeCall = call;
+                        break;
+                    }
+
+                    if (call.duration === "Ringing") {
+                        ringingCall = call;
+                    }
+                }
+            }
+        }
+
+        if (activeCall) {
+            console.log("Active call found:", activeCall);
+            currentCallId = activeCall.id;
+            if (!localAudioTrack) {
+                // Determine who is the other participant
+                const otherUserId = activeCall.userId === currentUser.uid
+                    ? activeCall.callerId[0]
+                    : activeCall.userId;
+                updateModalUserDetails(otherUserId);
+                joinAgoraChannel(activeCall.channelName, currentUser.uid);
+                $('#audio-call-modal').modal('hide');
+                $('#voice-attend-new').modal('show');
+                startCallTimer();
+            }
+        }
+        else if (ringingCall) {
+            console.log("Ringing call found:", ringingCall);
+            currentCallId = ringingCall.id;
+            // The other user is the caller if this is an incoming call
+            const otherUserId = ringingCall.inOrOut === 'IN'
+                ? ringingCall.callerId[0]
+                : ringingCall.userId;
+            updateModalUserDetails(otherUserId);
+            $('#voice-attend-new').modal('hide');
+            $('#audio-call-modal').modal('show');
+        }
+        else if (currentCallId) {
+            cleanUpLocalState();
+        }
+    });
+
+    // =================================================================
+    // AGORA VIDEO CALL IMPLEMENTATION (REVISED)
+    // =================================================================
+
+    const VIDEO_APP_ID = typeof window.APP_ID !== "undefined" && window.APP_ID ? window.APP_ID : "e368b7a2b5d84c34a1b31da838758a32"; // Same as APP_ID from .env when using Agora
+    let videoClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+    let localVideoTrack = null;
+    let localAudioTrackForVideo = null;
+    let videoCallTimerInterval = null;
+    let currentVideoCallId = null;
+
+    // Video call UI elements
+    const videoCallButton = document.getElementById("video-call-new-btn");
+    const joinVideoCallButton = document.getElementById("join-video-call");
+    const endVideoCallButton = document.getElementById("leave-video-call");
+    const muteVideoAudioButton = document.getElementById("mute-call");
+    const muteVideoButton = document.getElementById("video-mute-call");
+    const declineVideoButton = document.getElementById("decline-video-call");
+
+    // 1. INITIATE A VIDEO CALL (No major changes needed here, logic is sound)
+    if (videoCallButton) {
+        videoCallButton.onclick = async (e) => {
+            e.preventDefault();
+
+            const receiverId = selectedUserId;
+            if (!receiverId) {
+                console.error("No user selected for the call.");
+                return;
+            }
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+                console.error("User not authenticated.");
+                return;
+            }
+
+            const callerId = currentUser.uid;
+            const newCallId = push(callRef).key;
+            const channelName = newCallId;
+
+            const [callerSnapshot, receiverSnapshot] = await Promise.all([
+                get(child(usersRef, callerId)),
+                get(child(usersRef, receiverId))
+            ]);
+            const callerData = callerSnapshot.val();
+            const receiverData = receiverSnapshot.val();
+
+            const callerName = `${callerData.firstName} ${callerData.lastName}`.trim() || "Unknown User";
+            const callerImg = callerData.image || 'assets/img/profiles/avatar-03.jpg';
+
+            const callData = {
+                callerId: [receiverId], // The other person in the call
+                callerImg: callerImg,
+                callerName: callerName,
+                currentMills: Date.now(),
+                duration: "Ringing",
+                id: newCallId,
+                inOrOut: "OUT",
+                type: "single",
+                userId: callerId, // The owner of this call record
+                video: true,
+                channelName: channelName
+            };
+
+            // Create call records for both users
+            const updates = {};
+            updates[`data/calls/${callerId}/${newCallId}`] = callData;
+            updates[`data/calls/${receiverId}/${newCallId}`] = {
+                ...callData,
+                callerId: [callerId], // The other person is the original caller
+                inOrOut: "IN",
+                userId: receiverId, // The owner of this record is the receiver
+            };
+
+            await update(ref(database), updates);
+
+            // Send notification
+            sendCallNotification(receiverId, callerData.mobile_number, "Video call", channelName, callerId, callerName);
+        };
+    }
+
+    // 2. ACCEPT A VIDEO CALL
+    if (joinVideoCallButton) {
+        joinVideoCallButton.onclick = async () => {
+            if (!currentVideoCallId) {
+                console.error("Cannot accept call, currentVideoCallId is not set.");
+                return;
+            }
+            const currentUser = auth.currentUser;
+
+            // Immediately hide the ringing modal for a faster UI response
+            $('#video-call').modal('hide');
+
+            const callSnapshot = await get(ref(database, `data/calls/${currentUser.uid}/${currentVideoCallId}`));
+            if (!callSnapshot.exists()) return;
+
+            const callData = callSnapshot.val();
+            const otherUserId = callData.callerId[0];
+
+            // Update the database. The onValue listener will do the rest.
+            const updates = {};
+            updates[`data/calls/${currentUser.uid}/${currentVideoCallId}/duration`] = "00:00:00";
+            updates[`data/calls/${otherUserId}/${currentVideoCallId}/duration`] = "00:00:00";
+
+            await update(ref(database), updates);
+        };
+    }
+
+    // 3. DECLINE OR END A CALL (Combined logic for End & Decline as they are similar)
+    async function endOrDeclineCall(status) {
+        if (!currentVideoCallId) return;
+
+        const finalDuration = (status === "Declined") ? "Declined" : stopVideoCallTimer();
+        const currentUser = auth.currentUser;
         const callSnapshot = await get(ref(database, `data/calls/${currentUser.uid}/${currentVideoCallId}`));
-        if (!callSnapshot.exists()) return;
+        if (!callSnapshot.exists()) {
+            cleanUpVideoLocalState(); // Clean up if call record is already gone
+            return;
+        }
 
         const callData = callSnapshot.val();
         const otherUserId = callData.callerId[0];
 
-        // Update the database. The onValue listener will do the rest.
+        // <-- FIX: Update the database for BOTH users to end the call for everyone.
         const updates = {};
-        updates[`data/calls/${currentUser.uid}/${currentVideoCallId}/duration`] = "00:00:00";
-        updates[`data/calls/${otherUserId}/${currentVideoCallId}/duration`] = "00:00:00";
-        
+        updates[`data/calls/${currentUser.uid}/${currentVideoCallId}/duration`] = finalDuration;
+        updates[`data/calls/${otherUserId}/${currentVideoCallId}/duration`] = finalDuration;
+
+        // <-- FIX: Clean up user status fields for BOTH users.
+        updates[`data/users/${currentUser.uid}/incomingcall`] = "";
+        updates[`data/users/${currentUser.uid}/call_status`] = true;
+        updates[`data/users/${otherUserId}/incomingcall`] = "";
+        updates[`data/users/${otherUserId}/call_status`] = true;
+
         await update(ref(database), updates);
-    };
-}
 
-// 3. DECLINE OR END A CALL (Combined logic for End & Decline as they are similar)
-async function endOrDeclineCall(status) {
-    if (!currentVideoCallId) return;
-
-    const finalDuration = (status === "Declined") ? "Declined" : stopVideoCallTimer();
-    const currentUser = auth.currentUser;
-    const callSnapshot = await get(ref(database, `data/calls/${currentUser.uid}/${currentVideoCallId}`));
-    if (!callSnapshot.exists()) {
-        cleanUpVideoLocalState(); // Clean up if call record is already gone
-        return;
+        // The `onValue` listener on both clients will see the change and trigger cleanUpVideoLocalState().
+        // We can call it here immediately for the current user for faster UI response.
+        cleanUpVideoLocalState();
     }
 
-    const callData = callSnapshot.val();
-    const otherUserId = callData.callerId[0];
+    if (declineVideoButton) {
+        declineVideoButton.onclick = () => endOrDeclineCall("Declined");
+    }
 
-    // <-- FIX: Update the database for BOTH users to end the call for everyone.
-    const updates = {};
-    updates[`data/calls/${currentUser.uid}/${currentVideoCallId}/duration`] = finalDuration;
-    updates[`data/calls/${otherUserId}/${currentVideoCallId}/duration`] = finalDuration;
-    
-    // <-- FIX: Clean up user status fields for BOTH users.
-    updates[`data/users/${currentUser.uid}/incomingcall`] = "";
-    updates[`data/users/${currentUser.uid}/call_status`] = true;
-    updates[`data/users/${otherUserId}/incomingcall`] = "";
-    updates[`data/users/${otherUserId}/call_status`] = true;
-    
-    await update(ref(database), updates);
-    
-    // The `onValue` listener on both clients will see the change and trigger cleanUpVideoLocalState().
-    // We can call it here immediately for the current user for faster UI response.
-    cleanUpVideoLocalState();
-}
+    if (endVideoCallButton) {
+        endVideoCallButton.onclick = () => endOrDeclineCall("Ended");
+    }
 
-if (declineVideoButton) {
-    declineVideoButton.onclick = () => endOrDeclineCall("Declined");
-}
+    // 5. VIDEO CALL HELPER FUNCTIONS
 
-if (endVideoCallButton) {
-    endVideoCallButton.onclick = () => endOrDeclineCall("Ended");
-}
-
-// 5. VIDEO CALL HELPER FUNCTIONS
-
-async function joinAgoraVideoChannel(channelName, uid) {
-    try {
-        // Prevent joining if already connected or connecting
-        if (videoClient.connectionState === 'CONNECTED' || videoClient.connectionState === 'CONNECTING') {
-            return;
-        }
-        
-        $('#video-call').modal('hide');
-        $('#start-video-call-container').modal('show');
-        
-        await videoClient.join(VIDEO_APP_ID, channelName, null, uid);
-        
-        // Create tracks in parallel
-        [localAudioTrackForVideo, localVideoTrack] = await Promise.all([
-            AgoraRTC.createMicrophoneAudioTrack(),
-            AgoraRTC.createCameraVideoTrack()
-        ]);
-        
-        await videoClient.publish([localAudioTrackForVideo, localVideoTrack]);
-        
-        const localPlayerContainer = document.getElementById('video-container');
-        localPlayerContainer.innerHTML = ''; // Clear any previous profile image
-        localVideoTrack.play(localPlayerContainer);
-
-        startVideoCallTimer(); // Start timer after successful join
-        
-        // Alternative approach: Use user-joined event instead of user-published for video calls
-        videoClient.on("user-joined", async (user) => {
-            console.log(`Video user ${user.uid} joined the channel ${channelName}`);
-            
-            try {
-                // Subscribe to both audio and video immediately when user joins
-                await videoClient.subscribe(user, "audio");
-                await videoClient.subscribe(user, "video");
-                console.log(`Successfully subscribed to audio and video for user ${user.uid}`);
-                
-                // Store user info for better tracking
-                if (!window.agoraVideoUsers) window.agoraVideoUsers = {};
-                window.agoraVideoUsers[user.uid] = {
-                    uid: user.uid,
-                    channelName: channelName,
-                    appId: VIDEO_APP_ID,
-                    joinedAt: Date.now()
-                };
-                
-                // Handle video display
-                let remotePlayerContainer = document.getElementById(`remote-player-${user.uid}`);
-                if (!remotePlayerContainer) {
-                    remotePlayerContainer = document.createElement("div");
-                    remotePlayerContainer.id = `remote-player-${user.uid}`;
-                    remotePlayerContainer.className = "remote-player";
-                    document.getElementById("remote-playerlist").appendChild(remotePlayerContainer);
-                }
-                
-                // Play video track
-                if (user.videoTrack) {
-                    console.log(`Playing video for user ${user.uid}`);
-                    remotePlayerContainer.innerHTML = '';
-                    user.videoTrack.play(remotePlayerContainer);
-                }
-                
-                // Play audio track
-                if (user.audioTrack) {
-                    console.log(`Playing audio for user ${user.uid}`);
-                    user.audioTrack.play().catch(error => {
-                        console.error(`Audio playback failed for user ${user.uid}:`, error);
-                        
-                        // Create play button for user interaction
-                        const playButton = document.createElement('button');
-                        playButton.textContent = `Click to play audio from user ${user.uid}`;
-                        playButton.onclick = () => {
-                            user.audioTrack.play().catch(e => console.error("Still failed to play:", e));
-                            playButton.remove();
-                        };
-                        document.body.appendChild(playButton);
-                    });
-                }
-                
-                updateRemoteUserDetails(user.uid);
-                
-            } catch (error) {
-                console.error(`Failed to subscribe to user ${user.uid}:`, error);
+    async function joinAgoraVideoChannel(channelName, uid) {
+        try {
+            // Prevent joining if already connected or connecting
+            if (videoClient.connectionState === 'CONNECTED' || videoClient.connectionState === 'CONNECTING') {
+                return;
             }
-        });
-        
-        // Keep original event listeners as fallback
-        videoClient.on("user-published", handleUserPublished);
-        videoClient.on("user-unpublished", handleUserUnpublished);
-        
-        // Additional event listeners for better user tracking
-        videoClient.on("user-left", (user) => {
-            console.log(`Video user ${user.uid} left the channel ${channelName}`);
-            if (window.agoraVideoUsers && window.agoraVideoUsers[user.uid]) {
-                delete window.agoraVideoUsers[user.uid];
-            }
-        });
-        
-        // Manual subscription check every few seconds for video calls
-        const videoManualSubscriptionInterval = setInterval(async () => {
-            try {
-                const remoteUsers = videoClient.remoteUsers;
-                console.log(`Video manual check - Remote users in channel:`, remoteUsers.map(u => u.uid));
-                
-                for (const remoteUser of remoteUsers) {
-                    if ((remoteUser.hasAudio && !remoteUser.audioTrack) || 
-                        (remoteUser.hasVideo && !remoteUser.videoTrack)) {
-                        console.log(`Attempting manual subscription to video user ${remoteUser.uid}`);
-                        
+
+            $('#video-call').modal('hide');
+            $('#start-video-call-container').modal('show');
+
+            await videoClient.join(VIDEO_APP_ID, channelName, null, uid);
+
+            // Create tracks in parallel
+            [localAudioTrackForVideo, localVideoTrack] = await Promise.all([
+                AgoraRTC.createMicrophoneAudioTrack(),
+                AgoraRTC.createCameraVideoTrack()
+            ]);
+
+            await videoClient.publish([localAudioTrackForVideo, localVideoTrack]);
+
+            const localPlayerContainer = document.getElementById('video-container');
+            localPlayerContainer.innerHTML = ''; // Clear any previous profile image
+            localVideoTrack.play(localPlayerContainer);
+
+            startVideoCallTimer(); // Start timer after successful join
+
+            // Alternative approach: Use user-joined event instead of user-published for video calls
+            videoClient.on("user-joined", async (user) => {
+                console.log(`Video user ${user.uid} joined the channel ${channelName}`);
+
+                try {
+                    // Subscribe to both audio and video immediately when user joins
+                    await videoClient.subscribe(user, "audio");
+                    await videoClient.subscribe(user, "video");
+                    console.log(`Successfully subscribed to audio and video for user ${user.uid}`);
+
+                    // Store user info for better tracking
+                    if (!window.agoraVideoUsers) window.agoraVideoUsers = {};
+                    window.agoraVideoUsers[user.uid] = {
+                        uid: user.uid,
+                        channelName: channelName,
+                        appId: VIDEO_APP_ID,
+                        joinedAt: Date.now()
+                    };
+
+                    // Handle video display
+                    let remotePlayerContainer = document.getElementById(`remote-player-${user.uid}`);
+                    if (!remotePlayerContainer) {
+                        remotePlayerContainer = document.createElement("div");
+                        remotePlayerContainer.id = `remote-player-${user.uid}`;
+                        remotePlayerContainer.className = "remote-player";
+                        document.getElementById("remote-playerlist").appendChild(remotePlayerContainer);
+                    }
+
+                    // Play video track
+                    if (user.videoTrack) {
+                        console.log(`Playing video for user ${user.uid}`);
+                        remotePlayerContainer.innerHTML = '';
+                        user.videoTrack.play(remotePlayerContainer);
+                    }
+
+                    // Play audio track
+                    if (user.audioTrack) {
+                        console.log(`Playing audio for user ${user.uid}`);
+                        user.audioTrack.play().catch(error => {
+                            console.error(`Audio playback failed for user ${user.uid}:`, error);
+
+                            // Create play button for user interaction
+                            const playButton = document.createElement('button');
+                            playButton.textContent = `Click to play audio from user ${user.uid}`;
+                            playButton.onclick = () => {
+                                user.audioTrack.play().catch(e => console.error("Still failed to play:", e));
+                                playButton.remove();
+                            };
+                            document.body.appendChild(playButton);
+                        });
+                    }
+
+                    updateRemoteUserDetails(user.uid);
+
+                } catch (error) {
+                    console.error(`Failed to subscribe to user ${user.uid}:`, error);
+                }
+            });
+
+            // Keep original event listeners as fallback
+            videoClient.on("user-published", handleUserPublished);
+            videoClient.on("user-unpublished", handleUserUnpublished);
+
+            // Additional event listeners for better user tracking
+            videoClient.on("user-left", (user) => {
+                console.log(`Video user ${user.uid} left the channel ${channelName}`);
+                if (window.agoraVideoUsers && window.agoraVideoUsers[user.uid]) {
+                    delete window.agoraVideoUsers[user.uid];
+                }
+            });
+
+            // Manual subscription check every few seconds for video calls
+            const videoManualSubscriptionInterval = setInterval(async () => {
+                try {
+                    const remoteUsers = videoClient.remoteUsers;
+                    console.log(`Video manual check - Remote users in channel:`, remoteUsers.map(u => u.uid));
+
+                    for (const remoteUser of remoteUsers) {
+                        if ((remoteUser.hasAudio && !remoteUser.audioTrack) ||
+                            (remoteUser.hasVideo && !remoteUser.videoTrack)) {
+                            console.log(`Attempting manual subscription to video user ${remoteUser.uid}`);
+
+                            if (remoteUser.hasAudio && !remoteUser.audioTrack) {
+                                await videoClient.subscribe(remoteUser, "audio");
+                            }
+                            if (remoteUser.hasVideo && !remoteUser.videoTrack) {
+                                await videoClient.subscribe(remoteUser, "video");
+                            }
+
+                            // Handle display after subscription
+                            if (remoteUser.audioTrack || remoteUser.videoTrack) {
+                                handleVideoUserDisplay(remoteUser);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Video manual subscription check error:", error);
+                }
+            }, 3000); // Check every 3 seconds
+
+            // Store interval ID for cleanup
+            if (!window.agoraIntervals) window.agoraIntervals = {};
+            window.agoraIntervals[`video_${channelName}`] = videoManualSubscriptionInterval;
+
+            // Manual trigger function for video calls
+            window.manualSubscribeToVideoUsers = async () => {
+                try {
+                    console.log("Manual video subscription triggered");
+                    const remoteUsers = videoClient.remoteUsers;
+                    console.log("Available video remote users:", remoteUsers);
+
+                    for (const remoteUser of remoteUsers) {
+                        console.log(`Processing video user ${remoteUser.uid}:`, {
+                            hasAudio: remoteUser.hasAudio,
+                            hasVideo: remoteUser.hasVideo,
+                            audioTrack: !!remoteUser.audioTrack,
+                            videoTrack: !!remoteUser.videoTrack,
+                            uid: remoteUser.uid
+                        });
+
                         if (remoteUser.hasAudio && !remoteUser.audioTrack) {
+                            console.log(`Subscribing to audio for video user ${remoteUser.uid}`);
                             await videoClient.subscribe(remoteUser, "audio");
                         }
+
                         if (remoteUser.hasVideo && !remoteUser.videoTrack) {
+                            console.log(`Subscribing to video for user ${remoteUser.uid}`);
                             await videoClient.subscribe(remoteUser, "video");
                         }
-                        
+
                         // Handle display after subscription
                         if (remoteUser.audioTrack || remoteUser.videoTrack) {
                             handleVideoUserDisplay(remoteUser);
                         }
                     }
+                } catch (error) {
+                    console.error("Manual video subscription error:", error);
                 }
-            } catch (error) {
-                console.error("Video manual subscription check error:", error);
+            };
+
+            // Add button to trigger manual video subscription
+            const videoManualButton = document.createElement('button');
+            videoManualButton.textContent = 'Manual Subscribe to Video Users';
+            videoManualButton.style.position = 'fixed';
+            videoManualButton.style.top = '50px';
+            videoManualButton.style.right = '10px';
+            videoManualButton.style.zIndex = '9999';
+            videoManualButton.onclick = window.manualSubscribeToVideoUsers;
+            document.body.appendChild(videoManualButton);
+
+        } catch (error) {
+            console.error("Agora Video Join Error:", error);
+            cleanUpVideoLocalState(); // Clean up if join fails
+        }
+    }
+
+    async function handleUserPublished(user, mediaType) {
+        await videoClient.subscribe(user, mediaType);
+
+        let remotePlayerContainer = document.getElementById(`remote-player-${user.uid}`);
+        if (!remotePlayerContainer) {
+            remotePlayerContainer = document.createElement("div");
+            remotePlayerContainer.id = `remote-player-${user.uid}`;
+            remotePlayerContainer.className = "remote-player";
+            document.getElementById("remote-playerlist").appendChild(remotePlayerContainer);
+        }
+
+        if (mediaType === "video") {
+            remotePlayerContainer.innerHTML = ''; // Clear profile pic if video starts
+            user.videoTrack.play(remotePlayerContainer);
+        }
+
+        if (mediaType === "audio") {
+            user.audioTrack.play();
+        }
+        updateRemoteUserDetails(user.uid); // Update name/UI elements
+    }
+
+    function handleUserUnpublished(user, mediaType) {
+        if (mediaType === 'video') {
+            const remotePlayerContainer = document.getElementById(`remote-player-${user.uid}`);
+            if (remotePlayerContainer) {
+                // <-- FIX: Don't remove the container, show profile image instead.
+                showProfileImage(remotePlayerContainer, user.uid);
             }
-        }, 3000); // Check every 3 seconds
-        
-        // Store interval ID for cleanup
-        if (!window.agoraIntervals) window.agoraIntervals = {};
-        window.agoraIntervals[`video_${channelName}`] = videoManualSubscriptionInterval;
-        
-        // Manual trigger function for video calls
-        window.manualSubscribeToVideoUsers = async () => {
-            try {
-                console.log("Manual video subscription triggered");
-                const remoteUsers = videoClient.remoteUsers;
-                console.log("Available video remote users:", remoteUsers);
-                
-                for (const remoteUser of remoteUsers) {
-                    console.log(`Processing video user ${remoteUser.uid}:`, {
-                        hasAudio: remoteUser.hasAudio,
-                        hasVideo: remoteUser.hasVideo,
-                        audioTrack: !!remoteUser.audioTrack,
-                        videoTrack: !!remoteUser.videoTrack,
-                        uid: remoteUser.uid
-                    });
-                    
-                    if (remoteUser.hasAudio && !remoteUser.audioTrack) {
-                        console.log(`Subscribing to audio for video user ${remoteUser.uid}`);
-                        await videoClient.subscribe(remoteUser, "audio");
-                    }
-                    
-                    if (remoteUser.hasVideo && !remoteUser.videoTrack) {
-                        console.log(`Subscribing to video for user ${remoteUser.uid}`);
-                        await videoClient.subscribe(remoteUser, "video");
-                    }
-                    
-                    // Handle display after subscription
-                    if (remoteUser.audioTrack || remoteUser.videoTrack) {
-                        handleVideoUserDisplay(remoteUser);
-                    }
+        }
+    }
+
+    // Helper function to handle video user display after subscription
+    function handleVideoUserDisplay(remoteUser) {
+        let remotePlayerContainer = document.getElementById(`remote-player-${remoteUser.uid}`);
+        if (!remotePlayerContainer) {
+            remotePlayerContainer = document.createElement("div");
+            remotePlayerContainer.id = `remote-player-${remoteUser.uid}`;
+            remotePlayerContainer.className = "remote-player";
+            document.getElementById("remote-playerlist").appendChild(remotePlayerContainer);
+        }
+
+        // Handle video display
+        if (remoteUser.videoTrack) {
+            console.log(`Playing video for user ${remoteUser.uid}`);
+            remotePlayerContainer.innerHTML = '';
+            remoteUser.videoTrack.play(remotePlayerContainer);
+        }
+
+        // Handle audio display
+        if (remoteUser.audioTrack) {
+            console.log(`Playing audio for user ${remoteUser.uid}`);
+            remoteUser.audioTrack.play().catch(error => {
+                console.error(`Audio playback failed for user ${remoteUser.uid}:`, error);
+            });
+        }
+
+        // Update UI elements
+        updateRemoteUserDetails(remoteUser.uid);
+    }
+
+    async function updateRemoteUserDetails(userId) {
+        try {
+            const userSnapshot = await get(child(usersRef, userId));
+            if (!userSnapshot.exists()) return;
+
+            const userData = userSnapshot.val();
+            const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
+
+            // Update the header of the active call modal
+            document.querySelector('#start-video-call-container .user-video-head .user-name').textContent = userName;
+            const userImgElement = document.querySelector('#start-video-call-container .user-video-head .avatar-video img');
+            if (userImgElement) {
+                userImgElement.src = userData.image || 'assets/img/profiles/avatar-03.jpg';
+                userImgElement.alt = userName;
+            }
+
+            // <-- FIX: If remote video is not playing, show profile image as fallback.
+            const remotePlayerContainer = document.getElementById(`remote-player-${userId}`);
+            const remoteVideo = remotePlayerContainer?.querySelector('video');
+            if (!remoteVideo && remotePlayerContainer) {
+                showProfileImage(remotePlayerContainer, userId);
+            }
+
+        } catch (error) {
+            console.error('Error updating remote user details:', error);
+        }
+    }
+
+    async function showProfileImage(container, userId) {
+        try {
+            const userSnapshot = await get(child(usersRef, userId));
+            if (!userSnapshot.exists()) return;
+
+            const userData = userSnapshot.val();
+            const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
+            const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
+
+            container.innerHTML = ''; // Clear previous content (like video player)
+
+            const img = document.createElement("img");
+            img.src = userImage;
+            img.alt = userName;
+
+            // Use the new, more specific class for styling.
+            // The centering is now handled by the parent container's CSS.
+            img.className = "user-image-fallback";
+
+            container.appendChild(img);
+
+        } catch (error) {
+            console.error('Error showing profile image:', error);
+        }
+    }
+
+
+    function cleanUpVideoLocalState() {
+        stopVideoCallTimer();
+
+        if (localVideoTrack) {
+            localVideoTrack.stop();
+            localVideoTrack.close();
+            localVideoTrack = null;
+        }
+
+        if (localAudioTrackForVideo) {
+            localAudioTrackForVideo.stop();
+            localAudioTrackForVideo.close();
+            localAudioTrackForVideo = null;
+        }
+
+        // Unsubscribe from events to prevent memory leaks
+        videoClient.off("user-published", handleUserPublished);
+        videoClient.off("user-unpublished", handleUserUnpublished);
+        videoClient.off("user-joined");
+        videoClient.off("user-left");
+
+        if (videoClient.connectionState === 'CONNECTED' || videoClient.connectionState === 'CONNECTING') {
+            videoClient.leave().catch(e => console.error("Agora video leave error:", e));
+        }
+
+        // Clean up video intervals
+        if (window.agoraIntervals) {
+            Object.keys(window.agoraIntervals).forEach(key => {
+                if (key.startsWith('video_')) {
+                    clearInterval(window.agoraIntervals[key]);
+                    delete window.agoraIntervals[key];
                 }
-            } catch (error) {
-                console.error("Manual video subscription error:", error);
+            });
+        }
+
+        // Clean up video users tracking
+        if (window.agoraVideoUsers) {
+            window.agoraVideoUsers = {};
+        }
+
+        // Remove manual video subscription button
+        const videoManualButton = document.querySelector('button[onclick="window.manualSubscribeToVideoUsers"]');
+        if (videoManualButton) {
+            videoManualButton.remove();
+        }
+
+        const remotePlayerList = document.getElementById("remote-playerlist");
+        if (remotePlayerList) remotePlayerList.innerHTML = "";
+
+        const localPlayerContainer = document.getElementById('video-container');
+        if (localPlayerContainer) localPlayerContainer.innerHTML = ''; // Clear local view
+
+        $('#start-video-call-container').modal('hide');
+        $('#video-call').modal('hide');
+
+        currentVideoCallId = null;
+    }
+
+    // Mute/unmute audio in video call
+    if (muteVideoAudioButton) {
+        let isVideoAudioMuted = false;
+        muteVideoAudioButton.onclick = async () => {
+            // <-- FIX: Add a guard to ensure the track exists.
+            if (!localAudioTrackForVideo) return;
+
+            isVideoAudioMuted = !isVideoAudioMuted;
+            await localAudioTrackForVideo.setMuted(isVideoAudioMuted);
+            muteVideoAudioButton.innerHTML = isVideoAudioMuted
+                ? '<i class="ti ti-microphone-off"></i>'
+                : '<i class="ti ti-microphone"></i>';
+        };
+    }
+
+    // Mute/unmute video in video call
+    if (muteVideoButton) {
+        let isVideoMuted = false;
+        muteVideoButton.onclick = async () => {
+            // <-- FIX: Add a guard to ensure the track exists.
+            if (!localVideoTrack) return;
+
+            isVideoMuted = !isVideoMuted;
+            await localVideoTrack.setMuted(isVideoMuted);
+            muteVideoButton.innerHTML = isVideoMuted
+                ? '<i class="ti ti-video-off"></i>'
+                : '<i class="ti ti-video"></i>';
+
+            const localPlayerContainer = document.getElementById('video-container');
+            if (isVideoMuted) {
+                showProfileImage(localPlayerContainer, auth.currentUser.uid);
+            } else {
+                localPlayerContainer.innerHTML = '';
+                localVideoTrack.play(localPlayerContainer);
             }
         };
-        
-        // Add button to trigger manual video subscription
-        const videoManualButton = document.createElement('button');
-        videoManualButton.textContent = 'Manual Subscribe to Video Users';
-        videoManualButton.style.position = 'fixed';
-        videoManualButton.style.top = '50px';
-        videoManualButton.style.right = '10px';
-        videoManualButton.style.zIndex = '9999';
-        videoManualButton.onclick = window.manualSubscribeToVideoUsers;
-        document.body.appendChild(videoManualButton);
-
-    } catch (error) {
-        console.error("Agora Video Join Error:", error);
-        cleanUpVideoLocalState(); // Clean up if join fails
     }
-}
 
-async function handleUserPublished(user, mediaType) {
-    await videoClient.subscribe(user, mediaType);
-    
-    let remotePlayerContainer = document.getElementById(`remote-player-${user.uid}`);
-    if (!remotePlayerContainer) {
-        remotePlayerContainer = document.createElement("div");
-        remotePlayerContainer.id = `remote-player-${user.uid}`;
-        remotePlayerContainer.className = "remote-player";
-        document.getElementById("remote-playerlist").appendChild(remotePlayerContainer);
+    // Timer functions (No changes needed)
+    function startVideoCallTimer() {
+        let seconds = 0;
+        if (videoCallTimerInterval) clearInterval(videoCallTimerInterval);
+
+        const timerDisplays = [
+            document.getElementById('video-call-timer-display'), // In header of modal
+            document.getElementById('local-call-timer') // Also in header
+        ].filter(Boolean);
+
+        videoCallTimerInterval = setInterval(() => {
+            seconds++;
+            const timeString = new Date(seconds * 1000).toISOString().substr(11, 8);
+            timerDisplays.forEach(display => {
+                if (display) display.textContent = timeString;
+            });
+        }, 1000);
     }
-    
-    if (mediaType === "video") {
-        remotePlayerContainer.innerHTML = ''; // Clear profile pic if video starts
-        user.videoTrack.play(remotePlayerContainer);
+
+    function stopVideoCallTimer() {
+        clearInterval(videoCallTimerInterval);
+        videoCallTimerInterval = null;
+        const timerDisplay = document.getElementById('local-call-timer');
+        return timerDisplay ? timerDisplay.textContent : "00:00:00";
     }
-    
-    if (mediaType === "audio") {
-        user.audioTrack.play();
-    }
-    updateRemoteUserDetails(user.uid); // Update name/UI elements
-}
-
-function handleUserUnpublished(user, mediaType) {
-    if (mediaType === 'video') {
-        const remotePlayerContainer = document.getElementById(`remote-player-${user.uid}`);
-        if (remotePlayerContainer) {
-            // <-- FIX: Don't remove the container, show profile image instead.
-            showProfileImage(remotePlayerContainer, user.uid);
-        }
-    }
-}
-
-// Helper function to handle video user display after subscription
-function handleVideoUserDisplay(remoteUser) {
-    let remotePlayerContainer = document.getElementById(`remote-player-${remoteUser.uid}`);
-    if (!remotePlayerContainer) {
-        remotePlayerContainer = document.createElement("div");
-        remotePlayerContainer.id = `remote-player-${remoteUser.uid}`;
-        remotePlayerContainer.className = "remote-player";
-        document.getElementById("remote-playerlist").appendChild(remotePlayerContainer);
-    }
-    
-    // Handle video display
-    if (remoteUser.videoTrack) {
-        console.log(`Playing video for user ${remoteUser.uid}`);
-        remotePlayerContainer.innerHTML = '';
-        remoteUser.videoTrack.play(remotePlayerContainer);
-    }
-    
-    // Handle audio display
-    if (remoteUser.audioTrack) {
-        console.log(`Playing audio for user ${remoteUser.uid}`);
-        remoteUser.audioTrack.play().catch(error => {
-            console.error(`Audio playback failed for user ${remoteUser.uid}:`, error);
-        });
-    }
-    
-    // Update UI elements
-    updateRemoteUserDetails(remoteUser.uid);
-}
-
-async function updateRemoteUserDetails(userId) {
-    try {
-        const userSnapshot = await get(child(usersRef, userId));
-        if (!userSnapshot.exists()) return;
-        
-        const userData = userSnapshot.val();
-        const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
-
-        // Update the header of the active call modal
-        document.querySelector('#start-video-call-container .user-video-head .user-name').textContent = userName;
-        const userImgElement = document.querySelector('#start-video-call-container .user-video-head .avatar-video img');
-        if (userImgElement) {
-            userImgElement.src = userData.image || 'assets/img/profiles/avatar-03.jpg';
-            userImgElement.alt = userName;
-        }
-
-        // <-- FIX: If remote video is not playing, show profile image as fallback.
-        const remotePlayerContainer = document.getElementById(`remote-player-${userId}`);
-        const remoteVideo = remotePlayerContainer?.querySelector('video');
-        if (!remoteVideo && remotePlayerContainer) {
-            showProfileImage(remotePlayerContainer, userId);
-        }
-
-    } catch (error) {
-        console.error('Error updating remote user details:', error);
-    }
-}
-
-async function showProfileImage(container, userId) {
-    try {
-        const userSnapshot = await get(child(usersRef, userId));
-        if (!userSnapshot.exists()) return;
-        
-        const userData = userSnapshot.val();
-        const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
-        const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
-
-        container.innerHTML = ''; // Clear previous content (like video player)
-        
-        const img = document.createElement("img");
-        img.src = userImage;
-        img.alt = userName;
-        
-        // Use the new, more specific class for styling.
-        // The centering is now handled by the parent container's CSS.
-        img.className = "user-image-fallback"; 
-        
-        container.appendChild(img);
-
-    } catch (error) {
-        console.error('Error showing profile image:', error);
-    }
-}
 
 
-function cleanUpVideoLocalState() {
-    stopVideoCallTimer();
-    
-    if (localVideoTrack) {
-        localVideoTrack.stop();
-        localVideoTrack.close();
-        localVideoTrack = null;
-    }
-    
-    if (localAudioTrackForVideo) {
-        localAudioTrackForVideo.stop();
-        localAudioTrackForVideo.close();
-        localAudioTrackForVideo = null;
-    }
-    
-    // Unsubscribe from events to prevent memory leaks
-    videoClient.off("user-published", handleUserPublished);
-    videoClient.off("user-unpublished", handleUserUnpublished);
-    videoClient.off("user-joined");
-    videoClient.off("user-left");
-    
-    if (videoClient.connectionState === 'CONNECTED' || videoClient.connectionState === 'CONNECTING') {
-        videoClient.leave().catch(e => console.error("Agora video leave error:", e));
-    }
-    
-    // Clean up video intervals
-    if (window.agoraIntervals) {
-        Object.keys(window.agoraIntervals).forEach(key => {
-            if (key.startsWith('video_')) {
-                clearInterval(window.agoraIntervals[key]);
-                delete window.agoraIntervals[key];
+    // <-- FIX: Renamed and clarified this function's purpose
+    async function updateRingingModalDetails(callData) {
+        const otherUserId = callData.callerId[0];
+
+        try {
+            const otherUserSnapshot = await get(child(usersRef, otherUserId));
+            if (otherUserSnapshot.exists()) {
+                const userData = otherUserSnapshot.val();
+                const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
+                const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
+
+                const modal = $('#video-call');
+                modal.find('.modal-title').text(`Video Call from ${userName}`);
+                modal.find('.avatar img').attr('src', userImage).attr('alt', userName);
+                modal.find('h6').text(userName);
             }
-        });
-    }
-    
-    // Clean up video users tracking
-    if (window.agoraVideoUsers) {
-        window.agoraVideoUsers = {};
-    }
-    
-    // Remove manual video subscription button
-    const videoManualButton = document.querySelector('button[onclick="window.manualSubscribeToVideoUsers"]');
-    if (videoManualButton) {
-        videoManualButton.remove();
-    }
-    
-    const remotePlayerList = document.getElementById("remote-playerlist");
-    if (remotePlayerList) remotePlayerList.innerHTML = "";
-    
-    const localPlayerContainer = document.getElementById('video-container');
-    if (localPlayerContainer) localPlayerContainer.innerHTML = ''; // Clear local view
-    
-    $('#start-video-call-container').modal('hide');
-    $('#video-call').modal('hide');
-    
-    currentVideoCallId = null;
-}
-
-// Mute/unmute audio in video call
-if (muteVideoAudioButton) {
-    let isVideoAudioMuted = false;
-    muteVideoAudioButton.onclick = async () => {
-        // <-- FIX: Add a guard to ensure the track exists.
-        if (!localAudioTrackForVideo) return;
-        
-        isVideoAudioMuted = !isVideoAudioMuted;
-        await localAudioTrackForVideo.setMuted(isVideoAudioMuted);
-        muteVideoAudioButton.innerHTML = isVideoAudioMuted 
-            ? '<i class="ti ti-microphone-off"></i>' 
-            : '<i class="ti ti-microphone"></i>';
-    };
-}
-
-// Mute/unmute video in video call
-if (muteVideoButton) {
-    let isVideoMuted = false;
-    muteVideoButton.onclick = async () => {
-        // <-- FIX: Add a guard to ensure the track exists.
-        if (!localVideoTrack) return;
-        
-        isVideoMuted = !isVideoMuted;
-        await localVideoTrack.setMuted(isVideoMuted);
-        muteVideoButton.innerHTML = isVideoMuted 
-            ? '<i class="ti ti-video-off"></i>' 
-            : '<i class="ti ti-video"></i>';
-        
-        const localPlayerContainer = document.getElementById('video-container');
-        if (isVideoMuted) {
-            showProfileImage(localPlayerContainer, auth.currentUser.uid);
-        } else {
-            localPlayerContainer.innerHTML = '';
-            localVideoTrack.play(localPlayerContainer);
+        } catch (error) {
+            console.error('Error updating video modal details:', error);
         }
-    };
-}
-
-// Timer functions (No changes needed)
-function startVideoCallTimer() {
-    let seconds = 0;
-    if (videoCallTimerInterval) clearInterval(videoCallTimerInterval);
-    
-    const timerDisplays = [
-        document.getElementById('video-call-timer-display'), // In header of modal
-        document.getElementById('local-call-timer') // Also in header
-    ].filter(Boolean);
-    
-    videoCallTimerInterval = setInterval(() => {
-        seconds++;
-        const timeString = new Date(seconds * 1000).toISOString().substr(11, 8);
-        timerDisplays.forEach(display => {
-            if (display) display.textContent = timeString;
-        });
-    }, 1000);
-}
-
-function stopVideoCallTimer() {
-    clearInterval(videoCallTimerInterval);
-    videoCallTimerInterval = null;
-    const timerDisplay = document.getElementById('local-call-timer');
-    return timerDisplay ? timerDisplay.textContent : "00:00:00";
-}
+    }
 
 
-// <-- FIX: Renamed and clarified this function's purpose
-async function updateRingingModalDetails(callData) {
-    const otherUserId = callData.callerId[0];
+    async function sendVideoCallNotification(toId, fromName, title, channelName, callerName) {
+        try {
+            const snapshot = await get(ref(database, `data/users/${toId}/deviceToken`));
+            if (!snapshot.exists()) {
+                console.error(`Device token not found for user: ${toId}`);
+                return;
+            }
+            const deviceToken = snapshot.val();
+            await fetch('/api/send-call-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    body: fromName,
+                    toId,
+                    callerName,
+                    title,
+                    channelName,
+                    device_token: deviceToken,
+                    call_type: "video"
+                })
+            });
+        } catch (error) {
+            console.error('Error sending video call notification:', error);
+        }
+    }
 
-    try {
-        const otherUserSnapshot = await get(child(usersRef, otherUserId));
-        if (otherUserSnapshot.exists()) {
+    // Add this new helper function somewhere in your "VIDEO CALL HELPER FUNCTIONS" section
+
+    /**
+     * Shows the main video call UI for an outgoing call before it's connected.
+     * @param {object} callData The call data from Firebase.
+     */
+    async function showOutgoingCallUI(callData) {
+        const otherUserId = callData.callerId[0];
+
+        try {
+            const otherUserSnapshot = await get(child(usersRef, otherUserId));
+            if (!otherUserSnapshot.exists()) return;
+
             const userData = otherUserSnapshot.val();
             const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
             const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
 
-            const modal = $('#video-call');
-            modal.find('.modal-title').text(`Video Call from ${userName}`);
-            modal.find('.avatar img').attr('src', userImage).attr('alt', userName);
-            modal.find('h6').text(userName);
+            // Get the active call modal elements
+            const modal = $('#start-video-call-container');
+            const timerDisplay = modal.find('#local-call-timer');
+            const headerTimerDisplay = modal.find('#video-call-timer-display');
+
+            // Update user details in the modal header
+            modal.find('.user-video-head .user-name').text(userName);
+            modal.find('.user-video-head .avatar-video img').attr('src', userImage);
+
+            // Set the status to "Ringing..." instead of a timer
+            if (timerDisplay) timerDisplay.text('Ringing...');
+            if (headerTimerDisplay) headerTimerDisplay.text('Ringing...');
+
+            // Show the user's profile picture in the remote player area while ringing
+            const remotePlayerContainer = document.getElementById("remote-playerlist");
+            if (remotePlayerContainer) {
+                remotePlayerContainer.innerHTML = `<div id="remote-player-${otherUserId}" class="remote-player"></div>`;
+                await showProfileImage(document.getElementById(`remote-player-${otherUserId}`), otherUserId);
+            }
+
+            // Show the modal
+            modal.modal('show');
+
+        } catch (error) {
+            console.error('Error showing outgoing call UI:', error);
         }
-    } catch (error) {
-        console.error('Error updating video modal details:', error);
     }
-}
 
 
- async function sendVideoCallNotification(toId, fromName, title, channelName, callerName) {
-    try {
-        const snapshot = await get(ref(database, `data/users/${toId}/deviceToken`));
-        if (!snapshot.exists()) {
-            console.error(`Device token not found for user: ${toId}`);
+    // =================================================================
+    // REALTIME DATABASE LISTENER - THE CORE LOGIC (CORRECTED)
+    // =================================================================
+    onValue(ref(database, 'data/calls'), (snapshot) => {
+        const allCalls = snapshot.val();
+        const currentUser = auth.currentUser;
+
+        if (!currentUser || !allCalls) {
+            if (currentVideoCallId) cleanUpVideoLocalState();
             return;
         }
-        const deviceToken = snapshot.val();
-        await fetch('/api/send-call-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                body: fromName, 
-                toId, 
-                callerName, 
-                title, 
-                channelName, 
-                device_token: deviceToken,
-                call_type: "video"
-            })
-        });
-    } catch (error) {
-        console.error('Error sending video call notification:', error);
-    }
-}
 
-// Add this new helper function somewhere in your "VIDEO CALL HELPER FUNCTIONS" section
+        const userCalls = allCalls[currentUser.uid];
+        let callToProcess = null;
 
-/**
- * Shows the main video call UI for an outgoing call before it's connected.
- * @param {object} callData The call data from Firebase.
- */
-async function showOutgoingCallUI(callData) {
-    const otherUserId = callData.callerId[0];
+        if (userCalls) {
+            // Priority 1: Find a call that was just accepted (duration "00:00:00" is the trigger).
+            const acceptedCall = Object.values(userCalls).find(c => c.video && c.duration === "00:00:00");
 
-    try {
-        const otherUserSnapshot = await get(child(usersRef, otherUserId));
-        if (!otherUserSnapshot.exists()) return;
+            // Priority 2: If no call was just accepted, find a ringing call.
+            const ringingCall = Object.values(userCalls).find(c => c.video && c.duration === "Ringing");
 
-        const userData = otherUserSnapshot.val();
-        const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
-        const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
-
-        // Get the active call modal elements
-        const modal = $('#start-video-call-container');
-        const timerDisplay = modal.find('#local-call-timer');
-        const headerTimerDisplay = modal.find('#video-call-timer-display');
-
-        // Update user details in the modal header
-        modal.find('.user-video-head .user-name').text(userName);
-        modal.find('.user-video-head .avatar-video img').attr('src', userImage);
-
-        // Set the status to "Ringing..." instead of a timer
-        if (timerDisplay) timerDisplay.text('Ringing...');
-        if (headerTimerDisplay) headerTimerDisplay.text('Ringing...');
-
-        // Show the user's profile picture in the remote player area while ringing
-        const remotePlayerContainer = document.getElementById("remote-playerlist");
-        if(remotePlayerContainer) {
-            remotePlayerContainer.innerHTML = `<div id="remote-player-${otherUserId}" class="remote-player"></div>`;
-            await showProfileImage(document.getElementById(`remote-player-${otherUserId}`), otherUserId);
+            // An accepted call takes precedence over a ringing one.
+            callToProcess = acceptedCall || ringingCall;
         }
 
-        // Show the modal
-        modal.modal('show');
+        if (callToProcess) {
+            // A valid call (ringing or accepted) has been found.
+            currentVideoCallId = callToProcess.id;
+            const otherUserId = callToProcess.callerId[0];
 
-    } catch (error) {
-        console.error('Error showing outgoing call UI:', error);
-    }
-}
-
-
-// =================================================================
-// REALTIME DATABASE LISTENER - THE CORE LOGIC (CORRECTED)
-// =================================================================
-onValue(ref(database, 'data/calls'), (snapshot) => {
-    const allCalls = snapshot.val();
-    const currentUser = auth.currentUser;
-
-    if (!currentUser || !allCalls) {
-        if (currentVideoCallId) cleanUpVideoLocalState();
-        return;
-    }
-
-    const userCalls = allCalls[currentUser.uid];
-    let callToProcess = null;
-
-    if (userCalls) {
-        // Priority 1: Find a call that was just accepted (duration "00:00:00" is the trigger).
-        const acceptedCall = Object.values(userCalls).find(c => c.video && c.duration === "00:00:00");
-
-        // Priority 2: If no call was just accepted, find a ringing call.
-        const ringingCall = Object.values(userCalls).find(c => c.video && c.duration === "Ringing");
-
-        // An accepted call takes precedence over a ringing one.
-        callToProcess = acceptedCall || ringingCall;
-    }
-
-    if (callToProcess) {
-        // A valid call (ringing or accepted) has been found.
-        currentVideoCallId = callToProcess.id;
-        const otherUserId = callToProcess.callerId[0];
-
-        // --- STATE 1: Call Accepted ---
-        // The `duration` is "00:00:00". This is the trigger for both users to join the Agora channel.
-        if (callToProcess.duration === "00:00:00") {
-            // Join the channel if we are not already connected.
-            if (!localVideoTrack && videoClient.connectionState !== 'CONNECTED') {
-                updateRemoteUserDetails(otherUserId); // Pre-populate remote user details
-                joinAgoraVideoChannel(callToProcess.channelName, currentUser.uid);
+            // --- STATE 1: Call Accepted ---
+            // The `duration` is "00:00:00". This is the trigger for both users to join the Agora channel.
+            if (callToProcess.duration === "00:00:00") {
+                // Join the channel if we are not already connected.
+                if (!localVideoTrack && videoClient.connectionState !== 'CONNECTED') {
+                    updateRemoteUserDetails(otherUserId); // Pre-populate remote user details
+                    joinAgoraVideoChannel(callToProcess.channelName, currentUser.uid);
+                }
+            }
+            // --- STATE 2: Call is Ringing ---
+            else if (callToProcess.duration === "Ringing") {
+                // If it's an INCOMING call for me, show the ringing modal.
+                if (callToProcess.inOrOut === "IN" && !$('#video-call').is(':visible')) {
+                    updateRingingModalDetails(callToProcess);
+                    $('#video-call').modal('show');
+                }
+                // If it's an OUTGOING call I started, show the "calling..." screen.
+                else if (callToProcess.inOrOut === "OUT" && !$('#start-video-call-container').is(':visible')) {
+                    showOutgoingCallUI(callToProcess);
+                }
+            }
+        } else {
+            // --- STATE 3: No Active Call Found ---
+            // No call is "Ringing" or has the "00:00:00" trigger.
+            // This means the call was ended (duration is now a timestamp like "00:02:15") or declined.
+            // If we previously had a `currentVideoCallId`, it's time to clean up.
+            if (currentVideoCallId) {
+                cleanUpVideoLocalState();
             }
         }
-        // --- STATE 2: Call is Ringing ---
-        else if (callToProcess.duration === "Ringing") {
-            // If it's an INCOMING call for me, show the ringing modal.
-            if (callToProcess.inOrOut === "IN" && !$('#video-call').is(':visible')) {
-                updateRingingModalDetails(callToProcess);
-                $('#video-call').modal('show');
-            }
-            // If it's an OUTGOING call I started, show the "calling..." screen.
-            else if (callToProcess.inOrOut === "OUT" && !$('#start-video-call-container').is(':visible')) {
-                showOutgoingCallUI(callToProcess);
-            }
-        }
-    } else {
-        // --- STATE 3: No Active Call Found ---
-        // No call is "Ringing" or has the "00:00:00" trigger.
-        // This means the call was ended (duration is now a timestamp like "00:02:15") or declined.
-        // If we previously had a `currentVideoCallId`, it's time to clean up.
-        if (currentVideoCallId) {
-            cleanUpVideoLocalState();
-        }
-    }
-});
+    });
 
 
 });
