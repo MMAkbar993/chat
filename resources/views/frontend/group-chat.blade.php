@@ -45,7 +45,7 @@
                                 <img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon">
                             </a>
                         </li>
-                        @else
+                        @endif
                         <li data-bs-toggle="tooltip" data-bs-placement="bottom" title="Video Call">
                             <a href="javascript:void(0)" class="btn" id="video-call-new-btn-group">
                                 <i class="ti ti-video"></i>
@@ -56,7 +56,6 @@
                                 <i class="ti ti-phone"></i>
                             </a>
                         </li>
-                        @endif
                         <li title="Group Info" data-bs-toggle="tooltip" data-bs-placement="bottom">
                             <a href="javascript:void(0)" class="btn" data-bs-toggle="offcanvas" data-bs-target="#contact-profile" id="groupcontactInfoButton">
                                 <i class="ti ti-info-circle"></i>
@@ -1328,16 +1327,16 @@
                                 <div class="col-sm-6">
                                     <h6 class="fw-medium fs-14 mb-2">22 July 2024</h6>
                                 </div>
-                                <div class="col-sm-6">
+                                <div class="col-sm-6 d-none">
                                     <p class="mb-2 d-flex align-items-center"><i class="ti ti-phone me-1"></i>Phone Number</p>
                                 </div>
-                                <div class="col-sm-6">
+                                <div class="col-sm-6 d-none">
                                     <h6 class="fw-medium fs-14 mb-2">+20-482-038-29</h6>
                                 </div>
-                                <div class="col-sm-6">
+                                <div class="col-sm-6 d-none">
                                     <p class="mb-2 d-flex align-items-center"><i class="ti ti-mail me-1"></i>Email</p>
                                 </div>
-                                <div class="col-sm-6">
+                                <div class="col-sm-6 d-none">
                                     <h6 class="fw-medium fs-14 mb-2">aariyan@example.com</h6>
                                 </div>
                                 <div class="col-sm-6">

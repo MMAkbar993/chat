@@ -44,9 +44,9 @@
 
 <script src="{{ asset('assets/js/toastify.js') }}"></script>
 @php
-try { $loadAgora = config('calls.provider') !== 'meet'; } catch (\Throwable $e) { $loadAgora = false; }
+try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
 @endphp
-@if (!Route::is('login','signup','register.payment') && $loadAgora)
+@if (!Route::is('login','signup','register.payment'))
 <script src="{{ asset('assets/js/AgoraRTC_N.js') }}" defer></script>
 @endif
  <script>

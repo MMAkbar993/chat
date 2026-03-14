@@ -418,16 +418,16 @@
                                         <div class="col-sm-6">
                                             <h6 class="fw-medium fs-14 mb-2">22 July 2024</h6>
                                         </div>
-                                        <div class="col-sm-6">
+                                        <div class="col-sm-6 d-none">
                                             <p class="mb-2 d-flex align-items-center"><i class="ti ti-phone me-1"></i>Phone Number</p>
                                         </div>
-                                        <div class="col-sm-6">
+                                        <div class="col-sm-6 d-none">
                                             <h6 class="fw-medium fs-14 mb-2">+20-482-038-29</h6>
                                         </div>
-                                        <div class="col-sm-6">
+                                        <div class="col-sm-6 d-none">
                                             <p class="mb-2 d-flex align-items-center"><i class="ti ti-mail me-1"></i>Email</p>
                                         </div>
-                                        <div class="col-sm-6">
+                                        <div class="col-sm-6 d-none">
                                             <h6 class="fw-medium fs-14 mb-2">aariyan@example.com</h6>
                                         </div>
                                         <div class="col-sm-6">

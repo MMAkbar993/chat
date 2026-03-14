@@ -273,10 +273,10 @@
                                 <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="local_time">—</h6></div>
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-calendar-event me-1"></i>{{ __('Date of Birth')}}</p></div>
                                 <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="dob">—</h6></div>
-                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-phone me-1"></i>{{ __('Phone Number')}}</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="phone">—</h6></div>
-                                <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-mail me-1"></i>{{ __('Email')}}</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="email">—</h6></div>
+                                <div class="col-sm-6 d-none"><p class="mb-2 d-flex align-items-center"><i class="ti ti-phone me-1"></i>{{ __('Phone Number')}}</p></div>
+                                <div class="col-sm-6 d-none"><h6 class="fw-medium fs-14 mb-2" data-field="phone">—</h6></div>
+                                <div class="col-sm-6 d-none"><p class="mb-2 d-flex align-items-center"><i class="ti ti-mail me-1"></i>{{ __('Email')}}</p></div>
+                                <div class="col-sm-6 d-none"><h6 class="fw-medium fs-14 mb-2" data-field="email">—</h6></div>
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-world me-1"></i>{{ __('Website')}}</p></div>
                                 <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="website">—</h6></div>
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-user-check me-1"></i>{{ __('Bio')}}</p></div>

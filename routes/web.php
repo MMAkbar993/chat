@@ -200,17 +200,11 @@ Route::get('/', function () {
 
    Route::post('/send-encrypted-message', [MessageController::class, 'sendEncryptedMessage']);
 
-  Route::get('/video-call', function () {
-   if (config('calls.provider') === 'meet') {
-       return redirect('https://meet.google.com/new');
-   }
+Route::get('/video-call', function () {
    return view('frontend/video-call');
 })->name('video-call');
 
 Route::get('/audio-call', function () {
-   if (config('calls.provider') === 'meet') {
-       return redirect('https://meet.google.com/new');
-   }
    return view('frontend/audio-call');
 })->name('audio-call');
 
