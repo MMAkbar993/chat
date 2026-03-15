@@ -154,6 +154,9 @@ initializeFirebase(function (app, auth, database, storage) {
                 document.querySelectorAll('.chat-user-list').forEach(item => {
                     item.addEventListener('click', function () {
                         const userId = this.getAttribute('data-user-id');
+                        const modal = document.getElementById('contact-details');
+                        const modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
+                        if (modalInput) modalInput.value = userId || '';
                         fetchUserData(userId); // Fetch and display user details in modal
                     });
                 });
@@ -182,8 +185,11 @@ initializeFirebase(function (app, auth, database, storage) {
                         }
                         const snapshotContact = await get(contactRef); 
                        const contactData = snapshotContact.val();
-                // Update modal content with fetched data
-                document.getElementById("edit-user-id").value = userId;
+                // Update modal content with fetched data (set both modal input and legacy id for compatibility)
+                const modalInput = document.getElementById('contact-details')?.querySelector('input[id="edit-user-id"]');
+                if (modalInput) modalInput.value = userId;
+                const legacyEl = document.getElementById("edit-user-id");
+                if (legacyEl) legacyEl.value = userId;
                 document.querySelector('#contact-details h6').textContent = 
                     `${contactData.firstName || contactData.mobile_number || contactData.email} ${contactData.lastName || ''}`;
                 document.querySelector('#contact-details .avatar img').src = userData.image || 'assets/img/profiles/avatar-03.jpg';
@@ -271,14 +277,25 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function handleChatButtonClick() {
-        const userId = document.getElementById("edit-user-id").value; // Get the user ID from the modal
+        const modal = document.getElementById("contact-details");
+        const modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
+        const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById("edit-user-id")?.value || '').trim();
+        if (!userId) {
+            Toastify({
+                text: "Please select a contact first.",
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#ff6b6b",
+            }).showToast();
+            return;
+        }
         // Reference to the user in the "users" collection
         const userRef = ref(database, `data/users/${userId}`);
-    
         // Check if the user exists in the "users" collection
         get(userRef).then(snapshot => {
             if (snapshot.exists()) {
-                 localStorage.setItem("selectedUserId", userId); // Save user ID in localStorage
+                localStorage.setItem("selectedUserId", userId);
                 window.location.href = `/chat`;
             } else {
                 // User does not exist - show Toastify message

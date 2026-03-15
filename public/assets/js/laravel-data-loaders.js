@@ -86,6 +86,9 @@
                     var uid = this.getAttribute('data-user-id');
                     var data = window.__laravelContacts[uid];
                     if (!data) return;
+                    var modal = document.getElementById('contact-details');
+                    var modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
+                    if (modalInput) modalInput.value = uid;
                     var editId = document.getElementById('edit-user-id');
                     if (editId) editId.value = uid;
                     var nameEl = document.getElementById('contact-detail-name') || document.querySelector('#contact-details h6');
