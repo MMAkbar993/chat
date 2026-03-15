@@ -141,8 +141,12 @@ initializeFirebase(function (app, auth, database, storage) {
                     if (hasRtdbProfile) {
                         applyProfileFromFirebase(rtdb);
                     } else if (laravelData) {
-                        // RTDB empty or only non-profile keys (e.g. wallpaper): keep Laravel profile visible
-                        const merged = Object.assign({}, laravelData, rtdb);
+                        // RTDB empty or has empty-string profile fields: use Laravel as base, only overwrite with non-empty RTDB values so profile doesn't disappear on server
+                        const merged = { ...laravelData };
+                        Object.keys(rtdb || {}).forEach(function (k) {
+                            const v = rtdb[k];
+                            if (v != null && v !== '') merged[k] = v;
+                        });
                         applyProfileFromFirebase(merged);
                     } else {
                         applyProfileFromFirebase(rtdb);
