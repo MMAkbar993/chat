@@ -2083,31 +2083,34 @@ function deleteForEveryone(messageKey, messageElement, groupId) {
 }
 
 
-// Event listener for the form submission (delete chat form)
-document.getElementById("delete-chat-form").addEventListener("submit", (e) => {
-    e.preventDefault(); // Prevent form default behavior
+// Event listener for the form submission (delete chat form) - only when group chat DOM exists
+const deleteChatForm = document.getElementById("delete-chat-form");
+if (deleteChatForm) {
+    deleteChatForm.addEventListener("submit", (e) => {
+        e.preventDefault(); // Prevent form default behavior
 
-    const messageKey = document.getElementById("message-to-delete").value;
-    const groupId = document.getElementById("group-id").value;
-    const action = document.querySelector('input[name="delete-chat"]:checked').id;
-    
-    // Ensure you're selecting the message element using messageKey
-    const messageElement = document.querySelector(`[data-message-key="${messageKey}"]`);
-    
-    if (action === "delete-for-me") {
-        deleteForMe(messageElement, messageKey, groupId);
-    } else if (action === "delete-for-everyone") {
-        deleteForEveryone(messageKey, messageElement, groupId);  // Pass the messageKey directly
-    } else {
-        console.error("Unknown action.");
-    }
+        const messageKey = document.getElementById("message-to-delete").value;
+        const groupId = document.getElementById("group-id").value;
+        const action = document.querySelector('input[name="delete-chat"]:checked').id;
+        
+        // Ensure you're selecting the message element using messageKey
+        const messageElement = document.querySelector(`[data-message-key="${messageKey}"]`);
+        
+        if (action === "delete-for-me") {
+            deleteForMe(messageElement, messageKey, groupId);
+        } else if (action === "delete-for-everyone") {
+            deleteForEveryone(messageKey, messageElement, groupId);  // Pass the messageKey directly
+        } else {
+            console.error("Unknown action.");
+        }
 
-    // Close the modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById("message-delete"));
-    modal.hide();
-    document.body.classList.remove("modal-open");
-    document.querySelector(".modal-backdrop").remove();
-});
+        // Close the modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById("message-delete"));
+        modal.hide();
+        document.body.classList.remove("modal-open");
+        document.querySelector(".modal-backdrop").remove();
+    });
+}
 
 
 let replyToMessage = null; // To store the replied message content

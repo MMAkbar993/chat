@@ -3781,65 +3781,69 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
-    // Show a file preview when a file is selected
-    fileInput.onchange = function () {
-        const selectedFile = fileInput.files[0];
+    // Show a file preview when a file is selected (only when chat footer and file input exist)
+    if (fileInput && chatFooterWrap) {
+        fileInput.onchange = function () {
+            const selectedFile = fileInput.files[0];
 
-        if (selectedFile) {
-            const fileType = selectedFile.type.split("/")[0]; // Get type (e.g., 'image', 'audio', 'video', 'application')
-            let filePreview;
+            if (selectedFile) {
+                const fileType = selectedFile.type.split("/")[0]; // Get type (e.g., 'image', 'audio', 'video', 'application')
+                let filePreview;
 
-            // Display different previews based on the file type
-            if (fileType === "image") {
-                filePreview = `<img src="${URL.createObjectURL(
-                    selectedFile
-                )}" alt="Image Preview" class="preview-image" style="max-width: 150px;">`;
-            } else if (fileType === "audio") {
-                filePreview = `<audio controls  width="240">
-                               <source src="${URL.createObjectURL(
-                    selectedFile
-                )}" type="${selectedFile.type}">
-                             
-                           </audio>`;
-            } else if (fileType === "video") {
-                filePreview = `<video width="150" controls>
-                               <source src="${URL.createObjectURL(
-                    selectedFile
-                )}" type="video/mp4">
-                            
-                           </video>`;
-            } else {
-                filePreview = `<p>File Selected: ${selectedFile.name}</p>`; // For other file types like documents
+                // Display different previews based on the file type
+                if (fileType === "image") {
+                    filePreview = `<img src="${URL.createObjectURL(
+                        selectedFile
+                    )}" alt="Image Preview" class="preview-image" style="max-width: 150px;">`;
+                } else if (fileType === "audio") {
+                    filePreview = `<audio controls  width="240">
+                                   <source src="${URL.createObjectURL(
+                        selectedFile
+                    )}" type="${selectedFile.type}">
+                                 
+                               </audio>`;
+                } else if (fileType === "video") {
+                    filePreview = `<video width="150" controls>
+                                   <source src="${URL.createObjectURL(
+                        selectedFile
+                    )}" type="video/mp4">
+                                
+                               </video>`;
+                } else {
+                    filePreview = `<p>File Selected: ${selectedFile.name}</p>`; // For other file types like documents
+                }
+
+                messagePreview.innerHTML = filePreview;
+                messagePreview.appendChild(clearButton); // Add Clear button to the preview
+                clearButton.style.display = "inline-block"; // Show Clear button
+
+                // Refocus the cursor on the message input field
+                if (messageInput) messageInput.focus();
             }
+        };
 
-            messagePreview.innerHTML = filePreview;
-            messagePreview.appendChild(clearButton); // Add Clear button to the preview
-            clearButton.style.display = "inline-block"; // Show Clear button
+        // Clear the file selection and preview when Clear button is clicked
+        clearButton.onclick = function () {
+            fileInput.value = ""; // Reset the file input
+            messagePreview.innerHTML = ""; // Clear the preview content
+            clearButton.style.display = "none"; // Hide Clear button
+        };
+    }
 
-            // Refocus the cursor on the message input field
-            messageInput.focus();
-        }
-    };
-
-    // Clear the file selection and preview when Clear button is clicked
-    clearButton.onclick = function () {
-        fileInput.value = ""; // Reset the file input
-        messagePreview.innerHTML = ""; // Clear the preview content
-        clearButton.style.display = "none"; // Hide Clear button
-    };
-
-    // Function to handle emoji selection and insert it into the message input
-    document
-        .querySelectorAll(".emoj-group-list-foot a")
-        .forEach(function (emojiBtn) {
-            emojiBtn.onclick = function () {
-                const emoji = emojiBtn.querySelector("img").alt; // Get emoji alt text (you can change to innerHTML if emoji is represented by image)
-                messageInput.value += emoji; // Insert emoji into the text input
-                messageInput.focus(); // Focus the input field
-                messageInput.selectionStart = messageInput.selectionEnd =
-                    messageInput.value.length; // Move cursor to the end
-            };
-        });
+    // Function to handle emoji selection and insert it into the message input (only when chat elements exist)
+    if (messageInput) {
+        document
+            .querySelectorAll(".emoj-group-list-foot a")
+            .forEach(function (emojiBtn) {
+                emojiBtn.onclick = function () {
+                    const img = emojiBtn.querySelector("img");
+                    if (img) messageInput.value += img.alt;
+                    messageInput.focus();
+                    messageInput.selectionStart = messageInput.selectionEnd =
+                        messageInput.value.length;
+                };
+            });
+    }
 
     // Function to upload file to Firebase Storage and get the file URL
     async function uploadFileToFirebase(file) {
