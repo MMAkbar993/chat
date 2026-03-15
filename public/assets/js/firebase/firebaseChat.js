@@ -3864,11 +3864,12 @@ initializeFirebase(function (app, auth, database, storage) {
 
     let otherUserId = "";
 
-    document
-        .getElementById("blockUserDropdownBtn")
-        .addEventListener("click", function (event) {
+    const blockUserDropdownBtn = document.getElementById("blockUserDropdownBtn");
+    if (blockUserDropdownBtn) {
+        blockUserDropdownBtn.addEventListener("click", function (event) {
             otherUserId = selectedUserId;
         });
+    }
 
     // Function to block the user in Firebase
     function blockUser(otherUserId) {

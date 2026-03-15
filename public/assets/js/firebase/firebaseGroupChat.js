@@ -2191,9 +2191,12 @@ document.addEventListener("click", (e) => {
     }
 });
 
-document.getElementById("closeReply").onclick = () => {
-    closeReplyBox();
-};
+const closeReplyEl = document.getElementById("closeReply");
+if (closeReplyEl) {
+    closeReplyEl.onclick = () => {
+        closeReplyBox();
+    };
+}
 
  
     // Close Reply Box
