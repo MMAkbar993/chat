@@ -1827,7 +1827,13 @@ initializeFirebase(function (app, auth, database, storage) {
     // Function to select a user and display their chat details
     async function selectUser(userId) {
         const chatBox = document.getElementById("chat-box");
-        if (!chatBox) return;
+        const middleEl = document.getElementById("middle");
+        const welcomeContainer = document.getElementById("welcome-container");
+        if (!chatBox || !middleEl) return;
+
+        // Show chat panel and hide welcome as soon as we have a valid context (so panel is visible when arriving from contact with ?call=)
+        middleEl.style.setProperty("display", "flex", "important");
+        if (welcomeContainer) welcomeContainer.style.setProperty("display", "none", "important");
 
         const loggedInUserId = currentUserId;
         selectedUserId = userId; // Set the selected user ID
@@ -1910,17 +1916,6 @@ initializeFirebase(function (app, auth, database, storage) {
                     kycBadges.forEach(b => b.style.display = data.verified ? 'inline-flex' : 'none');
                 })
                 .catch(() => { });
-        }
-
-        // Show the chat container
-        document
-            .getElementById("middle")
-            .style.setProperty("display", "flex", "important");
-
-        // Hide the welcome container
-        const welcomeContainer = document.getElementById("welcome-container");
-        if (welcomeContainer) {
-            welcomeContainer.style.setProperty("display", "none", "important");
         }
 
         // Show contact info and handle common groups
