@@ -4841,9 +4841,9 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     // Call this function after hiding each modal
-    document
-        .getElementById("confirmBlockedUserBtn")
-        .addEventListener("click", function () {
+    const confirmBlockedUserBtn = document.getElementById("confirmBlockedUserBtn");
+    if (confirmBlockedUserBtn) {
+        confirmBlockedUserBtn.addEventListener("click", function () {
             if (otherblockUserId) {
                 blockedUser(otherblockUserId);
                 const blockModalInstance = bootstrap.Modal.getInstance(
@@ -4855,10 +4855,11 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             }
         });
+    }
 
-    document
-        .getElementById("confirmUnblockUserBtn")
-        .addEventListener("click", function () {
+    const confirmUnblockUserBtn = document.getElementById("confirmUnblockUserBtn");
+    if (confirmUnblockUserBtn) {
+        confirmUnblockUserBtn.addEventListener("click", function () {
             if (otherblockUserId) {
                 unblockUser(otherblockUserId);
                 const unblockModalInstance = bootstrap.Modal.getInstance(
@@ -4870,6 +4871,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             }
         });
+    }
 
     function populateUsersMap() {
         const usersRef = ref(database, "data/users"); // Path to your users
