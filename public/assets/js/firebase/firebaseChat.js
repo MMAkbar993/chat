@@ -2706,9 +2706,12 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     });
 
-    document.getElementById("closeReply").onclick = () => {
-        closeReplyBox();
-    };
+    const closeReplyBtn = document.getElementById("closeReply");
+    if (closeReplyBtn) {
+        closeReplyBtn.onclick = () => {
+            closeReplyBox();
+        };
+    }
 
     // Close Reply Box
     function closeReplyBox() {
@@ -3081,9 +3084,9 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     // Form submission handler
-    document
-        .getElementById("delete-chat-form")
-        .addEventListener("submit", (e) => {
+    const deleteChatForm = document.getElementById("delete-chat-form");
+    if (deleteChatForm) {
+        deleteChatForm.addEventListener("submit", (e) => {
             e.preventDefault(); // Prevent form default behavior
 
             const messageKey =
@@ -3113,6 +3116,7 @@ initializeFirebase(function (app, auth, database, storage) {
             document.body.classList.remove("modal-open");
             document.querySelector(".modal-backdrop").remove();
         });
+    }
 
     function openImagePreview(imageUrl) {
         // Remove any existing modal if it's open

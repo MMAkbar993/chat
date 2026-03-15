@@ -2699,7 +2699,7 @@
                                             <div class="position-relative">
                                                 <a href="{{Route('my-status')}}" class="chat-user-list mb-0">
                                                     <div class="avatar avatar-lg idle me-2">
-                                                        <img src="assets/img/profiles/avatar-17.jpg" class="rounded-circle" alt="image">
+                                                        <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
                                                     </div>
                                                     <div class="chat-user-info">
                                                         <div class="chat-user-msg">

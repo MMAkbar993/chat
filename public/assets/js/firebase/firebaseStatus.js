@@ -146,10 +146,11 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     // Event Listeners
-    document
-        .getElementById("fileInput")
-        .addEventListener("change", handleFileUpload);
-    document.getElementById("sendStatus").addEventListener("click", saveStatus);
+    const fileInput = document.getElementById("fileInput");
+    if (fileInput) fileInput.addEventListener("change", handleFileUpload);
+    
+    const sendStatusBtn = document.getElementById("sendStatus");
+    if (sendStatusBtn) sendStatusBtn.addEventListener("click", saveStatus);
 
     //view status
     let isUserListRendered = false; // State variable to track if user list has been rendered
@@ -814,12 +815,14 @@ initializeFirebase(function (app, auth, database, storage) {
     // Disable input if the user has a status
     onValue(userStatusRef, (snapshot) => {
         const statusMessageInput = document.getElementById("statusMessage");
-        if (snapshot.exists()) {
-            // User has a status, disable the input
-            statusMessageInput.disabled = true;
-        } else {
-            // Enable input if no status exists
-            statusMessageInput.disabled = false;
+        if (statusMessageInput) {
+            if (snapshot.exists()) {
+                // User has a status, disable the input
+                statusMessageInput.disabled = true;
+            } else {
+                // Enable input if no status exists
+                statusMessageInput.disabled = false;
+            }
         }
     });
 
@@ -836,9 +839,9 @@ initializeFirebase(function (app, auth, database, storage) {
 
     // Add click event listener for the send button
 
-    document
-        .getElementById("status-message-form")
-        .addEventListener("submit", async (event) => {
+    const statusMessageForm = document.getElementById("status-message-form");
+    if (statusMessageForm) {
+        statusMessageForm.addEventListener("submit", async (event) => {
             event.preventDefault(); // Prevent page reload
 
             const messageTextRaw = document.getElementById("statusMessage").value;
@@ -907,6 +910,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 // Optionally, show a failure toast notification to the user
             }
         });
+    }
 
     // Add your Firebase Storage reference
     // const storage = getStorage(); // Make sure you have initialized Firebase Storage

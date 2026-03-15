@@ -1,4 +1,4 @@
-﻿<!-- Header -->
+<!-- Header -->
 <div class="header">
 
     <!-- Logo -->

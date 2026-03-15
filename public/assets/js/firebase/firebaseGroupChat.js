@@ -178,7 +178,9 @@ function capitalizeFirstLetter(string) {
 const selectedMembers = [];
 
 // Group creation event listener
-document.getElementById('start-group').addEventListener('click', function (e) {
+const startGroupBtn = document.getElementById('start-group');
+if (startGroupBtn) {
+    startGroupBtn.addEventListener('click', function (e) {
     e.preventDefault(); // Prevent default button behavior
 
     // Disable the button to prevent multiple clicks
@@ -317,20 +319,24 @@ document.getElementById('start-group').addEventListener('click', function (e) {
             });
     }
 });
+}
 
-document.querySelector('#cancle-btn-group').addEventListener('click', function () {
-     document.getElementById("group-names").value = '';
-     document.getElementById("group-about").value = '';
-     document.getElementById('group-type').checked = false;
-     document.getElementById("groupcontactSearchInput").value = '';
-     document.querySelectorAll('.contact-user .form-check-input').forEach(checkbox => {
-        checkbox.checked = false;
+const cancleGroupBtn = document.querySelector('#cancle-btn-group');
+if (cancleGroupBtn) {
+    cancleGroupBtn.addEventListener('click', function () {
+         document.getElementById("group-names").value = '';
+         document.getElementById("group-about").value = '';
+         document.getElementById('group-type').checked = false;
+         document.getElementById("groupcontactSearchInput").value = '';
+         document.querySelectorAll('.contact-user .form-check-input').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+
+        searchbtn =  document.getElementById("groupcontactSearchInput").value;
+        searchbtn.dispatchEvent(new Event("input")); // Trigger the input event to refresh the contact list
+        
     });
-
-    searchbtn =  document.getElementById("groupcontactSearchInput").value;
-    searchbtn.dispatchEvent(new Event("input")); // Trigger the input event to refresh the contact list
-    
-});
+}
    
 document.querySelector('#group-add-cancle-btn').addEventListener('click', function () {
     document.getElementById("group-names").value = '';

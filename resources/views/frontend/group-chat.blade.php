@@ -620,7 +620,7 @@
                         <div class="d-flex align-items-end justify-content-end">
                             <span class="call-span border border-2 border-primary d-flex justify-content-center align-items-center rounded">
                                 <span class="avatar avatar-xl bg-soft-primary rounded-circle p-2">
-                                    <img src="assets/img/profiles/avatar-17.jpg" class="rounded-circle" alt="user">
+                                    <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="user">
                                 </span>
                             </span>
                         </div>
@@ -683,7 +683,7 @@
             </div>
             <div class="modal-body border-0 pt-0">
                 <div class="video-call-view br-8 overflow-hidden position-relative">
-                    <img src="assets/img/video/video-member-01.jpg" alt="user-image">
+                    <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                     <div class="mini-video-view active br-8 overflow-hidden position-absolute">
                         <img src="assets/img/video/user-image.jpg" alt="">
                         <div class="bg-soft-primary mx-auto default-profile rounded-circle align-items-center justify-content-center">

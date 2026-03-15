@@ -662,17 +662,18 @@ function fetchUserDetails(userId) {
         .then((snapshot) => {
             if (snapshot.exists()) {
                 const user = snapshot.val();
+                const safeSetVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
                 // Populate the input fields with existing user data
-                document.getElementById('firstName').value = user.firstName || '';
-                document.getElementById('lastName').value = user.lastName || '';
-                document.getElementById('gender').value = user.gender || '';
-                document.getElementById('dob').value = user.dob || '';
-                document.getElementById('country').value = user.country || '';
-                document.getElementById('about').value = user.about || '';
-                document.getElementById('mobile_number').value = user.mobile_number || '';
-                document.getElementById('email').value = user.email || '';
-                document.getElementById('user_name').value = user.username || '';
-                document.getElementById('uid').value = user.uid || '';
+                safeSetVal('firstName', user.firstName || '');
+                safeSetVal('lastName', user.lastName || '');
+                safeSetVal('gender', user.gender || '');
+                safeSetVal('dob', user.dob || '');
+                safeSetVal('country', user.country || '');
+                safeSetVal('about', user.about || '');
+                safeSetVal('mobile_number', user.mobile_number || '');
+                safeSetVal('email', user.email || '');
+                safeSetVal('user_name', user.username || '');
+                safeSetVal('uid', user.uid || '');
 
                 // Set profile image in Settings form and everywhere
                 const profileImageUrl = user.image || user.profile_image || user.photoURL || '';
@@ -681,15 +682,14 @@ function fetchUserDetails(userId) {
                     profileImgEl.src = profileImageUrl || profileImgEl.src || 'assets/img/profiles/avatar-03.jpg';
                 }
 
-                const websiteLinkEl = document.getElementById('website_link');
-                if (websiteLinkEl) websiteLinkEl.value = user.website_link || user.website || '';
-                document.getElementById('facebook_link').value = user.facebook_link || '';
-                document.getElementById('instagram_link').value = user.instagram_link || '';
-                document.getElementById('twitter_link').value = user.twitter_link || '';
-                document.getElementById('linkedin_link').value = user.linkedin_link || '';
-                document.getElementById('youtube_link').value = user.youtube_link || '';
-                document.getElementById('kick_link').value = user.kick_link || '';
-                document.getElementById('twitch_link').value = user.twitch_link || '';
+                safeSetVal('website_link', user.website_link || user.website || '');
+                safeSetVal('facebook_link', user.facebook_link || '');
+                safeSetVal('instagram_link', user.instagram_link || '');
+                safeSetVal('twitter_link', user.twitter_link || '');
+                safeSetVal('linkedin_link', user.linkedin_link || '');
+                safeSetVal('youtube_link', user.youtube_link || '');
+                safeSetVal('kick_link', user.kick_link || '');
+                safeSetVal('twitch_link', user.twitch_link || '');
 
                 // Update sidebar profile panel so it doesn't stay "Loading"
                 if (typeof displayUserDetails === 'function') {
@@ -734,12 +734,13 @@ function fetchUserDetails(userId) {
                 
                 // Fetch and set the "profile_info" value
                 const ProfileInfo = user.profile_info || 'select';  // Default to 'select' if not available
-                document.getElementById('profileInfoSelect').value = ProfileInfo;
+                safeSetVal('profileInfoSelect', ProfileInfo);
 
                 // If "profile_info" is "Except", show excluded users list and populate it
                 if (ProfileInfo === 'Except') {
                     // Show the user list container for exclusions
-                    document.getElementById('profile-user-list').style.display = 'block';
+                    const profileListEl = document.getElementById('profile-user-list');
+                    if (profileListEl) profileListEl.style.display = 'block';
 
                     // Fetch excluded users for profile info
                     const excludedProfileUsers = user.excluded_profile_info_users || [];
@@ -757,17 +758,19 @@ function fetchUserDetails(userId) {
                     }
                 } else {
                     // Hide the user list container if "profile_info" is not "Except"
-                    document.getElementById('profile-user-list').style.display = 'none';
+                    const profileListEl = document.getElementById('profile-user-list');
+                    if (profileListEl) profileListEl.style.display = 'none';
                 }
 
                 // Fetch and set the "last_seen" value
                 const lastSeen = user.last_seen || 'select';  // Default to 'select' if not available
-                document.getElementById('lastSeenSelect').value = lastSeen;
+                safeSetVal('lastSeenSelect', lastSeen);
 
                 // If "last_seen" is "Except", show excluded users list and populate it
                 if (lastSeen === 'Except') {
                     // Show the user list container for exclusions
-                    document.getElementById('last-seen-user-list').style.display = 'block';
+                    const lastSeenListEl = document.getElementById('last-seen-user-list');
+                    if (lastSeenListEl) lastSeenListEl.style.display = 'block';
 
                     // Fetch excluded users for Last Seen
                     const excludedUsers = user.excluded_last_seen_users || [];
@@ -785,17 +788,19 @@ function fetchUserDetails(userId) {
                     }
                 } else {
                     // Hide the user list container if "last_seen" is not "Except"
-                    document.getElementById('last-seen-user-list').style.display = 'none';
+                    const lastSeenListEl = document.getElementById('last-seen-user-list');
+                    if (lastSeenListEl) lastSeenListEl.style.display = 'none';
                 }
 
                 // Fetch and set the "status" value
                 const Status = user.status_info || 'select';  // Default to 'select' if not available
-                document.getElementById('statusSelect').value = Status;
+                safeSetVal('statusSelect', Status);
 
                 // If "status" is "Except", show excluded users list and populate it
                 if (Status === 'Except') {
                     // Show the user list container for exclusions
-                    document.getElementById('status-user-list').style.display = 'block';
+                    const statusListEl = document.getElementById('status-user-list');
+                    if (statusListEl) statusListEl.style.display = 'block';
 
                     // Fetch excluded users for status
                     const excludedStatusUsers = user.excluded_status_users || [];
@@ -819,7 +824,8 @@ function fetchUserDetails(userId) {
                     }
                 } else {
                     // Hide the user list container if "status" is not "Except"
-                    document.getElementById('status-user-list').style.display = 'none';
+                    const statusListEl = document.getElementById('status-user-list');
+                    if (statusListEl) statusListEl.style.display = 'none';
                 }
 
             } else {
@@ -875,6 +881,9 @@ function displayUserDetails(user) {
     setText('profile-info-twitter', user.twitter_link || 'No twitter link');
     setText('profile-info-website', user.website_url || user.website_link || 'No website');
     setText('profile-info-facebook', user.facebook_link || 'No facebook link');
+    setText('profile-info-instagram', user.instagram_link || 'No instagram link');
+    setText('profile-info-kick', user.kick_link || 'No kick link');
+    setText('profile-info-twitch', user.twitch_link || 'No twitch link');
     displayJoinDate(user.timestamp);
     // Set profile image src (do not use innerText on img elements) - use imageUrl so all avatars update
     setImg('profileImage', imageUrl);

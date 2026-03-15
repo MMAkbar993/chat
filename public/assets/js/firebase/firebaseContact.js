@@ -653,47 +653,56 @@ initializeFirebase(function (app, auth, database, storage) {
     //edit contact
 
     // Fetch user data from Firebase when edit modal is opened
-    document.getElementById('edit-contact').addEventListener('show.bs.modal', function (event) {
-        const userId = document.getElementById("edit-user-id").value;
-        document.querySelector('#edit-contact .modal-body #edit-user-id').value = userId; // Set the user ID
-        fetchUserDataForEdit(userId);
-    });
+    const editContactModal = document.getElementById('edit-contact');
+    if (editContactModal) {
+        editContactModal.addEventListener('show.bs.modal', function (event) {
+            const userId = document.getElementById("edit-user-id").value;
+            document.querySelector('#edit-contact .modal-body #edit-user-id').value = userId; // Set the user ID
+            fetchUserDataForEdit(userId);
+        });
+    }
     let otherUserId = "";
     let isUserContactBlocked = false;
-    document.getElementById('block-contact-user').addEventListener('show.bs.modal', function (event) {
-        const userId = document.getElementById("edit-user-id").value;
-        const otherUserId = userId;
-        isUserContactBlocked = localStorage.getItem("isUserContactBlocked") === "true";
-        if (isUserContactBlocked) {
-            document.getElementById("blockContactUserLabel").textContent = "Unblock";
-        } else {
-            document.getElementById("blockContactUserLabel").textContent = "Block";
-        }
-        document.querySelector('#block-contact-user .modal-body #edit-user-id').value = userId; // Set the user ID
-        // blockUser(userId);
-    });
-    document.getElementById("blockContactUserDropdownBtn").addEventListener("click", function (event) {
-        const userId = document.getElementById("edit-user-id").value;
-        otherUserId = userId; // Replace with actual user ID logic
-        const EditpopupElement = document.getElementById('contact-details');  // The contact details modal ID
-        if (EditpopupElement) {
-            const editpopup = bootstrap.Modal.getInstance(EditpopupElement);  // Get the existing modal instance
-            if (editpopup) {
-                editpopup.hide();  // Hide the contact details modal
+    const blockContactUserModal = document.getElementById('block-contact-user');
+    if (blockContactUserModal) {
+        blockContactUserModal.addEventListener('show.bs.modal', function (event) {
+            const userId = document.getElementById("edit-user-id").value;
+            const otherUserId = userId;
+            isUserContactBlocked = localStorage.getItem("isUserContactBlocked") === "true";
+            if (isUserContactBlocked) {
+                document.getElementById("blockContactUserLabel").textContent = "Unblock";
+            } else {
+                document.getElementById("blockContactUserLabel").textContent = "Block";
             }
-        }
-        if (isUserContactBlocked) {
-            document.getElementById("blockContactUserLabel").textContent = "Unblock";
-            // Show the unblock modal only if the user is blocked
-            const unblockModal = new bootstrap.Modal(document.getElementById("unblock-contact-user"));
-            unblockModal.show();
-        } else {
-            document.getElementById("blockContactUserLabel").textContent = "Block";
-            // Show the block modal only if the user is not blocked
-            const blockModal = new bootstrap.Modal(document.getElementById("block-contact-user"));
-            blockModal.show();
-        }
-    });
+            document.querySelector('#block-contact-user .modal-body #edit-user-id').value = userId; // Set the user ID
+            // blockUser(userId);
+        });
+    }
+    const blockContactUserDropdownBtn = document.getElementById("blockContactUserDropdownBtn");
+    if (blockContactUserDropdownBtn) {
+        blockContactUserDropdownBtn.addEventListener("click", function (event) {
+            const userId = document.getElementById("edit-user-id").value;
+            otherUserId = userId; // Replace with actual user ID logic
+            const EditpopupElement = document.getElementById('contact-details');  // The contact details modal ID
+            if (EditpopupElement) {
+                const editpopup = bootstrap.Modal.getInstance(EditpopupElement);  // Get the existing modal instance
+                if (editpopup) {
+                    editpopup.hide();  // Hide the contact details modal
+                }
+            }
+            if (isUserContactBlocked) {
+                document.getElementById("blockContactUserLabel").textContent = "Unblock";
+                // Show the unblock modal only if the user is blocked
+                const unblockModal = new bootstrap.Modal(document.getElementById("unblock-contact-user"));
+                unblockModal.show();
+            } else {
+                document.getElementById("blockContactUserLabel").textContent = "Block";
+                // Show the block modal only if the user is not blocked
+                const blockModal = new bootstrap.Modal(document.getElementById("block-contact-user"));
+                blockModal.show();
+            }
+        });
+    }
     // Fetch user data from Firebase for edit modal
     function fetchUserDataForEdit(userId) {
         const contactRef = ref(database, `data/contacts/${currentUserId}/${userId}`);

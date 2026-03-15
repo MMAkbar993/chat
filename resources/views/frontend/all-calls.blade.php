@@ -172,7 +172,7 @@
                                 </div>
                             </div>
                             <div class="chat-avatar">
-                                <img src="assets/img/profiles/avatar-17.jpg" class="rounded-circle dreams_chat"
+                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle dreams_chat"
                                     alt="image">
                             </div>
                         </div>
@@ -269,7 +269,7 @@
                                 </div>
                             </div>
                             <div class="chat-avatar">
-                                <img src="assets/img/profiles/avatar-17.jpg" class="rounded-circle dreams_chat"
+                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle dreams_chat"
                                     alt="image">
                             </div>
                         </div>
@@ -366,7 +366,7 @@
                                 </div>
                             </div>
                             <div class="chat-avatar">
-                                <img src="assets/img/profiles/avatar-17.jpg" class="rounded-circle dreams_chat"
+                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle dreams_chat"
                                     alt="image">
                             </div>
                         </div>
@@ -546,7 +546,7 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center mb-3">
                             <div class="avatar avatar-lg me-2">
-                                <img src="assets/img/profiles/avatar-17.jpg" class="rounded-circle" alt="image">
+                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
                             </div>
                             <div class="chat-user-info">
                                 <div class="chat-user-msg">
@@ -744,7 +744,7 @@
                                 <span
                                     class="call-span border border-2 border-primary d-flex justify-content-center align-items-center rounded">
                                     <span class="avatar avatar-xl bg-soft-primary rounded-circle p-2">
-                                        <img src="assets/img/profiles/avatar-17.jpg" class="rounded-circle"
+                                        <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
                                             alt="user">
                                     </span>
                                 </span>
@@ -874,7 +874,7 @@
                                         <span
                                             class="call-span border border-2 border-primary d-flex justify-content-center align-items-center rounded">
                                             <span class="avatar avatar-xxl bg-soft-primary rounded-circle p-2">
-                                                <img src="assets/img/profiles/avatar-17.jpg" class="rounded-circle"
+                                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
                                                     alt="user">
                                             </span>
                                         </span>
@@ -1067,7 +1067,7 @@
                 </div>
                 <div class="modal-body border-0 pt-0">
                     <div class="video-call-view br-8 overflow-hidden position-relative">
-                        <img src="assets/img/video/video-member-01.jpg" alt="user-image">
+                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                         <div class="mini-video-view active br-8 overflow-hidden position-absolute">
                             <img src="assets/img/video/user-image.jpg" alt="">
                             <div
@@ -1188,7 +1188,7 @@
                             <div class="row">
                                 <div class="col-md-12">
                                     <div class="video-call-view br-8 overflow-hidden position-relative">
-                                        <img src="assets/img/video/video-member-01.jpg" alt="user-image">
+                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                                         <div class="mini-video-view active br-8 overflow-hidden position-absolute">
                                             <img src="assets/img/video/user-image.jpg" alt="">
                                             <div
@@ -1206,22 +1206,22 @@
                             <div class="row row-gap-4">
                                 <div class="col-md-6 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/video/video-member-02.jpg" alt="user-image">
+                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                                     </div>
                                 </div>
                                 <div class="col-md-6 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/video/video-member-03.jpg" alt="user-image">
+                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/video/video-member-05.jpg" alt="user-image">
+                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/video/video-member-04.jpg" alt="user-image">
+                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">

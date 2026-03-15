@@ -218,28 +218,30 @@ function loadLanguage(language) {
 function fetchLanguageList() {
     const languageSelect = document.getElementById("ulanguage");
 
-    // Clear existing options
-    languageSelect.innerHTML = `<option value="" disabled selected>Select Language</option>`;
+    if (languageSelect) {
+        // Clear existing options
+        languageSelect.innerHTML = `<option value="" disabled selected>Select Language</option>`;
 
-    // Fetch languages from Firebase
-    get(ref(database, "data/languages"))
-        .then((snapshot) => {
-            if (snapshot.exists()) {
-                const languages = snapshot.val();
-                Object.keys(languages).forEach((key) => {
-                    const language = languages[key];
-                    if (language.status === "Active") {
-                        const option = document.createElement("option");
-                        option.value = key; // Use the language name (e.g., "Arabic") as the value
-                        option.textContent = key; // Display the language name
-                        languageSelect.appendChild(option);
-                    }
-                });
-            }
-        })
-        .catch((error) => {
-            console.error("Error fetching languages: ", error);
-        });
+        // Fetch languages from Firebase
+        get(ref(database, "data/languages"))
+            .then((snapshot) => {
+                if (snapshot.exists()) {
+                    const languages = snapshot.val();
+                    Object.keys(languages).forEach((key) => {
+                        const language = languages[key];
+                        if (language.status === "Active") {
+                            const option = document.createElement("option");
+                            option.value = key; // Use the language name (e.g., "Arabic") as the value
+                            option.textContent = key; // Display the language name
+                            languageSelect.appendChild(option);
+                        }
+                    });
+                }
+            })
+            .catch((error) => {
+                console.error("Error fetching languages: ", error);
+            });
+    }
 }
 
 function saveLanguage() {
@@ -316,32 +318,41 @@ function saveLanguage() {
 
 
 // Event listener for saving language
-document.getElementById('saveLanguageBtn').addEventListener('click', saveLanguage);
-
-
+const saveLanguageBtn = document.getElementById('saveLanguageBtn');
+if (saveLanguageBtn) {
+    saveLanguageBtn.addEventListener('click', saveLanguage);
+}
 
 // Event listener for the delete chat switch
-document.getElementById("deleteChatSwitch").addEventListener("change", async function (e) {
-    localStorage.setItem("deleteChatSwitchState", e.target.checked);
-    if (e.target.checked) {
-        // Automatically delete all chats for the current user
-        const deleteChatModal = new bootstrap.Modal(document.getElementById("delete-chat"));
-        deleteChatModal.show();
-    }
-});
+const deleteChatSwitch = document.getElementById("deleteChatSwitch");
+if (deleteChatSwitch) {
+    deleteChatSwitch.addEventListener("change", async function (e) {
+        localStorage.setItem("deleteChatSwitchState", e.target.checked);
+        if (e.target.checked) {
+            // Automatically delete all chats for the current user
+            const deleteChatModal = new bootstrap.Modal(document.getElementById("delete-chat"));
+            deleteChatModal.show();
+        }
+    });
+}
 
 // Handle delete confirmation from modal
-document.getElementById("deleteChatForm").addEventListener("submit", async function (e) {
-    e.preventDefault(); 
+const deleteChatForm = document.getElementById("deleteChatForm");
+if (deleteChatForm) {
+    deleteChatForm.addEventListener("submit", async function (e) {
+        e.preventDefault(); 
 
-    // Proceed with chat deletion
-    await deleteAllChats(currentUserId);
+        // Proceed with chat deletion
+        await deleteAllChats(currentUserId);
 
-    // Hide the modal after deletion
-    const deleteChatModal = bootstrap.Modal.getInstance(document.getElementById("delete-chat"));
-    deleteChatModal.hide();
-});
+        // Close the modal
+        const deleteChatModal = bootstrap.Modal.getInstance(document.getElementById("delete-chat"));
+        deleteChatModal.hide();
 
+        // Optionally uncheck the switch to allow reopening the modal
+        document.getElementById("deleteChatSwitch").checked = false;
+    });
+}
 // Event listener for the Cancel button to uncheck the switch
 document.getElementById("cancelDeleteChatBtn").addEventListener("click", function () {
     document.getElementById("deleteChatSwitch").checked = false;

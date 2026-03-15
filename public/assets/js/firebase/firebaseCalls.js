@@ -84,6 +84,7 @@ function fetchAndDisplayCalls() {
 }
 
 function fetchCalls() {
+    if (!currentUser || !currentUser.uid) return;
     const callsRef = ref(database, `data/calls/${currentUser.uid}`); // Reference to the calls node
 
     // Fetch calls data from Firebase
@@ -464,36 +465,42 @@ async function populateUserList() {
 }
 
 // Event listener to populate user list when the modal opens
-document.getElementById('new-call').addEventListener('show.bs.modal', populateUserList);
+const newCallModal = document.getElementById('new-call');
+if (newCallModal) {
+    newCallModal.addEventListener('show.bs.modal', populateUserList);
+}
 
 
 
-document.getElementById("searchCallInput").addEventListener("input", function() {
-    const searchValue = this.value.toLowerCase(); // Get the search value in lowercase
-    const userDivs = document.querySelectorAll(".chat-users-wrap .chat-list"); // Select all user elements
-    let anyVisible = false; // Initialize visibility tracker
+const searchCallInput = document.getElementById("searchCallInput");
+if (searchCallInput) {
+    searchCallInput.addEventListener("input", function() {
+        const searchValue = this.value.toLowerCase(); // Get the search value in lowercase
+        const userDivs = document.querySelectorAll(".chat-users-wrap .chat-list"); // Select all user elements
+        let anyVisible = false; // Initialize visibility tracker
 
-    userDivs.forEach(userDiv => {
-        const userNameElement = userDiv.querySelector(".chat-user-msg h6"); // Assuming the username is in an <h6> tag
-        if (userNameElement) {
-            const userName = userNameElement.textContent.toLowerCase(); // Get the username in lowercase
+        userDivs.forEach(userDiv => {
+            const userNameElement = userDiv.querySelector(".chat-user-msg h6"); // Assuming the username is in an <h6> tag
+            if (userNameElement) {
+                const userName = userNameElement.textContent.toLowerCase(); // Get the username in lowercase
 
-            // Check if the username includes the search value
-            if (userName.includes(searchValue)) {
-                userDiv.style.display = ""; // Show user
-                anyVisible = true; // Update the visibility tracker
+                // Check if the username includes the search value
+                if (userName.includes(searchValue)) {
+                    userDiv.style.display = ""; // Show user
+                    anyVisible = true; // Update the visibility tracker
+                } else {
+                    userDiv.style.display = "none"; // Hide user
+                }
             } else {
-                userDiv.style.display = "none"; // Hide user
+                userDiv.style.display = "none"; // Hide the user if no username found
             }
-        } else {
-            userDiv.style.display = "none"; // Hide the user if no username found
-        }
-    });
+        });
 
-    const noMatchesMessage = document.getElementById('noCallMatchesModalMessage');
-    if (noMatchesMessage) {
-        // Show the message if no contacts are visible
-        noMatchesMessage.style.display = anyVisible ? "none" : "block";
-    } 
-});
+        const noMatchesMessage = document.getElementById('noCallMatchesModalMessage');
+        if (noMatchesMessage) {
+            // Show the message if no contacts are visible
+            noMatchesMessage.style.display = anyVisible ? "none" : "block";
+        } 
+    });
+}
 });

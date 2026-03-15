@@ -20,20 +20,23 @@ import {
 // Fetch Firebase config from Laravel backend (or use config injected in page for deployed server)
 export function initializeFirebase(callback) {
     function initWithConfig(config) {
-        if (!config || !config.apiKey) {
+        const c_apiKey = config.apiKey || config.api_key;
+        if (!config || !c_apiKey) {
             console.error('[Firebase] No config (missing apiKey).');
             return;
         }
+        const c_projectId = config.projectId || config.project_id;
         const firebaseConfig = {
-            apiKey: config.apiKey,
-            authDomain: config.authDomain || (config.projectId ? config.projectId + '.firebaseapp.com' : undefined),
-            projectId: config.projectId,
-            storageBucket: config.storageBucket || (config.projectId ? config.projectId + '.appspot.com' : undefined),
-            messagingSenderId: config.messagingSenderId,
-            appId: config.appId,
-            measurementId: config.measurementId,
+            apiKey: c_apiKey,
+            authDomain: config.authDomain || config.auth_domain || (c_projectId ? c_projectId + '.firebaseapp.com' : undefined),
+            projectId: c_projectId,
+            storageBucket: config.storageBucket || config.storage_bucket || (c_projectId ? c_projectId + '.appspot.com' : undefined),
+            messagingSenderId: config.messagingSenderId || config.messaging_sender_id,
+            appId: config.appId || config.app_id,
+            measurementId: config.measurementId || config.measurement_id,
         };
-        if (config.databaseURL) firebaseConfig.databaseURL = config.databaseURL;
+        const c_databaseURL = config.databaseURL || config.database_url;
+        if (c_databaseURL) firebaseConfig.databaseURL = c_databaseURL;
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
