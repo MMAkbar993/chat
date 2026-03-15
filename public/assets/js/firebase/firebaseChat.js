@@ -4679,12 +4679,13 @@ initializeFirebase(function (app, auth, database, storage) {
             });
     }
 
-    document
-        .getElementById("deleteChatBtn")
-        .addEventListener("click", function (event) {
+    const deleteChatBtn = document.getElementById("deleteChatBtn");
+    if (deleteChatBtn) {
+        deleteChatBtn.addEventListener("click", function (event) {
             event.preventDefault(); // Prevent the default form submission
             deleteChat(selectedUserId); // Pass the selectedUserId to the deleteChat function
         });
+    }
 
     function deleteChat(selectedUserId) {
         const chatRoomId = getDeterministicChatRoomId(currentUserId, selectedUserId);
