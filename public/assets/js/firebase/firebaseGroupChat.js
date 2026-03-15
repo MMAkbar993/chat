@@ -38,7 +38,7 @@ onAuthStateChanged(auth, (user) => {
         fetchGroups(currentUserId);
         fetchGroupUsers(currentUserId);
     } else {
-        window.location.href = "/login";
+        // window.location.href = "/login";
     
     }
 });
@@ -93,7 +93,7 @@ function fetchGroupUsers(currentUserId) {
                         } 
                     }).catch((error) => {
                         if (error == 'Error: Error: Client is offline.') {
-                            window.location.href = "/login";
+                            // window.location.href = "/login";
                         }
                     });
                 } 
@@ -101,7 +101,7 @@ function fetchGroupUsers(currentUserId) {
         })
         .catch((error) => {
             if (error == 'Error: Error: Client is offline.') {
-                window.location.href = "/login";
+                // window.location.href = "/login";
             }
         });
 }

@@ -62,8 +62,8 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
     }
     @endphp
     const PRIMARY_ROLES = @json($primaryRoles);
-    window.__FIREBASE_CONFIG__ = null;
-    window.FIREBASE_DISABLED = true;
+    window.__FIREBASE_CONFIG__ = @json(config('firebase.frontend'));
+    window.FIREBASE_DISABLED = !window.__FIREBASE_CONFIG__ || !window.__FIREBASE_CONFIG__.api_key;
     @if(Auth::check() && Auth::user())
     @php
         $laravelUserJson = 'null';
@@ -809,6 +809,17 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
     });
 })();
 </script>
+@endif
+{{-- Firebase JS modules (only when Firebase is enabled and user is logged in) --}}
+@if (!Route::is('login','signup','register.payment','signin'))
+@if (config('firebase.frontend.api_key'))
+<script type="module" src="{{ asset('assets/js/firebase/firebaseChat.js') }}"></script>
+<script type="module" src="{{ asset('assets/js/firebase/firebaseContact.js') }}"></script>
+<script type="module" src="{{ asset('assets/js/firebase/firebaseGroupChat.js') }}"></script>
+<script type="module" src="{{ asset('assets/js/firebase/firebaseSidebar.js') }}"></script>
+<script type="module" src="{{ asset('assets/js/firebase/firebaseCalls.js') }}"></script>
+<script type="module" src="{{ asset('assets/js/firebase/firebaseStatus.js') }}"></script>
+@endif
 @endif
 <!-- SPA Navigation -->
 <script src="{{ asset('assets/js/spa-navigation.js') }}"></script>

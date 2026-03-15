@@ -109,7 +109,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 } else {
                     if (window.location.pathname !== "/login") {
                         // Redirect to login if trying to access any other route
-                        window.location.href = "/login";
+                        // window.location.href = "/login";
                     }
                     document.getElementById("user-id").innerText =
                         "No user logged in";

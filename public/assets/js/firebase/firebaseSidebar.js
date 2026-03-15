@@ -45,7 +45,7 @@ onAuthStateChanged(auth, (user) => {
         applySavedBackground(currentUser.uid);
         // fetchUsers();
     } else {
-        window.location.href = "/login";
+        // window.location.href = "/login";
         document.getElementById('user-id').innerText = 'No user logged in';
     }
 });

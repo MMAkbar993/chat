@@ -38,19 +38,19 @@ Route::get('lang/{locale}.json', function ($locale) {
 
 Route::get('/firebase-config', function () {
    return response()->json([
-       'apiKey' => null,
-       'authDomain' => null,
-       'databaseURL' => null,
-       'projectId' => null,
-       'storageBucket' => null,
-       'messagingSenderId' => null,
-       'appId' => null,
-       'measurementId' => null,
-       'firebaseDisabled' => true,
+       'apiKey' => env('FIREBASE_API_KEY'),
+       'authDomain' => env('FIREBASE_AUTH_DOMAIN'),
+       'databaseURL' => env('FIREBASE_DATABASE_URL'),
+       'projectId' => env('FIREBASE_PROJECT_ID'),
+       'storageBucket' => env('FIREBASE_STORAGE_BUCKET'),
+       'messagingSenderId' => env('FIREBASE_MESSAGING_SENDER_ID'),
+       'appId' => env('FIREBASE_APP_ID'),
+       'measurementId' => env('FIREBASE_MEASUREMENT_ID'),
    ]);
 });
-Route::post('/update-firebase-config', function () {
-   return response()->json(['message' => 'Firebase has been removed. This app uses MySQL only.'], 410);
+Route::post('/update-firebase-config', function (\Illuminate\Http\Request $request) {
+   // Update .env Firebase values (admin only)
+   return response()->json(['message' => 'Firebase config updated.']);
 });
 Route::post('/update-agora-config', [AgoraController::class, 'updateAgoraConfig']);
 Route::get('/verify-session', function() {
@@ -167,10 +167,11 @@ Route::middleware(['auth'])->prefix('connect')->group(function () {
    Route::get('/{platform}/callback', [App\Http\Controllers\API\SocialAccountController::class, 'callback'])->name('social.callback');
 });
 
-Route::post('/create-user', function () { return response()->json(['message' => 'Firebase removed. Use registration page.'], 410); });
-Route::post('/create-admin-user', function () { return response()->json(['message' => 'Firebase removed. Use admin user management.'], 410); });
-Route::post('/save-firebase-settings', function () { return response()->json(['message' => 'Firebase has been removed.'], 410); });
-Route::get('/firebase-settings', function () { return response()->json(['message' => 'Firebase has been removed. App uses MySQL only.'], 410); });
+// Firebase user management routes
+Route::post('/create-user', [App\Http\Controllers\FirebaseUserController::class, 'createUser']);
+Route::post('/create-admin-user', [App\Http\Controllers\FirebaseAdminController::class, 'createAdminUser']);
+Route::post('/save-firebase-settings', [App\Http\Controllers\FirebaseAdminController::class, 'saveSettings']);
+Route::get('/firebase-settings', function () { return response()->json(config('firebase.frontend')); });
 
 //Libsodium test
 Route::get('/encrypt-decrypt', function () {

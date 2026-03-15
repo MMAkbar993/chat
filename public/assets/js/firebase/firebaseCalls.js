@@ -47,7 +47,7 @@ onAuthStateChanged(auth, (user) => {
         document.getElementById('uid').innerText = `Logged in as: ${currentUser.uid}`;
         fetchUsers();
     } else {
-        window.location.href = "/login";
+        // window.location.href = "/login";
         document.getElementById('uid').innerText = 'No user logged in';
     }
 });

@@ -31,7 +31,7 @@ initializeFirebase(function (app, auth, database, storage) {
             loggeduserId = user.uid;
             fetchStatuses();
         } else {
-            window.location.href = "/login";
+            // window.location.href = "/login";
         }
     });
 

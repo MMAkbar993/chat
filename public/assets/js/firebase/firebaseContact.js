@@ -35,7 +35,7 @@ initializeFirebase(function (app, auth, database, storage) {
             currentUserId = user.uid; // Set the current user ID
 
         } else {
-            window.location.href = "/login";
+            // window.location.href = "/login";
 
         }
     });
