@@ -6333,12 +6333,14 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     };
 
-    startBtn.addEventListener("click", () => {
-        navigator.mediaDevices
-            .getUserMedia({ audio: true })
-            .then(onSuccess)
-            .catch(onFail);
-    });
+    if (startBtn) {
+        startBtn.addEventListener("click", () => {
+            navigator.mediaDevices
+                .getUserMedia({ audio: true })
+                .then(onSuccess)
+                .catch(onFail);
+        });
+    }
 
     async function voiceupload(files) {
         var fd = new FormData();
