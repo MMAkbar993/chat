@@ -131,8 +131,19 @@ initializeFirebase(function (app, auth, database, storage) {
             get(ref(database, 'data/users/' + user.uid))
                 .then((snapshot) => {
                     const rtdb = snapshot.exists() ? snapshot.val() : {};
-                    if (Object.keys(rtdb).length === 0 && getLaravelProfileData()) {
-                        applyProfileFromFirebase(getLaravelProfileData());
+                    const laravelData = getLaravelProfileData();
+                    // Prefer RTDB when it has meaningful profile fields; otherwise use Laravel so profile doesn't disappear
+                    const hasRtdbProfile = rtdb && (
+                        (rtdb.firstName != null && rtdb.firstName !== '') ||
+                        (rtdb.lastName != null && rtdb.lastName !== '') ||
+                        (rtdb.email != null && rtdb.email !== '')
+                    );
+                    if (hasRtdbProfile) {
+                        applyProfileFromFirebase(rtdb);
+                    } else if (laravelData) {
+                        // RTDB empty or only non-profile keys (e.g. wallpaper): keep Laravel profile visible
+                        const merged = Object.assign({}, laravelData, rtdb);
+                        applyProfileFromFirebase(merged);
                     } else {
                         applyProfileFromFirebase(rtdb);
                     }
