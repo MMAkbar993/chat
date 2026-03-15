@@ -3901,9 +3901,9 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     // Add an event listener to the 'Block' button in the modal
-    document
-        .getElementById("confirmBlockUserBtn")
-        .addEventListener("click", function () {
+    const confirmBlockUserBtn = document.getElementById("confirmBlockUserBtn");
+    if (confirmBlockUserBtn) {
+        confirmBlockUserBtn.addEventListener("click", function () {
             if (otherUserId) {
                 blockUser(otherUserId);
                 // Close the modal after blocking
@@ -3914,10 +3914,11 @@ initializeFirebase(function (app, auth, database, storage) {
             } else {
             }
         });
+    }
 
-    document
-        .getElementById("chatSearchInput")
-        .addEventListener("input", function () {
+    const chatSearchInput = document.getElementById("chatSearchInput");
+    if (chatSearchInput) {
+        chatSearchInput.addEventListener("input", function () {
             const searchValue = this.value.toLowerCase(); // Get the search value in lowercase
             const userDivs = document.querySelectorAll(
                 "#chat-users-wrap .chat-list"
@@ -3935,10 +3936,11 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             });
         });
+    }
 
-    document
-        .getElementById("chatcontactSearchInput")
-        .addEventListener("input", function () {
+    const chatcontactSearchInput = document.getElementById("chatcontactSearchInput");
+    if (chatcontactSearchInput) {
+        chatcontactSearchInput.addEventListener("input", function () {
             const searchValue = this.value.trim().toLowerCase(); // Trim and convert to lowercase
             const contacts = document.querySelectorAll(
                 "#main-container .contact-user"
@@ -3973,34 +3975,40 @@ initializeFirebase(function (app, auth, database, storage) {
             } else {
             }
         });
+    }
 
     // Clear search input when clicking "Cancel"
-    document
-        .querySelector("#cancelsearchbutton")
-        .addEventListener("click", function () {
+    const cancelsearchbutton = document.querySelector("#cancelsearchbutton");
+    if (cancelsearchbutton) {
+        cancelsearchbutton.addEventListener("click", function () {
             const searchInput = document.getElementById(
                 "chatcontactSearchInput"
             );
             searchInput.value = ""; // Clear the input field
             searchInput.dispatchEvent(new Event("input")); // Trigger the input event to refresh the contact list
         });
+    }
 
-    document
-        .querySelector("#cancelsearch")
-        .addEventListener("click", function () {
+    const cancelsearch = document.querySelector("#cancelsearch");
+    if (cancelsearch) {
+        cancelsearch.addEventListener("click", function () {
             const searchInput = document.getElementById(
                 "chatcontactSearchInput"
             );
-            searchInput.value = ""; // Clear the input field
-            searchInput.dispatchEvent(new Event("input")); // Trigger the input event to refresh the contact list
+            if (searchInput) {
+                searchInput.value = "";
+                searchInput.dispatchEvent(new Event("input"));
+            }
         });
+    }
 
     const logoutButton = document.getElementById("logout-button");
-
-    logoutButton.addEventListener("click", function (event) {
+    if (logoutButton) {
+        logoutButton.addEventListener("click", function (event) {
         event.preventDefault(); // Prevent default action (if any)
         logoutUser(); // Call the logoutUser function
     });
+    }
 
     function logoutUser() {
         var loginUrl = "/login";

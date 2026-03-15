@@ -2438,12 +2438,17 @@ if (closeReplyEl) {
             });
     }
 
-document.getElementById("message-form").addEventListener("submit", function (event) {
-    event.preventDefault(); // Prevent form submission and page reload
-    const messageText = document.getElementById("message-input").value;
-});
+const messageForm = document.getElementById("message-form");
+if (messageForm) {
+    messageForm.addEventListener("submit", function (event) {
+        event.preventDefault(); // Prevent form submission and page reload
+        const messageText = document.getElementById("message-input").value;
+    });
+}
 
-document.getElementById("groupSearchInput").addEventListener("input", function () {
+const groupSearchInput = document.getElementById("groupSearchInput");
+if (groupSearchInput) {
+    groupSearchInput.addEventListener("input", function () {
     const searchValue = this.value.toLowerCase(); // Get the search value in lowercase
     const groupDivs = document.querySelectorAll("#group-list .chat-list"); // Select all group elements
     let anyVisible = false; // Track if any group is visible
@@ -2475,6 +2480,7 @@ document.getElementById("groupSearchInput").addEventListener("input", function (
     }
 
 });
+}
 
 const groupcontactSearchInput = document.getElementById("groupcontactSearchInput");
 if (groupcontactSearchInput) groupcontactSearchInput.addEventListener("input", function () {
