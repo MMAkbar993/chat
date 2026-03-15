@@ -1811,6 +1811,9 @@ initializeFirebase(function (app, auth, database, storage) {
 
     // Function to select a user and display their chat details
     async function selectUser(userId) {
+        const chatBox = document.getElementById("chat-box");
+        if (!chatBox) return;
+
         const loggedInUserId = currentUserId;
         selectedUserId = userId; // Set the selected user ID
         const userDetails = await getUserDetails(userId);
@@ -1821,7 +1824,7 @@ initializeFirebase(function (app, auth, database, storage) {
         }
 
         // Clear the chat box
-        document.getElementById("chat-box").innerHTML = "";
+        chatBox.innerHTML = "";
 
         // Generate chatRoomId deterministically (A-B)
         const chatRoomId = getDeterministicChatRoomId(loggedInUserId, selectedUserId);
