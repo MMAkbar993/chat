@@ -4265,13 +4265,14 @@ initializeFirebase(function (app, auth, database, storage) {
             .catch((error) => { });
     }
 
-    document
-        .getElementById("contactInfoButton")
-        .addEventListener("click", () => {
+    const contactInfoButton = document.getElementById("contactInfoButton");
+    if (contactInfoButton) {
+        contactInfoButton.addEventListener("click", () => {
             if (selectedUserId) {
                 showContactInfo(selectedUserId); // Call with the selected user ID
             }
         });
+    }
 
     function getUserInfo(userId) {
         const userRef = ref(database, "data/users/" + userId); // Create a reference to the user node
