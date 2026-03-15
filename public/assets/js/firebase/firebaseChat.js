@@ -72,10 +72,17 @@ initializeFirebase(function (app, auth, database, storage) {
                     if (storedUserId) {
                         const urlParams = new URLSearchParams(window.location.search);
                         const callAction = urlParams.get('call');
+                        function showChatPanelIfPresent() {
+                            const middleEl = document.getElementById("middle");
+                            const welcomeEl = document.getElementById("welcome-container");
+                            if (middleEl) middleEl.style.setProperty("display", "flex", "important");
+                            if (welcomeEl) welcomeEl.style.setProperty("display", "none", "important");
+                        }
                         // wait for usersMap to populate before selecting
                         const checkInterval = setInterval(() => {
                             if (Object.keys(usersMap).length > 0 || usersMap[storedUserId]) {
                                 clearInterval(checkInterval);
+                                showChatPanelIfPresent();
                                 selectUser(storedUserId);
                                 if (callAction === 'voice' || callAction === 'video') {
                                     setTimeout(() => {
@@ -94,7 +101,10 @@ initializeFirebase(function (app, auth, database, storage) {
                         }, 100);
                         
                         // Fallback clear after some time to prevent infinite loop
-                        setTimeout(() => clearInterval(checkInterval), 5000); 
+                        setTimeout(() => clearInterval(checkInterval), 5000);
+                        // Ensure panel is shown even if selectUser runs late or DOM was not ready: retry after a short delay
+                        setTimeout(showChatPanelIfPresent, 300);
+                        setTimeout(showChatPanelIfPresent, 800);
 
                         // localStorage.removeItem("selectedUserId"); // keep this if you want it to persist during refresh
                     }
