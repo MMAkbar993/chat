@@ -6234,37 +6234,39 @@ initializeFirebase(function (app, auth, database, storage) {
         "📶",
     ];
 
-    // Populate the emoji list dynamically
-    emojis.forEach((emoji) => {
-        const li = document.createElement("li");
-        const emojiElement = document.createElement("a");
-        emojiElement.href = "javascript:void(0);";
-        emojiElement.classList.add("emoji");
-        emojiElement.textContent = emoji;
-        li.appendChild(emojiElement);
-        emojiList.appendChild(li);
-    });
-
-    // Toggle emoji picker visibility when the emoji button is clicked
-    emojiButton.addEventListener("click", () => {
-        emojiPicker.style.display =
-            emojiPicker.style.display === "none" ||
-                emojiPicker.style.display === ""
-                ? "block"
-                : "none";
-    });
-
-    // Add emoji to input field when an emoji is selected
-    const emojisInPicker = emojiPicker.querySelectorAll(".emoji");
-    emojisInPicker.forEach((emoji) => {
-        emoji.addEventListener("click", () => {
-            inputField.value += emoji.textContent; // Add emoji to message input
-            inputField.focus(); // Focus the input field
-            inputField.selectionStart = inputField.selectionEnd =
-                inputField.value.length; // Move cursor to the end
-            emojiPicker.style.display = "none"; // Hide the picker after selection
+    // Populate the emoji list dynamically (only when chat UI exists)
+    if (emojiList && emojiButton && emojiPicker && inputField) {
+        emojis.forEach((emoji) => {
+            const li = document.createElement("li");
+            const emojiElement = document.createElement("a");
+            emojiElement.href = "javascript:void(0);";
+            emojiElement.classList.add("emoji");
+            emojiElement.textContent = emoji;
+            li.appendChild(emojiElement);
+            emojiList.appendChild(li);
         });
-    });
+
+        // Toggle emoji picker visibility when the emoji button is clicked
+        emojiButton.addEventListener("click", () => {
+            emojiPicker.style.display =
+                emojiPicker.style.display === "none" ||
+                    emojiPicker.style.display === ""
+                    ? "block"
+                    : "none";
+        });
+
+        // Add emoji to input field when an emoji is selected
+        const emojisInPicker = emojiPicker.querySelectorAll(".emoji");
+        emojisInPicker.forEach((emoji) => {
+            emoji.addEventListener("click", () => {
+                inputField.value += emoji.textContent; // Add emoji to message input
+                inputField.focus(); // Focus the input field
+                inputField.selectionStart = inputField.selectionEnd =
+                    inputField.value.length; // Move cursor to the end
+                emojiPicker.style.display = "none"; // Hide the picker after selection
+            });
+        });
+    }
 
     //Recorder
 
