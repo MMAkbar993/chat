@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\QueryException;
 use App\Models\UserDetails;
 use App\Models\SocialAccount;
 use Carbon\Carbon;
@@ -163,16 +165,18 @@ class ProfileSettingsController extends Controller
                 }
             }
 
-            $user->save();
+            DB::transaction(function () use ($user, $request) {
+                $user->save();
 
-            $details = $user->get_user_details;
-            if (!$details) {
-                $details = new UserDetails(['user_id' => $user->id]);
-            }
-            if ($request->has('about')) {
-                $details->user_about = $request->input('about');
-            }
-            $details->save();
+                $details = $user->get_user_details;
+                if (!$details) {
+                    $details = new UserDetails(['user_id' => $user->id]);
+                }
+                if ($request->has('about')) {
+                    $details->user_about = $request->input('about');
+                }
+                $details->save();
+            });
 
             if ($request->wantsJson()) {
                 $profileImageUrl = '';
@@ -188,6 +192,18 @@ class ProfileSettingsController extends Controller
                 ]);
             }
             return back()->with('success', __('Profile updated successfully.'));
+        } catch (QueryException $e) {
+            Log::error('ProfileSettingsController@save database error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            if ($request->wantsJson()) {
+                $message = config('app.debug')
+                    ? $e->getMessage()
+                    : __('Profile could not be saved. If you recently updated the app, run "php artisan migrate" on the server and try again.');
+                return response()->json(['message' => $message], 500);
+            }
+            throw $e;
         } catch (\Throwable $e) {
             Log::error('ProfileSettingsController@save failed', [
                 'class' => get_class($e),
