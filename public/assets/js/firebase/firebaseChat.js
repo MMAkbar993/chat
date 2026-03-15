@@ -5627,9 +5627,9 @@ initializeFirebase(function (app, auth, database, storage) {
             .catch((error) => { });
     }
 
-    document
-        .getElementById("close-chat-btn")
-        .addEventListener("click", function (event) {
+    const closeChatBtn = document.getElementById("close-chat-btn");
+    if (closeChatBtn) {
+        closeChatBtn.addEventListener("click", function (event) {
             event.preventDefault(); // Prevent default link behavior
 
             // Get the chat section by its ID
@@ -5642,6 +5642,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 welcomeContainer.style.display = "block";
             }
         });
+    }
 
     function requestNotificationPermission() {
         if (Notification.permission === "default") {
