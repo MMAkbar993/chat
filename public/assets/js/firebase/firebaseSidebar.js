@@ -39,6 +39,23 @@ initializeFirebase(function (app, auth, database, storage) {
     // Populate sidebar profile pane from Firebase RTDB (so it doesn't stay "Loading...")
     function applyProfileFromFirebase(user) {
         const u = user && typeof user === 'object' ? user : {};
+        // On server, Firebase may return later with empty/partial data; never overwrite real profile with empty/dummy
+        const hasMeaningfulProfile = (u.firstName != null && u.firstName !== '') ||
+            (u.lastName != null && u.lastName !== '') ||
+            (u.email != null && u.email !== '');
+        if (!hasMeaningfulProfile) {
+            const laravelData = getLaravelProfileData();
+            const laravelHasData = laravelData && (
+                (laravelData.firstName != null && laravelData.firstName !== '') ||
+                (laravelData.lastName != null && laravelData.lastName !== '') ||
+                (laravelData.email != null && laravelData.email !== '')
+            );
+            if (laravelHasData) {
+                applyProfileFromFirebase(laravelData);
+                return;
+            }
+            // If both are empty, still apply u so UI shows "No Name" etc.; don't recurse
+        }
         const defaultImg = 'assets/img/profiles/avatar-03.jpg';
         const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = (text != null && text !== '') ? text : '—'; };
         const imageUrl = u.image || u.profile_image || u.photoURL || u.profileImage || defaultImg;
