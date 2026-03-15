@@ -70,11 +70,26 @@ initializeFirebase(function (app, auth, database, storage) {
                     }
 
                     if (storedUserId) {
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const callAction = urlParams.get('call');
                         // wait for usersMap to populate before selecting
                         const checkInterval = setInterval(() => {
                             if (Object.keys(usersMap).length > 0 || usersMap[storedUserId]) {
                                 clearInterval(checkInterval);
                                 selectUser(storedUserId);
+                                if (callAction === 'voice' || callAction === 'video') {
+                                    setTimeout(() => {
+                                        const btn = callAction === 'voice'
+                                            ? (document.getElementById('audio-call-btn') || document.getElementById('audio-new-btn-group'))
+                                            : (document.getElementById('video-call-new-btn') || document.getElementById('video-call-new-btn-group'));
+                                        if (btn) btn.click();
+                                        if (typeof history !== 'undefined' && history.replaceState) {
+                                            const u = new URL(window.location.href);
+                                            u.searchParams.delete('call');
+                                            history.replaceState({}, '', u.toString());
+                                        }
+                                    }, 400);
+                                }
                             }
                         }, 100);
                         

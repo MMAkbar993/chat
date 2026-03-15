@@ -251,29 +251,45 @@ initializeFirebase(function (app, auth, database, storage) {
     });
 
     function handleVoiceCallClick() {
-        const userId = document.getElementById("edit-user-id").value;
+        const modal = document.getElementById('contact-details');
+        const modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
+        const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById('edit-user-id')?.value || '').trim();
         if (!currentUserId || !userId) return;
-        
+
         const modalEl = document.getElementById('contact-details');
         if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             const m = bootstrap.Modal.getInstance(modalEl);
             if (m) m.hide();
         }
-        var callBtn = document.getElementById('audio-call-btn') || document.getElementById('audio-new-btn-group');
-        if (callBtn) callBtn.click();
+        const callBtn = document.getElementById('audio-call-btn') || document.getElementById('audio-new-btn-group');
+        if (callBtn) {
+            try { localStorage.setItem('selectedUserId', userId); } catch (e) {}
+            callBtn.click();
+        } else {
+            const baseUrl = (typeof APP_URL !== 'undefined' && APP_URL ? APP_URL : window.location.origin || '').replace(/\/$/, '');
+            window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(userId) + '&call=voice';
+        }
     }
 
     function handleVideoCallClick() {
-        const userId = document.getElementById("edit-user-id").value;
+        const modal = document.getElementById('contact-details');
+        const modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
+        const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById('edit-user-id')?.value || '').trim();
         if (!currentUserId || !userId) return;
-        
+
         const modalEl = document.getElementById('contact-details');
         if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             const m = bootstrap.Modal.getInstance(modalEl);
             if (m) m.hide();
         }
-        var callBtn = document.getElementById('video-call-new-btn') || document.getElementById('video-call-new-btn-group');
-        if (callBtn) callBtn.click();
+        const callBtn = document.getElementById('video-call-new-btn') || document.getElementById('video-call-new-btn-group');
+        if (callBtn) {
+            try { localStorage.setItem('selectedUserId', userId); } catch (e) {}
+            callBtn.click();
+        } else {
+            const baseUrl = (typeof APP_URL !== 'undefined' && APP_URL ? APP_URL : window.location.origin || '').replace(/\/$/, '');
+            window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(userId) + '&call=video';
+        }
     }
 
     function handleChatButtonClick() {

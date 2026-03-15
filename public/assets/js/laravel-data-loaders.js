@@ -172,14 +172,24 @@
                         if (!currentUserId || !uid) return;
                         closeContactDetailModal();
                         var callBtn = document.getElementById('audio-call-btn') || document.getElementById('audio-new-btn-group');
-                        if (callBtn) callBtn.click();
+                        if (callBtn) {
+                            try { localStorage.setItem('selectedUserId', uid); } catch (err) {}
+                            callBtn.click();
+                        } else {
+                            window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(uid) + '&call=voice';
+                        }
                     };
                     var goToVideoCall = function (e) {
                         if (e) { e.preventDefault(); e.stopPropagation(); }
                         if (!currentUserId || !uid) return;
                         closeContactDetailModal();
                         var callBtn = document.getElementById('video-call-new-btn') || document.getElementById('video-call-new-btn-group');
-                        if (callBtn) callBtn.click();
+                        if (callBtn) {
+                            try { localStorage.setItem('selectedUserId', uid); } catch (err) {}
+                            callBtn.click();
+                        } else {
+                            window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(uid) + '&call=video';
+                        }
                     };
                     if (chatBtn) { chatBtn.onclick = goToChat; chatBtn.href = 'javascript:void(0);'; }
                     if (voiceBtn) { voiceBtn.onclick = goToVoiceCall; voiceBtn.href = 'javascript:void(0);'; }
