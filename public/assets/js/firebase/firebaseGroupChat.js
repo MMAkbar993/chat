@@ -942,8 +942,14 @@ const messagePreview = document.createElement("div");
   clearButton.style.marginLeft = "10px";
   clearButton.style.display = "none"; // Initially hidden
 
-document.querySelector('.chat-footer-wrap').appendChild(messagePreview);
+// #region agent log
+const groupChatFooterWrap = document.querySelector('.chat-footer-wrap');
+fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3a6c46'},body:JSON.stringify({sessionId:'3a6c46',location:'firebaseGroupChat.js:945',message:'chat-footer-wrap check',data:{pathname:window.location.pathname,chatFooterWrapExists:!!groupChatFooterWrap},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+// #endregion
+if (groupChatFooterWrap) {
+groupChatFooterWrap.appendChild(messagePreview);
 messagePreview.appendChild(clearButton);
+}
 const secretKey = "89def69f0bdddc995078037539dc6ef4f0bdbdd3fa04ef2d11eea30779d72ac6"; // Replace with your actual secret key
 
 // Function to send message

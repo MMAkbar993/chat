@@ -1777,6 +1777,10 @@ initializeFirebase(function (app, auth, database, storage) {
     // Load user list (this is just a dummy function; replace it with actual user loading logic)
     function loadUserList() {
         const userList = document.getElementById("user-list");
+        // #region agent log
+        fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3a6c46'},body:JSON.stringify({sessionId:'3a6c46',location:'firebaseChat.js:loadUserList',message:'user-list check',data:{pathname:window.location.pathname,userListExists:!!userList},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+        // #endregion
+        if (!userList) return;
         // Example user IDs (replace this with actual user IDs from your database)
         const users = [
             "LgiFT1vjulPNVm362448cl0lPRK2",
@@ -3539,8 +3543,14 @@ initializeFirebase(function (app, auth, database, storage) {
     clearButton.style.marginLeft = "10px";
     clearButton.style.display = "none"; // Initially hidden
 
-    document.querySelector(".chat-footer-wrap").appendChild(messagePreview); // Add preview container to footer
+    // #region agent log
+    const chatFooterWrap = document.querySelector(".chat-footer-wrap");
+    fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3a6c46'},body:JSON.stringify({sessionId:'3a6c46',location:'firebaseChat.js:3542',message:'chat-footer-wrap check',data:{pathname:window.location.pathname,chatFooterWrapExists:!!chatFooterWrap},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
+    if (chatFooterWrap) {
+    chatFooterWrap.appendChild(messagePreview); // Add preview container to footer
     messagePreview.appendChild(clearButton); // Add Clear button to preview container
+    }
 
     if (sendButton) {
         sendButton.onclick = async function (e) {
