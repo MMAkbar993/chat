@@ -4740,18 +4740,21 @@ initializeFirebase(function (app, auth, database, storage) {
     isUserInfoBlocked = localStorage.getItem("isUserInfoBlocked") === "true";
 
     // Update the label based on the blocked status
-    if (isUserInfoBlocked) {
-        document.getElementById("blockUserLabel").innerHTML =
-            '<i class="ti ti-user me-2 text-info"></i> Unblock User';
-    } else {
-        document.getElementById("blockUserLabel").innerHTML =
-            '<i class="ti ti-user-off me-2 text-info"></i> Block User';
+    const blockUserLabel = document.getElementById("blockUserLabel");
+    if (blockUserLabel) {
+        if (isUserInfoBlocked) {
+            blockUserLabel.innerHTML =
+                '<i class="ti ti-user me-2 text-info"></i> Unblock User';
+        } else {
+            blockUserLabel.innerHTML =
+                '<i class="ti ti-user-off me-2 text-info"></i> Block User';
+        }
     }
 
     // Event listener for dropdown button to open the correct modal
-    document
-        .getElementById("blockedUserDropdownBtn")
-        .addEventListener("click", function (event) {
+    const blockedUserDropdownBtn = document.getElementById("blockedUserDropdownBtn");
+    if (blockedUserDropdownBtn) {
+        blockedUserDropdownBtn.addEventListener("click", function (event) {
             otherblockUserId = selectedUserId; // Replace with actual user ID logic
 
             if (isUserInfoBlocked) {
@@ -4768,6 +4771,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 blockModal.show();
             }
         });
+    }
 
     // Block user function
     function blockedUser(otherblockUserId) {
@@ -4785,7 +4789,8 @@ initializeFirebase(function (app, auth, database, storage) {
 
         update(blockedUserRef, blockedUserData)
             .then(() => {
-                document.getElementById("blockUserLabel").innerHTML =
+                const el = document.getElementById("blockUserLabel");
+                if (el) el.innerHTML =
                     '<i class="ti ti-user me-2 text-info"></i> Unblock User';
                 isUserInfoBlocked = true;
                 localStorage.setItem("isUserInfoBlocked", "true");
@@ -4813,7 +4818,8 @@ initializeFirebase(function (app, auth, database, storage) {
 
         remove(blockedUserRef)
             .then(() => {
-                document.getElementById("blockUserLabel").innerHTML =
+                const el = document.getElementById("blockUserLabel");
+                if (el) el.innerHTML =
                     '<i class="ti ti-user-off me-2 text-info"></i> Block User';
                 isUserInfoBlocked = false;
                 localStorage.setItem("isUserInfoBlocked", "false");
