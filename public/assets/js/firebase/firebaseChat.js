@@ -105,13 +105,20 @@ initializeFirebase(function (app, auth, database, storage) {
                         // Ensure panel is shown even if selectUser runs late or DOM was not ready: retry after a short delay
                         setTimeout(showChatPanelIfPresent, 300);
                         setTimeout(showChatPanelIfPresent, 800);
+                        // If interval never fired (e.g. usersMap slow), still show panel and try selectUser after 1.5s
+                        setTimeout(() => {
+                            showChatPanelIfPresent();
+                            if (document.getElementById("middle") && document.getElementById("chat-box")) {
+                                selectUser(storedUserId);
+                            }
+                        }, 1500);
 
                         // localStorage.removeItem("selectedUserId"); // keep this if you want it to persist during refresh
                     }
-                    document.getElementById("chat-users-wrap").innerHTML = "";
-                    document.getElementById(
-                        "user-id"
-                    ).innerText = `Logged in as: ${user.id}`;
+                    const chatUsersWrap = document.getElementById("chat-users-wrap");
+                    if (chatUsersWrap) chatUsersWrap.innerHTML = "";
+                    const userIdEl = document.getElementById("user-id");
+                    if (userIdEl) userIdEl.innerText = `Logged in as: ${user.id}`;
 
                     // Set the user's online status
                     const userStatusRef = ref(
