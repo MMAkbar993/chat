@@ -820,7 +820,6 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
 <script type="module" src="{{ asset('assets/js/firebase/firebaseGroupChat.js') }}"></script>
 <script type="module" src="{{ asset('assets/js/firebase/firebaseSidebar.js') }}"></script>
 <script type="module" src="{{ asset('assets/js/firebase/firebaseCalls.js') }}"></script>
-<script type="module" src="{{ asset('assets/js/firebase/firebaseStatus.js') }}"></script>
 @endif
 @endif
 <!-- SPA Navigation -->

@@ -245,16 +245,9 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
    Route::get('/group-chat', function () {
       return view('frontend/group-chat');
    })->name('group-chat');
-   Route::get('/my-status', function () {
-      return redirect()->route('chat');
-   })->name('my-status');
-   Route::get('/status', function () {
-      return redirect()->route('chat');
-   })->name('status');
-   Route::post('/upload-status', [UserController::class, 'uploadStatus'])->name('user.status.upload');
-   Route::get('/user-status', function () {
-      return redirect()->route('chat');
-   })->name('user-status');
+   Route::get('/user-status', function () { return redirect()->route('chat'); })->name('user-status');
+   Route::get('/status', function () { return redirect()->route('chat'); })->name('status');
+   Route::get('/my-status', function () { return redirect()->route('chat'); })->name('my-status');
    Route::get('/profile', function () {
       return view('frontend.profile');
    })->name('profile');

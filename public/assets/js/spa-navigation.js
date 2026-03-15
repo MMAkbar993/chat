@@ -10,7 +10,6 @@
         '/index': 'chat-menu',
         '/contact': 'contact-menu',
         '/group-chat': 'group-menu',
-        '/user-status': 'status-menu',
         '/calls': 'call-menu',
         '/profile': 'profile-menu',
         '/settings': 'setting-menu'
