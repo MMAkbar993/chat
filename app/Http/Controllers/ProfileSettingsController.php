@@ -117,27 +117,50 @@ class ProfileSettingsController extends Controller
                 $user->full_name = trim(($request->input('first_name', $user->first_name) ?? '') . ' ' . ($request->input('last_name', $user->last_name) ?? ''));
             }
 
-            $profilePath = config('image_settings.backEnd.profile.path', 'public/image/profile/');
-            $profilePath = rtrim($profilePath, '/') . '/';
             $storageDisk = 'public';
             $storagePath = 'image/profile';
             if ($request->hasFile('profile_image')) {
                 $file = $request->file('profile_image');
-                if ($user->profile_image) {
-                    Storage::disk($storageDisk)->delete($storagePath . '/' . $user->profile_image);
-                }
                 $filename = Carbon::now()->timestamp . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
-                if (class_exists(\Intervention\Image\Facades\Image::class)) {
-                    try {
-                        $img = Image::make($file->getRealPath())->resize(300, 300);
-                        Storage::disk($storageDisk)->put($storagePath . '/' . $filename, $img->stream()->__toString());
-                    } catch (\Throwable $e) {
-                        $file->storeAs($storagePath, $filename, $storageDisk);
+                $saved = false;
+                try {
+                    if ($user->profile_image) {
+                        $oldPath = $storagePath . '/' . $user->profile_image;
+                        if (Storage::disk($storageDisk)->exists($oldPath)) {
+                            Storage::disk($storageDisk)->delete($oldPath);
+                        }
                     }
-                } else {
-                    $file->storeAs($storagePath, $filename, $storageDisk);
+                    if (class_exists(\Intervention\Image\Facades\Image::class)) {
+                        $path = $file->getRealPath() ?: $file->getPathname();
+                        if ($path && is_readable($path)) {
+                            $img = Image::make($path)->resize(300, 300);
+                            Storage::disk($storageDisk)->put($storagePath . '/' . $filename, $img->stream()->__toString());
+                            $saved = true;
+                        }
+                    }
+                    if (!$saved) {
+                        Storage::disk($storageDisk)->putFileAs($storagePath, $file, $filename);
+                        $saved = true;
+                    }
+                    if ($saved) {
+                        $user->profile_image = $filename;
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('ProfileSettingsController@save: image resize/store failed, trying direct store', [
+                        'message' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
+                    try {
+                        Storage::disk($storageDisk)->putFileAs($storagePath, $file, $filename);
+                        $user->profile_image = $filename;
+                    } catch (\Throwable $e2) {
+                        Log::error('ProfileSettingsController@save: could not store profile image', [
+                            'message' => $e2->getMessage(),
+                            'trace' => $e2->getTraceAsString(),
+                        ]);
+                    }
                 }
-                $user->profile_image = $filename;
             }
 
             $user->save();
@@ -152,19 +175,31 @@ class ProfileSettingsController extends Controller
             $details->save();
 
             if ($request->wantsJson()) {
+                $profileImageUrl = '';
+                try {
+                    $freshUser = $user->fresh();
+                    $profileImageUrl = $freshUser ? $freshUser->profile_image_link : '';
+                } catch (\Throwable $e) {
+                    Log::warning('ProfileSettingsController@save: profile_image_link accessor failed', ['message' => $e->getMessage()]);
+                }
                 return response()->json([
                     'message' => __('Profile updated successfully.'),
-                    'profile_image' => $user->fresh()->profile_image_link,
+                    'profile_image' => $profileImageUrl,
                 ]);
             }
             return back()->with('success', __('Profile updated successfully.'));
         } catch (\Throwable $e) {
-            Log::error('ProfileSettingsController@save: ' . $e->getMessage(), [
-                'exception' => $e,
+            Log::error('ProfileSettingsController@save failed', [
+                'class' => get_class($e),
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
             if ($request->wantsJson()) {
-                $message = config('app.debug') ? $e->getMessage() : 'Server error. Check storage/logs/laravel.log';
+                $message = config('app.debug')
+                    ? get_class($e) . ': ' . $e->getMessage()
+                    : __('Profile could not be saved. Please try again or contact support.');
                 return response()->json(['message' => $message], 500);
             }
             throw $e;
