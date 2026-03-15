@@ -30,356 +30,390 @@ import {
     getDownloadURL
 } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-storage.js';
 
-initializeFirebase(function (app, auth, database,storage) {
+initializeFirebase(function (app, auth, database, storage) {
 
-let currentUser = null; // Define the current user here
-let selectedUserId = null; // Store the selected user ID
-let usersMap = {}; // Define usersMap here
-let currentUserId = null;
-// Monitor the user's authentication state
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        currentUser = user; // Set currentUser to the signed-in user
-        currentUserId = user.uid;
-        document.getElementById('user-id').innerText = `Logged in as: ${currentUser.uid}`;
-        applySavedBackground(currentUser.uid);
-        // fetchUsers();
-    } else {
-        // window.location.href = "/login";
-        document.getElementById('user-id').innerText = 'No user logged in';
-    }
-});
-
-const defaultAvatar = "{{ asset('assets/img/profiles/avatar-03.jpg') }}";
-// Background Image
-let selectedBackground = null;
-
-// Background Image
-function selectBackground(imageUrl, imgElement) {
-    selectedBackground = imageUrl; // Set the selected background URL
-      // Highlight the selected image
-      const allImages = document.querySelectorAll('.img-wrap');
-      allImages.forEach((imgWrap) => {
-          imgWrap.classList.remove('selected-background'); // Remove class from all images
-          imgWrap.classList.remove('selected');
-      });
-      imgElement.classList.add('selected-background'); // Add class to the clicked image
-      imgElement.classList.add('selected');
-  
-    const chatArea = document.getElementById('chat-area');
-    if (chatArea) {
-        chatArea.style.backgroundImage = `url(${selectedBackground})`;
-    } 
-
-    const groupArea = document.getElementById('group-area');
-    if (groupArea) {
-        groupArea.style.backgroundImage = `url(${selectedBackground})`;
-    } 
-}
-
-// Background Image
-function saveBackground() {
-    if (currentUser) { // Check if the user is logged in
-        if (selectedBackground) {
-            // Save to Firebase under the user ID
-            const backgroundRef = ref(database, `data/users/${currentUser.uid}/wallpaper`); // Path to user-specific background
-            set(backgroundRef, selectedBackground)
-                .then(() => {
-                    Toastify({
-                        text: "Background Image updated successfully!",
-                        duration: 3000,
-                        gravity: "top",
-                        position: "right",
-                        backgroundColor: "#28a745",
-                    }).showToast();
-                    // Save to local storage for access on chat page
-                    localStorage.setItem('chat-background', selectedBackground);
-                })
-                .catch((error) => {
-                
-                });
+    let currentUser = null; // Define the current user here
+    let selectedUserId = null; // Store the selected user ID
+    let usersMap = {}; // Define usersMap here
+    let currentUserId = null;
+    // Monitor the user's authentication state
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUser = user; // Set currentUser to the signed-in user
+            currentUserId = user.uid;
+            document.getElementById('user-id').innerText = `Logged in as: ${currentUser.uid}`;
+            applySavedBackground(currentUser.uid);
+            // fetchUsers();
         } else {
-            alert('Please select a background image.');
+            // window.location.href = "/login";
+            document.getElementById('user-id').innerText = 'No user logged in';
         }
-    } else {
-        alert('You must be logged in to save a background image.');
+    });
+
+    const defaultAvatar = "{{ asset('assets/img/profiles/avatar-03.jpg') }}";
+    // Background Image
+    let selectedBackground = null;
+
+    // Background Image
+    function selectBackground(imageUrl, imgElement) {
+        selectedBackground = imageUrl; // Set the selected background URL
+        // Highlight the selected image
+        const allImages = document.querySelectorAll('.img-wrap');
+        allImages.forEach((imgWrap) => {
+            imgWrap.classList.remove('selected-background'); // Remove class from all images
+            imgWrap.classList.remove('selected');
+        });
+        imgElement.classList.add('selected-background'); // Add class to the clicked image
+        imgElement.classList.add('selected');
+
+        const chatArea = document.getElementById('chat-area');
+        if (chatArea) {
+            chatArea.style.backgroundImage = `url(${selectedBackground})`;
+        }
+
+        const groupArea = document.getElementById('group-area');
+        if (groupArea) {
+            groupArea.style.backgroundImage = `url(${selectedBackground})`;
+        }
     }
-}
 
-// Background Image
-function applySavedBackground(userId) {
-    const backgroundRef = ref(database, `data/users/${userId}/wallpaper`); // Path to user-specific background
-    get(backgroundRef).then((snapshot) => {
-        if (snapshot.exists()) {
-            const retrievedBackground = snapshot.val();
-            const chatArea = document.getElementById('chat-area');
-            if (chatArea) {
-                chatArea.style.backgroundImage = `url(${retrievedBackground})`;
-                selectedBackground = retrievedBackground; // Store the selectedBackground for the session
-            } 
+    // Background Image
+    function saveBackground() {
+        if (currentUser) { // Check if the user is logged in
+            if (selectedBackground) {
+                // Save to Firebase under the user ID
+                const backgroundRef = ref(database, `data/users/${currentUser.uid}/wallpaper`); // Path to user-specific background
+                set(backgroundRef, selectedBackground)
+                    .then(() => {
+                        Toastify({
+                            text: "Background Image updated successfully!",
+                            duration: 3000,
+                            gravity: "top",
+                            position: "right",
+                            backgroundColor: "#28a745",
+                        }).showToast();
+                        // Save to local storage for access on chat page
+                        localStorage.setItem('chat-background', selectedBackground);
+                    })
+                    .catch((error) => {
 
-            const groupArea = document.getElementById('group-area');
-            if (groupArea) {
-                groupArea.style.backgroundImage = `url(${retrievedBackground})`;
-                selectedBackground = retrievedBackground; // Store the selectedBackground for the session
-            } 
-        } 
-    }).catch((error) => {
-        
-    });
-}
-
-// Background Image (removed from UI - keep handlers for backwards compatibility)
-const imageGallery = document.getElementById('image-gallery');
-if (imageGallery) {
-    imageGallery.addEventListener('click', function (event) {
-        const target = event.target.closest('.img-wrap');
-        if (target) {
-            const imageUrl = target.getAttribute('data-image');
-            selectBackground(imageUrl, target);
+                    });
+            } else {
+                alert('Please select a background image.');
+            }
+        } else {
+            alert('You must be logged in to save a background image.');
         }
-    });
-}
-const imageSaveBtn = document.getElementById('image-save-button');
-if (imageSaveBtn) imageSaveBtn.addEventListener('click', saveBackground);
+    }
 
-// Background Image
+    // Background Image
+    function applySavedBackground(userId) {
+        const backgroundRef = ref(database, `data/users/${userId}/wallpaper`); // Path to user-specific background
+        get(backgroundRef).then((snapshot) => {
+            if (snapshot.exists()) {
+                const retrievedBackground = snapshot.val();
+                const chatArea = document.getElementById('chat-area');
+                if (chatArea) {
+                    chatArea.style.backgroundImage = `url(${retrievedBackground})`;
+                    selectedBackground = retrievedBackground; // Store the selectedBackground for the session
+                }
+
+                const groupArea = document.getElementById('group-area');
+                if (groupArea) {
+                    groupArea.style.backgroundImage = `url(${retrievedBackground})`;
+                    selectedBackground = retrievedBackground; // Store the selectedBackground for the session
+                }
+            }
+        }).catch((error) => {
+
+        });
+    }
+
+    // Background Image (removed from UI - keep handlers for backwards compatibility)
+    const imageGallery = document.getElementById('image-gallery');
+    if (imageGallery) {
+        imageGallery.addEventListener('click', function (event) {
+            const target = event.target.closest('.img-wrap');
+            if (target) {
+                const imageUrl = target.getAttribute('data-image');
+                selectBackground(imageUrl, target);
+            }
+        });
+    }
+    const imageSaveBtn = document.getElementById('image-save-button');
+    if (imageSaveBtn) imageSaveBtn.addEventListener('click', saveBackground);
+
+    // Background Image
 
     if (currentUser) {
         applySavedBackground(currentUser.uid); // Apply saved background for the logged-in user
     }
 
 
- // Function to remove the background image
+    // Function to remove the background image
 
- function removeBackground() {
-    selectedBackground = null; // Reset the selected background
-    const allImages = document.querySelectorAll('.img-wrap');
-    allImages.forEach((imgWrap) => {
-        imgWrap.classList.remove('selected-background'); // Remove class from all images
-        imgWrap.classList.remove('selected');
-    });
+    function removeBackground() {
+        selectedBackground = null; // Reset the selected background
+        const allImages = document.querySelectorAll('.img-wrap');
+        allImages.forEach((imgWrap) => {
+            imgWrap.classList.remove('selected-background'); // Remove class from all images
+            imgWrap.classList.remove('selected');
+        });
 
-    // Remove from local storage
-    localStorage.removeItem('chat-background');
+        // Remove from local storage
+        localStorage.removeItem('chat-background');
 
-    // Check Firebase for existing background
-    if (currentUser) {
-        const backgroundRef = ref(database, `data/users/${currentUser.uid}/wallpaper`);
-        get(backgroundRef)
+        // Check Firebase for existing background
+        if (currentUser) {
+            const backgroundRef = ref(database, `data/users/${currentUser.uid}/wallpaper`);
+            get(backgroundRef)
+                .then((snapshot) => {
+                    if (snapshot.exists()) {
+                        // Background exists, so remove it
+                        remove(backgroundRef)
+                            .then(() => {
+                                Toastify({
+                                    text: "Background Image removed successfully!",
+                                    duration: 3000,
+                                    gravity: "top",
+                                    position: "right",
+                                    backgroundColor: "#28a745",
+                                }).showToast();
+                            })
+                            .catch((error) => {
+
+                            });
+                    } else {
+                        // Background does not exist
+                        Toastify({
+                            text: "No background image is saved.",
+                            duration: 3000,
+                            gravity: "top",
+                            position: "right",
+                            backgroundColor: "#dc3545",
+                        }).showToast();
+                    }
+                })
+                .catch((error) => {
+
+                });
+        }
+    }
+
+
+    const removeBgBtn = document.getElementById('remove-background-button');
+    if (removeBgBtn) removeBgBtn.addEventListener('click', removeBackground);
+
+    // Load language file
+    function loadLanguage(language) {
+        fetch(`/languages/${language}.json`) // Adjusted to use the correct path
+            .then(response => response.json())
+            .then(data => {
+                updateTextContent(data);
+            })
+            .catch(error => console.error('Error loading language file:', error));
+    }
+    // Function to fetch language list from Firebase
+
+    function fetchLanguageList() {
+        const languageSelect = document.getElementById("ulanguage");
+
+        if (languageSelect) {
+            // Clear existing options
+            languageSelect.innerHTML = `<option value="" disabled selected>Select Language</option>`;
+
+            // Fetch languages from Firebase
+            get(ref(database, "data/languages"))
+                .then((snapshot) => {
+                    if (snapshot.exists()) {
+                        const languages = snapshot.val();
+                        Object.keys(languages).forEach((key) => {
+                            const language = languages[key];
+                            if (language.status === "Active") {
+                                const option = document.createElement("option");
+                                option.value = key; // Use the language name (e.g., "Arabic") as the value
+                                option.textContent = key; // Display the language name
+                                languageSelect.appendChild(option);
+                            }
+                        });
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error fetching languages: ", error);
+                });
+        }
+    }
+
+    function saveLanguage() {
+        var selectedLanguage = $("#ulanguage").val();
+
+        if (!selectedLanguage) {
+            $("#ulanguage").val("English");
+            return;
+        }
+
+        const languageRef = ref(database, "data/languages/" + selectedLanguage);
+
+        get(languageRef)
             .then((snapshot) => {
                 if (snapshot.exists()) {
-                    // Background exists, so remove it
-                    remove(backgroundRef)
-                        .then(() => {
-                            Toastify({
-                                text: "Background Image removed successfully!",
-                                duration: 3000,
-                                gravity: "top",
-                                position: "right",
-                                backgroundColor: "#28a745",
-                            }).showToast();
+                    const languageData = snapshot.val();
+
+                    if (languageData.status === "Inactive") {
+                        toastr.error("Selected Language is Inactive");
+                        return;
+                    }
+
+                    // Dynamically fetch the keywords associated with the selected language
+                    const languageKeywordsRef = ref(database, "data/languageKeywords/" + selectedLanguage);
+
+                    get(languageKeywordsRef)
+                        .then((keywordSnapshot) => {
+                            if (keywordSnapshot.exists()) {
+                                const languageKeywords = keywordSnapshot.val();
+
+                                // Get CSRF token from meta tag
+                                var csrfToken = $('meta[name="csrf-token"]').attr('content');
+
+                                // Send both languageData and languageKeywords together
+                                $.ajax({
+                                    url: "/set-new-json-language",  // The URL for your POST request
+                                    type: "POST",
+                                    data: {
+                                        username: currentUserId,
+                                        language: selectedLanguage, // The language name (e.g., "Arabic")
+                                        languagedata: languageData,  // This includes the language details
+                                        keywords: languageKeywords,  // The keywords retrieved from Firebase
+                                        session: "yes",
+                                    },
+                                    headers: {
+                                        'X-CSRF-TOKEN': csrfToken,  // Add the CSRF token to the request header
+                                    },
+                                    success: function () {
+                                    },
+                                    error: function (xhr, status, error) {
+                                    }
+                                });
+                            } else {
+                            }
                         })
                         .catch((error) => {
-                         
                         });
                 } else {
-                    // Background does not exist
-                    Toastify({
-                        text: "No background image is saved.",
-                        duration: 3000,
-                        gravity: "top",
-                        position: "right",
-                        backgroundColor: "#dc3545",
-                    }).showToast();
+                    $("#ulanguage").val("English");
+                    setTimeout(function () {
+                        window.location.reload();
+                    }, 2000);
                 }
             })
             .catch((error) => {
-              
-            });
-    } 
-}
-
- 
- const removeBgBtn = document.getElementById('remove-background-button');
- if (removeBgBtn) removeBgBtn.addEventListener('click', removeBackground);
-
-// Load language file
-function loadLanguage(language) {
-    fetch(`/languages/${language}.json`) // Adjusted to use the correct path
-        .then(response => response.json())
-        .then(data => {
-            updateTextContent(data);
-        })
-        .catch(error => console.error('Error loading language file:', error));
-}
-// Function to fetch language list from Firebase
-
-function fetchLanguageList() {
-    const languageSelect = document.getElementById("ulanguage");
-
-    if (languageSelect) {
-        // Clear existing options
-        languageSelect.innerHTML = `<option value="" disabled selected>Select Language</option>`;
-
-        // Fetch languages from Firebase
-        get(ref(database, "data/languages"))
-            .then((snapshot) => {
-                if (snapshot.exists()) {
-                    const languages = snapshot.val();
-                    Object.keys(languages).forEach((key) => {
-                        const language = languages[key];
-                        if (language.status === "Active") {
-                            const option = document.createElement("option");
-                            option.value = key; // Use the language name (e.g., "Arabic") as the value
-                            option.textContent = key; // Display the language name
-                            languageSelect.appendChild(option);
-                        }
-                    });
-                }
-            })
-            .catch((error) => {
-                console.error("Error fetching languages: ", error);
             });
     }
-}
-
-function saveLanguage() {
-    var selectedLanguage = $("#ulanguage").val(); 
-
-    if (!selectedLanguage) {
-        $("#ulanguage").val("English");
-        return;
-    }
-
-    const languageRef = ref(database, "data/languages/" + selectedLanguage);
-
-    get(languageRef)
-        .then((snapshot) => {
-            if (snapshot.exists()) {
-                const languageData = snapshot.val();
-
-                if (languageData.status === "Inactive") {
-                    toastr.error("Selected Language is Inactive");
-                    return;
-                }
-
-                // Dynamically fetch the keywords associated with the selected language
-                const languageKeywordsRef = ref(database, "data/languageKeywords/" + selectedLanguage);
-                
-                get(languageKeywordsRef)
-                    .then((keywordSnapshot) => {
-                        if (keywordSnapshot.exists()) {
-                            const languageKeywords = keywordSnapshot.val();
-
-                            // Get CSRF token from meta tag
-                            var csrfToken = $('meta[name="csrf-token"]').attr('content');
-
-                            // Send both languageData and languageKeywords together
-                            $.ajax({
-                                url: "/set-new-json-language",  // The URL for your POST request
-                                type: "POST",
-                                data: {
-                                    username: currentUserId,
-                                    language: selectedLanguage, // The language name (e.g., "Arabic")
-                                    languagedata: languageData,  // This includes the language details
-                                    keywords: languageKeywords,  // The keywords retrieved from Firebase
-                                    session: "yes",
-                                },
-                                headers: {
-                                    'X-CSRF-TOKEN': csrfToken,  // Add the CSRF token to the request header
-                                },
-                                success: function () {
-                                },
-                                error: function (xhr, status, error) {
-                                }
-                            });
-                        } else {
-                        }
-                    })
-                    .catch((error) => {
-                    });
-            } else {
-                $("#ulanguage").val("English");
-                setTimeout(function () {
-                    window.location.reload();
-                }, 2000);
-            }
-        })
-        .catch((error) => {
-        });
-}
 
 
-// Load language from Firebase on page load
+    // Load language from Firebase on page load
 
     fetchLanguageList(); // Populate language list
 
 
 
-// Event listener for saving language
-const saveLanguageBtn = document.getElementById('saveLanguageBtn');
-if (saveLanguageBtn) {
-    saveLanguageBtn.addEventListener('click', saveLanguage);
-}
+    // Event listener for saving language
+    const saveLanguageBtn = document.getElementById('saveLanguageBtn');
+    if (saveLanguageBtn) {
+        saveLanguageBtn.addEventListener('click', saveLanguage);
+    }
 
-// Event listener for the delete chat switch
-const deleteChatSwitch = document.getElementById("deleteChatSwitch");
-if (deleteChatSwitch) {
-    deleteChatSwitch.addEventListener("change", async function (e) {
-        localStorage.setItem("deleteChatSwitchState", e.target.checked);
-        if (e.target.checked) {
-            // Automatically delete all chats for the current user
-            const deleteChatModal = new bootstrap.Modal(document.getElementById("delete-chat"));
-            deleteChatModal.show();
-        }
-    });
-}
+    // Event listener for the delete chat switch
+    const deleteChatSwitch = document.getElementById("deleteChatSwitch");
+    if (deleteChatSwitch) {
+        deleteChatSwitch.addEventListener("change", async function (e) {
+            localStorage.setItem("deleteChatSwitchState", e.target.checked);
+            if (e.target.checked) {
+                // Automatically delete all chats for the current user
+                const deleteChatModal = new bootstrap.Modal(document.getElementById("delete-chat"));
+                deleteChatModal.show();
+            }
+        });
+    }
 
-// Handle delete confirmation from modal
-const deleteChatForm = document.getElementById("deleteChatForm");
-if (deleteChatForm) {
-    deleteChatForm.addEventListener("submit", async function (e) {
-        e.preventDefault(); 
+    // Handle delete confirmation from modal
+    const deleteChatForm = document.getElementById("deleteChatForm");
+    if (deleteChatForm) {
+        deleteChatForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
 
-        // Proceed with chat deletion
-        await deleteAllChats(currentUserId);
+            // Proceed with chat deletion
+            await deleteAllChats(currentUserId);
 
-        // Close the modal
-        const deleteChatModal = bootstrap.Modal.getInstance(document.getElementById("delete-chat"));
-        deleteChatModal.hide();
+            // Close the modal
+            const deleteChatModal = bootstrap.Modal.getInstance(document.getElementById("delete-chat"));
+            deleteChatModal.hide();
 
-        // Optionally uncheck the switch to allow reopening the modal
+            // Optionally uncheck the switch to allow reopening the modal
+            document.getElementById("deleteChatSwitch").checked = false;
+        });
+    }
+    // Event listener for the Cancel button to uncheck the switch
+    document.getElementById("cancelDeleteChatBtn").addEventListener("click", function () {
         document.getElementById("deleteChatSwitch").checked = false;
+        localStorage.setItem("deleteChatSwitchState", false);
     });
-}
-// Event listener for the Cancel button to uncheck the switch
-document.getElementById("cancelDeleteChatBtn").addEventListener("click", function () {
-    document.getElementById("deleteChatSwitch").checked = false;
-    localStorage.setItem("deleteChatSwitchState", false);
-});
-document.getElementById("cancelDeleteChatButton").addEventListener("click", function () {
-    document.getElementById("deleteChatSwitch").checked = false;
-    localStorage.setItem("deleteChatSwitchState", false);
-});
-async function deleteAllChats(userId) {
-    const userChatsRef = ref(database, 'data/chats'); // Reference to the chats
-    const toastDuration = 3000; // Duration of the toast in milliseconds
+    document.getElementById("cancelDeleteChatButton").addEventListener("click", function () {
+        document.getElementById("deleteChatSwitch").checked = false;
+        localStorage.setItem("deleteChatSwitchState", false);
+    });
+    async function deleteAllChats(userId) {
+        const userChatsRef = ref(database, 'data/chats'); // Reference to the chats
+        const toastDuration = 3000; // Duration of the toast in milliseconds
 
-    try {
-        const snapshot = await get(userChatsRef);
-        const allChats = snapshot.val();
+        try {
+            const snapshot = await get(userChatsRef);
+            const allChats = snapshot.val();
 
-        // Check if there are any chats
-        if (!allChats) {
+            // Check if there are any chats
+            if (!allChats) {
 
-            // Show message if no chats exist
+                // Show message if no chats exist
+                Toastify({
+                    text: "No chats found to delete.",
+                    duration: toastDuration,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ff9800", // Orange color for info
+                    stopOnFocus: true,
+                }).showToast();
+
+                // Wait for the toast to finish before disabling the switch
+                setTimeout(() => {
+                    deleteChatSwitch.checked = false;
+                    localStorage.setItem("deleteChatSwitchState", false);
+                }, toastDuration);
+
+                return;
+            }
+
+            // Create an array to hold promises for deletion
+            const deletePromises = [];
+
+            // Loop through each chat and check if the to-from ID contains the userId
+            for (const chatId in allChats) {
+
+                // Check if the chat ID contains the current user's userId
+                if (chatId.includes(userId)) {
+                    deletePromises.push(remove(ref(database, `data/chats/${chatId}`)));
+                }
+            }
+
+            // Wait for all delete operations to complete
+            await Promise.all(deletePromises);
+
+            // Show success message using Toastify
             Toastify({
-                text: "No chats found to delete.",
+                text: "All chats have been successfully deleted.",
                 duration: toastDuration,
                 gravity: "top",
                 position: "right",
-                backgroundColor: "#ff9800", // Orange color for info
+                backgroundColor: "#4caf50", // Green color for success
                 stopOnFocus: true,
             }).showToast();
 
@@ -389,71 +423,37 @@ async function deleteAllChats(userId) {
                 localStorage.setItem("deleteChatSwitchState", false);
             }, toastDuration);
 
-            return;
+            // Optional: Refresh the chat list or update the UI here
+            refreshChatList(); // Implement this function to update the UI if needed
+        } catch (error) {
+
+            // Show error message using Toastify
+            Toastify({
+                text: "An error occurred while trying to delete chats. Please try again.",
+                duration: toastDuration,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#ff3d00", // Red color for error
+                stopOnFocus: true,
+            }).showToast();
+
+            // Wait for the toast to finish before disabling the switch
+            setTimeout(() => {
+                deleteChatSwitch.checked = false;
+                localStorage.setItem("deleteChatSwitchState", false);
+            }, toastDuration);
         }
+    }
 
-        // Create an array to hold promises for deletion
-        const deletePromises = [];
 
-        // Loop through each chat and check if the to-from ID contains the userId
-        for (const chatId in allChats) {
-
-            // Check if the chat ID contains the current user's userId
-            if (chatId.includes(userId)) {
-                deletePromises.push(remove(ref(database, `data/chats/${chatId}`)));
-            } 
+    // Optional: Function to refresh the chat list UI
+    function refreshChatList() {
+        const chatBox = document.getElementById("chat-box");
+        if (chatBox) {
+            chatBox.innerHTML = ""; // Empty the chat box content
         }
-
-        // Wait for all delete operations to complete
-        await Promise.all(deletePromises);
-
-        // Show success message using Toastify
-        Toastify({
-            text: "All chats have been successfully deleted.",
-            duration: toastDuration,
-            gravity: "top",
-            position: "right",
-            backgroundColor: "#4caf50", // Green color for success
-            stopOnFocus: true,
-        }).showToast();
-
-        // Wait for the toast to finish before disabling the switch
-        setTimeout(() => {
-            deleteChatSwitch.checked = false;
-            localStorage.setItem("deleteChatSwitchState", false);
-        }, toastDuration);
-
-        // Optional: Refresh the chat list or update the UI here
-        refreshChatList(); // Implement this function to update the UI if needed
-    } catch (error) {
-
-        // Show error message using Toastify
-        Toastify({
-            text: "An error occurred while trying to delete chats. Please try again.",
-            duration: toastDuration,
-            gravity: "top",
-            position: "right",
-            backgroundColor: "#ff3d00", // Red color for error
-            stopOnFocus: true,
-        }).showToast();
-
-        // Wait for the toast to finish before disabling the switch
-        setTimeout(() => {
-            deleteChatSwitch.checked = false;
-            localStorage.setItem("deleteChatSwitchState", false);
-        }, toastDuration);
+        // Implement the logic to refresh the chat list
     }
-}
-
-
-// Optional: Function to refresh the chat list UI
-function refreshChatList() {
-    const chatBox = document.getElementById("chat-box");
-    if (chatBox) {
-        chatBox.innerHTML = ""; // Empty the chat box content
-    }
-    // Implement the logic to refresh the chat list
-}
 
     const deleteChatSwitchState = localStorage.getItem("deleteChatSwitchState") === 'true';
     document.getElementById("deleteChatSwitch").checked = deleteChatSwitchState;
@@ -583,11 +583,11 @@ function refreshChatList() {
                         const userId = userLink.getAttribute("data-user-id"); // Get userId from data attribute
                         if (userId) {
                             selectUser(userId); // Call selectUser with the retrieved userId
-                            
+
                             // Close the modal
                             const modal = bootstrap.Modal.getInstance(activeContactsModal); // Get the modal instance
                             modal.hide(); // Hide the modal
-                        } 
+                        }
                     };
 
                     // Append the link to the list item
@@ -601,51 +601,51 @@ function refreshChatList() {
                 if (contacts.length > 0) {
                     const modal = new bootstrap.Modal(activeContactsModal);
                     modal.show();
-                } 
+                }
             });
     });
 
 
-function logoutUser() {
-    var loginUrl = "/login";
-    var doServerLogout = function() {
-        var csrfToken = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        return fetch('/logout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken || '', 'Accept': 'application/json' },
-            credentials: 'same-origin'
-        }).catch(function() {});
-    };
-    if (auth.currentUser) {
-        const userId = auth.currentUser.uid;
-        const userStatusRef = ref(database, `data/users/${userId}/status`);
-        const lastSeenRef = ref(database, `data/users/${userId}/lastSeen`); // Reference to last seen
-        // const deviceInfoRef = ref(database, `users/${userId}/device_info`); // Reference to device_info
+    function logoutUser() {
+        var loginUrl = "/login";
+        var doServerLogout = function () {
+            var csrfToken = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            return fetch('/logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken || '', 'Accept': 'application/json' },
+                credentials: 'same-origin'
+            }).catch(function () { });
+        };
+        if (auth.currentUser) {
+            const userId = auth.currentUser.uid;
+            const userStatusRef = ref(database, `data/users/${userId}/status`);
+            const lastSeenRef = ref(database, `data/users/${userId}/lastSeen`); // Reference to last seen
+            // const deviceInfoRef = ref(database, `users/${userId}/device_info`); // Reference to device_info
 
-        set(userStatusRef, 'offline').then(() => {
-            // Once the status is set to offline, update the lastSeen timestamp
-            return set(lastSeenRef, Date.now());
+            set(userStatusRef, 'offline').then(() => {
+                // Once the status is set to offline, update the lastSeen timestamp
+                return set(lastSeenRef, Date.now());
 
-        }).then(() => {
-            // After lastSeen is updated, log the user out from Firebase
-            return auth.signOut(); // Sign out from Firebase
-        }).then(function() {
-            return doServerLogout();
-        }).then(function() {
-            // Redirect to the login page after successful logout
-            window.location.href = loginUrl;
-        }).catch((error) => {
-            // Optionally, redirect to the login page in case of an error
-            doServerLogout().then(function() { window.location.href = loginUrl; });
-        });
-    } else {
-        // No user logged in, still clear Laravel session then redirect
-        doServerLogout().then(function() { window.location.href = loginUrl; });
+            }).then(() => {
+                // After lastSeen is updated, log the user out from Firebase
+                return auth.signOut(); // Sign out from Firebase
+            }).then(function () {
+                return doServerLogout();
+            }).then(function () {
+                // Redirect to the login page after successful logout
+                window.location.href = loginUrl;
+            }).catch((error) => {
+                // Optionally, redirect to the login page in case of an error
+                doServerLogout().then(function () { window.location.href = loginUrl; });
+            });
+        } else {
+            // No user logged in, still clear Laravel session then redirect
+            doServerLogout().then(function () { window.location.href = loginUrl; });
+        }
     }
-}
 
 
-let recaptchaVerifier;  // Declare the reCAPTCHA verifier globally
+    let recaptchaVerifier;  // Declare the reCAPTCHA verifier globally
 
 
     const TwoStepVerificationButton = document.getElementById('enable-2fa-switch'); // Your toggle button for 2FA
@@ -660,7 +660,7 @@ let recaptchaVerifier;  // Declare the reCAPTCHA verifier globally
         } else {
             document.getElementById('phoneInput').value = '';  // Clear phone input
             document.getElementById('otpInput').value = '';    // Clear OTP input
-            showModal('2FA has been disabled.', false);   
+            showModal('2FA has been disabled.', false);
         }
     };
 
@@ -683,14 +683,14 @@ let recaptchaVerifier;  // Declare the reCAPTCHA verifier globally
         }
         if (message === "2FA has been disabled.") {
             phoneInputGroup.style.display = 'none';
-                        cancelButton.style.display = 'none';
-                        confirmButton.style.display = 'none';
-                    } else {
-                        phoneInputGroup.style.display = showPhoneInput ? 'block' : 'none';
-                        otpInputGroup.style.display = showOtpInput ? 'block' : 'none';
-                        confirmButton.style.display = 'block';
-                        cancelButton.style.display = 'block';
-                    }
+            cancelButton.style.display = 'none';
+            confirmButton.style.display = 'none';
+        } else {
+            phoneInputGroup.style.display = showPhoneInput ? 'block' : 'none';
+            otpInputGroup.style.display = showOtpInput ? 'block' : 'none';
+            confirmButton.style.display = 'block';
+            cancelButton.style.display = 'block';
+        }
 
 
         // Initialize and show modal
@@ -732,22 +732,22 @@ let recaptchaVerifier;  // Declare the reCAPTCHA verifier globally
             recaptchaVerifier.render().then(() => {
                 return signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
             })
-            .then((confirmationResult) => {
-                window.confirmationResult = confirmationResult;
-                showModal('Enter the OTP sent to your phone:', false, true); // Show OTP input modal
+                .then((confirmationResult) => {
+                    window.confirmationResult = confirmationResult;
+                    showModal('Enter the OTP sent to your phone:', false, true); // Show OTP input modal
 
-                // Re-enable the button and update text
-                confirmButton.disabled = false;
-                confirmButton.textContent = "Confirm";
-            })
-            .catch((error) => {
-                showModal("Failed to send OTP. Please try again.");
-                TwoStepVerificationButton.checked = false;
+                    // Re-enable the button and update text
+                    confirmButton.disabled = false;
+                    confirmButton.textContent = "Confirm";
+                })
+                .catch((error) => {
+                    showModal("Failed to send OTP. Please try again.");
+                    TwoStepVerificationButton.checked = false;
 
-                // Re-enable the button and update text in case of error
-                confirmButton.disabled = false;
-                confirmButton.textContent = "Confirm";
-            });
+                    // Re-enable the button and update text in case of error
+                    confirmButton.disabled = false;
+                    confirmButton.textContent = "Confirm";
+                });
         } catch (error) {
             showModal("An error occurred. Please try again.");
 
@@ -765,7 +765,7 @@ let recaptchaVerifier;  // Declare the reCAPTCHA verifier globally
         window.confirmationResult.confirm(otp)
             .then((result) => {
                 const user = result.user;
-                
+
                 showModal("Phone number verified successfully!");
                 Toastify({
                     text: "Successfully Verified!",
@@ -774,9 +774,9 @@ let recaptchaVerifier;  // Declare the reCAPTCHA verifier globally
                     position: "right",
                     backgroundColor: "#28a745",
                 }).showToast();
-                  // Reset confirm button state
-                    confirmButton.disabled = false;
-                    confirmButton.textContent = "Confirm";
+                // Reset confirm button state
+                confirmButton.disabled = false;
+                confirmButton.textContent = "Confirm";
 
                 // Manually close the modal
                 const modalPopupElement = document.getElementById('modalPopup');
@@ -791,7 +791,7 @@ let recaptchaVerifier;  // Declare the reCAPTCHA verifier globally
                 modalBackdrops.forEach((backdrop) => {
                     backdrop.remove();  // Remove the backdrop from the DOM
                 });
-                  // Clear phone number and OTP fields
+                // Clear phone number and OTP fields
                 document.getElementById('phoneInput').value = '';
                 document.getElementById('otpInput').value = '';
 
@@ -824,30 +824,30 @@ let recaptchaVerifier;  // Declare the reCAPTCHA verifier globally
         }
     });
 
-        const cancelButton = document.getElementById('cancelButton');
-        const closeButton = document.getElementById('close2faButton');
-        const enable2FASwitch = document.getElementById('enable-2fa-switch');
-        const phoneInput = document.getElementById('phoneInput');
-        const otpInput = document.getElementById('otpInput');
-    
-        // Function to reset 2FA-related inputs and disable the switch
-        const reset2FA = () => {
-            if (enable2FASwitch) enable2FASwitch.checked = false;
-            if (phoneInput) phoneInput.value = '';
-            if (otpInput) otpInput.value = '';
-        };
-    
-        // Attach event listener to "Cancel" button
-        if (cancelButton) {
-            cancelButton.addEventListener('click', reset2FA);
-        }
-    
-        // Attach event listener to "Close" button
-        if (closeButton) {
-            closeButton.addEventListener('click', reset2FA);
-        }
-   
-    
+    const cancelButton = document.getElementById('cancelButton');
+    const closeButton = document.getElementById('close2faButton');
+    const enable2FASwitch = document.getElementById('enable-2fa-switch');
+    const phoneInput = document.getElementById('phoneInput');
+    const otpInput = document.getElementById('otpInput');
+
+    // Function to reset 2FA-related inputs and disable the switch
+    const reset2FA = () => {
+        if (enable2FASwitch) enable2FASwitch.checked = false;
+        if (phoneInput) phoneInput.value = '';
+        if (otpInput) otpInput.value = '';
+    };
+
+    // Attach event listener to "Cancel" button
+    if (cancelButton) {
+        cancelButton.addEventListener('click', reset2FA);
+    }
+
+    // Attach event listener to "Close" button
+    if (closeButton) {
+        closeButton.addEventListener('click', reset2FA);
+    }
+
+
 
 
 
@@ -855,7 +855,7 @@ let recaptchaVerifier;  // Declare the reCAPTCHA verifier globally
 
     // Add event listener to each dropdown item
     document.querySelectorAll('#innerTab .dropdown-item').forEach(item => {
-        item.addEventListener('click', function() {
+        item.addEventListener('click', function () {
             // Get the title from the data attribute and update the title
             const title = this.getAttribute('data-title');
             document.getElementById('c').textContent = title;

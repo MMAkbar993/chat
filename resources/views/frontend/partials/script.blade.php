@@ -170,8 +170,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
     function capitalizeFirstLetter(val) {
     return String(val).charAt(0).toUpperCase() + String(val).slice(1);
 }
-</script>
-@if (!Route::is('login','signup','register.payment','signin'))
+</script>@if (!Route::is('login','signup','register.payment','signin'))
 <!-- Populate profile from Laravel when Firebase is disabled -->
 <script>
 (function() {
@@ -823,3 +822,4 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
 @endif
 <!-- SPA Navigation -->
 <script src="{{ asset('assets/js/spa-navigation.js') }}"></script>
+

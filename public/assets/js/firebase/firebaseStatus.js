@@ -148,7 +148,7 @@ initializeFirebase(function (app, auth, database, storage) {
     // Event Listeners
     const fileInput = document.getElementById("fileInput");
     if (fileInput) fileInput.addEventListener("change", handleFileUpload);
-    
+
     const sendStatusBtn = document.getElementById("sendStatus");
     if (sendStatusBtn) sendStatusBtn.addEventListener("click", saveStatus);
 
