@@ -398,7 +398,16 @@ initializeFirebase(function (app, auth, database, storage) {
             submitButton.textContent = "Add Contact";
             return;
         }
-    
+
+        if (!auth.currentUser) {
+            if (typeof Swal !== "undefined") {
+                Swal.fire({ title: "", width: 400, text: "Please sign in to add contacts.", icon: "warning" });
+            } else { alert("Please sign in to add contacts."); }
+            submitButton.disabled = false;
+            submitButton.textContent = "Add Contact";
+            return;
+        }
+
         const loggedInUserId = auth.currentUser.uid;
         const usersRef = ref(database, 'data/users');
     
@@ -456,10 +465,10 @@ initializeFirebase(function (app, auth, database, storage) {
                                     const loggedInUserData =
                                         loggedInUserSnapshot.val();
 
-                                    // Add logged-in user to the new user's contact list with the mobile_number
+                                    // Add logged-in user to the existing user's contact list with the mobile_number
                                     const newUserContactsRef = ref(
                                         database,
-                                        "data/contacts/" + data.uid + "/" + loggedInUserId
+                                        "data/contacts/" + existingUserId + "/" + loggedInUserId
                                     );
                                     set(newUserContactsRef, {
                                         contact_id: loggedInUserId,
@@ -639,14 +648,22 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    // Attach event listener when the DOM is loaded
-
-    const form = document.getElementById("register-form");
-    if (form) {
-        form.addEventListener("submit", handleRegisterFormSubmit);
-        const submitBtn = document.getElementById("submit-contact-button");
-        if (submitBtn) submitBtn.addEventListener("click", handleRegisterFormSubmit);
-    }
+    // Use event delegation so Add Contact works when modal is injected later (e.g. SPA navigation to /contact)
+    document.addEventListener("submit", function (e) {
+        if (e.target && e.target.id === "register-form" && e.target.closest("#add-contact")) {
+            handleRegisterFormSubmit(e);
+        }
+    });
+    document.addEventListener("click", function (e) {
+        if (e.target.closest("#submit-contact-button")) {
+            var form = document.getElementById("register-form");
+            if (form && form.closest("#add-contact")) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleRegisterFormSubmit(e);
+            }
+        }
+    });
 
 
 
@@ -795,7 +812,7 @@ initializeFirebase(function (app, auth, database, storage) {
     // Attach event listener when the DOM is loaded
 
     const Editform = document.getElementById("edit-contact-form");
-    Editform.addEventListener("submit", handleEditFormSubmit);
+    if (Editform) Editform.addEventListener("submit", handleEditFormSubmit);
 
 
 
@@ -964,7 +981,8 @@ initializeFirebase(function (app, auth, database, storage) {
     }
     // Add an event listener to the 'Block' button in the modal
 
-    document.getElementById("confirmBlockContactUserBtn").addEventListener("click", function (event) {
+    const confirmBlockContactUserBtn = document.getElementById("confirmBlockContactUserBtn");
+    if (confirmBlockContactUserBtn) confirmBlockContactUserBtn.addEventListener("click", function (event) {
         event.preventDefault(); // Prevent default form submission
         const otherUserId = document.getElementById("edit-user-id").value;
         if (otherUserId) {
@@ -977,9 +995,11 @@ initializeFirebase(function (app, auth, database, storage) {
             }
         }
     });
-    document.getElementById("confirmUnblockContactBtn").addEventListener("click", function () {
-        if (otherUserId) {
-            unblockUser(otherUserId);
+    const confirmUnblockContactBtn = document.getElementById("confirmUnblockContactBtn");
+    if (confirmUnblockContactBtn) confirmUnblockContactBtn.addEventListener("click", function () {
+        const otherUserIdEl = document.getElementById("edit-user-id");
+        if (otherUserIdEl && otherUserIdEl.value) {
+            unblockUser(otherUserIdEl.value);
             const unblockModalInstance = bootstrap.Modal.getInstance(document.getElementById("unblock-contact-user"));
             if (unblockModalInstance) {
                 unblockModalInstance.hide();
@@ -994,7 +1014,7 @@ initializeFirebase(function (app, auth, database, storage) {
     const deleteContactBtn = document.getElementById('deleteContactBtn');
 
     // Add event listener to the delete button
-    deleteContactBtn.addEventListener('click', function (event) {
+    if (deleteContactBtn) deleteContactBtn.addEventListener('click', function (event) {
         event.preventDefault(); // Prevent form submission
         const contactId = document.getElementById("edit-user-id").value;
 

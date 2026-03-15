@@ -337,8 +337,8 @@ if (cancleGroupBtn) {
         
     });
 }
-   
-document.querySelector('#group-add-cancle-btn').addEventListener('click', function () {
+const groupAddCancleBtn = document.querySelector('#group-add-cancle-btn');
+if (groupAddCancleBtn) groupAddCancleBtn.addEventListener('click', function () {
     document.getElementById("group-names").value = '';
     document.getElementById("group-about").value = '';
     document.getElementById('group-type').checked = false;
@@ -350,7 +350,8 @@ document.querySelector('#group-add-cancle-btn').addEventListener('click', functi
    
 });
 
-document.querySelector('#canlce-btn-search').addEventListener('click', function () {
+const canlceBtnSearch = document.querySelector('#canlce-btn-search');
+if (canlceBtnSearch) canlceBtnSearch.addEventListener('click', function () {
     document.getElementById("group-names").value = '';
     document.getElementById("group-about").value = '';
     document.getElementById("groupcontactSearchInput").value = '';
@@ -361,7 +362,8 @@ document.querySelector('#canlce-btn-search').addEventListener('click', function 
    
 });
 
-document.getElementById('avatar-upload').addEventListener('change', function (event) {
+const avatarUpload = document.getElementById('avatar-upload');
+if (avatarUpload) avatarUpload.addEventListener('change', function (event) {
     const file = event.target.files[0]; // Get the selected file
     const preview = document.getElementById('avatar-preview'); // Get the image preview element
 
@@ -397,7 +399,7 @@ function closePopup() {
 const groupsRef = ref(database, "data/groups/");
 onValue(groupsRef, (snapshot) => {
     const groups = snapshot.val();
-    displayGroups(groups);
+    displayGroups(groups, currentUserId);
 });
 
 let selectedGroupId = null; // Declare a variable to hold the selected group ID globally
@@ -405,7 +407,9 @@ let previousMessagesRef = null; // Store previous messages reference for detachi
 
 // Function to display groups and set click event listeners
 function displayGroups(groups, currentUserId) {
+    if (!groups || typeof groups !== 'object') return;
     const chatUsersWrap = document.querySelector("#group-list"); // The container for the groups
+    if (!chatUsersWrap) return;
     chatUsersWrap.innerHTML = ""; // Clear existing content
 
     const groupPromises = Object.keys(groups).map(groupId => {
@@ -1005,8 +1009,8 @@ if (sendMessageButton) {
             }
 
             // Clear input fields after sending
-            messageInputGroup.value = "";
-            fileInputGroup.value = "";
+            if (messageInputGroup) messageInputGroup.value = "";
+            if (fileInputGroup) fileInputGroup.value = "";
             messagePreview.innerHTML = ""; // Clear file preview
             clearButton.style.display = "none";
         } 
@@ -1015,6 +1019,7 @@ if (sendMessageButton) {
 }
 
 // Show a file preview when a file is selected
+if (fileInputGroup) {
 fileInputGroup.onchange = function () {
     const selectedFile = fileInputGroup.files[0];
 
@@ -1045,9 +1050,10 @@ fileInputGroup.onchange = function () {
         messageInputGroup.focus();
     }
 };
+}
     // Clear the file selection and preview when Clear button is clicked
-    clearButton.onclick = function () {
-        fileInputGroup.value = ""; // Reset the file input
+    if (fileInputGroup) clearButton.onclick = function () {
+        if (fileInputGroup) fileInputGroup.value = ""; // Reset the file input
         messagePreview.innerHTML = ""; // Clear the preview content
         clearButton.style.display = "none"; // Hide Clear button
     };
@@ -2458,7 +2464,8 @@ document.getElementById("groupSearchInput").addEventListener("input", function (
 
 });
 
-document.getElementById("groupcontactSearchInput").addEventListener("input", function () {
+const groupcontactSearchInput = document.getElementById("groupcontactSearchInput");
+if (groupcontactSearchInput) groupcontactSearchInput.addEventListener("input", function () {
     const searchValue = this.value.toLowerCase(); // Get the search value in lowercase
     const groupDivs = document.querySelectorAll("#users-list .contact-user"); // Select all contact elements
     const usersList = document.getElementById("users-list");
@@ -2664,7 +2671,8 @@ async function fetchGroupInfo(selectedGroupId) {
     }
 }
 
-document.getElementById("groupcontactInfoButton").addEventListener("click", function () {
+const groupcontactInfoButton = document.getElementById("groupcontactInfoButton");
+if (groupcontactInfoButton) groupcontactInfoButton.addEventListener("click", function () {
     // Set this to the selected group's ID
     fetchGroupInfo(selectedGroupId);
     // Assuming you already have the groupId and currentUserId
@@ -2672,7 +2680,8 @@ const groupId = selectedGroupId;  // Replace with actual groupId
 checkAdminAccess(groupId, currentUserId);
 });
 
-document.getElementById("group-logout").addEventListener("click", async function () {
+const groupLogoutEl = document.getElementById("group-logout");
+if (groupLogoutEl) groupLogoutEl.addEventListener("click", async function () {
     //await exitGroup(selectedGroupId, currentUserId);
 });
 
@@ -2738,7 +2747,8 @@ async function exitGroup(groupId, userId) {
     });
 
     // Add event listener to confirm exit button
-    document.getElementById('confirm-exit').addEventListener('click', function () {
+    const confirmExitEl = document.getElementById('confirm-exit');
+    if (confirmExitEl) confirmExitEl.addEventListener('click', function () {
         // Retrieve groupId and userId from the button's data attributes
         const groupId = this.getAttribute('data-group-id');
         const userId = this.getAttribute('data-user-id');
@@ -2749,7 +2759,8 @@ async function exitGroup(groupId, userId) {
 
 
 // Add event listener to the delete chat button
-document.getElementById('deleteGroupBtn').addEventListener('click', function (event) {
+const deleteGroupBtnEl = document.getElementById('deleteGroupBtn');
+if (deleteGroupBtnEl) deleteGroupBtnEl.addEventListener('click', function (event) {
     event.preventDefault(); // Prevent the default form submission
     deleteGroupChat(); // Call the deleteGroupChat function
 });
@@ -2804,7 +2815,8 @@ function closeGroupModal() {
     }
 }
 
-document.getElementById('close-group-btn').addEventListener('click', function (event) {
+const closeGroupBtnEl = document.getElementById('close-group-btn');
+if (closeGroupBtnEl) closeGroupBtnEl.addEventListener('click', function (event) {
     event.preventDefault(); // Prevent default link behavior
 
     // Get the chat section by its ID
@@ -2817,7 +2829,8 @@ document.getElementById('close-group-btn').addEventListener('click', function (e
     } 
 });
 
-document.getElementById('clear-group-btn').addEventListener('click', function (event) {
+const clearGroupBtnEl = document.getElementById('clear-group-btn');
+if (clearGroupBtnEl) clearGroupBtnEl.addEventListener('click', function (event) {
     event.preventDefault(); // Prevent the default form submission
     clearGroupMessages(selectedGroupId);
 });
@@ -3040,7 +3053,7 @@ emojisInPicker.forEach(emoji => {
      });
  };
 
- startBtn.addEventListener("click", () => {
+ if (startBtn) startBtn.addEventListener("click", () => {
      navigator.mediaDevices
          .getUserMedia({ audio: true })
          .then(onSuccess)
@@ -3173,19 +3186,22 @@ async function addSelectedMembersToGroup(groupId) {
 
 
 // Open the modal and fetch contacts not in the group
-document.querySelector('[data-bs-target="#group-add-new"]').addEventListener('click', () => {
+const groupAddNewTrigger = document.querySelector('[data-bs-target="#group-add-new"]');
+if (groupAddNewTrigger) groupAddNewTrigger.addEventListener('click', () => {
     const groupId = selectedGroupId; // Replace with your logic to get the current group ID
     fetchContactsNotInGroup(groupId, currentUserId); // Make sure currentUserId is defined globally
 });
 
 // Add selected members to the group when clicking "Add" button
-document.getElementById('select-add-group').addEventListener('click', function (e) {
+const selectAddGroupEl = document.getElementById('select-add-group');
+if (selectAddGroupEl) selectAddGroupEl.addEventListener('click', function (e) {
     e.preventDefault(); // Prevent default button behavior
     const groupId = selectedGroupId;
     addSelectedMembersToGroup(groupId);
 });
 
-document.getElementById('remove-group-memeber').addEventListener('click', function (e) {
+const removeGroupMemberEl = document.getElementById('remove-group-memeber');
+if (removeGroupMemberEl) removeGroupMemberEl.addEventListener('click', function (e) {
     e.preventDefault(); // Prevent default button behavior
     const groupId = selectedGroupId;
     removeSelectedMembersFromGroup(groupId);
@@ -3320,7 +3336,8 @@ async function removeSelectedMembersFromGroup(groupId) {
     }
 }
 
-document.querySelector('[data-bs-target="#group-remove"]').addEventListener('click', () => {
+const groupRemoveTrigger = document.querySelector('[data-bs-target="#group-remove"]');
+if (groupRemoveTrigger) groupRemoveTrigger.addEventListener('click', () => {
     fetchGroupMembers(selectedGroupId); // Ensure `selectedGroupId` is set correctly
 });
 

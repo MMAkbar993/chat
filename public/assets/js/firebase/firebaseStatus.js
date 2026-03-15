@@ -960,9 +960,8 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
-    document
-        .getElementById("statusSearchInput")
-        .addEventListener("input", filterStatuses);
+    const statusSearchInputEl = document.getElementById("statusSearchInput");
+    if (statusSearchInputEl) statusSearchInputEl.addEventListener("input", filterStatuses);
 
     // Emoji Picker
     const emojiButton = document.getElementById("emoji-button");

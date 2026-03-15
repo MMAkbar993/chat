@@ -36,17 +36,115 @@ initializeFirebase(function (app, auth, database, storage) {
     let selectedUserId = null; // Store the selected user ID
     let usersMap = {}; // Define usersMap here
     let currentUserId = null;
+    // Populate sidebar profile pane from Firebase RTDB (so it doesn't stay "Loading...")
+    function applyProfileFromFirebase(user) {
+        const u = user && typeof user === 'object' ? user : {};
+        const defaultImg = 'assets/img/profiles/avatar-03.jpg';
+        const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = (text != null && text !== '') ? text : '—'; };
+        const imageUrl = u.image || u.profile_image || u.photoURL || u.profileImage || defaultImg;
+        const setImg = (id, src) => { const el = document.getElementById(id); if (el && el.tagName === 'IMG') el.src = src || imageUrl || defaultImg; };
+        const fullName = (u.firstName || '') + ' ' + (u.lastName || '').trim() || u.username || 'No Name';
+        setText('profile-name', fullName);
+        setText('profile-info-name', fullName);
+        setText('profile-info-chat-name', fullName);
+        setText('profile-info-email', u.email || '—');
+        setText('profile-info-phone', u.mobile_number || '—');
+        setText('profile-info-country', u.country || '—');
+        setText('profile-info-about', u.about || '—');
+        setText('profile-info-bio', u.about || '—');
+        setText('profile-info-gender', u.gender || '—');
+        const roleEl = document.getElementById('profile-info-role');
+        if (roleEl) {
+            let roleLabel = (u.primary_role_label != null && u.primary_role_label !== '') ? u.primary_role_label : '';
+            if (!roleLabel && u.primary_role && typeof PRIMARY_ROLES !== 'undefined') {
+                roleLabel = PRIMARY_ROLES[u.primary_role] || u.primary_role;
+                if (u.primary_role === 'other' && u.other_role_text) roleLabel += ' (' + u.other_role_text + ')';
+            }
+            roleEl.innerText = roleLabel || '—';
+        }
+        setText('profile-info-youtube', u.youtube_link || '—');
+        setText('profile-info-linkedin', u.linkedin_link || '—');
+        setText('profile-info-twitter', u.twitter_link || '—');
+        setText('profile-info-website', u.website_url || u.website_link || '—');
+        setText('profile-info-facebook', u.facebook_link || '—');
+        setText('profile-info-instagram', u.instagram_link || '—');
+        setText('profile-info-kick', u.kick_link || '—');
+        setText('profile-info-twitch', u.twitch_link || '—');
+        const joinEl = document.getElementById('profile-info-join-date');
+        if (joinEl) {
+            if (u.timestamp || u.created_at) {
+                const d = new Date(u.timestamp || u.created_at);
+                joinEl.innerText = d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+            } else joinEl.innerText = '—';
+        }
+        setImg('profileImage', imageUrl);
+        setImg('profileImageProfile', imageUrl);
+        setImg('profileImageChat', imageUrl);
+        setImg('ProfileImageSidebar', imageUrl);
+    }
+
+    // Build profile object from window.LARAVEL_USER for applyProfileFromFirebase (Laravel-only or fallback)
+    function getLaravelProfileData() {
+        const u = typeof window !== 'undefined' && window.LARAVEL_USER;
+        if (!u || typeof u !== 'object') return null;
+        return {
+            firstName: u.firstName,
+            lastName: u.lastName,
+            email: u.email,
+            mobile_number: u.mobile_number,
+            gender: u.gender,
+            primary_role: u.primary_role,
+            primary_role_label: u.primary_role_label,
+            other_role_text: u.other_role_text,
+            created_at: u.created_at,
+            timestamp: u.created_at ? new Date(u.created_at).getTime() : null,
+            image: u.profile_image || u.image,
+            profile_image: u.profile_image || u.image,
+            about: u.about,
+            country: u.country,
+            facebook_link: u.facebook_link || u.facebook,
+            twitter_link: u.twitter_link || u.twitter,
+            linkedin_link: u.linkedin_link || u.linkedin,
+            website_url: u.website_url,
+            website_link: u.website_url,
+            youtube_link: u.youtube_link || u.youtube,
+            instagram_link: u.instagram_link || u.instagram,
+            kick_link: u.kick_link || u.kick,
+            twitch_link: u.twitch_link || u.twitch
+        };
+    }
+
+    function applyProfileFromLaravel() {
+        const data = getLaravelProfileData();
+        if (data) applyProfileFromFirebase(data);
+    }
+
     // Monitor the user's authentication state
     onAuthStateChanged(auth, (user) => {
         if (user) {
             currentUser = user; // Set currentUser to the signed-in user
             currentUserId = user.uid;
-            document.getElementById('user-id').innerText = `Logged in as: ${currentUser.uid}`;
+            const userEl = document.getElementById('user-id');
+            if (userEl) userEl.innerText = `Logged in as: ${currentUser.uid}`;
             applySavedBackground(currentUser.uid);
-            // fetchUsers();
+            // Fetch profile from Firebase RTDB and populate sidebar profile pane
+            get(ref(database, 'data/users/' + user.uid))
+                .then((snapshot) => {
+                    const rtdb = snapshot.exists() ? snapshot.val() : {};
+                    if (Object.keys(rtdb).length === 0 && getLaravelProfileData()) {
+                        applyProfileFromFirebase(getLaravelProfileData());
+                    } else {
+                        applyProfileFromFirebase(rtdb);
+                    }
+                })
+                .catch(() => {
+                    const laravelData = getLaravelProfileData();
+                    applyProfileFromFirebase(laravelData || {});
+                });
         } else {
-            // window.location.href = "/login";
-            document.getElementById('user-id').innerText = 'No user logged in';
+            const userEl = document.getElementById('user-id');
+            if (userEl) userEl.innerText = 'No user logged in';
+            if (getLaravelProfileData()) applyProfileFromLaravel();
         }
     });
 
@@ -323,8 +421,8 @@ initializeFirebase(function (app, auth, database, storage) {
         saveLanguageBtn.addEventListener('click', saveLanguage);
     }
 
-    // Event listener for the delete chat switch
-    const deleteChatSwitch = document.getElementById("deleteChatSwitch");
+    // Event listener for the delete chat switch (HTML id is deleteAllChatSwitch)
+    const deleteChatSwitch = document.getElementById("deleteAllChatSwitch");
     if (deleteChatSwitch) {
         deleteChatSwitch.addEventListener("change", async function (e) {
             localStorage.setItem("deleteChatSwitchState", e.target.checked);
@@ -350,17 +448,19 @@ initializeFirebase(function (app, auth, database, storage) {
             deleteChatModal.hide();
 
             // Optionally uncheck the switch to allow reopening the modal
-            document.getElementById("deleteChatSwitch").checked = false;
+            document.getElementById("deleteAllChatSwitch").checked = false;
         });
     }
     // Event listener for the Cancel button to uncheck the switch
-    document.getElementById("cancelDeleteChatBtn").addEventListener("click", function () {
-        document.getElementById("deleteChatSwitch").checked = false;
-        localStorage.setItem("deleteChatSwitchState", false);
+    const cancelDeleteChatBtn = document.getElementById("cancelDeleteChatBtn");
+    if (cancelDeleteChatBtn) cancelDeleteChatBtn.addEventListener("click", function () {
+        const sw = document.getElementById("deleteAllChatSwitch");
+        if (sw) { sw.checked = false; localStorage.setItem("deleteChatSwitchState", false); }
     });
-    document.getElementById("cancelDeleteChatButton").addEventListener("click", function () {
-        document.getElementById("deleteChatSwitch").checked = false;
-        localStorage.setItem("deleteChatSwitchState", false);
+    const cancelDeleteChatButton = document.getElementById("cancelDeleteChatButton");
+    if (cancelDeleteChatButton) cancelDeleteChatButton.addEventListener("click", function () {
+        const sw = document.getElementById("deleteAllChatSwitch");
+        if (sw) { sw.checked = false; localStorage.setItem("deleteChatSwitchState", false); }
     });
     async function deleteAllChats(userId) {
         const userChatsRef = ref(database, 'data/chats'); // Reference to the chats
@@ -456,13 +556,13 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     const deleteChatSwitchState = localStorage.getItem("deleteChatSwitchState") === 'true';
-    document.getElementById("deleteChatSwitch").checked = deleteChatSwitchState;
+    const deleteChatSwitchEl = document.getElementById("deleteAllChatSwitch");
+    if (deleteChatSwitchEl) deleteChatSwitchEl.checked = deleteChatSwitchState;
 
 
 
     const logoutButton = document.getElementById("profile-logout-button");
-
-    logoutButton.addEventListener("click", function (event) {
+    if (logoutButton) logoutButton.addEventListener("click", function (event) {
         event.preventDefault(); // Prevent default action (if any)
         logoutUser(); // Call the logoutUser function
     });
@@ -532,16 +632,16 @@ initializeFirebase(function (app, auth, database, storage) {
     const activeContactsModal = document.getElementById('activeContactsModal');
     const activeContactsList = document.getElementById('activeContactsList');
 
-    activeContactsLink.addEventListener('click', function (event) {
-        alert("hi");
+    if (activeContactsLink) activeContactsLink.addEventListener('click', function (event) {
         event.preventDefault();
-
+        const listEl = document.getElementById('activeContactsList');
+        if (!listEl) return;
         fetchActiveContacts()
             .then(contacts => {
                 // Log the fetched contacts for debugging
 
                 // Clear previous contacts
-                activeContactsList.innerHTML = '';
+                listEl.innerHTML = '';
 
                 // Populate the list with active contacts
                 contacts.forEach(contact => {
@@ -585,8 +685,10 @@ initializeFirebase(function (app, auth, database, storage) {
                             selectUser(userId); // Call selectUser with the retrieved userId
 
                             // Close the modal
-                            const modal = bootstrap.Modal.getInstance(activeContactsModal); // Get the modal instance
-                            modal.hide(); // Hide the modal
+                            if (activeContactsModal) {
+                                const modal = bootstrap.Modal.getInstance(activeContactsModal);
+                                if (modal) modal.hide();
+                            }
                         }
                     };
 
@@ -594,11 +696,11 @@ initializeFirebase(function (app, auth, database, storage) {
                     listItem.appendChild(userLink);
 
                     // Add the list item to the active contacts list
-                    activeContactsList.appendChild(listItem);
+                    listEl.appendChild(listItem);
                 });
 
                 // Show the modal if there are active contacts
-                if (contacts.length > 0) {
+                if (contacts.length > 0 && activeContactsModal) {
                     const modal = new bootstrap.Modal(activeContactsModal);
                     modal.show();
                 }

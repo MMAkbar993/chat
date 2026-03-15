@@ -205,8 +205,9 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         var el = document.getElementById(id);
         if (el && value !== undefined && value !== null) el.value = value;
     }
-    function applyLaravelProfile() {
-        if (typeof window.LARAVEL_USER === 'undefined' || !window.LARAVEL_USER || !window.FIREBASE_DISABLED) return;
+    function applyLaravelProfile(forceApply) {
+        if (typeof window.LARAVEL_USER === 'undefined' || !window.LARAVEL_USER) return;
+        if (!forceApply && !window.FIREBASE_DISABLED) return;
         var u = window.LARAVEL_USER;
         var fullName = (u.firstName || '') + ' ' + (u.lastName || '').trim() || u.full_name || 'No Name';
         var defaultImg = (typeof APP_URL !== 'undefined' ? APP_URL : '') + '/assets/img/profiles/avatar-03.jpg';
@@ -254,6 +255,8 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         applyLaravelProfile();
     }
     setTimeout(applyLaravelProfile, 500);
+    // Delayed fallback when Firebase is enabled but never populates profile (e.g. init failed or no Firebase user)
+    setTimeout(function() { applyLaravelProfile(true); }, 1500);
 })();
 
 /* Save settings (profile + image + social) via Laravel/MySQL. Runs when user is logged in (LARAVEL_USER). */
