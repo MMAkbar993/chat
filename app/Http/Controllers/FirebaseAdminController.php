@@ -13,10 +13,20 @@ class FirebaseAdminController extends Controller
 {
     protected $auth;
 
+    /** @var string|null Set when credentials project_id does not match FIREBASE_PROJECT_ID (causes 400 on signInWithCustomToken) */
+    protected $credentialsProjectMismatch = null;
+
     public function __construct()
     {
         $credentialsPath = storage_path('firebase/firebase_credentials.json');
-        // Initialize Firebase Authentication
+        $expectedProjectId = config('firebase.frontend.project_id') ?? env('FIREBASE_PROJECT_ID');
+        if ($expectedProjectId && is_file($credentialsPath)) {
+            $credentials = json_decode(File::get($credentialsPath), true);
+            $credProjectId = $credentials['project_id'] ?? null;
+            if ($credProjectId !== null && $credProjectId !== $expectedProjectId) {
+                $this->credentialsProjectMismatch = "Credentials are for project \"{$credProjectId}\" but .env FIREBASE_PROJECT_ID is \"{$expectedProjectId}\". Replace storage/firebase/firebase_credentials.json with the service account key for {$expectedProjectId} (Firebase Console → Project Settings → Service accounts).";
+            }
+        }
         $firebase = (new Factory)->withServiceAccount($credentialsPath);
         $this->auth = $firebase->createAuth();
     }
@@ -136,6 +146,12 @@ class FirebaseAdminController extends Controller
      */
     public function restoreChatSession(Request $request)
     {
+        if ($this->credentialsProjectMismatch !== null) {
+            return response()->json([
+                'error' => 'firebase_project_mismatch',
+                'message' => $this->credentialsProjectMismatch,
+            ], 500);
+        }
         $user = Auth::user();
         if (!$user) {
             return response()->json(['error' => 'not_authenticated'], 401);
@@ -145,7 +161,28 @@ class FirebaseAdminController extends Controller
         }
         $firebaseUid = $user->firebase_uid ?? '';
         if ($firebaseUid === '') {
-            return response()->json(['error' => 'no_firebase_uid'], 400);
+            // Lazy-link: if user has email, try to find existing Firebase user by email and set firebase_uid
+            $email = $user->email ?? '';
+            if ($email !== '') {
+                try {
+                    $firebaseUser = $this->auth->getUserByEmail($email);
+                    $firebaseUid = $firebaseUser->uid;
+                    $user->firebase_uid = $firebaseUid;
+                    $user->saveQuietly();
+                } catch (\Throwable $e) {
+                    // No Firebase user for this email; return 400 so frontend can prompt re-login or setup
+                    return response()->json([
+                        'error' => 'no_firebase_uid',
+                        'message' => 'Account not linked to chat. Please log out and log in again.',
+                    ], 400);
+                }
+            }
+            if ($firebaseUid === '') {
+                return response()->json([
+                    'error' => 'no_firebase_uid',
+                    'message' => 'Account not linked to chat. Please log out and log in again.',
+                ], 400);
+            }
         }
         try {
             $customToken = $this->auth->createCustomToken($firebaseUid);

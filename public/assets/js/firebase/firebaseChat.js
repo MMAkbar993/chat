@@ -4362,11 +4362,11 @@ initializeFirebase(function (app, auth, database, storage) {
                     // Use contact's first and last name if available
                     displayName = `${contactData.firstName} ${contactData.lastName || ""
                         }`.trim();
-                    updateContactUI(displayName, contactData);
+                    updateContactUI(displayName, contactData, userId);
                 } else if (contactData && contactData.mobile_number) {
                     // Use mobile number if available in contacts
                     displayName = contactData.mobile_number;
-                    updateContactUI(displayName, contactData);
+                    updateContactUI(displayName, contactData, userId);
                 } else {
                     // Fallback: Fetch from the main "users" reference
                     const userRef = ref(database, `data/users/${userId}`);
@@ -4375,14 +4375,14 @@ initializeFirebase(function (app, auth, database, storage) {
                             const userData = userSnapshot.val();
                             if (userData && userData.mobile_number) {
                                 displayName = userData.mobile_number;
-                                updateContactUI(displayName, userData);
+                                updateContactUI(displayName, userData, userId);
                             } else {
-                                updateContactUI("Unknown User", {});
+                                updateContactUI("Unknown User", {}, userId);
                             }
                         })
                         .catch((error) => {
                             console.error("Error fetching user data:", error);
-                            updateContactUI("Error Loading User", {});
+                            updateContactUI("Error Loading User", {}, userId);
                         });
                 }
             });
@@ -4409,7 +4409,8 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     // Helper function to update the UI (public profile: Name, Bio, Location, Website, Social, Join Date + Verified badges)
-    function updateContactUI(displayName, userData) {
+    // userIdForRef: optional; used to build user path when fetching fallback avatar (contact key / user id)
+    function updateContactUI(displayName, userData, userIdForRef) {
         setContactName(capitalizeFirstLetter(displayName));
 
         const contactKycBadges = document.querySelectorAll('#contact-profile .contact-kyc-badge');
@@ -4457,25 +4458,29 @@ initializeFirebase(function (app, auth, database, storage) {
             // Use image if available
             avatarElement.src = userData.image;
         } else {
-            // Fallback: Fetch from the "users" collection
-            const userRef = ref(database, `data/users/${userData?.contact_id || (contactSnapshot && contactSnapshot.key)}`);
-            get(userRef)
-                .then((userSnapshot) => {
-                    const userDataFallback = userSnapshot.val();
-                    if (userDataFallback?.image) {
-                        avatarElement.src = userDataFallback.image;
-                    } else {
-                        // Default avatar if no profile image is found
+            // Fallback: Fetch from the "users" collection (use contact_id from userData or passed userIdForRef)
+            const uid = userData?.contact_id || userIdForRef;
+            if (uid) {
+                const userRef = ref(database, `data/users/${uid}`);
+                get(userRef)
+                    .then((userSnapshot) => {
+                        const userDataFallback = userSnapshot.val();
+                        if (userDataFallback?.image) {
+                            avatarElement.src = userDataFallback.image;
+                        } else {
+                            avatarElement.src = "assets/img/profiles/avatar-03.jpg";
+                        }
+                    })
+                    .catch((error) => {
+                        console.error(
+                            "Error fetching fallback profile image:",
+                            error
+                        );
                         avatarElement.src = "assets/img/profiles/avatar-03.jpg";
-                    }
-                })
-                .catch((error) => {
-                    console.error(
-                        "Error fetching fallback profile image:",
-                        error
-                    );
-                    avatarElement.src = "assets/img/profiles/avatar-03.jpg"; // Default avatar on error
-                });
+                    });
+            } else {
+                avatarElement.src = "assets/img/profiles/avatar-03.jpg";
+            }
         }
 
         if (userData?.lastSeen) {
