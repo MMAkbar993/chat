@@ -322,14 +322,24 @@ class SocialAccountController extends Controller
                 // Ignore cache failure
             }
 
-            return send_success_response(['platform' => (string) $platform], __('Account disconnected.'));
+            // Return 200 with minimal JSON so nothing (translations, encoding, helpers) can throw and cause 500 on server
+            $platformSafe = is_string($platform) ? preg_replace('/[^\w\-]/', '', $platform) : 'unknown';
+            return response()->json([
+                'code' => '200',
+                'message' => 'Account disconnected.',
+                'data' => ['platform' => $platformSafe],
+            ], 200, ['Content-Type' => 'application/json'], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             try {
                 Log::error('Social disconnect failed', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             } catch (\Throwable $logEx) {
                 // ignore log failure
             }
-            return send_success_response(['error' => true], __('Could not disconnect account. Please try again.'));
+            return response()->json([
+                'code' => '-1',
+                'message' => 'Could not disconnect account. Please try again.',
+                'data' => ['error' => true],
+            ], 200, ['Content-Type' => 'application/json'], JSON_UNESCAPED_UNICODE);
         }
     }
 
