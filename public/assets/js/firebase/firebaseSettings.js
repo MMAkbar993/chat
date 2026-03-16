@@ -830,6 +830,9 @@ function fetchUserDetails(userId) {
 
             } else {
                 // No user data in Firebase (e.g. new user or wrong DB) – clear "Loading..."
+                // #region agent log
+                fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'firebaseSettings.js:fetchUserDetails',message:'firebaseSettings calling displayUserDetails(empty) snapshot !exists',data:{userId:userId},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+                // #endregion
                 if (typeof displayUserDetails === 'function') {
                     try { displayUserDetails({}); } catch (e) {}
                 }
@@ -837,6 +840,9 @@ function fetchUserDetails(userId) {
         })
         .catch((error) => {
             console.warn('[Firebase] Could not load profile from Realtime Database. Check FIREBASE_DATABASE_URL and RTDB rules. Profile will show placeholders.', error);
+            // #region agent log
+            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'firebaseSettings.js:fetchUserDetails.catch',message:'firebaseSettings calling displayUserDetails(empty) on error',data:{errMsg:(error&&error.message)||String(error)},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+            // #endregion
             if (typeof displayUserDetails === 'function') {
                 try { displayUserDetails({}); } catch (e) {}
             }

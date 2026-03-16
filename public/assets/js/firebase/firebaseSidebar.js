@@ -39,12 +39,18 @@ initializeFirebase(function (app, auth, database, storage) {
     // Populate sidebar profile pane from Firebase RTDB (so it doesn't stay "Loading...")
     function applyProfileFromFirebase(user) {
         const u = user && typeof user === 'object' ? user : {};
+        // #region agent log
+        fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'firebaseSidebar.js:applyProfileFromFirebase',message:'applyProfileFromFirebase called',data:{hasKeys:Object.keys(u).length,firstName:!!(u.firstName),email:!!(u.email)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion
         // On server, Firebase may return later with empty/partial data; never overwrite real profile with empty/dummy
         const hasMeaningfulProfile = (u.firstName != null && u.firstName !== '') ||
             (u.lastName != null && u.lastName !== '') ||
             (u.email != null && u.email !== '');
         if (!hasMeaningfulProfile) {
             const laravelData = getLaravelProfileData();
+            // #region agent log
+            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'firebaseSidebar.js:applyProfileFromFirebase',message:'no meaningful profile; laravel fallback',data:{laravelDataPresent:!!laravelData,laravelHasMeaningful:!!(laravelData&&((laravelData.firstName!=null&&laravelData.firstName!=='')||(laravelData.lastName!=null&&laravelData.lastName!=='')||(laravelData.email!=null&&laravelData.email!=='')))},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+            // #endregion
             const laravelHasData = laravelData && (
                 (laravelData.firstName != null && laravelData.firstName !== '') ||
                 (laravelData.lastName != null && laravelData.lastName !== '') ||
@@ -55,6 +61,9 @@ initializeFirebase(function (app, auth, database, storage) {
                 return;
             }
             // If both are empty, still apply u so UI shows "No Name" etc.; don't recurse
+            // #region agent log
+            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'firebaseSidebar.js:applyProfileFromFirebase',message:'applying empty u (no Laravel fallback)',data:{},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+            // #endregion
         }
         const defaultImg = 'assets/img/profiles/avatar-03.jpg';
         const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = (text != null && text !== '') ? text : '—'; };
@@ -149,6 +158,9 @@ initializeFirebase(function (app, auth, database, storage) {
                 .then((snapshot) => {
                     const rtdb = snapshot.exists() ? snapshot.val() : {};
                     const laravelData = getLaravelProfileData();
+                    // #region agent log
+                    fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'firebaseSidebar.js:onAuthStateChanged.get',message:'RTDB get resolved',data:{snapshotExists:snapshot.exists(),rtdbKeys:rtdb?Object.keys(rtdb).length:0,laravelPresent:!!laravelData},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+                    // #endregion
                     // Prefer RTDB when it has meaningful profile fields; otherwise use Laravel so profile doesn't disappear
                     const hasRtdbProfile = rtdb && (
                         (rtdb.firstName != null && rtdb.firstName !== '') ||
@@ -169,7 +181,10 @@ initializeFirebase(function (app, auth, database, storage) {
                         applyProfileFromFirebase(rtdb);
                     }
                 })
-                .catch(() => {
+                .catch((err) => {
+                    // #region agent log
+                    fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'firebaseSidebar.js:onAuthStateChanged.catch',message:'RTDB get failed',data:{errMsg:(err&&err.message)||String(err)},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+                    // #endregion
                     const laravelData = getLaravelProfileData();
                     applyProfileFromFirebase(laravelData || {});
                 });

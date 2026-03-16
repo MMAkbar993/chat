@@ -208,6 +208,11 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
     function applyLaravelProfile(forceApply) {
         if (typeof window.LARAVEL_USER === 'undefined' || !window.LARAVEL_USER) return;
         if (!forceApply && !window.FIREBASE_DISABLED) return;
+        // #region agent log
+        try {
+            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'script.blade:applyLaravelProfile',message:'applyLaravelProfile applying',data:{forceApply:!!forceApply,FIREBASE_DISABLED:!!window.FIREBASE_DISABLED},timestamp:Date.now(),hypothesisId:'H4'})}).catch(function(){});
+        } catch(e) {}
+        // #endregion
         var u = window.LARAVEL_USER;
         var fullName = (u.firstName || '') + ' ' + (u.lastName || '').trim() || u.full_name || 'No Name';
         var defaultImg = (typeof APP_URL !== 'undefined' ? APP_URL : '') + '/assets/img/profiles/avatar-03.jpg';
