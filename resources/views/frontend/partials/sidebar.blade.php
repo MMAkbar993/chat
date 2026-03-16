@@ -1474,20 +1474,29 @@
                                                                             var input = document.getElementById('linkedin-profile-url-input');
                                                                             var url = input ? input.value.trim() : '';
                                                                             btn.disabled = true;
-                                                                            var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                            var meta = document.querySelector('meta[name="csrf-token"]');
+                                                                            var token = meta ? meta.getAttribute('content') : (document.querySelector('input[name="_token"]') && document.querySelector('input[name="_token"]').value) || '';
                                                                             fetch('{{ url("connect/linkedin-profile-url") }}', {
                                                                                 method: 'PUT',
-                                                                                headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                                                                                headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                                                                                 credentials: 'same-origin',
-                                                                                body: JSON.stringify({ profile_url: url || null })
-                                                                            }).then(function(r) { return r.json(); }).then(function(res) {
-                                                                                if (res.code === '200' || res.code === 200) {
+                                                                                body: JSON.stringify({ profile_url: url || null, _token: token })
+                                                                            }).then(function(r) {
+                                                                                if (r.status === 419) {
+                                                                                    if (typeof showToast === 'function') showToast('{{ __("Session expired. Please refresh the page and try again.") }}', true);
+                                                                                    return Promise.reject(new Error('CSRF/session expired'));
+                                                                                }
+                                                                                return r.json();
+                                                                            }).then(function(res) {
+                                                                                if (res && (res.code === '200' || res.code === 200)) {
                                                                                     if (typeof setProfileLink === 'function') setProfileLink('profile-info-linkedin', url || null);
                                                                                     showToast(res.message || '{{ __("Profile URL updated.") }}');
                                                                                 } else {
-                                                                                    showToast(res.message || '{{ __("Could not update URL.") }}', true);
+                                                                                    showToast((res && res.message) || '{{ __("Could not update URL.") }}', true);
                                                                                 }
-                                                                            }).catch(function() { showToast('{{ __("Could not update URL.") }}', true); }).finally(function() { btn.disabled = false; });
+                                                                            }).catch(function(err) {
+                                                                                if (err && err.message !== 'CSRF/session expired' && typeof showToast === 'function') showToast('{{ __("Could not update URL.") }}', true);
+                                                                            }).finally(function() { btn.disabled = false; });
                                                                         });
                                                                         (function initChatSettings() {
                                                                             var chatBg = document.getElementById('chat-bg-images');
