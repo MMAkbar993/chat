@@ -29,14 +29,12 @@ initializeFirebase(function (app, auth, database, storage) {
 
     let currentUserId = null; // Define the current user here
 
-    // Monitor the user's authentication state
+    // Monitor the user's authentication state (chat session)
     onAuthStateChanged(auth, (user) => {
         if (user) {
-            currentUserId = user.uid; // Set the current user ID
-
+            currentUserId = user.uid;
         } else {
-            // window.location.href = "/login";
-
+            currentUserId = null; // signed out or session expired
         }
     });
 
@@ -653,41 +651,62 @@ initializeFirebase(function (app, auth, database, storage) {
         }, 300);
     });
 
+    function getCurrentFirebaseUid() {
+        return auth.currentUser?.uid || currentUserId;
+    }
+
+    function ensureSignedInThenAdd(btn, retryCount) {
+        retryCount = retryCount || 0;
+        const uid = getCurrentFirebaseUid();
+        if (uid) {
+            let dataUid = (btn.getAttribute("data-uid") || "").trim();
+            const name = (btn.getAttribute("data-name") || "").trim();
+            const username = (btn.getAttribute("data-username") || "").trim();
+            const email = (btn.getAttribute("data-email") || "").trim();
+            if (!dataUid && !email && !username && !name) {
+                if (typeof Swal !== "undefined") Swal.fire({ text: "Cannot add: no user info.", icon: "info", width: 400 });
+                return;
+            }
+            (dataUid ? Promise.resolve(dataUid) : resolveEmailOrUsernameToFirebaseUid(email, username))
+                .then(resolvedUid => {
+                    if (resolvedUid === uid) {
+                        Swal.fire({ text: "You can't add yourself to contacts.", icon: "info", width: 400 });
+                        return;
+                    }
+                    if (resolvedUid) {
+                        addContactFromSearch(resolvedUid, name, username, email);
+                    } else {
+                        addPendingContact(email, username, name);
+                    }
+                })
+                .catch(err => {
+                    if (typeof Swal !== "undefined") Swal.fire({ text: err && err.message ? err.message : "Could not add contact.", icon: "error", width: 400 });
+                    else alert("Could not add contact.");
+                });
+            return;
+        }
+        if (retryCount < 2) {
+            setTimeout(function () { ensureSignedInThenAdd(btn, retryCount + 1); }, 600);
+            return;
+        }
+        if (typeof Swal !== "undefined") {
+            Swal.fire({
+                text: "Your chat session is not active. To add contacts, please sign out and sign in again from the login page.",
+                icon: "warning",
+                width: 420
+            });
+        } else {
+            alert("Your chat session is not active. Please sign out and sign in again from the login page to add contacts.");
+        }
+    }
+
     // Event delegation: handle Add button click so it works even when results are re-rendered or modal is injected by SPA
     document.addEventListener("click", function (e) {
         const btn = e.target.closest(".add-contact-from-search");
         if (!btn) return;
         e.preventDefault();
         e.stopPropagation();
-        if (!auth.currentUser) {
-            if (typeof Swal !== "undefined") Swal.fire({ text: "Please sign in to add contacts.", icon: "warning", width: 400 });
-            else alert("Please sign in to add contacts.");
-            return;
-        }
-        let uid = (btn.getAttribute("data-uid") || "").trim();
-        const name = (btn.getAttribute("data-name") || "").trim();
-        const username = (btn.getAttribute("data-username") || "").trim();
-        const email = (btn.getAttribute("data-email") || "").trim();
-        if (!uid && !email && !username && !name) {
-            if (typeof Swal !== "undefined") Swal.fire({ text: "Cannot add: no user info.", icon: "info", width: 400 });
-            return;
-        }
-        (uid ? Promise.resolve(uid) : resolveEmailOrUsernameToFirebaseUid(email, username))
-            .then(resolvedUid => {
-                if (resolvedUid === auth.currentUser?.uid) {
-                    Swal.fire({ text: "You can't add yourself to contacts.", icon: "info", width: 400 });
-                    return;
-                }
-                if (resolvedUid) {
-                    addContactFromSearch(resolvedUid, name, username, email);
-                } else {
-                    addPendingContact(email, username, name);
-                }
-            })
-            .catch(err => {
-                if (typeof Swal !== "undefined") Swal.fire({ text: err && err.message ? err.message : "Could not add contact.", icon: "error", width: 400 });
-                else alert("Could not add contact.");
-            });
+        ensureSignedInThenAdd(btn);
     });
 
     /** Resolve Firebase UID from email or username when API did not return firebase_uid (e.g. Laravel user not yet linked). */
@@ -716,9 +735,9 @@ initializeFirebase(function (app, auth, database, storage) {
 
     /** Add a contact when we have no Firebase UID (pending contact). They appear in the list; chat works once they sign in. */
     function addPendingContact(email, username, displayName) {
-        const loggedInUserId = auth.currentUser?.uid;
+        const loggedInUserId = getCurrentFirebaseUid();
         if (!loggedInUserId) {
-            if (typeof Swal !== "undefined") Swal.fire({ text: "Please sign in to add contacts.", icon: "warning", width: 400 });
+            if (typeof Swal !== "undefined") Swal.fire({ text: "Your chat session is not active. Please sign out and sign in again from the login page.", icon: "warning", width: 420 });
             return;
         }
         const emailOrUsername = (email || username || (displayName || "").trim() || "").trim() || "unknown";
@@ -763,9 +782,9 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function addContactFromSearch(firebaseUid, displayName, username, emailFromApi) {
-        const loggedInUserId = auth.currentUser?.uid;
+        const loggedInUserId = getCurrentFirebaseUid();
         if (!loggedInUserId) {
-            if (typeof Swal !== "undefined") Swal.fire({ text: "Please sign in to add contacts.", icon: "warning", width: 400 });
+            if (typeof Swal !== "undefined") Swal.fire({ text: "Your chat session is not active. Please sign out and sign in again from the login page.", icon: "warning", width: 420 });
             return;
         }
         if (!firebaseUid) return;

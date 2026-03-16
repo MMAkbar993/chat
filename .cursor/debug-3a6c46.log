@@ -147,3 +147,17 @@
 {"sessionId":"3a6c46","location":"firebaseGroupChat.js:945","message":"chat-footer-wrap check","data":{"pathname":"/contact","chatFooterWrapExists":false},"timestamp":1773671143480,"hypothesisId":"H3"}
 {"sessionId":"3a6c46","location":"firebaseChat.js:3542","message":"chat-footer-wrap check","data":{"pathname":"/contact","chatFooterWrapExists":false},"timestamp":1773671331180,"hypothesisId":"H1"}
 {"sessionId":"3a6c46","location":"firebaseGroupChat.js:945","message":"chat-footer-wrap check","data":{"pathname":"/contact","chatFooterWrapExists":false},"timestamp":1773671331206,"hypothesisId":"H3"}
+{"sessionId":"3a6c46","location":"firebaseChat.js:3542","message":"chat-footer-wrap check","data":{"pathname":"/contact","chatFooterWrapExists":false},"timestamp":1773672018127,"hypothesisId":"H1"}
+{"sessionId":"3a6c46","location":"firebaseGroupChat.js:945","message":"chat-footer-wrap check","data":{"pathname":"/contact","chatFooterWrapExists":false},"timestamp":1773672018235,"hypothesisId":"H3"}
+{"sessionId":"3a6c46","location":"firebaseChat.js:3542","message":"chat-footer-wrap check","data":{"pathname":"/chat","chatFooterWrapExists":true},"timestamp":1773672753926,"hypothesisId":"H1"}
+{"sessionId":"3a6c46","location":"firebaseGroupChat.js:945","message":"chat-footer-wrap check","data":{"pathname":"/chat","chatFooterWrapExists":true},"timestamp":1773672753948,"hypothesisId":"H3"}
+{"sessionId":"3a6c46","location":"firebaseChat.js:3542","message":"chat-footer-wrap check","data":{"pathname":"/group-chat","chatFooterWrapExists":true},"timestamp":1773678376019,"hypothesisId":"H1"}
+{"sessionId":"3a6c46","location":"firebaseGroupChat.js:945","message":"chat-footer-wrap check","data":{"pathname":"/group-chat","chatFooterWrapExists":true},"timestamp":1773678376085,"hypothesisId":"H3"}
+{"sessionId":"3a6c46","location":"firebaseChat.js:3542","message":"chat-footer-wrap check","data":{"pathname":"/contact","chatFooterWrapExists":false},"timestamp":1773678392773,"hypothesisId":"H1"}
+{"sessionId":"3a6c46","location":"firebaseGroupChat.js:945","message":"chat-footer-wrap check","data":{"pathname":"/contact","chatFooterWrapExists":false},"timestamp":1773678392792,"hypothesisId":"H3"}
+{"sessionId":"3a6c46","location":"firebaseChat.js:3542","message":"chat-footer-wrap check","data":{"pathname":"/chat","chatFooterWrapExists":true},"timestamp":1773678472150,"hypothesisId":"H1"}
+{"sessionId":"3a6c46","location":"firebaseGroupChat.js:945","message":"chat-footer-wrap check","data":{"pathname":"/chat","chatFooterWrapExists":true},"timestamp":1773678472165,"hypothesisId":"H3"}
+{"sessionId":"3a6c46","location":"firebaseChat.js:3542","message":"chat-footer-wrap check","data":{"pathname":"/contact","chatFooterWrapExists":false},"timestamp":1773678991291,"hypothesisId":"H1"}
+{"sessionId":"3a6c46","location":"firebaseGroupChat.js:945","message":"chat-footer-wrap check","data":{"pathname":"/contact","chatFooterWrapExists":false},"timestamp":1773678991326,"hypothesisId":"H3"}
+{"sessionId":"3a6c46","location":"firebaseChat.js:3542","message":"chat-footer-wrap check","data":{"pathname":"/chat","chatFooterWrapExists":true},"timestamp":1773679140645,"hypothesisId":"H1"}
+{"sessionId":"3a6c46","location":"firebaseGroupChat.js:945","message":"chat-footer-wrap check","data":{"pathname":"/chat","chatFooterWrapExists":true},"timestamp":1773679140704,"hypothesisId":"H3"}
