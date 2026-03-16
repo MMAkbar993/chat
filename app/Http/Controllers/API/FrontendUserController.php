@@ -15,15 +15,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\SendOtpMail;
 use App\Mail\ForgotPasswordEmail;
+use App\Services\FirebaseSyncService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class FrontendUserController extends Controller
 {
     protected EncryptionService $encryptionService;
+    protected FirebaseSyncService $firebaseSyncService;
 
-    public function __construct(EncryptionService $encryptionService)
+    public function __construct(EncryptionService $encryptionService, FirebaseSyncService $firebaseSyncService)
     {
         $this->encryptionService = $encryptionService;
+        $this->firebaseSyncService = $firebaseSyncService;
     }
 
     public function register(Request $request): \Illuminate\Http\JsonResponse
@@ -98,6 +102,13 @@ class FrontendUserController extends Controller
                     'created_by' => 1,
                     'password' => $encryptedPassword,
                 ]);
+            }
+
+            // Create Firebase user and set firebase_uid so chat session works (MySQL + Firebase in sync)
+            try {
+                $this->firebaseSyncService->syncFirebaseUidForUser($user, $payload['password']);
+            } catch (\Throwable $e) {
+                Log::warning('Firebase sync on API register failed', ['user_id' => $user->id, 'message' => $e->getMessage()]);
             }
 
             $user->assignRole('user');

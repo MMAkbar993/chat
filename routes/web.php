@@ -105,6 +105,11 @@ Route::get('api/kyc-status', function (\Illuminate\Http\Request $request) {
 
 Route::get('api/public-profile-by-email', [UserSearchController::class, 'publicProfileByEmail'])->name('public-profile.by-email');
 
+// Restore Firebase chat session using Laravel session (no re-login). Requires auth.
+Route::get('api/restore-chat-session', [App\Http\Controllers\FirebaseAdminController::class, 'restoreChatSession'])
+    ->name('api.restore-chat-session')
+    ->middleware('auth');
+
 // Registration flow status polling (used by the signup page AJAX flow)
 Route::get('api/registration-status', function (\Illuminate\Http\Request $request) {
     $user = \Illuminate\Support\Facades\Auth::user()

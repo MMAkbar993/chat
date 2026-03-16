@@ -5,6 +5,7 @@ import {
     createUserWithEmailAndPassword,
     onAuthStateChanged,
     sendPasswordResetEmail,
+    signInWithCustomToken,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import {
     getDatabase,
@@ -37,6 +38,20 @@ initializeFirebase(function (app, auth, database, storage) {
             currentUserId = null; // signed out or session expired
         }
     });
+
+    // Proactively restore Firebase session from Laravel when we have no Firebase user (e.g. page refresh with Laravel session)
+    setTimeout(function tryRestoreChatSession() {
+        if (auth.currentUser || currentUserId) return;
+        const baseUrl = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
+        fetch(baseUrl + "/api/restore-chat-session", { method: "GET", credentials: "include" })
+            .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+            .then(function (result) {
+                if (result.ok && result.data && result.data.firebase_custom_token) {
+                    return signInWithCustomToken(auth, result.data.firebase_custom_token);
+                }
+            })
+            .catch(function () {});
+    }, 1500);
 
     // Initialize Firebase Database reference
     const usersRef = ref(database, "data/users"); // Correct Firebase reference to the "users" node
@@ -689,6 +704,25 @@ initializeFirebase(function (app, auth, database, storage) {
             setTimeout(function () { ensureSignedInThenAdd(btn, retryCount + 1); }, 600);
             return;
         }
+        // Try to restore Firebase session from Laravel (no re-login)
+        const baseUrl = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
+        fetch(baseUrl + "/api/restore-chat-session", { method: "GET", credentials: "include" })
+            .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+            .then(function (result) {
+                if (result.ok && result.data && result.data.firebase_custom_token) {
+                    return signInWithCustomToken(auth, result.data.firebase_custom_token).then(function () {
+                        // Auth state will update; retry add once
+                        setTimeout(function () { ensureSignedInThenAdd(btn, 0); }, 800);
+                    });
+                }
+                showChatSessionInactiveMessage();
+            })
+            .catch(function () {
+                showChatSessionInactiveMessage();
+            });
+    }
+
+    function showChatSessionInactiveMessage() {
         if (typeof Swal !== "undefined") {
             Swal.fire({
                 text: "Your chat session is not active. To add contacts, please sign out and sign in again from the login page.",

@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Kreait\Firebase\Factory;
 use App\Models\FirebaseSetting;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class FirebaseAdminController extends Controller
 {
@@ -125,6 +127,33 @@ class FirebaseAdminController extends Controller
         }
 
         return response()->json(['message' => 'Firebase config updated successfully.']);
+    }
+
+    /**
+     * Return a Firebase custom token for the authenticated user so the frontend can
+     * restore the chat session (sign in to Firebase) without re-entering password.
+     * Requires auth middleware. Returns 401 if not logged in, 400 if user has no firebase_uid.
+     */
+    public function restoreChatSession(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['error' => 'not_authenticated'], 401);
+        }
+        if (!Schema::hasColumn($user->getTable(), 'firebase_uid')) {
+            return response()->json(['error' => 'no_firebase_uid'], 400);
+        }
+        $firebaseUid = $user->firebase_uid ?? '';
+        if ($firebaseUid === '') {
+            return response()->json(['error' => 'no_firebase_uid'], 400);
+        }
+        try {
+            $customToken = $this->auth->createCustomToken($firebaseUid);
+            $tokenString = is_string($customToken) ? $customToken : $customToken->toString();
+            return response()->json(['firebase_custom_token' => $tokenString]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'token_failed', 'message' => $e->getMessage()], 500);
+        }
     }
 
     // Helper function to update the .env file

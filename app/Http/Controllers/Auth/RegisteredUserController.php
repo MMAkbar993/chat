@@ -12,22 +12,26 @@ use Illuminate\Http\Request;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Http;
 use Exception;
 use App\Services\EncryptionService;
+use App\Services\FirebaseSyncService;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\WelcomeEmail;
 
 class RegisteredUserController extends Controller
 {
     protected $encryptionService;
+    protected $firebaseSyncService;
 
-    public function __construct(EncryptionService $encryptionService)
+    public function __construct(EncryptionService $encryptionService, FirebaseSyncService $firebaseSyncService)
     {
         $this->encryptionService = $encryptionService;
+        $this->firebaseSyncService = $firebaseSyncService;
     }
 
     public function login()
@@ -53,6 +57,15 @@ class RegisteredUserController extends Controller
             $result = $this->attemptLaravelLogin($email, $password);
             if ($result['success']) {
                 $this->syncFirebaseUidIfPresent($request, $email);
+                // If user still has no firebase_uid (e.g. old account or registered before sync), create/link Firebase user now
+                $user = Auth::user();
+                if ($user && Schema::hasColumn($user->getTable(), 'firebase_uid') && empty($user->firebase_uid)) {
+                    try {
+                        $this->firebaseSyncService->syncFirebaseUidForUser($user, $password);
+                    } catch (\Throwable $e) {
+                        Log::warning('Firebase sync on login failed', ['user_id' => $user->id, 'message' => $e->getMessage()]);
+                    }
+                }
                 if (!empty($result['needs_2fa'])) {
                     if ($request->wantsJson()) {
                         return response()->json(['success' => true, 'needs_2fa' => true, 'redirect' => route('2fa.challenge')]);
@@ -277,6 +290,13 @@ class RegisteredUserController extends Controller
         ]);
 
         $user->assignRole('user');
+
+        // Create Firebase user and set firebase_uid so chat session works (MySQL + Firebase in sync)
+        try {
+            $this->firebaseSyncService->syncFirebaseUidForUser($user, $request->input('password'));
+        } catch (\Throwable $e) {
+            Log::warning('Firebase sync on register failed', ['user_id' => $user->id, 'message' => $e->getMessage()]);
+        }
 
         $request->session()->put('registered_user_id', $user->id);
 
