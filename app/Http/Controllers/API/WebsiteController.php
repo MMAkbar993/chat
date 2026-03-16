@@ -311,12 +311,12 @@ class WebsiteController extends Controller
         try {
             $user = Auth::user();
             if (!$user) {
-                return send_bad_request_response('User not found');
+                return response()->json(['code' => '-1', 'message' => 'User not found', 'data' => ['error' => true]], 200, ['Content-Type' => 'application/json'], JSON_UNESCAPED_UNICODE);
             }
 
             $userWebsite = $user->websites()->find($id);
             if (!$userWebsite) {
-                return send_bad_request_response('Website not found.');
+                return response()->json(['code' => '-1', 'message' => 'Website not found.', 'data' => ['error' => true]], 200, ['Content-Type' => 'application/json'], JSON_UNESCAPED_UNICODE);
             }
 
             if ($userWebsite->isOwner() && $userWebsite->website) {
@@ -337,10 +337,18 @@ class WebsiteController extends Controller
 
             $userWebsite->delete();
 
-            return send_success_response([], 'Website removed successfully.');
+            return response()->json([
+                'code' => '200',
+                'message' => 'Website removed successfully.',
+                'data' => [],
+            ], 200, ['Content-Type' => 'application/json'], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('Website destroy failed', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return send_exception_response($e->getMessage());
+            return response()->json([
+                'code' => '-1',
+                'message' => 'Could not remove website. Please try again.',
+                'data' => ['error' => true],
+            ], 200, ['Content-Type' => 'application/json'], JSON_UNESCAPED_UNICODE);
         }
     }
 
