@@ -5,66 +5,75 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class UserSearchController extends Controller
 {
     /**
-     * Search users by username or name.
+     * Search users by username or email.
      * GET /api/users/search?q=xxx
      */
     public function search(Request $request)
     {
-        $request->validate([
-            'q' => 'required|string|min:2|max:100',
-        ]);
+        try {
+            $request->validate([
+                'q' => 'required|string|min:2|max:100',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['users' => [], 'message' => 'Search term must be 2–100 characters.'], 422);
+        }
 
         $query = strtolower(trim($request->input('q')));
         $cacheKey = 'user_search:' . md5($query);
 
-        $users = Cache::remember($cacheKey, 60, function () use ($query) {
-            return User::where(function ($q) use ($query) {
-                    $q->where('user_name', 'like', "%{$query}%")
-                      ->orWhere('email', 'like', "%{$query}%")
-                      ->orWhere('first_name', 'like', "%{$query}%")
-                      ->orWhere('last_name', 'like', "%{$query}%")
-                      ->orWhere('full_name', 'like', "%{$query}%")
-                      ->orWhere('company_name', 'like', "%{$query}%");
-                })
-                ->select([
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'full_name',
-                    'user_name',
-                    'email',
-                    'firebase_uid',
-                    'company_name',
-                    'primary_role',
-                    'country',
-                    'profile_image',
-                    'kyc_verified_at',
-                ])
-                ->limit(20)
-                ->get()
-                ->map(function ($user) {
-                    return [
-                        'id' => $user->id,
-                        'first_name' => $user->first_name,
-                        'last_name' => $user->last_name,
-                        'full_name' => $user->full_name,
-                        'user_name' => $user->user_name,
-                        'email' => $user->email,
-                        'firebase_uid' => $user->firebase_uid ?? null,
-                        'company_name' => $user->company_name,
-                        'primary_role' => $user->primary_role,
-                        'country' => $user->country,
-                        'profile_image' => $user->profile_image_link,
-                        'kyc_verified' => $user->isKycVerified(),
-                    ];
-                });
-        });
+        try {
+            $users = Cache::remember($cacheKey, 60, function () use ($query) {
+                $userTable = (new User)->getTable();
+                $hasFirebaseUid = Schema::hasColumn($userTable, 'firebase_uid');
+                $selectColumns = [
+                    'id', 'first_name', 'last_name', 'full_name', 'user_name', 'email',
+                    'company_name', 'primary_role', 'country', 'profile_image', 'kyc_verified_at',
+                ];
+                if ($hasFirebaseUid) {
+                    $selectColumns[] = 'firebase_uid';
+                }
 
-        return response()->json(['users' => $users]);
+                return User::where(function ($q) use ($query) {
+                    $q->where('user_name', 'like', "%{$query}%")
+                        ->orWhere('email', 'like', "%{$query}%")
+                        ->orWhere('first_name', 'like', "%{$query}%")
+                        ->orWhere('last_name', 'like', "%{$query}%")
+                        ->orWhere('full_name', 'like', "%{$query}%")
+                        ->orWhere('company_name', 'like', "%{$query}%");
+                })
+                    ->select($selectColumns)
+                    ->limit(20)
+                    ->get()
+                    ->map(function ($user) use ($hasFirebaseUid) {
+                        $row = [
+                            'id' => $user->id,
+                            'first_name' => $user->first_name,
+                            'last_name' => $user->last_name,
+                            'full_name' => $user->full_name,
+                            'user_name' => $user->user_name,
+                            'email' => $user->email,
+                            'company_name' => $user->company_name,
+                            'primary_role' => $user->primary_role,
+                            'country' => $user->country,
+                            'profile_image' => $user->profile_image_link,
+                            'kyc_verified' => $user->isKycVerified(),
+                            'firebase_uid' => $hasFirebaseUid ? ($user->firebase_uid ?? null) : null,
+                        ];
+                        return $row;
+                    });
+            });
+
+            return response()->json(['users' => $users]);
+        } catch (\Throwable $e) {
+            Log::error('User search failed', ['message' => $e->getMessage(), 'query' => $query, 'trace' => $e->getTraceAsString()]);
+            return response()->json(['users' => [], 'message' => 'Search is temporarily unavailable.'], 500);
+        }
     }
 
     /**
