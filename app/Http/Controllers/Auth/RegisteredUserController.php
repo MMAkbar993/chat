@@ -52,6 +52,7 @@ class RegisteredUserController extends Controller
 
             $result = $this->attemptLaravelLogin($email, $password);
             if ($result['success']) {
+                $this->syncFirebaseUidIfPresent($request, $email);
                 if (!empty($result['needs_2fa'])) {
                     if ($request->wantsJson()) {
                         return response()->json(['success' => true, 'needs_2fa' => true, 'redirect' => route('2fa.challenge')]);
@@ -141,6 +142,36 @@ class RegisteredUserController extends Controller
             return ['success' => true, 'needs_2fa' => true];
         }
         return ['success' => true];
+    }
+
+    /**
+     * If the request contains a Firebase ID token after successful login, decode it and store
+     * the Firebase UID on the Laravel user so contact search can return it.
+     */
+    protected function syncFirebaseUidIfPresent(Request $request, string $email): void
+    {
+        $token = $request->input('firebase_token');
+        if (!is_string($token) || $token === '') {
+            return;
+        }
+        try {
+            $parts = explode('.', $token);
+            if (count($parts) !== 3) {
+                return;
+            }
+            $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
+            $firebaseUid = $payload['sub'] ?? $payload['user_id'] ?? null;
+            if (!is_array($payload) || empty($firebaseUid)) {
+                return;
+            }
+            $user = User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
+            if ($user && $firebaseUid !== $user->firebase_uid) {
+                $user->firebase_uid = $firebaseUid;
+                $user->save();
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Firebase UID sync failed', ['message' => $e->getMessage()]);
+        }
     }
 
     /**

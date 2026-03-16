@@ -24,14 +24,24 @@ class UserSearchController extends Controller
         $users = Cache::remember($cacheKey, 60, function () use ($query) {
             return User::where(function ($q) use ($query) {
                     $q->where('user_name', 'like', "%{$query}%")
+                      ->orWhere('email', 'like', "%{$query}%")
                       ->orWhere('first_name', 'like', "%{$query}%")
                       ->orWhere('last_name', 'like', "%{$query}%")
                       ->orWhere('full_name', 'like', "%{$query}%")
                       ->orWhere('company_name', 'like', "%{$query}%");
                 })
                 ->select([
-                    'id', 'first_name', 'last_name', 'full_name', 'user_name', 'email',
-                    'company_name', 'primary_role', 'country', 'profile_image',
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'full_name',
+                    'user_name',
+                    'email',
+                    'firebase_uid',
+                    'company_name',
+                    'primary_role',
+                    'country',
+                    'profile_image',
                     'kyc_verified_at',
                 ])
                 ->limit(20)
@@ -43,6 +53,8 @@ class UserSearchController extends Controller
                         'last_name' => $user->last_name,
                         'full_name' => $user->full_name,
                         'user_name' => $user->user_name,
+                        'email' => $user->email,
+                        'firebase_uid' => $user->firebase_uid ?? null,
                         'company_name' => $user->company_name,
                         'primary_role' => $user->primary_role,
                         'country' => $user->country,

@@ -27,104 +27,14 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">{{ __('Search by Username') }}</label>
+                    <label class="form-label">{{ __('Search by Username or Email') }}</label>
                     <div class="input-group">
-                        <input type="text" id="add-contact-username-search" class="form-control" placeholder="{{ __('Type username to search...') }}" minlength="2">
+                        <input type="text" id="add-contact-username-search" class="form-control" placeholder="{{ __('Type username or email to search...') }}" minlength="2">
                         <span class="input-group-text"><i class="ti ti-search"></i></span>
                     </div>
                     <div id="add-contact-search-results" class="mt-2" style="display:none; max-height:150px; overflow-y:auto;"></div>
                 </div>
-                <hr class="my-3">
-                <p class="text-muted small mb-2">{{ __('Or add by email and phone:') }}</p>
-                <form id="register-form" method="POST" action="javascript:void(0)" onsubmit="return false;">
-                    @csrf
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">{{ __('First Name')}}</label>
-                                <div class="input-icon position-relative">
-                                    <input type="text" name="first_name" class="form-control validate-input" id="first_name" value="{{ old('first_name') }}">
-                                    <span class="input-icon-addon">
-                                        <i class="ti ti-user"></i>
-                                    </span>
-                                    <div class="invalid-feedback" id="firstNameError">
-                                        @error('first_name')
-                                        {{ $message }}
-                                        @enderror
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">{{ __('Last Name')}}</label>
-                                <div class="input-icon position-relative">
-                                    <input type="text" name="last_name" class="form-control validate-input" id="last_name" value="{{ old('last_name') }}">
-                                    <span class="input-icon-addon">
-                                        <i class="ti ti-user"></i>
-                                    </span>
-                                    <div class="invalid-feedback" id="lastNameError">
-                                        @error('last_name')
-                                        {{ $message }}
-                                        @enderror
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">{{ __('Email')}}</label>
-                                <div class="input-icon position-relative">
-                                    <input type="text" name="email_new" class="form-control validate-input" id="email_new" value="{{ old('email_new') }}">
-                                    <span class="input-icon-addon">
-                                        <i class="ti ti-mail"></i>
-                                    </span>
-                                    <div class="invalid-feedback" id="emailError">
-                                        @error('email_new')
-                                        {{ $message }}
-                                        @enderror
-                                    </div>
-                                    <div class="invalid-feedback" id="emailCharError">
-                                        @error('email_new')
-                                        {{ $message }}
-                                        @enderror
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">{{ __('Phone')}}</label>
-                                <div class="input-icon position-relative">
-                                    <input type="text" name="mobile_number_new" class="form-control validate-input" id="mobile_number_new" oninput="this.value=this.value.slice(0,13);" value="{{ old('mobile_number_new') }}" maxlength="13">
-                                    <span class="input-icon-addon">
-                                        <i class="ti ti-phone"></i>
-                                    </span>
-                                    <div class="invalid-feedback" id="mobileNumberError">
-                                        @error('mobile_number_new')
-                                        {{ $message }}
-                                        @enderror
-                                    </div>
-                                    <div class="invalid-feedback" id="mobileNumberCharError">
-                                        @error('mobile_number_new')
-                                        {{ $message }}
-                                        @enderror
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal"
-                                aria-label="Close">{{ __('Cancel')}}</a>
-                        </div>
-                        <div class="col-6">
-                            <button type="button" id="submit-contact-button" class="btn btn-primary w-100">{{ __('Add Contact') }}</button>
-                        </div>
-                    </div>
-                </form>
+                <p class="text-muted small mb-0">{{ __('Start typing a username or email to find people to add as contacts.') }}</p>
             </div>
         </div>
     </div>

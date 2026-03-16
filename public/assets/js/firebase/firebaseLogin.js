@@ -288,7 +288,7 @@ function getDeviceInfo() {
                                     'Accept': 'application/json',
                                     'X-CSRF-TOKEN': csrfToken || ''
                                 },
-                                body: JSON.stringify({ firebase_token: idToken })
+                                body: JSON.stringify({ email: email, password: password, firebase_token: idToken })
                             });
                         })
                         .then(function(r) {

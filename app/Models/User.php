@@ -22,7 +22,7 @@ class User extends Authenticatable implements JWTSubject
      * @var array<int, string>
      */
     protected $fillable = [
-        'first_name', 'last_name', 'full_name', 'email', 'user_name', 'password', 'user_type', 'api_token', 'gender', 'dob', 'mobile_number', 'profile_image', 'provider', 'provider_id', 'last_login_at',
+        'first_name', 'last_name', 'full_name', 'email', 'user_name', 'password', 'user_type', 'api_token', 'gender', 'dob', 'mobile_number', 'profile_image', 'provider', 'provider_id', 'firebase_uid', 'last_login_at',
         'company_name', 'company_domain', 'country', 'primary_role', 'other_role_text', 'terms_accepted_at', 'kyc_verified_at', 'kyc_provider_id', 'subscription_status',
         'profile_display_name',
         'two_factor_secret', 'two_factor_enabled_at', 'is_blocked',

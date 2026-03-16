@@ -68,7 +68,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                 uid: userId,
                                 firstName: contact.firstName || userData.firstName || "",
                                 lastName: contact.lastName || userData.lastName ||  "",
-                                userName: userData.username || userData.userName || userData.profileName || "",
+                                userName: userData.username || userData.userName || userData.profileName || contact.user_name || "",
                                 image: userData.image || "assets/img/profiles/avatar-03.jpg",
                                 mobile_number: contact.mobile_number || userData.mobile_number ||  "",
                                 email: contact.email || userData.email ||  "",
@@ -88,10 +88,18 @@ initializeFirebase(function (app, auth, database, storage) {
                 // Sort valid users alphabetically by first name
                 validUsersArray.sort((a, b) => a.firstName.localeCompare(b.firstName));
     
+                const searchLower = searchTerm.toLowerCase();
                 const filteredUsersArray = validUsersArray.filter(user =>
-                    (user.firstName && user.firstName.toLowerCase().includes(searchTerm)) ||
-                    (user.lastName && user.lastName.toLowerCase().includes(searchTerm)) ||
-                    (user.userName && user.userName.toLowerCase().includes(searchTerm))
+                    (user.firstName && user.firstName.toLowerCase().includes(searchLower)) ||
+                    (user.lastName && user.lastName.toLowerCase().includes(searchLower)) ||
+                    (user.userName && user.userName.toLowerCase().includes(searchLower))
+                );
+                const filteredOthersArray = othersArray.filter(user =>
+                    !searchLower ||
+                    (user.email && user.email.toLowerCase().includes(searchLower)) ||
+                    (user.userName && user.userName.toLowerCase().includes(searchLower)) ||
+                    (user.firstName && user.firstName.toLowerCase().includes(searchLower)) ||
+                    (user.lastName && user.lastName.toLowerCase().includes(searchLower))
                 );
     
                 // Group users by the first letter of their first name
@@ -104,9 +112,9 @@ initializeFirebase(function (app, auth, database, storage) {
                     return groups;
                 }, {});
     
-                // Include the 'Others' category
-                if (othersArray.length > 0) {
-                    groupedUsers['Others'] = othersArray;
+                // Include the 'Others' category (includes pending contacts)
+                if (filteredOthersArray.length > 0) {
+                    groupedUsers['Others'] = filteredOthersArray;
                 }
     
                 // Clear the container first to avoid duplicates
@@ -591,69 +599,176 @@ initializeFirebase(function (app, auth, database, storage) {
     });
 
 
-    // Search by username - add contact from API results
+    // Search by username or email - add contact from API results (event delegation so it works when modal is injected by SPA)
     let addContactSearchTimeout;
-    const addContactSearchInput = document.getElementById("add-contact-username-search");
-    const addContactSearchResults = document.getElementById("add-contact-search-results");
-    if (addContactSearchInput && addContactSearchResults) {
-        addContactSearchInput.addEventListener("input", function () {
-            const q = this.value.trim();
-            clearTimeout(addContactSearchTimeout);
-            if (q.length < 2) {
-                addContactSearchResults.style.display = "none";
-                addContactSearchResults.innerHTML = "";
-                return;
-            }
-            addContactSearchTimeout = setTimeout(() => {
-                fetch(`/api/users/search?q=${encodeURIComponent(q)}`, { credentials: 'same-origin' })
-                    .then(r => r.json())
-                    .then(data => {
-                        const users = data.users || [];
-                        addContactSearchResults.innerHTML = "";
-                        if (users.length === 0) {
-                            addContactSearchResults.innerHTML = '<p class="text-muted small mb-0 p-2">No users found.</p>';
-                        } else {
-                            users.forEach(u => {
-                                const div = document.createElement("div");
-                                div.className = "d-flex align-items-center justify-content-between p-2 border-bottom";
-                                div.innerHTML = `
-                                    <div class="d-flex align-items-center">
-                                        <img src="${u.profile_image || 'assets/img/profiles/avatar-03.jpg'}" class="rounded-circle me-2" width="32" height="32" alt="">
-                                        <div>
-                                            <strong>${u.full_name || (u.first_name + ' ' + u.last_name) || u.user_name || 'User'}</strong>
-                                            <br><small class="text-muted">@${u.user_name || ''}</small>
-                                        </div>
+    document.addEventListener("input", function (e) {
+        if (e.target.id !== "add-contact-username-search") return;
+        const addContactSearchResults = document.getElementById("add-contact-search-results");
+        if (!addContactSearchResults) return;
+        const q = (e.target.value || "").trim();
+        clearTimeout(addContactSearchTimeout);
+        if (q.length < 2) {
+            addContactSearchResults.style.display = "none";
+            addContactSearchResults.innerHTML = "";
+            return;
+        }
+        addContactSearchTimeout = setTimeout(() => {
+            fetch(`/api/users/search?q=${encodeURIComponent(q)}`, { credentials: "same-origin", headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" } })
+                .then(r => {
+                    if (!r.ok) throw new Error("Search failed");
+                    return r.json();
+                })
+                .then(data => {
+                    const users = data.users || [];
+                    addContactSearchResults.innerHTML = "";
+                    if (users.length === 0) {
+                        addContactSearchResults.innerHTML = '<p class="text-muted small mb-0 p-2">No users found.</p>';
+                    } else {
+                        users.forEach(u => {
+                            const div = document.createElement("div");
+                            div.className = "d-flex align-items-center justify-content-between p-2 border-bottom";
+                            const displayName = u.full_name || [u.first_name, u.last_name].filter(Boolean).join(" ") || u.user_name || "User";
+                            const email = u.email || "";
+                            div.innerHTML = `
+                                <div class="d-flex align-items-center">
+                                    <img src="${(u.profile_image || "assets/img/profiles/avatar-03.jpg").replace(/"/g, "&quot;")}" class="rounded-circle me-2" width="32" height="32" alt="">
+                                    <div>
+                                        <strong>${displayName.replace(/</g, "&lt;")}</strong>
+                                        <br><small class="text-muted">@${(u.user_name || "").replace(/</g, "&lt;")}</small>
+                                        ${email ? `<br><small class="text-muted">${email.replace(/</g, "&lt;")}</small>` : ""}
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-primary add-contact-from-search" ${!u.firebase_uid ? 'disabled title="User not yet on chat"' : ''} data-uid="${u.firebase_uid || ''}" data-name="${(u.full_name || u.first_name + ' ' + u.last_name || u.user_name || '').replace(/"/g, '&quot;')}" data-username="${(u.user_name || '').replace(/"/g, '&quot;')}">Add</button>
-                                `;
-                                addContactSearchResults.appendChild(div);
-                            });
-                            addContactSearchResults.querySelectorAll(".add-contact-from-search").forEach(btn => {
-                                btn.addEventListener("click", function () {
-                                    const uid = this.getAttribute("data-uid");
-                                    const name = this.getAttribute("data-name") || "";
-                                    const username = this.getAttribute("data-username") || "";
-                                    if (!uid) return;
-                                    addContactFromSearch(uid, name, username);
-                                });
-                            });
-                        }
-                        addContactSearchResults.style.display = "block";
-                    })
-                    .catch(() => {
-                        addContactSearchResults.innerHTML = '<p class="text-danger small mb-0 p-2">Search failed.</p>';
-                        addContactSearchResults.style.display = "block";
-                    });
-            }, 300);
+                                </div>
+                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${(u.firebase_uid || "").replace(/"/g, "&quot;")}" data-email="${(email || "").replace(/"/g, "&quot;")}" data-name="${displayName.replace(/"/g, "&quot;")}" data-username="${(u.user_name || "").replace(/"/g, "&quot;")}">Add</button>
+                            `;
+                            addContactSearchResults.appendChild(div);
+                        });
+                        // Buttons are in the DOM; click is handled via delegation below
+                    }
+                    addContactSearchResults.style.display = "block";
+                })
+                .catch(() => {
+                    addContactSearchResults.innerHTML = '<p class="text-danger small mb-0 p-2">Search failed.</p>';
+                    addContactSearchResults.style.display = "block";
+                });
+        }, 300);
+    });
+
+    // Event delegation: handle Add button click so it works even when results are re-rendered or modal is injected by SPA
+    document.addEventListener("click", function (e) {
+        const btn = e.target.closest(".add-contact-from-search");
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!auth.currentUser) {
+            if (typeof Swal !== "undefined") Swal.fire({ text: "Please sign in to add contacts.", icon: "warning", width: 400 });
+            else alert("Please sign in to add contacts.");
+            return;
+        }
+        let uid = (btn.getAttribute("data-uid") || "").trim();
+        const name = (btn.getAttribute("data-name") || "").trim();
+        const username = (btn.getAttribute("data-username") || "").trim();
+        const email = (btn.getAttribute("data-email") || "").trim();
+        if (!uid && !email && !username && !name) {
+            if (typeof Swal !== "undefined") Swal.fire({ text: "Cannot add: no user info.", icon: "info", width: 400 });
+            return;
+        }
+        (uid ? Promise.resolve(uid) : resolveEmailOrUsernameToFirebaseUid(email, username))
+            .then(resolvedUid => {
+                if (resolvedUid === auth.currentUser?.uid) {
+                    Swal.fire({ text: "You can't add yourself to contacts.", icon: "info", width: 400 });
+                    return;
+                }
+                if (resolvedUid) {
+                    addContactFromSearch(resolvedUid, name, username, email);
+                } else {
+                    addPendingContact(email, username, name);
+                }
+            })
+            .catch(err => {
+                if (typeof Swal !== "undefined") Swal.fire({ text: err && err.message ? err.message : "Could not add contact.", icon: "error", width: 400 });
+                else alert("Could not add contact.");
+            });
+    });
+
+    /** Resolve Firebase UID from email or username when API did not return firebase_uid (e.g. Laravel user not yet linked). */
+    function resolveEmailOrUsernameToFirebaseUid(email, username) {
+        if (!email && !username) return Promise.resolve(null);
+        const usersRef = ref(database, "data/users");
+        return get(usersRef)
+            .then(snapshot => {
+                if (!snapshot.exists()) return null;
+                const emailLower = (email || "").toLowerCase().trim();
+                const usernameLower = (username || "").toLowerCase().trim();
+                let found = null;
+                snapshot.forEach(child => {
+                    if (found) return;
+                    const d = child.val();
+                    if (!d) return;
+                    const uEmail = (d.email || "").toLowerCase().trim();
+                    const uName = (d.username || d.userName || "").toLowerCase().trim();
+                    if (emailLower && uEmail === emailLower) found = child.key;
+                    else if (usernameLower && uName === usernameLower) found = child.key;
+                });
+                return found;
+            })
+            .catch(() => null);
+    }
+
+    /** Add a contact when we have no Firebase UID (pending contact). They appear in the list; chat works once they sign in. */
+    function addPendingContact(email, username, displayName) {
+        const loggedInUserId = auth.currentUser?.uid;
+        if (!loggedInUserId) {
+            if (typeof Swal !== "undefined") Swal.fire({ text: "Please sign in to add contacts.", icon: "warning", width: 400 });
+            return;
+        }
+        const emailOrUsername = (email || username || (displayName || "").trim() || "").trim() || "unknown";
+        const keySuffix = typeof btoa !== "undefined"
+            ? btoa(emailOrUsername).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "").substring(0, 100)
+            : "pending_" + emailOrUsername.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 80);
+        const syntheticKey = "pending_" + keySuffix;
+        const contactRef = ref(database, `data/contacts/${loggedInUserId}/${syntheticKey}`);
+        const contactsRef = ref(database, `data/contacts/${loggedInUserId}`);
+        get(contactsRef).then(snap => {
+            if (snap.exists()) {
+                const contacts = snap.val();
+                const already = Object.keys(contacts).some(k => {
+                    const c = contacts[k] || {};
+                    const cEmail = (c.email || "").toLowerCase().trim();
+                    const cUser = (c.user_name || "").toLowerCase().trim();
+                    const e = (email || "").toLowerCase().trim();
+                    const u = (username || "").toLowerCase().trim();
+                    return (e && cEmail === e) || (u && cUser === u);
+                });
+                if (already) {
+                    Swal.fire({ text: "Contact already in your list!", icon: "info", width: 400 });
+                    return;
+                }
+            }
+            set(contactRef, {
+                contact_id: syntheticKey,
+                email: (email || "").trim(),
+                user_name: (username || "").trim(),
+                pending: true,
+            }).then(() => {
+                Swal.fire({ text: "Contact added! They will appear in your list; you can chat once they sign in to the app.", icon: "success", width: 420 }).then(() => {
+                    const inputEl = document.getElementById("add-contact-username-search");
+                    const resultsEl = document.getElementById("add-contact-search-results");
+                    if (inputEl) inputEl.value = "";
+                    if (resultsEl) { resultsEl.style.display = "none"; resultsEl.innerHTML = ""; }
+                    displayUsers();
+                    bootstrap.Modal.getInstance(document.getElementById("add-contact"))?.hide();
+                });
+            }).catch(err => Swal.fire({ text: err.message || "Failed to add", icon: "error", width: 400 }));
         });
     }
 
-    function addContactFromSearch(firebaseUid, displayName, username) {
+    function addContactFromSearch(firebaseUid, displayName, username, emailFromApi) {
         const loggedInUserId = auth.currentUser?.uid;
-        if (!loggedInUserId || !firebaseUid) return;
-        const nameParts = (displayName || username || "User").trim().split(/\s+/);
-        const firstName = nameParts[0] || "Contact";
-        const lastName = nameParts.slice(1).join(" ") || "";
+        if (!loggedInUserId) {
+            if (typeof Swal !== "undefined") Swal.fire({ text: "Please sign in to add contacts.", icon: "warning", width: 400 });
+            return;
+        }
+        if (!firebaseUid) return;
         const contactRef = ref(database, `data/contacts/${loggedInUserId}/${firebaseUid}`);
         get(contactRef).then(snap => {
             if (snap.exists()) {
@@ -662,17 +777,16 @@ initializeFirebase(function (app, auth, database, storage) {
             }
             get(ref(database, `data/users/${firebaseUid}`)).then(userSnap => {
                 const userData = userSnap.exists() ? userSnap.val() : {};
+                const email = userData.email || emailFromApi || "";
                 set(contactRef, {
                     contact_id: firebaseUid,
-                    email: userData.email || "",
-                    firstName: firstName,
-                    lastName: lastName,
-                    mobile_number: userData.mobile_number || "",
+                    email: email,
                 }).then(() => {
                     Swal.fire({ text: "Contact added!", icon: "success", width: 400 }).then(() => {
-                        addContactSearchInput.value = "";
-                        addContactSearchResults.style.display = "none";
-                        addContactSearchResults.innerHTML = "";
+                        const inputEl = document.getElementById("add-contact-username-search");
+                        const resultsEl = document.getElementById("add-contact-search-results");
+                        if (inputEl) inputEl.value = "";
+                        if (resultsEl) { resultsEl.style.display = "none"; resultsEl.innerHTML = ""; }
                         displayUsers();
                         bootstrap.Modal.getInstance(document.getElementById("add-contact"))?.hide();
                     });
@@ -681,22 +795,7 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    // Use event delegation so Add Contact works when modal is injected later (e.g. SPA navigation to /contact)
-    document.addEventListener("submit", function (e) {
-        if (e.target && e.target.id === "register-form" && e.target.closest("#add-contact")) {
-            handleRegisterFormSubmit(e);
-        }
-    });
-    document.addEventListener("click", function (e) {
-        if (e.target.closest("#submit-contact-button")) {
-            var form = document.getElementById("register-form");
-            if (form && form.closest("#add-contact")) {
-                e.preventDefault();
-                e.stopPropagation();
-                handleRegisterFormSubmit(e);
-            }
-        }
-    });
+    // Add contact is now only via search results (no register-form)
 
 
 
