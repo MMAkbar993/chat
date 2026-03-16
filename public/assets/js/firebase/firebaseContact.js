@@ -620,7 +620,7 @@ initializeFirebase(function (app, auth, database, storage) {
         if (!addContactSearchResults) return;
         const q = (e.target.value || "").trim();
         clearTimeout(addContactSearchTimeout);
-        if (q.length < 2) {
+        if (q.length < 4) {
             addContactSearchResults.style.display = "none";
             addContactSearchResults.innerHTML = "";
             return;
@@ -641,17 +641,15 @@ initializeFirebase(function (app, auth, database, storage) {
                             const div = document.createElement("div");
                             div.className = "d-flex align-items-center justify-content-between p-2 border-bottom";
                             const displayName = u.full_name || [u.first_name, u.last_name].filter(Boolean).join(" ") || u.user_name || "User";
-                            const email = u.email || "";
                             div.innerHTML = `
                                 <div class="d-flex align-items-center">
                                     <img src="${(u.profile_image || "assets/img/profiles/avatar-03.jpg").replace(/"/g, "&quot;")}" class="rounded-circle me-2" width="32" height="32" alt="">
                                     <div>
                                         <strong>${displayName.replace(/</g, "&lt;")}</strong>
                                         <br><small class="text-muted">@${(u.user_name || "").replace(/</g, "&lt;")}</small>
-                                        ${email ? `<br><small class="text-muted">${email.replace(/</g, "&lt;")}</small>` : ""}
                                     </div>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${(u.firebase_uid || "").replace(/"/g, "&quot;")}" data-email="${(email || "").replace(/"/g, "&quot;")}" data-name="${displayName.replace(/"/g, "&quot;")}" data-username="${(u.user_name || "").replace(/"/g, "&quot;")}">Add</button>
+                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${(u.firebase_uid || "").replace(/"/g, "&quot;")}" data-name="${displayName.replace(/"/g, "&quot;")}" data-username="${(u.user_name || "").replace(/"/g, "&quot;")}">Add</button>
                             `;
                             addContactSearchResults.appendChild(div);
                         });

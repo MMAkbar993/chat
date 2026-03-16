@@ -338,7 +338,8 @@ class WebsiteController extends Controller
             $userWebsite->delete();
 
             return send_success_response([], 'Website removed successfully.');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Website destroy failed', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return send_exception_response($e->getMessage());
         }
     }

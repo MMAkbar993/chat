@@ -27,14 +27,14 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">{{ __('Search by Username or Email') }}</label>
+                    <label class="form-label">{{ __('Search by Username or Name') }}</label>
                     <div class="input-group">
-                        <input type="text" id="add-contact-username-search" class="form-control" placeholder="{{ __('Type username or email to search...') }}" minlength="2">
+                        <input type="text" id="add-contact-username-search" class="form-control" placeholder="{{ __('Type at least 4 characters (exact spelling)...') }}" minlength="4">
                         <span class="input-group-text"><i class="ti ti-search"></i></span>
                     </div>
                     <div id="add-contact-search-results" class="mt-2" style="display:none; max-height:150px; overflow-y:auto;"></div>
                 </div>
-                <p class="text-muted small mb-0">{{ __('Start typing a username or email to find people to add as contacts.') }}</p>
+                <p class="text-muted small mb-0">{{ __('Enter at least 4 characters with exact spelling to find people by name or username.') }}</p>
             </div>
         </div>
     </div>

@@ -1181,9 +1181,10 @@
                                                                                         }
                                                                                         if (typeof showToast === 'function') showToast(res.message || (res.data && res.data.message) || '{{ __("Account disconnected.") }}'); else alert(res.message || (res.data && res.data.message) || '{{ __("Account disconnected.") }}');
                                                                                     } else {
-                                                                                        if (typeof showToast === 'function') showToast((res.message || (res.data && res.data.message)) || '{{ __("Could not remove account.") }}', true); else alert((res.message || (res.data && res.data.message)) || '{{ __("Could not remove account.") }}');
+                                                                                        var errMsg = res.message || (res.data && res.data.message) || (res.data && res.data.error && res.data.error.user_message) || '{{ __("Could not remove account.") }}';
+                                                                                        if (typeof showToast === 'function') showToast(errMsg, true); else alert(errMsg);
                                                                                     }
-                                                                                }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Could not remove account.") }}', true); else alert('{{ __("Could not remove account.") }}'); });
+                                                                                }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Something went wrong. Please try again.") }}', true); else alert('{{ __("Something went wrong. Please try again.") }}'); });
                                                                             });
                                                                         });
                                                                         function attachSocialDisconnectHandlers() {
@@ -1213,9 +1214,10 @@
                                                                                             }
                                                                                             if (typeof showToast === 'function') showToast(res.message || (res.data && res.data.message) || '{{ __("Account disconnected.") }}'); else alert(res.message || (res.data && res.data.message) || '{{ __("Account disconnected.") }}');
                                                                                         } else {
-                                                                                            if (typeof showToast === 'function') showToast((res.message || (res.data && res.data.message)) || '{{ __("Could not remove account.") }}', true); else alert((res.message || (res.data && res.data.message)) || '{{ __("Could not remove account.") }}');
+                                                                                            var errMsg = res.message || (res.data && res.data.message) || (res.data && res.data.error && res.data.error.user_message) || '{{ __("Could not remove account.") }}';
+                                                                                            if (typeof showToast === 'function') showToast(errMsg, true); else alert(errMsg);
                                                                                         }
-                                                                                    }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Could not remove account.") }}', true); else alert('{{ __("Could not remove account.") }}'); });
+                                                                                    }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Something went wrong. Please try again.") }}', true); else alert('{{ __("Something went wrong. Please try again.") }}'); });
                                                                                 });
                                                                             });
                                                                         }
@@ -1284,9 +1286,9 @@
                                                                                     this.disabled = true;
                                                                                     var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
                                                                                     fetch('{{ url("/settings/websites") }}/' + id, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
-                                                                                        .then(function(r) { return r.json(); })
+                                                                                        .then(function(r) { return r.json().catch(function() { return null; }).then(function(d) { return { ok: r.ok, status: r.status, data: d || {}, code: d && d.code, message: d && d.message }; }); })
                                                                                         .then(function(res) {
-                                                                                            if (res.code === '200' || res.code === 200) {
+                                                                                            if (res.ok && (res.code === '200' || res.code === 200)) {
                                                                                                 if (row) row.remove();
                                                                                                 showToast(res.message || '{{ __("Website removed.") }}');
                                                                                                 var listGroup = document.getElementById('website-list-group');
@@ -1301,11 +1303,12 @@
                                                                                                     }
                                                                                                 }
                                                                                             } else {
-                                                                                                showToast(res.message || '{{ __("Could not remove website.") }}', true);
+                                                                                                var errMsg = res.message || (res.data && res.data.error && res.data.error.user_message) || '{{ __("Could not remove website.") }}';
+                                                                                                showToast(errMsg, true);
                                                                                                 btn.disabled = false;
                                                                                             }
                                                                                         })
-                                                                                        .catch(function() { showToast('{{ __("Could not remove website.") }}', true); btn.disabled = false; });
+                                                                                        .catch(function() { showToast('{{ __("Something went wrong. Please try again.") }}', true); btn.disabled = false; });
                                                                                 });
                                                                             });
                                                                         }

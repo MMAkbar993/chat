@@ -18,34 +18,33 @@ class UserSearchController extends Controller
     {
         try {
             $request->validate([
-                'q' => 'required|string|min:2|max:100',
+                'q' => 'required|string|min:4|max:100',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json(['users' => [], 'message' => 'Search term must be 2–100 characters.'], 422);
+            return response()->json(['users' => [], 'message' => 'Enter at least 4 characters with exact spelling.'], 422);
         }
 
-        $query = strtolower(trim($request->input('q')));
-        $cacheKey = 'user_search:' . md5($query);
+        $query = trim($request->input('q'));
+        $queryLower = mb_strtolower($query);
+        $cacheKey = 'user_search:' . md5($queryLower);
 
         try {
-            $users = Cache::remember($cacheKey, 60, function () use ($query) {
+            $users = Cache::remember($cacheKey, 60, function () use ($query, $queryLower) {
                 $userTable = (new User)->getTable();
                 $hasFirebaseUid = Schema::hasColumn($userTable, 'firebase_uid');
                 $selectColumns = [
-                    'id', 'first_name', 'last_name', 'full_name', 'user_name', 'email',
+                    'id', 'first_name', 'last_name', 'full_name', 'user_name',
                     'company_name', 'primary_role', 'country', 'profile_image', 'kyc_verified_at',
                 ];
                 if ($hasFirebaseUid) {
                     $selectColumns[] = 'firebase_uid';
                 }
 
-                return User::where(function ($q) use ($query) {
-                    $q->where('user_name', 'like', "%{$query}%")
-                        ->orWhere('email', 'like', "%{$query}%")
-                        ->orWhere('first_name', 'like', "%{$query}%")
-                        ->orWhere('last_name', 'like', "%{$query}%")
-                        ->orWhere('full_name', 'like', "%{$query}%")
-                        ->orWhere('company_name', 'like', "%{$query}%");
+                return User::where(function ($q) use ($queryLower) {
+                    $q->whereRaw('LOWER(user_name) = ?', [$queryLower])
+                        ->orWhereRaw('LOWER(first_name) = ?', [$queryLower])
+                        ->orWhereRaw('LOWER(last_name) = ?', [$queryLower])
+                        ->orWhereRaw('LOWER(full_name) = ?', [$queryLower]);
                 })
                     ->select($selectColumns)
                     ->limit(20)
@@ -57,7 +56,6 @@ class UserSearchController extends Controller
                             'last_name' => $user->last_name,
                             'full_name' => $user->full_name,
                             'user_name' => $user->user_name,
-                            'email' => $user->email,
                             'company_name' => $user->company_name,
                             'primary_role' => $user->primary_role,
                             'country' => $user->country,

@@ -80,3 +80,9 @@
 {"sessionId":"3be6ca","location":"script.blade:applyLaravelProfile","message":"applyLaravelProfile applying","data":{"forceApply":true,"FIREBASE_DISABLED":false},"timestamp":1773681120239,"hypothesisId":"H4"}
 {"sessionId":"3be6ca","location":"firebaseSidebar.js:applyProfileFromFirebase","message":"applyProfileFromFirebase called","data":{"hasKeys":23,"firstName":true,"email":true},"timestamp":1773681120352,"hypothesisId":"H1"}
 {"sessionId":"3be6ca","location":"script.blade:applyLaravelProfile","message":"applyLaravelProfile applying","data":{"forceApply":true,"FIREBASE_DISABLED":false},"timestamp":1773681121561,"hypothesisId":"H4"}
+{"sessionId":"3be6ca","location":"script.blade:applyLaravelProfile","message":"applyLaravelProfile applying","data":{"forceApply":true,"FIREBASE_DISABLED":false},"timestamp":1773681648379,"hypothesisId":"H4"}
+{"sessionId":"3be6ca","location":"script.blade:applyLaravelProfile","message":"applyLaravelProfile applying","data":{"forceApply":true,"FIREBASE_DISABLED":false},"timestamp":1773681656286,"hypothesisId":"H4"}
+{"sessionId":"3be6ca","location":"firebaseSidebar.js:applyProfileFromFirebase","message":"applyProfileFromFirebase called","data":{"hasKeys":23,"firstName":true,"email":true},"timestamp":1773681657216,"hypothesisId":"H1"}
+{"sessionId":"3be6ca","location":"script.blade:applyLaravelProfile","message":"applyLaravelProfile applying","data":{"forceApply":true,"FIREBASE_DISABLED":false},"timestamp":1773681901815,"hypothesisId":"H4"}
+{"sessionId":"3be6ca","location":"firebaseSidebar.js:applyProfileFromFirebase","message":"applyProfileFromFirebase called","data":{"hasKeys":23,"firstName":true,"email":true},"timestamp":1773681902767,"hypothesisId":"H1"}
+{"sessionId":"3be6ca","location":"script.blade:applyLaravelProfile","message":"applyLaravelProfile applying","data":{"forceApply":true,"FIREBASE_DISABLED":false},"timestamp":1773681902850,"hypothesisId":"H4"}

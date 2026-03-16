@@ -322,14 +322,14 @@ class SocialAccountController extends Controller
                 // Ignore cache failure
             }
 
-            return send_success_response(['platform' => $platform], __('Account disconnected.'));
+            return send_success_response(['platform' => (string) $platform], __('Account disconnected.'));
         } catch (\Throwable $e) {
             try {
                 Log::error('Social disconnect failed', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             } catch (\Throwable $logEx) {
                 // ignore log failure
             }
-            return send_success_response(['error' => true], __('Could not disconnect account. Error: ') . $e->getMessage());
+            return send_success_response(['error' => true], __('Could not disconnect account. Please try again.'));
         }
     }
 
