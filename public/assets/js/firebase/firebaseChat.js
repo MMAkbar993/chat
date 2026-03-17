@@ -6998,16 +6998,6 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             };
 
-            // Alternative 5: Add button to trigger manual subscription
-            const manualButton = document.createElement('button');
-            manualButton.textContent = 'Manual Subscribe to Users';
-            manualButton.style.position = 'fixed';
-            manualButton.style.top = '10px';
-            manualButton.style.right = '10px';
-            manualButton.style.zIndex = '9999';
-            manualButton.onclick = window.manualSubscribeToUsers;
-            document.body.appendChild(manualButton);
-
         } catch (error) {
             console.error("Agora Join Error:", error);
         }
@@ -7587,16 +7577,6 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             };
 
-            // Add button to trigger manual video subscription
-            const videoManualButton = document.createElement('button');
-            videoManualButton.textContent = 'Manual Subscribe to Video Users';
-            videoManualButton.style.position = 'fixed';
-            videoManualButton.style.top = '50px';
-            videoManualButton.style.right = '10px';
-            videoManualButton.style.zIndex = '9999';
-            videoManualButton.onclick = window.manualSubscribeToVideoUsers;
-            document.body.appendChild(videoManualButton);
-
         } catch (error) {
             console.error("Agora Video Join Error:", error);
             cleanUpVideoLocalState(); // Clean up if join fails
@@ -7791,12 +7771,6 @@ initializeFirebase(function (app, auth, database, storage) {
         // Clean up video users tracking
         if (window.agoraVideoUsers) {
             window.agoraVideoUsers = {};
-        }
-
-        // Remove manual video subscription button
-        const videoManualButton = document.querySelector('button[onclick="window.manualSubscribeToVideoUsers"]');
-        if (videoManualButton) {
-            videoManualButton.remove();
         }
 
         const remotePlayerList = document.getElementById("remote-playerlist");
