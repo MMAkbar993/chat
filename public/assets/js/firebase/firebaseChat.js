@@ -7417,14 +7417,8 @@ initializeFirebase(function (app, auth, database, storage) {
 
     async function joinAgoraVideoChannel(channelName, uid) {
         try {
-            // #region agent log
-            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:joinAgoraVideoChannel:entry',message:'Join video channel attempt',data:{channelName,uid,uidType:typeof uid,connectionState:videoClient.connectionState},hypothesisId:'H4-H5',timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
             // Prevent joining if already connected or connecting
             if (videoClient.connectionState === 'CONNECTED' || videoClient.connectionState === 'CONNECTING') {
-                // #region agent log
-                fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:joinAgoraVideoChannel:earlyReturn',message:'Skipped join already connected',data:{connectionState:videoClient.connectionState},hypothesisId:'H4',timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 return;
             }
 
@@ -7438,9 +7432,6 @@ initializeFirebase(function (app, auth, database, storage) {
             if (ht) ht.textContent = '00:00:00';
 
             await videoClient.join(VIDEO_APP_ID, channelName, null, uid);
-            // #region agent log
-            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:joinAgoraVideoChannel:afterJoin',message:'Agora join success',data:{channelName,uid},hypothesisId:'H5',timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
 
             // Create tracks in parallel
             [localAudioTrackForVideo, localVideoTrack] = await Promise.all([
@@ -7449,9 +7440,6 @@ initializeFirebase(function (app, auth, database, storage) {
             ]);
 
             await videoClient.publish([localAudioTrackForVideo, localVideoTrack]);
-            // #region agent log
-            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:joinAgoraVideoChannel:afterPublish',message:'Local tracks published',data:{channelName,uid},hypothesisId:'H5',timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
 
             const localPlayerContainer = document.getElementById('video-container');
             localPlayerContainer.innerHTML = ''; // Clear any previous profile image
@@ -7462,18 +7450,12 @@ initializeFirebase(function (app, auth, database, storage) {
             // Alternative approach: Use user-joined event instead of user-published for video calls
             videoClient.on("user-joined", async (user) => {
                 console.log(`Video user ${user.uid} joined the channel ${channelName}`);
-                // #region agent log
-                fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:user-joined',message:'Remote user joined',data:{remoteUid:user.uid,hasVideoTrack:!!user.videoTrack,hasAudioTrack:!!user.audioTrack,channelName},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
 
                 try {
                     // Subscribe to both audio and video immediately when user joins
                     await videoClient.subscribe(user, "audio");
                     await videoClient.subscribe(user, "video");
                     console.log(`Successfully subscribed to audio and video for user ${user.uid}`);
-                    // #region agent log
-                    fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:user-joined:afterSubscribe',message:'Subscribed to remote',data:{remoteUid:user.uid,hasVideoTrack:!!user.videoTrack,hasAudioTrack:!!user.audioTrack},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-                    // #endregion
 
                     // Store user info for better tracking
                     if (!window.agoraVideoUsers) window.agoraVideoUsers = {};
@@ -7622,9 +7604,6 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     async function handleUserPublished(user, mediaType) {
-        // #region agent log
-        fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:handleUserPublished',message:'Remote user published',data:{remoteUid:user.uid,mediaType},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         await videoClient.subscribe(user, mediaType);
 
         let remotePlayerContainer = document.getElementById(`remote-player-${user.uid}`);
@@ -8079,9 +8058,6 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
                 // Join the channel if we are not already connected.
                 const willJoin = !localVideoTrack && videoClient.connectionState !== 'CONNECTED';
-                // #region agent log
-                fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:video-call-onValue',message:'Call accepted state',data:{duration:callToProcess.duration,inOrOut:callToProcess.inOrOut,currentUid:currentUser.uid,channelName:callToProcess.channelName,localVideoTrack:!!localVideoTrack,connState:videoClient.connectionState,willJoin},hypothesisId:'H1-H2',timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 if (willJoin) {
                     updateRemoteUserDetails(otherUserId); // Pre-populate remote user details
                     joinAgoraVideoChannel(callToProcess.channelName, currentUser.uid);
