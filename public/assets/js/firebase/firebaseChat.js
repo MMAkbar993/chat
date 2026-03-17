@@ -46,6 +46,15 @@ initializeFirebase(function (app, auth, database, storage) {
     let selectedUserId = null; // Store the selected user ID
     let currentUserId = null;
 
+    /* Set body attribute immediately so at 1200px+ the message panel shows (CSS uses data-chat-panel) */
+    if (typeof document !== "undefined" && document.body) {
+        var p = (typeof location !== "undefined" && location.pathname) ? location.pathname.replace(/\/+$/, "") || "/" : "";
+        var onChat = p === "/chat" || p === "/index";
+        var hasUser = false;
+        try { hasUser = !!(localStorage.getItem("selectedUserId") || (typeof location !== "undefined" && location.search && new URLSearchParams(location.search).get("user"))); } catch (e) {}
+        document.body.setAttribute("data-chat-panel", onChat && hasUser ? "visible" : "welcome");
+    }
+
     // Set session persistence
     setPersistence(auth, browserLocalPersistence)
         .then(() => {
@@ -75,7 +84,8 @@ initializeFirebase(function (app, auth, database, storage) {
                         function showChatPanelIfPresent() {
                             const middleEl = document.getElementById("middle");
                             const welcomeEl = document.getElementById("welcome-container");
-                            if (middleEl) middleEl.style.setProperty("display", "flex", "important");
+                            if (middleEl) { middleEl.style.setProperty("display", "flex", "important"); middleEl.classList.add("message-panel-visible"); }
+                            if (document.body) document.body.setAttribute("data-chat-panel", "visible");
                             if (welcomeEl) welcomeEl.style.setProperty("display", "none", "important");
                         }
                         // wait for usersMap to populate before selecting
@@ -119,6 +129,12 @@ initializeFirebase(function (app, auth, database, storage) {
                     if (chatUsersWrap) chatUsersWrap.innerHTML = "";
                     const userIdEl = document.getElementById("user-id");
                     if (userIdEl) userIdEl.innerText = `Logged in as: ${user.id}`;
+
+                    if (!storedUserId && (window.location.pathname === "/chat" || window.location.pathname === "/index")) {
+                        setTimeout(ensureChatPageVisible, 50);
+                        setTimeout(ensureChatPageVisible, 400);
+                        setTimeout(ensureChatPageVisible, 1000);
+                    }
 
                     // Set the user's online status
                     const userStatusRef = ref(
@@ -1809,9 +1825,6 @@ initializeFirebase(function (app, auth, database, storage) {
     // Load user list (this is just a dummy function; replace it with actual user loading logic)
     function loadUserList() {
         const userList = document.getElementById("user-list");
-        // #region agent log
-        fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3a6c46'},body:JSON.stringify({sessionId:'3a6c46',location:'firebaseChat.js:loadUserList',message:'user-list check',data:{pathname:window.location.pathname,userListExists:!!userList},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-        // #endregion
         if (!userList) return;
         // Example user IDs (replace this with actual user IDs from your database)
         const users = [
@@ -1848,8 +1861,20 @@ initializeFirebase(function (app, auth, database, storage) {
         const welcomeContainer = document.getElementById("welcome-container");
         if (!chatBox || !middleEl) return;
 
+        // Persist selection so layout logic (and welcome panel) behaves consistently across breakpoints.
+        try { localStorage.setItem("selectedUserId", String(userId)); } catch (e) { }
+        try {
+            if (typeof history !== "undefined" && history.replaceState) {
+                const u = new URL(window.location.href);
+                u.searchParams.set("user", String(userId));
+                history.replaceState({}, "", u.toString());
+            }
+        } catch (e) { }
+
         // Show chat panel and hide welcome as soon as we have a valid context (so panel is visible when arriving from contact with ?call=)
         middleEl.style.setProperty("display", "flex", "important");
+        middleEl.classList.add("message-panel-visible");
+        if (document.body) document.body.setAttribute("data-chat-panel", "visible");
         if (welcomeContainer) welcomeContainer.style.setProperty("display", "none", "important");
 
         const loggedInUserId = currentUserId;
@@ -3447,7 +3472,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     message.key = childSnapshot.key;
                     allMessages.push(message);
                 });
-                console.log("Messages from path1:", snapshot1.numChildren());
+                console.log("Messages from path1:", snapshot1.size);
             }
 
             // Collect messages from second path
@@ -3457,7 +3482,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     message.key = childSnapshot.key;
                     allMessages.push(message);
                 });
-                console.log("Messages from path2:", snapshot2.numChildren());
+                console.log("Messages from path2:", snapshot2.size);
             }
 
             console.log("Total messages collected:", allMessages.length);
@@ -3573,10 +3598,7 @@ initializeFirebase(function (app, auth, database, storage) {
     clearButton.style.marginLeft = "10px";
     clearButton.style.display = "none"; // Initially hidden
 
-    // #region agent log
     const chatFooterWrap = document.querySelector(".chat-footer-wrap");
-    fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3a6c46'},body:JSON.stringify({sessionId:'3a6c46',location:'firebaseChat.js:3542',message:'chat-footer-wrap check',data:{pathname:window.location.pathname,chatFooterWrapExists:!!chatFooterWrap},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     if (chatFooterWrap) {
     chatFooterWrap.appendChild(messagePreview); // Add preview container to footer
     messagePreview.appendChild(clearButton); // Add Clear button to preview container
@@ -5674,8 +5696,10 @@ initializeFirebase(function (app, auth, database, storage) {
 
             if (chatSection) {
                 chatSection.style.display = "none"; // Hide the chat section
-                welcomeContainer.style.display = "block";
+                chatSection.classList.remove("message-panel-visible");
             }
+            if (document.body) document.body.setAttribute("data-chat-panel", "welcome");
+            if (welcomeContainer) welcomeContainer.style.display = "flex";
         });
     }
 
@@ -6644,11 +6668,37 @@ initializeFirebase(function (app, auth, database, storage) {
                 get(child(usersRef, callerId)),
                 get(child(usersRef, receiverId))
             ]);
-            const callerData = callerSnapshot.val();
-            const receiverData = receiverSnapshot.val();
+            const callerData = callerSnapshot.val() || {};
+            const receiverData = receiverSnapshot.val() || {};
 
-            const callerName = `${callerData.firstName} ${callerData.lastName}`.trim() || "Unknown User";
-            const callerImg = callerData.image || 'assets/img/profiles/avatar-03.jpg';
+            let callerName = '';
+            let callerImg = callerData.image || 'assets/img/profiles/avatar-03.jpg';
+            if (callerData.firstName != null || callerData.lastName != null) {
+                callerName = `${callerData.firstName || ''} ${callerData.lastName || ''}`.trim() || "Unknown User";
+            } else {
+                const receiverContactSnap = await get(ref(database, `data/contacts/${receiverId}/${callerId}`));
+                const receiverContact = receiverContactSnap.exists() ? receiverContactSnap.val() : null;
+                if (receiverContact && (receiverContact.firstName != null || receiverContact.lastName != null)) {
+                    callerName = `${receiverContact.firstName || ''} ${receiverContact.lastName || ''}`.trim() || "Unknown User";
+                    if (receiverContact.image) callerImg = receiverContact.image;
+                } else {
+                    callerName = (receiverContact && (receiverContact.username || receiverContact.userName || receiverContact.mobile_number)) || callerData.username || callerData.userName || callerData.mobile_number || '';
+                    callerName = String(callerName || '').trim() || "Unknown User";
+                }
+            }
+            let receiverName = '';
+            if (receiverData.firstName != null || receiverData.lastName != null) {
+                receiverName = `${receiverData.firstName || ''} ${receiverData.lastName || ''}`.trim() || "Unknown User";
+            } else {
+                const callerContactSnap = await get(ref(database, `data/contacts/${callerId}/${receiverId}`));
+                const callerContact = callerContactSnap.exists() ? callerContactSnap.val() : null;
+                if (callerContact && (callerContact.firstName != null || callerContact.lastName != null)) {
+                    receiverName = `${callerContact.firstName || ''} ${callerContact.lastName || ''}`.trim() || "Unknown User";
+                } else {
+                    receiverName = (callerContact && (callerContact.username || callerContact.userName || callerContact.mobile_number)) || receiverData.username || receiverData.userName || receiverData.mobile_number || '';
+                    receiverName = String(receiverName || '').trim() || "Unknown User";
+                }
+            }
             const callerMobile = callerData.mobile_number || callerId;
             const receiverMobile = receiverData.mobile_number || receiverId;
 
@@ -6656,6 +6706,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 callerId: [receiverId],
                 callerImg: callerImg,
                 callerName: callerName,
+                receiverName: receiverName,
                 currentMills: Date.now(),
                 duration: "Ringing",
                 id: newCallId,
@@ -7043,7 +7094,7 @@ initializeFirebase(function (app, auth, database, storage) {
         return finalDuration;
     }
 
-    async function updateModalUserDetails(userId) {
+    async function updateModalUserDetails(userId, callRecordName) {
         const currentUser = auth.currentUser;
         if (!currentUser) return;
 
@@ -7054,8 +7105,23 @@ initializeFirebase(function (app, auth, database, storage) {
 
         if (otherUserSnapshot.exists()) {
             const userData = otherUserSnapshot.val();
-            const userName = `${userData.firstName} ${userData.lastName}`.trim() || 'Unknown User';
-            const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
+            let userName = '';
+            let contactData = null;
+            if (userData.firstName != null || userData.lastName != null) {
+                userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
+            } else {
+                const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${userId}`));
+                contactData = contactSnap.exists() ? contactSnap.val() : null;
+                if (contactData && (contactData.firstName != null || contactData.lastName != null)) {
+                    userName = `${contactData.firstName || ''} ${contactData.lastName || ''}`.trim() || 'Unknown User';
+                } else {
+                    userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
+                }
+            }
+            if ((!userName || userName === 'Unknown User') && callRecordName && String(callRecordName).trim()) {
+                userName = String(callRecordName).trim();
+            }
+            const userImage = userData.image || (contactData && contactData.image) || 'assets/img/profiles/avatar-03.jpg';
 
             // Update audio call modal (incoming call screen)
             $('.audio-name').text(userName);
@@ -7137,7 +7203,8 @@ initializeFirebase(function (app, auth, database, storage) {
                 const otherUserId = activeCall.userId === currentUser.uid
                     ? activeCall.callerId[0]
                     : activeCall.userId;
-                updateModalUserDetails(otherUserId);
+                const activeCallName = activeCall.callerName;
+                updateModalUserDetails(otherUserId, activeCallName);
                 joinAgoraChannel(activeCall.channelName, currentUser.uid);
                 $('#audio-call-modal').modal('hide');
                 $('#voice-attend-new').modal('show');
@@ -7151,7 +7218,8 @@ initializeFirebase(function (app, auth, database, storage) {
             const otherUserId = ringingCall.inOrOut === 'IN'
                 ? ringingCall.callerId[0]
                 : ringingCall.userId;
-            updateModalUserDetails(otherUserId);
+            const nameFromCall = ringingCall.inOrOut === 'IN' ? ringingCall.callerName : (ringingCall.receiverName || undefined);
+            updateModalUserDetails(otherUserId, nameFromCall);
             $('#voice-attend-new').modal('hide');
             
             // Adjust the modal UI based on whether it is an outgoing or incoming call
@@ -7213,16 +7281,43 @@ initializeFirebase(function (app, auth, database, storage) {
                 get(child(usersRef, callerId)),
                 get(child(usersRef, receiverId))
             ]);
-            const callerData = callerSnapshot.val();
-            const receiverData = receiverSnapshot.val();
+            const callerData = callerSnapshot.val() || {};
+            const receiverData = receiverSnapshot.val() || {};
 
-            const callerName = `${callerData.firstName} ${callerData.lastName}`.trim() || "Unknown User";
-            const callerImg = callerData.image || 'assets/img/profiles/avatar-03.jpg';
+            let callerName = '';
+            let callerImg = callerData.image || 'assets/img/profiles/avatar-03.jpg';
+            if (callerData.firstName != null || callerData.lastName != null) {
+                callerName = `${callerData.firstName || ''} ${callerData.lastName || ''}`.trim() || "Unknown User";
+            } else {
+                const receiverContactSnap = await get(ref(database, `data/contacts/${receiverId}/${callerId}`));
+                const receiverContact = receiverContactSnap.exists() ? receiverContactSnap.val() : null;
+                if (receiverContact && (receiverContact.firstName != null || receiverContact.lastName != null)) {
+                    callerName = `${receiverContact.firstName || ''} ${receiverContact.lastName || ''}`.trim() || "Unknown User";
+                    if (receiverContact.image) callerImg = receiverContact.image;
+                } else {
+                    callerName = (receiverContact && (receiverContact.username || receiverContact.userName || receiverContact.mobile_number)) || callerData.username || callerData.userName || callerData.mobile_number || '';
+                    callerName = String(callerName || '').trim() || "Unknown User";
+                }
+            }
+            let receiverName = '';
+            if (receiverData.firstName != null || receiverData.lastName != null) {
+                receiverName = `${receiverData.firstName || ''} ${receiverData.lastName || ''}`.trim() || "Unknown User";
+            } else {
+                const callerContactSnap = await get(ref(database, `data/contacts/${callerId}/${receiverId}`));
+                const callerContact = callerContactSnap.exists() ? callerContactSnap.val() : null;
+                if (callerContact && (callerContact.firstName != null || callerContact.lastName != null)) {
+                    receiverName = `${callerContact.firstName || ''} ${callerContact.lastName || ''}`.trim() || "Unknown User";
+                } else {
+                    receiverName = (callerContact && (callerContact.username || callerContact.userName || callerContact.mobile_number)) || receiverData.username || receiverData.userName || receiverData.mobile_number || '';
+                    receiverName = String(receiverName || '').trim() || "Unknown User";
+                }
+            }
 
             const callData = {
                 callerId: [receiverId], // The other person in the call
                 callerImg: callerImg,
                 callerName: callerName,
+                receiverName: receiverName,
                 currentMills: Date.now(),
                 duration: "Ringing",
                 id: newCallId,
@@ -7322,15 +7417,30 @@ initializeFirebase(function (app, auth, database, storage) {
 
     async function joinAgoraVideoChannel(channelName, uid) {
         try {
+            // #region agent log
+            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:joinAgoraVideoChannel:entry',message:'Join video channel attempt',data:{channelName,uid,uidType:typeof uid,connectionState:videoClient.connectionState},hypothesisId:'H4-H5',timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             // Prevent joining if already connected or connecting
             if (videoClient.connectionState === 'CONNECTED' || videoClient.connectionState === 'CONNECTING') {
+                // #region agent log
+                fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:joinAgoraVideoChannel:earlyReturn',message:'Skipped join already connected',data:{connectionState:videoClient.connectionState},hypothesisId:'H4',timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 return;
             }
 
             $('#video-call').modal('hide');
             $('#start-video-call-container').modal('show');
+            // Replace "Ringing..." with "00:00:00" as soon as we start joining (caller sees call connected)
+            $('#start-video-call-container #local-call-timer, #start-video-call-container #video-call-timer-display').text('00:00:00');
+            const lt = document.getElementById('local-call-timer');
+            const ht = document.getElementById('video-call-timer-display');
+            if (lt) lt.textContent = '00:00:00';
+            if (ht) ht.textContent = '00:00:00';
 
             await videoClient.join(VIDEO_APP_ID, channelName, null, uid);
+            // #region agent log
+            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:joinAgoraVideoChannel:afterJoin',message:'Agora join success',data:{channelName,uid},hypothesisId:'H5',timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
 
             // Create tracks in parallel
             [localAudioTrackForVideo, localVideoTrack] = await Promise.all([
@@ -7339,6 +7449,9 @@ initializeFirebase(function (app, auth, database, storage) {
             ]);
 
             await videoClient.publish([localAudioTrackForVideo, localVideoTrack]);
+            // #region agent log
+            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:joinAgoraVideoChannel:afterPublish',message:'Local tracks published',data:{channelName,uid},hypothesisId:'H5',timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
 
             const localPlayerContainer = document.getElementById('video-container');
             localPlayerContainer.innerHTML = ''; // Clear any previous profile image
@@ -7349,12 +7462,18 @@ initializeFirebase(function (app, auth, database, storage) {
             // Alternative approach: Use user-joined event instead of user-published for video calls
             videoClient.on("user-joined", async (user) => {
                 console.log(`Video user ${user.uid} joined the channel ${channelName}`);
+                // #region agent log
+                fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:user-joined',message:'Remote user joined',data:{remoteUid:user.uid,hasVideoTrack:!!user.videoTrack,hasAudioTrack:!!user.audioTrack,channelName},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
 
                 try {
                     // Subscribe to both audio and video immediately when user joins
                     await videoClient.subscribe(user, "audio");
                     await videoClient.subscribe(user, "video");
                     console.log(`Successfully subscribed to audio and video for user ${user.uid}`);
+                    // #region agent log
+                    fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:user-joined:afterSubscribe',message:'Subscribed to remote',data:{remoteUid:user.uid,hasVideoTrack:!!user.videoTrack,hasAudioTrack:!!user.audioTrack},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
 
                     // Store user info for better tracking
                     if (!window.agoraVideoUsers) window.agoraVideoUsers = {};
@@ -7503,6 +7622,9 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     async function handleUserPublished(user, mediaType) {
+        // #region agent log
+        fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:handleUserPublished',message:'Remote user published',data:{remoteUid:user.uid,mediaType},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         await videoClient.subscribe(user, mediaType);
 
         let remotePlayerContainer = document.getElementById(`remote-player-${user.uid}`);
@@ -7569,13 +7691,30 @@ initializeFirebase(function (app, auth, database, storage) {
             if (!userSnapshot.exists()) return;
 
             const userData = userSnapshot.val();
-            const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
+            let userName = '';
+            let contactDataForImg = null;
+            if (userData.firstName != null || userData.lastName != null) {
+                userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
+            } else {
+                const currentUser = auth.currentUser;
+                if (currentUser) {
+                    const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${userId}`));
+                    contactDataForImg = contactSnap.exists() ? contactSnap.val() : null;
+                    if (contactDataForImg && (contactDataForImg.firstName != null || contactDataForImg.lastName != null)) {
+                        userName = `${contactDataForImg.firstName || ''} ${contactDataForImg.lastName || ''}`.trim() || 'User';
+                    } else {
+                        userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'User';
+                    }
+                } else {
+                    userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'User';
+                }
+            }
 
             // Update the header of the active call modal
             document.querySelector('#start-video-call-container .user-video-head .user-name').textContent = userName;
             const userImgElement = document.querySelector('#start-video-call-container .user-video-head .avatar-video img');
             if (userImgElement) {
-                userImgElement.src = userData.image || 'assets/img/profiles/avatar-03.jpg';
+                userImgElement.src = userData.image || (contactDataForImg && contactDataForImg.image) || 'assets/img/profiles/avatar-03.jpg';
                 userImgElement.alt = userName;
             }
 
@@ -7597,8 +7736,25 @@ initializeFirebase(function (app, auth, database, storage) {
             if (!userSnapshot.exists()) return;
 
             const userData = userSnapshot.val();
-            const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
-            const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
+            let userName = '';
+            let contactDataImg = null;
+            if (userData.firstName != null || userData.lastName != null) {
+                userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
+            } else {
+                const currentUser = auth.currentUser;
+                if (currentUser) {
+                    const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${userId}`));
+                    contactDataImg = contactSnap.exists() ? contactSnap.val() : null;
+                    if (contactDataImg && (contactDataImg.firstName != null || contactDataImg.lastName != null)) {
+                        userName = `${contactDataImg.firstName || ''} ${contactDataImg.lastName || ''}`.trim() || 'User';
+                    } else {
+                        userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'User';
+                    }
+                } else {
+                    userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'User';
+                }
+            }
+            const userImage = userData.image || (contactDataImg && contactDataImg.image) || 'assets/img/profiles/avatar-03.jpg';
 
             container.innerHTML = ''; // Clear previous content (like video player)
 
@@ -7741,22 +7897,39 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
 
-    // <-- FIX: Renamed and clarified this function's purpose
+    // <-- FIX: Use same name resolution as audio (user → contact → callRecord) so receiver sees caller name
     async function updateRingingModalDetails(callData) {
         const otherUserId = callData.callerId[0];
+        const currentUser = auth.currentUser;
+        if (!currentUser) return;
 
         try {
             const otherUserSnapshot = await get(child(usersRef, otherUserId));
-            if (otherUserSnapshot.exists()) {
-                const userData = otherUserSnapshot.val();
-                const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
-                const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
+            if (!otherUserSnapshot.exists()) return;
 
-                const modal = $('#video-call');
-                modal.find('.modal-title').text(`Video Call from ${userName}`);
-                modal.find('.avatar img').attr('src', userImage).attr('alt', userName);
-                modal.find('h6').text(userName);
+            const userData = otherUserSnapshot.val();
+            let userName = '';
+            let contactData = null;
+            if (userData.firstName != null || userData.lastName != null) {
+                userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
+            } else {
+                const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${otherUserId}`));
+                contactData = contactSnap.exists() ? contactSnap.val() : null;
+                if (contactData && (contactData.firstName != null || contactData.lastName != null)) {
+                    userName = `${contactData.firstName || ''} ${contactData.lastName || ''}`.trim() || 'Unknown User';
+                } else {
+                    userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
+                }
             }
+            if ((!userName || userName === 'Unknown User') && callData.callerName && String(callData.callerName).trim()) {
+                userName = String(callData.callerName).trim();
+            }
+            const userImage = userData.image || (contactData && contactData.image) || 'assets/img/profiles/avatar-03.jpg';
+
+            const modal = $('#video-call');
+            modal.find('.modal-title').text(`Video Call from ${userName}`);
+            modal.find('.avatar img').attr('src', userImage).attr('alt', userName);
+            modal.find('h6').text(userName);
         } catch (error) {
             console.error('Error updating video modal details:', error);
         }
@@ -7803,8 +7976,28 @@ initializeFirebase(function (app, auth, database, storage) {
             if (!otherUserSnapshot.exists()) return;
 
             const userData = otherUserSnapshot.val();
-            const userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
-            const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
+            let userName = '';
+            let contactDataVideo = null;
+            if (userData.firstName != null || userData.lastName != null) {
+                userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
+            } else {
+                const currentUser = auth.currentUser;
+                if (currentUser) {
+                    const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${otherUserId}`));
+                    contactDataVideo = contactSnap.exists() ? contactSnap.val() : null;
+                    if (contactDataVideo && (contactDataVideo.firstName != null || contactDataVideo.lastName != null)) {
+                        userName = `${contactDataVideo.firstName || ''} ${contactDataVideo.lastName || ''}`.trim() || 'Unknown User';
+                    } else {
+                        userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
+                    }
+                } else {
+                    userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
+                }
+            }
+            if ((!userName || userName === 'Unknown User') && callData.receiverName && String(callData.receiverName).trim()) {
+                userName = String(callData.receiverName).trim();
+            }
+            const userImage = userData.image || (contactDataVideo && contactDataVideo.image) || 'assets/img/profiles/avatar-03.jpg';
 
             // Get the active call modal elements
             const modal = $('#start-video-call-container');
@@ -7869,8 +8062,27 @@ initializeFirebase(function (app, auth, database, storage) {
             // --- STATE 1: Call Accepted ---
             // The `duration` is "00:00:00". This is the trigger for both users to join the Agora channel.
             if (callToProcess.duration === "00:00:00") {
+                // Sender (caller) fix: update UI from "Ringing..." to "00:00:00" immediately when we receive accepted state,
+                // so the caller sees the call was picked up even before joinAgoraVideoChannel completes.
+                if (callToProcess.inOrOut === "OUT") {
+                    function setCallTimerToConnected() {
+                        const videoModal = $('#start-video-call-container');
+                        videoModal.find('#local-call-timer').text('00:00:00');
+                        videoModal.find('#video-call-timer-display').text('00:00:00');
+                        const t = document.getElementById('local-call-timer');
+                        const h = document.getElementById('video-call-timer-display');
+                        if (t) t.textContent = '00:00:00';
+                        if (h) h.textContent = '00:00:00';
+                    }
+                    setCallTimerToConnected();
+                    setTimeout(setCallTimerToConnected, 0);
+                }
                 // Join the channel if we are not already connected.
-                if (!localVideoTrack && videoClient.connectionState !== 'CONNECTED') {
+                const willJoin = !localVideoTrack && videoClient.connectionState !== 'CONNECTED';
+                // #region agent log
+                fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5ad261'},body:JSON.stringify({sessionId:'5ad261',location:'firebaseChat.js:video-call-onValue',message:'Call accepted state',data:{duration:callToProcess.duration,inOrOut:callToProcess.inOrOut,currentUid:currentUser.uid,channelName:callToProcess.channelName,localVideoTrack:!!localVideoTrack,connState:videoClient.connectionState,willJoin},hypothesisId:'H1-H2',timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+                if (willJoin) {
                     updateRemoteUserDetails(otherUserId); // Pre-populate remote user details
                     joinAgoraVideoChannel(callToProcess.channelName, currentUser.uid);
                 }
@@ -7898,5 +8110,86 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     });
 
+    // When on chat page: ensure welcome panel is visible (override CSS that hides it below 1200px)
+    function ensureChatPageVisible() {
+        const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
+        if (path !== "/chat" && path !== "/index") return;
+        let welcomeEl = document.getElementById("welcome-container");
+        const middleEl = document.getElementById("middle");
+        const spaContent = document.getElementById("spa-page-content");
+        const hasSelectedUser = !!localStorage.getItem("selectedUserId") || !!new URLSearchParams(window.location.search).get("user");
+        if (spaContent) {
+            spaContent.style.setProperty("display", "flex", "important");
+            spaContent.style.setProperty("visibility", "visible", "important");
+            if (typeof window !== "undefined" && window.innerWidth >= 1200) {
+                spaContent.style.removeProperty("min-height");
+            } else {
+                spaContent.style.setProperty("min-height", "200px", "important");
+            }
+        }
+
+        if (!welcomeEl && spaContent && !hasSelectedUser) {
+            const base = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
+            const welcomeHtml = '<div id="welcome-container" class="welcome-content d-flex align-items-center justify-content-center" style="display:flex!important;visibility:visible!important;min-height:200px;flex:1;width:100%;"><div class="welcome-info text-center"><div class="welcome-box bg-white d-inline-flex align-items-center gap-2"><span class="avatar avatar-md flex-shrink-0"><img id="profileImageChat" src="' + base + '/assets/img/profiles/avatar-03.jpg" alt="img" class="rounded-circle"></span><h6 class="title mb-0">Welcome! <span id="profile-info-chat-name">Loading...</span></h6></div><p class="mt-3 mb-4">Choose a person or group to start chat with them.</p><a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#add-contact"><i class="ti ti-send me-2"></i>Invite Contacts</a></div></div>';
+            const wrap = document.createElement("div");
+            wrap.innerHTML = welcomeHtml.trim();
+            const first = wrap.firstChild;
+            if (spaContent.firstChild) spaContent.insertBefore(first, spaContent.firstChild);
+            else spaContent.appendChild(first);
+            welcomeEl = document.getElementById("welcome-container");
+        }
+
+        if (welcomeEl) {
+            welcomeEl.style.setProperty("display", hasSelectedUser ? "none" : "flex", "important");
+            welcomeEl.style.setProperty("visibility", hasSelectedUser ? "hidden" : "visible", "important");
+            welcomeEl.style.setProperty("opacity", hasSelectedUser ? "0" : "1", "important");
+            welcomeEl.style.setProperty("min-height", hasSelectedUser ? "0" : "200px", "important");
+        }
+        if (middleEl) {
+            middleEl.style.setProperty("display", hasSelectedUser ? "flex" : "none", "important");
+            if (hasSelectedUser) middleEl.classList.add("message-panel-visible");
+            else middleEl.classList.remove("message-panel-visible");
+        }
+        if (typeof document !== "undefined" && document.body) {
+            document.body.setAttribute("data-chat-panel", hasSelectedUser ? "visible" : "welcome");
+        }
+        if (auth.currentUser && !hasSelectedUser) fetchUsers();
+    }
+
+    function guardWelcomeVisible() {
+        const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
+        if (path !== "/chat" && path !== "/index") return;
+        if (localStorage.getItem("selectedUserId") || new URLSearchParams(window.location.search).get("user")) return;
+        const welcomeEl = document.getElementById("welcome-container");
+        if (!welcomeEl) return;
+        const computed = window.getComputedStyle(welcomeEl);
+        if (computed.display === "none" || computed.visibility === "hidden") {
+            welcomeEl.style.setProperty("display", "flex", "important");
+            welcomeEl.style.setProperty("visibility", "visible", "important");
+            welcomeEl.style.setProperty("opacity", "1", "important");
+        }
+    }
+    window.addEventListener("spa-page-applied", function (e) {
+        const path = (e && e.detail && e.detail.pathname) ? e.detail.pathname : (window.location.pathname || "").replace(/\/+$/, "") || "/";
+        if (path === "/chat" || path === "/index") {
+            [0, 50, 150, 400, 800].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
+            var guardCount = 0;
+            var guardInterval = setInterval(function () {
+                guardWelcomeVisible();
+                guardCount++;
+                if (guardCount >= 50) clearInterval(guardInterval);
+            }, 200);
+        }
+    });
+    var initialPath = (window.location.pathname || "").replace(/\/+$/, "") || "/";
+    if (initialPath === "/chat" || initialPath === "/index") {
+        [100, 200, 500, 800, 1200, 2000, 3000, 4000].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
+        var guardCount = 0;
+        var guardInterval = setInterval(function () {
+            guardWelcomeVisible();
+            guardCount++;
+            if (guardCount >= 50) clearInterval(guardInterval);
+        }, 200);
+    }
 
 });

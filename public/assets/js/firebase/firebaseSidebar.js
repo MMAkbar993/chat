@@ -728,6 +728,9 @@ initializeFirebase(function (app, auth, database, storage) {
                     userLink.onclick = (event) => {
                         event.preventDefault(); // Prevent the default anchor behavior
                         const userId = userLink.getAttribute("data-user-id"); // Get userId from data attribute
+                        // #region agent log
+                        fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3ad915'},body:JSON.stringify({sessionId:'3ad915',location:'firebaseSidebar.js:newChatModal:click',message:'new-chat modal contact click',data:{userId:userId,typeofWindowSelectUser:typeof (typeof window !== 'undefined' ? window.selectUser : undefined)},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+                        // #endregion
                         if (userId) {
                             selectUser(userId); // Call selectUser with the retrieved userId
 

@@ -36,6 +36,57 @@
   }
 }
 
+/* Ensure message panel (#middle) is visible on all screen sizes when a chat is selected (≥1200px) */
+@media (min-width: 1200px) {
+  /* Right pane must take remaining width and full height; logs showed 329px (sidebar width) - force remaining space */
+  .main-wrapper .content.main_content #spa-page-content {
+    display: flex !important;
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    /* sidebar-menu 72px + sidebar-group 330px at xl; force right pane to fill the rest */
+    width: calc(100% - 402px) !important;
+    max-width: none !important;
+    min-height: 100% !important;
+    height: 100% !important;
+  }
+  /* Hide message panel when no chat is selected (must come first so show rule can override when class is set) */
+  body[data-chat-panel="welcome"] #spa-page-content #middle.chat {
+    display: none !important;
+  }
+  /* Show message panel when a chat is selected (body attribute set by JS so CSS works even if class is late) */
+  body[data-chat-panel="visible"] #spa-page-content #middle.chat,
+  #middle.chat.message-panel-visible {
+    display: flex !important;
+    visibility: visible !important;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    width: 100% !important;
+    height: 100% !important;
+    transform: none !important;
+    position: relative !important;
+    z-index: 1;
+  }
+  /* Ensure .main_content fills viewport and gives right pane space */
+  .content.main_content {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    flex: 1 1 0% !important;
+    min-height: 100vh !important;
+    height: 100% !important;
+  }
+  .main-wrapper > .content.main_content {
+    min-height: 100vh !important;
+  }
+}
+
+@media (min-width: 1400px) {
+  /* sidebar-menu 72px + sidebar-group 400px */
+  .main-wrapper .content.main_content #spa-page-content {
+    width: calc(100% - 472px) !important;
+  }
+}
+
 @media (max-width: 991.98px) {
   #welcome-container.welcome-content {
     min-height: 50vh;
