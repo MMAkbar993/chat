@@ -33,16 +33,17 @@ class VideoCallController extends Controller
             return response()->json(['error' => 'channel_name and uid are required.'], 400);
         }
 
-        $uid = (int) $uid;
         $tokenExpirationInSeconds = 3600 * 24;
         $privilegeExpirationInSeconds = 3600 * 24;
 
         try {
-            $token = RtcTokenBuilder2::buildTokenWithUid(
+            // Support both string (Firebase UID) and numeric uid for Agora token
+            $uidStr = is_string($uid) ? $uid : (string) (int) $uid;
+            $token = RtcTokenBuilder2::buildTokenWithUserAccount(
                 $appId,
                 $appCertificate,
                 $channelName,
-                $uid,
+                $uidStr,
                 RtcTokenBuilder2::ROLE_PUBLISHER,
                 $tokenExpirationInSeconds,
                 $privilegeExpirationInSeconds

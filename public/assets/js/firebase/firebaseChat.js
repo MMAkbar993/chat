@@ -6867,7 +6867,11 @@ initializeFirebase(function (app, auth, database, storage) {
     async function joinAgoraChannel(channelName, uid) {
         try {
             if (localAudioTrack) return; // Prevent joining twice
-            await audioClient.join(APP_ID, channelName, null, uid);
+            let audioToken = null;
+            try {
+                audioToken = await generateAgoraToken(channelName, uid);
+            } catch (e) { /* use null on server errors */ }
+            await audioClient.join(APP_ID, channelName, audioToken || null, uid);
             localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
             await audioClient.publish([localAudioTrack]);
 
@@ -7421,7 +7425,11 @@ initializeFirebase(function (app, auth, database, storage) {
             if (lt) lt.textContent = '00:00:00';
             if (ht) ht.textContent = '00:00:00';
 
-            await videoClient.join(VIDEO_APP_ID, channelName, null, uid);
+            let videoToken = null;
+            try {
+                videoToken = await generateAgoraToken(channelName, uid);
+            } catch (e) { /* use null on server errors (e.g. localhost without cert) */ }
+            await videoClient.join(VIDEO_APP_ID, channelName, videoToken || null, uid);
 
             // Create tracks in parallel
             [localAudioTrackForVideo, localVideoTrack] = await Promise.all([
