@@ -47,7 +47,9 @@ initializeFirebase(function (app, auth, database, storage) {
             .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
             .then(function (result) {
                 if (result.ok && result.data && result.data.firebase_custom_token) {
-                    return signInWithCustomToken(auth, result.data.firebase_custom_token);
+                    return signInWithCustomToken(auth, result.data.firebase_custom_token).then(function () {
+                        initContactList(); // Refresh contact list after session restore
+                    });
                 }
             })
             .catch(function () {});
@@ -57,26 +59,24 @@ initializeFirebase(function (app, auth, database, storage) {
     const usersRef = ref(database, "data/users"); // Correct Firebase reference to the "users" node
 
     function displayUsers(searchTerm = '') {
-        const contactsRef = ref(database, `data/contacts/${currentUserId}`);
-    
+        const uid = currentUserId || (typeof getCurrentFirebaseUid === 'function' ? getCurrentFirebaseUid() : null);
+        if (!uid) return;
+        const contactsRef = ref(database, `data/contacts/${uid}`);
         get(contactsRef).then(async snapshot => {
             if (snapshot.exists()) {
                 const contacts = snapshot.val(); // Get all contacts
                 const contactIds = Object.keys(contacts); // Get the contact user IDs
     
-                const usersArray = await Promise.all(
+                const usersArrayRaw = await Promise.all(
                     contactIds.map(async (userId) => {
                         const contact = contacts[userId] || {}; // Get contact data safely
-                
                         try {
                             const userRef = ref(database, `data/users/${userId}`); // Correct Firebase reference
                             const snapshot = await get(userRef); // Fetch user details
-                
                             let userData = {};
                             if (snapshot.exists()) {
                                 userData = snapshot.val(); // Get user details
                             }
-                
                             return {
                                 uid: userId,
                                 firstName: contact.firstName || userData.firstName || "",
@@ -88,16 +88,15 @@ initializeFirebase(function (app, auth, database, storage) {
                             };
                         } catch (error) {
                             console.error(`Error fetching user data for ${userId}:`, error);
-                            return null; // Handle errors gracefully
+                            return null;
                         }
                     })
                 );
-                
-    
-                // Sort users alphabetically by first name and handle users without names
+                const usersArray = usersArrayRaw.filter(function (user) { return user != null; });
+
+                // Sort users alphabetically by first name; "Others" = anyone without both first and last name (so no one is dropped)
                 const validUsersArray = usersArray.filter(user => user.firstName && user.lastName);
-                const othersArray = usersArray.filter(user => !user.firstName && !user.lastName);
-    
+                const othersArray = usersArray.filter(user => !(user.firstName && user.lastName));
                 // Sort valid users alphabetically by first name
                 validUsersArray.sort((a, b) => a.firstName.localeCompare(b.firstName));
     
@@ -130,25 +129,23 @@ initializeFirebase(function (app, auth, database, storage) {
                     groupedUsers['Others'] = filteredOthersArray;
                 }
     
-                // Clear the container first to avoid duplicates
-                const chatContainer = document.getElementById('chatContainer'); // Your container div
-                chatContainer.innerHTML = ''; // Clear previous content
-    
-                // Build and append the HTML for each user group
+                const containers = getContactListContainers();
+                if (containers.length === 0) return;
+                containers.forEach(function (c) { c.innerHTML = ''; });
+
+                // Build the full HTML once
+                let fullHtml = '';
                 Object.keys(groupedUsers).forEach(letter => {
                     const group = groupedUsers[letter];
-    
-                    // Create a div for each letter group
                     let groupHtml = `
                     <div class="mb-4">
                         <h6 class="mb-2">${letter}</h6>
                         <div class="chat-list">
                     `;
-    
-                    // Loop through the users in this group and build HTML
                     group.forEach(user => {
                         const contact = contacts[user.uid] || {};
                         const displayName = (contact.firstName || user.firstName || user.userName || user.mobile_number || user.email) + ' ' + (contact.lastName || user.lastName || '').trim();
+                        const listLabel = displayName.trim() || user.email || user.userName || "Unknown";
                         groupHtml += `
                         <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#contact-details" class="chat-user-list"
                             data-user-id="${user.uid}" data-username="${(user.userName || '').replace(/"/g, '&quot;')}">
@@ -157,20 +154,18 @@ initializeFirebase(function (app, auth, database, storage) {
                             </div>
                             <div class="chat-user-info">
                                 <div class="chat-user-msg">
-                                    <h6>${displayName.trim() || 'Unknown'}</h6>
+                                    <h6>${listLabel}</h6>
                                 </div>
                             </div>
                         </a>
                     `;
                     });
-    
-                    // Close the group div
                     groupHtml += '</div></div>';
-    
-                    // Append to the container
-                    chatContainer.innerHTML += groupHtml;
+                    fullHtml += groupHtml;
                 });
-    
+
+                containers.forEach(function (c) { c.innerHTML = fullHtml; });
+
                 // Add event listener for fetching user details when clicking on a user
                 document.querySelectorAll('.chat-user-list').forEach(item => {
                     item.addEventListener('click', function () {
@@ -182,40 +177,65 @@ initializeFirebase(function (app, auth, database, storage) {
                     });
                 });
             } else {
-                chatContainer.innerHTML = '<p id="no-message">No Contacts Found!</p>'
+                const msg = '<p id="no-message">No Contacts Found!</p>';
+                getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
             }
         }).catch(error => {
             console.error("Error fetching contacts: ", error);
+            const msg = '<p id="no-message">No Contacts Found!</p>';
+            try {
+                getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
+            } catch (e) { console.error(e); }
+        });
+    }
+
+    function getContactListContainers() {
+        const byId = [document.getElementById('chatContainer'), document.getElementById('chat-container')];
+        const byAttr = Array.prototype.slice.call(document.querySelectorAll('[data-contact-list]'));
+        const seen = new Set();
+        return byId.concat(byAttr).filter(function (el) {
+            if (!el || seen.has(el)) return false;
+            seen.add(el);
+            return true;
         });
     }
     
     // Fetch user data from Firebase using user ID and display it in the modal
     function fetchUserData(userId) {
-        
         const contactRef = ref(database, `data/contacts/${currentUserId}/${userId}`); // Reference to the contact data
-       
+
         // Fetch contact data from Firebase
         get(contactRef).then(async snapshot => {
             if (snapshot.exists()) {
                 const userRef = ref(database, `data/users/${userId}`); // Correct Firebase reference
-                        const snapshot = await get(userRef); // Fetch user details
-            
-                        let userData = {};
-                        if (snapshot.exists()) {
-                            userData = snapshot.val(); // Get user details
-                        }
-                        const snapshotContact = await get(contactRef); 
-                       const contactData = snapshotContact.val();
+                const snapshot = await get(userRef); // Fetch user details
+                let userData = {};
+                if (snapshot.exists()) {
+                    userData = snapshot.val(); // Get user details
+                }
+                const snapshotContact = await get(contactRef);
+                const contactData = snapshotContact.val();
                 // Update modal content with fetched data (set both modal input and legacy id for compatibility)
                 const modalInput = document.getElementById('contact-details')?.querySelector('input[id="edit-user-id"]');
                 if (modalInput) modalInput.value = userId;
                 const legacyEl = document.getElementById("edit-user-id");
                 if (legacyEl) legacyEl.value = userId;
-                document.querySelector('#contact-details h6').textContent = 
-                    `${contactData.firstName || contactData.mobile_number || contactData.email} ${contactData.lastName || ''}`;
+                // Name: contact first, then userData fallback; then mobile/email/userName
+                const firstName = (contactData.firstName || userData.firstName || "").trim();
+                const lastName = (contactData.lastName || userData.lastName || "").trim();
+                const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+                const displayName = fullName || contactData.mobile_number || contactData.email || userData.userName || userData.mobile_number || userData.email || "—";
+                const nameEl = document.querySelector('#contact-details h6');
+                if (nameEl) nameEl.textContent = displayName;
+                const contactDetailNameEl = document.getElementById('contact-detail-name');
+                if (contactDetailNameEl) contactDetailNameEl.textContent = displayName;
                 document.querySelector('#contact-details .avatar img').src = userData.image || 'assets/img/profiles/avatar-03.jpg';
-                document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="phone"]').textContent = contactData.mobile_number || 'N/A';
-                document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="email"]').textContent = contactData.email || 'N/A';
+                const phoneVal = contactData.mobile_number || userData.mobile_number || "N/A";
+                const emailVal = contactData.email || userData.email || "N/A";
+                const phoneEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="phone"]');
+                if (phoneEl) phoneEl.textContent = phoneVal;
+                const emailEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="email"]');
+                if (emailEl) emailEl.textContent = emailVal;
 
                 const contactKycBadge = document.querySelector('#contact-details .contact-kyc-badge');
                 if (contactKycBadge) {
@@ -227,6 +247,65 @@ initializeFirebase(function (app, auth, database, storage) {
                             .then(data => { contactKycBadge.style.display = data.verified ? 'inline-flex' : 'none'; })
                             .catch(() => {});
                     }
+                }
+
+                // Populate Personal Information (local_time always; rest from API when contact has email)
+                function setContactDetailField(field, value, asLink) {
+                    const el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
+                    if (!el) return;
+                    if (asLink && value && (String(value).indexOf('http') === 0 || String(value).indexOf('www') === 0)) {
+                        const href = String(value).indexOf('http') === 0 ? value : 'https://' + value;
+                        el.innerHTML = '<a href="' + href.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">' + String(value).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</a>';
+                    } else {
+                        el.textContent = value || '—';
+                    }
+                }
+                const now = new Date();
+                const localTimeStr = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
+                setContactDetailField('local_time', localTimeStr);
+                const contactEmail = (contactData && contactData.email) || (userData && userData.email);
+                if (contactEmail) {
+                    fetch('/api/public-profile-by-email?email=' + encodeURIComponent(contactEmail))
+                        .then(function (r) { return r.json(); })
+                        .then(function (pub) {
+                            if (!pub) return;
+                            const h6El = document.querySelector('#contact-details h6');
+                            if (pub.display_name && h6El) h6El.textContent = pub.display_name;
+                            if (contactKycBadge) contactKycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
+                            const socialVerifiedEl = document.querySelector('#contact-details .contact-social-verified');
+                            if (socialVerifiedEl) socialVerifiedEl.style.display = pub.social_verified ? 'inline-flex' : 'none';
+                            setContactDetailField('dob', pub.dob);
+                            setContactDetailField('bio', pub.bio);
+                            setContactDetailField('location', pub.location);
+                            setContactDetailField('join_date', pub.join_date);
+                            if (pub.websites && pub.websites.length > 0) {
+                                setContactDetailField('website', pub.websites[0].url, true);
+                            } else {
+                                setContactDetailField('website', '');
+                            }
+                            const socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
+                            if (pub.social_links) {
+                                socialKeys.forEach(function (k) {
+                                    setContactDetailField(k, pub.social_links[k], true);
+                                });
+                            }
+                        })
+                        .catch(function () {
+                            setContactDetailField('dob', '');
+                            setContactDetailField('website', '');
+                            setContactDetailField('bio', '');
+                            setContactDetailField('location', '');
+                            setContactDetailField('join_date', '');
+                        });
+                } else {
+                    setContactDetailField('dob', '');
+                    setContactDetailField('website', '');
+                    setContactDetailField('bio', '');
+                    setContactDetailField('location', '');
+                    setContactDetailField('join_date', '');
+                    ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'].forEach(function (k) {
+                        setContactDetailField(k, '');
+                    });
                 }
 
             } else {
@@ -359,8 +438,15 @@ initializeFirebase(function (app, auth, database, storage) {
     
     
 
-    // Call the function to load users on page load
-    displayUsers;
+    // Load contacts on page load and when auth state is ready
+    function initContactList() {
+        if (currentUserId) displayUsers();
+    }
+    initContactList();
+    onAuthStateChanged(auth, function () { initContactList(); });
+    // Retry after a delay in case Firebase auth restores late (e.g. restore-chat-session)
+    setTimeout(initContactList, 800);
+    setTimeout(initContactList, 2500);
 
     // Function to handle form submission and save user data to Firebase
     function handleRegisterFormSubmit(event) {
@@ -641,6 +727,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             const div = document.createElement("div");
                             div.className = "d-flex align-items-center justify-content-between p-2 border-bottom";
                             const displayName = u.full_name || [u.first_name, u.last_name].filter(Boolean).join(" ") || u.user_name || "User";
+                            const safe = (v) => (v != null ? String(v).replace(/"/g, "&quot;").replace(/</g, "&lt;") : "");
                             div.innerHTML = `
                                 <div class="d-flex align-items-center">
                                     <img src="${(u.profile_image || "assets/img/profiles/avatar-03.jpg").replace(/"/g, "&quot;")}" class="rounded-circle me-2" width="32" height="32" alt="">
@@ -649,7 +736,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                         <br><small class="text-muted">@${(u.user_name || "").replace(/</g, "&lt;")}</small>
                                     </div>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${(u.firebase_uid || "").replace(/"/g, "&quot;")}" data-name="${displayName.replace(/"/g, "&quot;")}" data-username="${(u.user_name || "").replace(/"/g, "&quot;")}">Add</button>
+                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${safe(u.firebase_uid)}" data-name="${safe(displayName)}" data-username="${safe(u.user_name)}" data-first-name="${safe(u.first_name)}" data-last-name="${safe(u.last_name)}">Add</button>
                             `;
                             addContactSearchResults.appendChild(div);
                         });
@@ -676,6 +763,8 @@ initializeFirebase(function (app, auth, database, storage) {
             const name = (btn.getAttribute("data-name") || "").trim();
             const username = (btn.getAttribute("data-username") || "").trim();
             const email = (btn.getAttribute("data-email") || "").trim();
+            const firstNameFromApi = (btn.getAttribute("data-first-name") || "").trim();
+            const lastNameFromApi = (btn.getAttribute("data-last-name") || "").trim();
             if (!dataUid && !email && !username && !name) {
                 if (typeof Swal !== "undefined") Swal.fire({ text: "Cannot add: no user info.", icon: "info", width: 400 });
                 return;
@@ -687,7 +776,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         return;
                     }
                     if (resolvedUid) {
-                        addContactFromSearch(resolvedUid, name, username, email);
+                        addContactFromSearch(resolvedUid, name, username, email, firstNameFromApi, lastNameFromApi);
                     } else {
                         addPendingContact(email, username, name);
                     }
@@ -765,6 +854,15 @@ initializeFirebase(function (app, auth, database, storage) {
             .catch(() => null);
     }
 
+    /** Parse displayName into first/last (first word vs rest) for contact save fallback. */
+    function parseDisplayName(displayName) {
+        const s = (displayName || "").trim();
+        if (!s) return { firstName: "", lastName: "" };
+        const idx = s.indexOf(" ");
+        if (idx <= 0) return { firstName: s, lastName: "" };
+        return { firstName: s.substring(0, idx).trim(), lastName: s.substring(idx + 1).trim() };
+    }
+
     /** Add a contact when we have no Firebase UID (pending contact). They appear in the list; chat works once they sign in. */
     function addPendingContact(email, username, displayName) {
         const loggedInUserId = getCurrentFirebaseUid();
@@ -795,11 +893,14 @@ initializeFirebase(function (app, auth, database, storage) {
                     return;
                 }
             }
+            const pendingFirstName = (displayName || username || email || "Pending").trim();
             set(contactRef, {
                 contact_id: syntheticKey,
                 email: (email || "").trim(),
                 user_name: (username || "").trim(),
                 pending: true,
+                firstName: pendingFirstName,
+                lastName: "",
             }).then(() => {
                 Swal.fire({ text: "Contact added! They will appear in your list; you can chat once they sign in to the app.", icon: "success", width: 420 }).then(() => {
                     const inputEl = document.getElementById("add-contact-username-search");
@@ -813,7 +914,7 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    function addContactFromSearch(firebaseUid, displayName, username, emailFromApi) {
+    function addContactFromSearch(firebaseUid, displayName, username, emailFromApi, firstNameFromApi, lastNameFromApi) {
         const loggedInUserId = getCurrentFirebaseUid();
         if (!loggedInUserId) {
             if (typeof Swal !== "undefined") Swal.fire({ text: "Your chat session is not active. Please sign out and sign in again from the login page.", icon: "warning", width: 420 });
@@ -829,9 +930,15 @@ initializeFirebase(function (app, auth, database, storage) {
             get(ref(database, `data/users/${firebaseUid}`)).then(userSnap => {
                 const userData = userSnap.exists() ? userSnap.val() : {};
                 const email = userData.email || emailFromApi || "";
+                const parsed = parseDisplayName(displayName);
+                const firstName = (firstNameFromApi && firstNameFromApi.trim()) || (userData.firstName && userData.firstName.trim()) || parsed.firstName || "";
+                const lastName = (lastNameFromApi && lastNameFromApi.trim()) || (userData.lastName && userData.lastName.trim()) || parsed.lastName || "";
                 set(contactRef, {
                     contact_id: firebaseUid,
                     email: email,
+                    firstName: firstName,
+                    lastName: lastName,
+                    mobile_number: userData.mobile_number || "",
                 }).then(() => {
                     Swal.fire({ text: "Contact added!", icon: "success", width: 400 }).then(() => {
                         const inputEl = document.getElementById("add-contact-username-search");

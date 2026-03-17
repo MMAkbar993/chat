@@ -170,15 +170,17 @@ function capitalizeFirstLetter(str) {
  */
 async function getUserDisplayName(userId) {
     if (!userId) return "Unknown User";
-    
-    // 1. Try to get name from the current user's contacts
-    const contactRef = ref(database, `data/users/${currentUser.uid}/contacts/${userId}`);
+
+    // 1. Try current user's contacts (same path as contact list: data/contacts/{currentUid}/{otherUid})
+    const contactRef = ref(database, `data/contacts/${currentUser.uid}/${userId}`);
     const contactSnapshot = await get(contactRef);
     if (contactSnapshot.exists()) {
         const data = contactSnapshot.val();
-        if (data.firstName && data.lastName) {
-            return `${data.firstName} ${data.lastName}`;
-        }
+        const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+        if (fullName) return fullName;
+        if (data.user_name) return data.user_name;
+        if (data.email) return data.email;
+        if (data.mobile_number) return data.mobile_number;
     }
 
     // 2. Fallback to the main users collection
@@ -186,8 +188,8 @@ async function getUserDisplayName(userId) {
     const userSnapshot = await get(userRef);
     if (userSnapshot.exists()) {
         const data = userSnapshot.val();
-        const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
-        return fullName || data.userName || "Unknown User";
+        const fullName = `${data.firstName || data.first_name || ''} ${data.lastName || data.last_name || ''}`.trim();
+        return fullName || data.userName || data.username || data.profileName || data.user_name || "Unknown User";
     }
 
     return "Unknown User";

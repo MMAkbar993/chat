@@ -269,7 +269,7 @@
                                         <h5>{{ __('All Contacts') }}</h5>
                                     </div>
                                     <!-- /Left Chat Title -->
-                                    <div class="chat-users-wrap" id="chatContainer"></div>
+                                    <div class="chat-users-wrap" id="chatContainer" data-contact-list="1"></div>
                                     <div id="noMatchesMessage" style="display: none;">{{ __('No matches found.') }}</div>
                                 </div>
 
