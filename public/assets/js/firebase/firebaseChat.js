@@ -2023,6 +2023,8 @@ initializeFirebase(function (app, auth, database, storage) {
             ".chat-header .avatar"
         );
 
+        if (!userStatusElement || !userAvatarElement) return;
+
         // Check if the current userId is in the excluded last seen users list
         if (excludedLastSeenUsers.includes(userId)) {
             // If user is excluded, do not show last seen status
@@ -6943,8 +6945,6 @@ initializeFirebase(function (app, auth, database, storage) {
             const manualSubscriptionInterval = setInterval(async () => {
                 try {
                     const remoteUsers = audioClient.remoteUsers;
-                    console.log(`Manual check - Remote users in channel:`, remoteUsers.map(u => u.uid));
-
                     for (const remoteUser of remoteUsers) {
                         if (remoteUser.hasAudio && !remoteUser.audioTrack) {
                             console.log(`Attempting manual subscription to user ${remoteUser.uid}`);
@@ -7512,8 +7512,6 @@ initializeFirebase(function (app, auth, database, storage) {
             const videoManualSubscriptionInterval = setInterval(async () => {
                 try {
                     const remoteUsers = videoClient.remoteUsers;
-                    console.log(`Video manual check - Remote users in channel:`, remoteUsers.map(u => u.uid));
-
                     for (const remoteUser of remoteUsers) {
                         if ((remoteUser.hasAudio && !remoteUser.audioTrack) ||
                             (remoteUser.hasVideo && !remoteUser.videoTrack)) {
