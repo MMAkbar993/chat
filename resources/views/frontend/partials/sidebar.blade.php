@@ -889,13 +889,47 @@
                                                             data-bs-parent="#account-setting">
                                                             <div class="accordion-body">
                                                                 <p class="text-muted small mb-3"><i class="ti ti-info-circle me-1"></i>{{ __('Add your website URL below. Then add the meta tag to your site’s <head> section and click Verify.') }}</p>
-                                                                @if(session('website_already_approved') && session('website_already_approved_id'))
-                                                                    <div class="alert alert-info alert-dismissible fade show mb-3" role="alert" id="website-already-approved-alert">
-                                                                        <p class="mb-2">{{ __('This website has already been approved. Please request representation from the owner. Your name and email address will be shared.') }}</p>
-                                                                        <p class="mb-2 small">{{ session('website_already_approved_domain') }}</p>
-                                                                        <button type="button" class="btn btn-sm btn-primary website-request-representation-btn" data-website-id="{{ session('website_already_approved_id') }}">{{ __('Request') }}</button>
-                                                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                                                @php
+                                                                    $myPendingRepresentation = Auth::check()
+                                                                        ? \App\Models\WebsiteRepresentative::where('user_id', Auth::id())
+                                                                            ->where('status', \App\Models\WebsiteRepresentative::STATUS_PENDING)
+                                                                            ->with('website')
+                                                                            ->orderByDesc('requested_at')
+                                                                            ->get()
+                                                                        : collect();
+                                                                    $sessionApprovedWid = session('website_already_approved_id');
+                                                                    $pendingForSessionWebsite = $sessionApprovedWid && Auth::check()
+                                                                        ? $myPendingRepresentation->contains(fn ($r) => (int) $r->website_id === (int) $sessionApprovedWid)
+                                                                        : false;
+                                                                @endphp
+                                                                <div id="my-pending-representation-wrap" class="mb-3 border rounded p-3 bg-body-secondary bg-opacity-10 @if($myPendingRepresentation->isEmpty()) d-none @endif">
+                                                                    <p class="fw-medium small mb-1" id="my-pending-representation-title">{{ __('Your pending representation requests') }}</p>
+                                                                    <p class="text-muted small mb-2">{{ __('You asked to represent these websites. The owner must approve before they appear on your profile.') }}</p>
+                                                                    <div id="my-pending-representation-list">
+                                                                        @foreach($myPendingRepresentation as $pr)
+                                                                            <div class="border rounded p-2 mb-2 bg-light my-pending-rep-row" data-website-id="{{ $pr->website_id }}" data-request-id="{{ $pr->id }}">
+                                                                                <span class="badge bg-warning text-dark me-2">{{ __('Pending') }}</span>
+                                                                                <strong>{{ $pr->website->domain ?? '' }}</strong>
+                                                                                <br><small class="text-muted">{{ __('Waiting for the website owner to approve.') }}</small>
+                                                                            </div>
+                                                                        @endforeach
                                                                     </div>
+                                                                </div>
+                                                                @if(session('website_already_approved') && session('website_already_approved_id'))
+                                                                    @if($pendingForSessionWebsite)
+                                                                        <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert" id="website-already-approved-alert">
+                                                                            <p class="mb-2 fw-medium">{{ __('Representation request pending') }}</p>
+                                                                            <p class="mb-0 small">{{ __('You already sent a request for :domain. You will be notified when the owner approves or declines.', ['domain' => session('website_already_approved_domain')]) }}</p>
+                                                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                                                        </div>
+                                                                    @else
+                                                                        <div class="alert alert-info alert-dismissible fade show mb-3" role="alert" id="website-already-approved-alert">
+                                                                            <p class="mb-2">{{ __('This website has already been approved. Please request representation from the owner. Your name and email address will be shared.') }}</p>
+                                                                            <p class="mb-2 small">{{ session('website_already_approved_domain') }}</p>
+                                                                            <button type="button" class="btn btn-sm btn-primary website-request-representation-btn" data-website-id="{{ session('website_already_approved_id') }}" data-website-domain="{{ e(session('website_already_approved_domain')) }}">{{ __('Request') }}</button>
+                                                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                                                        </div>
+                                                                    @endif
                                                                 @endif
                                                                 <form method="post" action="{{ route('settings.websites.add') }}" class="mb-3" id="add-website-form">
                                                                     @csrf
@@ -1245,6 +1279,39 @@
                                                                                 showToast(errorMsg, true);
                                                                             }
                                                                         });
+                                                                        function renderMyPendingRepresentationRow(websiteId, domain, requestId) {
+                                                                            var wrap = document.getElementById('my-pending-representation-wrap');
+                                                                            var list = document.getElementById('my-pending-representation-list');
+                                                                            if (!wrap || !list) return;
+                                                                            wrap.classList.remove('d-none');
+                                                                            var wid = String(websiteId);
+                                                                            if (list.querySelector('[data-website-id="' + wid + '"]')) return;
+                                                                            var esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); };
+                                                                            var rid = requestId != null && requestId !== '' ? String(parseInt(requestId, 10) || requestId) : '';
+                                                                            list.insertAdjacentHTML('beforeend', '<div class="border rounded p-2 mb-2 bg-light my-pending-rep-row" data-website-id="' + wid + '" data-request-id="' + (rid ? rid.replace(/"/g, '') : '') + '"><span class="badge bg-warning text-dark me-2">{{ __("Pending") }}</span><strong>' + esc(domain || wid) + '</strong><br><small class="text-muted">{{ __("Waiting for the website owner to approve.") }}</small></div>');
+                                                                        }
+                                                                        function submitRepresentationRequest(btn, websiteId, domainHint) {
+                                                                            if (!websiteId) return;
+                                                                            btn.disabled = true;
+                                                                            var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                                                                            var dh = domainHint || (btn.getAttribute('data-website-domain') || '');
+                                                                            fetch('{{ route("settings.websites.request-representation") }}', { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin', body: JSON.stringify({ website_id: parseInt(websiteId, 10), message: '' }) }).then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }).catch(function() { return { ok: r.ok, j: null }; }); }).then(function(x) {
+                                                                                if (!x.ok || !x.j) { showToast('{{ __("Server error. Please try again or contact support if it continues.") }}', true); return; }
+                                                                                var res = x.j;
+                                                                                var d = res.data || {};
+                                                                                if (res.code === '200' || res.code === 200) {
+                                                                                    renderMyPendingRepresentationRow(d.website_id, d.domain || dh, d.request_id);
+                                                                                    var ae = document.getElementById('website-already-approved-alert');
+                                                                                    if (ae) ae.remove();
+                                                                                    showToast(res.message || '{{ __("Representation request sent. The owner will review your request.") }}');
+                                                                                } else if (d.pending) {
+                                                                                    renderMyPendingRepresentationRow(d.website_id, d.domain || dh, d.request_id);
+                                                                                    showToast(res.message || '{{ __("You already have a pending request for this website.") }}');
+                                                                                } else {
+                                                                                    showToast(res.message || (d.error && d.error.user_message) || '{{ __("Could not send request.") }}', true);
+                                                                                }
+                                                                            }).catch(function() { showToast('{{ __("Could not send request.") }}', true); }).finally(function() { btn.disabled = false; });
+                                                                        }
                                                                         function attachWebsiteHandlers(scope) {
                                                                             scope = scope || document;
                                                                             scope.querySelectorAll('.website-verify-btn:not([data-website-bound])').forEach(function(btn) {
@@ -1354,7 +1421,8 @@
                                                                                             if (urlInput) urlInput.value = '';
                                                                                             showToast(res.message || '{{ __("Website added.") }}');
                                                                                         } else if (res.data && res.data.already_approved) {
-                                                                                            var alertHtml = '<div class="alert alert-info alert-dismissible fade show mb-3" role="alert" id="website-already-approved-alert"><p class="mb-2">{{ __("This website has already been approved. Please request representation from the owner. Your name and email address will be shared.") }}</p><p class="mb-2 small">' + (res.data.domain || '').replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</p><button type="button" class="btn btn-sm btn-primary website-request-representation-btn" data-website-id="' + res.data.website_id + '">{{ __("Request") }}</button><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
+                                                                                            var domSafe = String(res.data.domain || '').replace(/"/g, '&quot;');
+                                                                                            var alertHtml = '<div class="alert alert-info alert-dismissible fade show mb-3" role="alert" id="website-already-approved-alert"><p class="mb-2">{{ __("This website has already been approved. Please request representation from the owner. Your name and email address will be shared.") }}</p><p class="mb-2 small">' + (res.data.domain || '').replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</p><button type="button" class="btn btn-sm btn-primary website-request-representation-btn" data-website-id="' + res.data.website_id + '" data-website-domain="' + domSafe + '">{{ __("Request") }}</button><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
                                                                                             var accordionBody = document.getElementById('website-verification-id');
                                                                                             if (accordionBody) {
                                                                                                 var existingAlert = document.getElementById('website-already-approved-alert');
@@ -1364,13 +1432,7 @@
                                                                                                 else accordionBody.insertAdjacentHTML('afterbegin', alertHtml);
                                                                                                 document.querySelectorAll('.website-request-representation-btn').forEach(function(btn) {
                                                                                                     if (btn.getAttribute('data-website-id') === String(res.data.website_id)) {
-                                                                                                        btn.addEventListener('click', function() {
-                                                                                                            var websiteId = this.getAttribute('data-website-id');
-                                                                                                            if (!websiteId) return;
-                                                                                                            this.disabled = true;
-                                                                                                            var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                                                                                                            fetch('{{ route("settings.websites.request-representation") }}', { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin', body: JSON.stringify({ website_id: parseInt(websiteId, 10), message: '' }) }).then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }).catch(function() { return { ok: r.ok, j: null }; }); }).then(function(x) { if (!x.ok || !x.j) { showToast('{{ __("Server error. Please try again or contact support if it continues.") }}', true); return; } var res = x.j; if (res.code === '200' || res.code === 200) { var ae = document.getElementById('website-already-approved-alert'); if (ae) ae.remove(); showToast(res.message || '{{ __("Representation request sent.") }}'); } else { showToast(res.message || '{{ __("Could not send request.") }}', true); } }).catch(function() { showToast('{{ __("Could not send request.") }}', true); }).finally(function() { btn.disabled = false; });
-                                                                                                        });
+                                                                                                        btn.addEventListener('click', function() { submitRepresentationRequest(this, this.getAttribute('data-website-id'), this.getAttribute('data-website-domain')); });
                                                                                                     }
                                                                                                 });
                                                                                             }
@@ -1385,28 +1447,10 @@
                                                                                 .catch(function() { if (submitBtn) submitBtn.disabled = false; showToast('{{ __("Could not add website.") }}', true); });
                                                                         });
                                                                         attachWebsiteHandlers();
-                                                                        document.querySelectorAll('.website-request-representation-btn').forEach(function(btn) {
+                                                                        document.querySelectorAll('.website-request-representation-btn:not([data-rep-bound])').forEach(function(btn) {
+                                                                            btn.setAttribute('data-rep-bound', '1');
                                                                             btn.addEventListener('click', function() {
-                                                                                var websiteId = this.getAttribute('data-website-id');
-                                                                                if (!websiteId) return;
-                                                                                this.disabled = true;
-                                                                                var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                                                                                fetch('{{ route("settings.websites.request-representation") }}', {
-                                                                                    method: 'POST',
-                                                                                    headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                                                                                    credentials: 'same-origin',
-                                                                                    body: JSON.stringify({ website_id: parseInt(websiteId, 10), message: '' })
-                                                                                }).then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }).catch(function() { return { ok: r.ok, j: null }; }); }).then(function(x) {
-                                                                                    if (!x.ok || !x.j) { showToast('{{ __("Server error. Please try again or contact support if it continues.") }}', true); return; }
-                                                                                    var res = x.j;
-                                                                                    if (res.code === '200' || res.code === 200) {
-                                                                                        var alertEl = document.getElementById('website-already-approved-alert');
-                                                                                        if (alertEl) alertEl.remove();
-                                                                                        showToast(res.message || '{{ __("Representation request sent. The owner will review your request.") }}');
-                                                                                    } else {
-                                                                                        showToast(res.message || (res.data && res.data.error && res.data.error.user_message) || '{{ __("Could not send request.") }}', true);
-                                                                                    }
-                                                                                }).catch(function() { showToast('{{ __("Could not send request.") }}', true); }).finally(function() { btn.disabled = false; });
+                                                                                submitRepresentationRequest(this, this.getAttribute('data-website-id'), this.getAttribute('data-website-domain'));
                                                                             });
                                                                         });
                                                                         function loadAuthorizedUsers() {

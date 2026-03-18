@@ -265,6 +265,7 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
    Route::post('/settings/websites/{id}/verify', [ApiWebsiteController::class, 'verify'])->name('settings.websites.verify');
    Route::delete('/settings/websites/{id}', [ApiWebsiteController::class, 'destroy'])->name('settings.websites.destroy');
    Route::post('/settings/websites/request-representation', [ApiWebsiteController::class, 'requestRepresentationFromWeb'])->name('settings.websites.request-representation');
+   Route::get('/settings/websites/my-pending-representation', [ApiWebsiteController::class, 'myPendingRepresentationFromWeb'])->name('settings.websites.my-pending-representation');
    Route::get('/settings/websites/authorized-users', [ApiWebsiteController::class, 'authorizedUsersFromWeb'])->name('settings.websites.authorized-users');
    Route::post('/settings/websites/representation/{id}/approve', [ApiWebsiteController::class, 'approveRepresentation'])->name('settings.websites.representation.approve');
    Route::post('/settings/websites/representation/{id}/deny', [ApiWebsiteController::class, 'denyRepresentation'])->name('settings.websites.representation.deny');

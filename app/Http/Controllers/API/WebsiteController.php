@@ -488,7 +488,17 @@ class WebsiteController extends Controller
 
         if ($existing) {
             if ($existing->status === 'pending') {
-                return response()->json(['code' => -1, 'message' => __('You already have a pending representation request.'), 'data' => ['error' => ['user_message' => __('You already have a pending representation request.')]]], 200);
+                return response()->json([
+                    'code' => -1,
+                    'message' => __('You already have a pending representation request for this website.'),
+                    'data' => [
+                        'error' => ['user_message' => __('You already have a pending representation request for this website.')],
+                        'pending' => true,
+                        'website_id' => $website->id,
+                        'domain' => $website->domain,
+                        'request_id' => $existing->id,
+                    ],
+                ], 200);
             }
             $existing->delete();
         }
@@ -506,8 +516,38 @@ class WebsiteController extends Controller
         return response()->json([
             'code' => '200',
             'message' => __('Representation request sent. The owner will review your request.'),
-            'data' => ['request_id' => $rep->id],
+            'data' => [
+                'request_id' => $rep->id,
+                'website_id' => $website->id,
+                'domain' => $website->domain,
+            ],
         ], 200);
+    }
+
+    /**
+     * Pending representation requests sent by the current user (waiting on website owner).
+     */
+    public function myPendingRepresentationFromWeb(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['code' => -1, 'pending' => []], 200);
+        }
+
+        $pending = WebsiteRepresentative::query()
+            ->where('user_id', $user->id)
+            ->where('status', WebsiteRepresentative::STATUS_PENDING)
+            ->with('website')
+            ->orderByDesc('requested_at')
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'website_id' => $r->website_id,
+                'domain' => $r->website?->domain ?? '',
+                'requested_at' => $r->requested_at?->toIso8601String(),
+            ]);
+
+        return response()->json(['code' => '200', 'pending' => $pending->values()->all()], 200);
     }
 
     /**
