@@ -249,7 +249,8 @@ initializeFirebase(function (app, auth, database, storage) {
                     }
                 }
 
-                // Populate Personal Information (local_time always; rest from API when contact has email)
+                // Populate Personal Information (local_time always; fill the rest with Firebase first,
+                // then overwrite with Laravel public-profile API values when they exist).
                 function setContactDetailField(field, value, asLink) {
                     const el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
                     if (!el) return;
@@ -260,11 +261,59 @@ initializeFirebase(function (app, auth, database, storage) {
                         el.textContent = value || '—';
                     }
                 }
+                function setContactDetailFieldIfPresent(field, value, asLink) {
+                    if (value === null || value === undefined) return;
+                    if (typeof value === 'string' && value.trim() === '') return;
+                    setContactDetailField(field, value, asLink);
+                }
+
                 const now = new Date();
                 const localTimeStr = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
                 setContactDetailField('local_time', localTimeStr);
+
+                // Firebase defaults (so users see content even if API lookup fails or email is missing)
+                const defaultDob = contactData?.dob || userData?.dob || '';
+                const defaultBio =
+                    contactData?.about || contactData?.bio || userData?.about || userData?.bio || userData?.user_about || '';
+                const defaultLocation =
+                    contactData?.location || contactData?.country || userData?.country || userData?.location || '';
+                const defaultJoin =
+                    userData?.join_date || userData?.created_at || userData?.timestamp || contactData?.join_date || contactData?.created_at || '';
+                const defaultWebsite =
+                    (userData?.websites && userData.websites[0] && userData.websites[0].url ? userData.websites[0].url : '') ||
+                    userData?.website_url || userData?.website_link ||
+                    contactData?.website_url || contactData?.website_link || '';
+
+                setContactDetailFieldIfPresent('dob', defaultDob);
+                setContactDetailFieldIfPresent('bio', defaultBio);
+                setContactDetailFieldIfPresent('location', defaultLocation);
+                setContactDetailFieldIfPresent('join_date', defaultJoin);
+                setContactDetailFieldIfPresent('website', defaultWebsite, true);
+
+                const getDefaultSocial = function (k) {
+                    return (
+                        contactData?.[k + '_link'] ||
+                        contactData?.[k] ||
+                        userData?.[k + '_link'] ||
+                        userData?.[k] ||
+                        userData?.social_links?.[k] ||
+                        (userData?.social_links && userData.social_links[k]) ||
+                        ''
+                    );
+                };
+                ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'].forEach(function (k) {
+                    setContactDetailFieldIfPresent(k, getDefaultSocial(k), true);
+                });
+
                 const contactEmail = (contactData && contactData.email) || (userData && userData.email);
-                if (contactEmail) {
+                const contactUsername =
+                    (contactData && (contactData.userName || contactData.username || contactData.user_name)) ||
+                    (userData && (userData.userName || userData.username || userData.user_name)) ||
+                    (contactData && contactData.mobile_number) ||
+                    (userData && userData.mobile_number);
+
+                // API enrichment (only overwrite when values are present)
+                if (contactEmail && String(contactEmail).trim() !== '') {
                     fetch('/api/public-profile-by-email?email=' + encodeURIComponent(contactEmail))
                         .then(function (r) { return r.json(); })
                         .then(function (pub) {
@@ -274,38 +323,52 @@ initializeFirebase(function (app, auth, database, storage) {
                             if (contactKycBadge) contactKycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
                             const socialVerifiedEl = document.querySelector('#contact-details .contact-social-verified');
                             if (socialVerifiedEl) socialVerifiedEl.style.display = pub.social_verified ? 'inline-flex' : 'none';
-                            setContactDetailField('dob', pub.dob);
-                            setContactDetailField('bio', pub.bio);
-                            setContactDetailField('location', pub.location);
-                            setContactDetailField('join_date', pub.join_date);
-                            if (pub.websites && pub.websites.length > 0) {
+
+                            setContactDetailFieldIfPresent('dob', pub.dob);
+                            setContactDetailFieldIfPresent('bio', pub.bio);
+                            setContactDetailFieldIfPresent('location', pub.location);
+                            setContactDetailFieldIfPresent('join_date', pub.join_date);
+                            if (pub.websites && pub.websites.length > 0 && pub.websites[0].url) {
                                 setContactDetailField('website', pub.websites[0].url, true);
-                            } else {
-                                setContactDetailField('website', '');
                             }
                             const socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
                             if (pub.social_links) {
                                 socialKeys.forEach(function (k) {
-                                    setContactDetailField(k, pub.social_links[k], true);
+                                    setContactDetailFieldIfPresent(k, pub.social_links[k], true);
                                 });
                             }
                         })
                         .catch(function () {
-                            setContactDetailField('dob', '');
-                            setContactDetailField('website', '');
-                            setContactDetailField('bio', '');
-                            setContactDetailField('location', '');
-                            setContactDetailField('join_date', '');
+                            // Keep Firebase defaults
                         });
-                } else {
-                    setContactDetailField('dob', '');
-                    setContactDetailField('website', '');
-                    setContactDetailField('bio', '');
-                    setContactDetailField('location', '');
-                    setContactDetailField('join_date', '');
-                    ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'].forEach(function (k) {
-                        setContactDetailField(k, '');
-                    });
+                } else if (contactUsername && String(contactUsername).trim() !== '') {
+                    fetch('/api/public-profile-by-username?username=' + encodeURIComponent(contactUsername))
+                        .then(function (r) { return r.json(); })
+                        .then(function (pub) {
+                            if (!pub) return;
+                            const h6El = document.querySelector('#contact-details h6');
+                            if (pub.display_name && h6El) h6El.textContent = pub.display_name;
+                            if (contactKycBadge) contactKycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
+                            const socialVerifiedEl = document.querySelector('#contact-details .contact-social-verified');
+                            if (socialVerifiedEl) socialVerifiedEl.style.display = pub.social_verified ? 'inline-flex' : 'none';
+
+                            setContactDetailFieldIfPresent('dob', pub.dob);
+                            setContactDetailFieldIfPresent('bio', pub.bio);
+                            setContactDetailFieldIfPresent('location', pub.location);
+                            setContactDetailFieldIfPresent('join_date', pub.join_date);
+                            if (pub.websites && pub.websites.length > 0 && pub.websites[0].url) {
+                                setContactDetailField('website', pub.websites[0].url, true);
+                            }
+                            const socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
+                            if (pub.social_links) {
+                                socialKeys.forEach(function (k) {
+                                    setContactDetailFieldIfPresent(k, pub.social_links[k], true);
+                                });
+                            }
+                        })
+                        .catch(function () {
+                            // Keep Firebase defaults
+                        });
                 }
 
             } else {

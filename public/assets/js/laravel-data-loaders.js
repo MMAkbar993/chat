@@ -106,8 +106,47 @@
                     var socialVerified = document.querySelector('#contact-details .contact-social-verified');
                     if (kycBadge) kycBadge.style.display = 'none';
                     if (socialVerified) socialVerified.style.display = 'none';
+                    var contactUsername = data.userName || data.user_name || '';
                     if (data.email) {
                         fetch(baseUrl + '/api/public-profile-by-email?email=' + encodeURIComponent(data.email))
+                            .then(function (r) { return r.json(); })
+                            .then(function (pub) {
+                                if (!pub) return;
+                                if (pub.display_name && nameEl) nameEl.textContent = pub.display_name;
+                                if (kycBadge) kycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
+                                if (socialVerified) socialVerified.style.display = (pub.social_verified ? 'inline-flex' : 'none');
+                                var setField = function (field, value, asLink) {
+                                    var el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
+                                    if (!el) return;
+                                    if (asLink && value && (value.indexOf('http') === 0 || value.indexOf('www') === 0)) {
+                                        var href = value.indexOf('http') === 0 ? value : 'https://' + value;
+                                        el.innerHTML = '<a href="' + escapeAttr(href) + '" target="_blank" rel="noopener">' + escapeHtml(value) + '</a>';
+                                    } else {
+                                        el.textContent = value || '—';
+                                    }
+                                };
+                                var now = new Date();
+                                var localTime = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
+                                setField('local_time', localTime);
+                                setField('dob', pub.dob);
+                                setField('bio', pub.bio);
+                                setField('location', pub.location);
+                                setField('join_date', pub.join_date);
+                                if (pub.websites && pub.websites.length > 0) {
+                                    setField('website', pub.websites[0].url, true);
+                                } else {
+                                    setField('website', '');
+                                }
+                                var socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
+                                if (pub.social_links) {
+                                    socialKeys.forEach(function (k) {
+                                        setField(k, pub.social_links[k], true);
+                                    });
+                                }
+                            })
+                            .catch(function () {});
+                    } else if (contactUsername) {
+                        fetch(baseUrl + '/api/public-profile-by-username?username=' + encodeURIComponent(contactUsername))
                             .then(function (r) { return r.json(); })
                             .then(function (pub) {
                                 if (!pub) return;
