@@ -308,4 +308,79 @@ class UserSearchController extends Controller
             'social_links' => $socialLinks,
         ]);
     }
+
+    /**
+     * Batch-resolve profile image URLs from Laravel for contacts missing Firebase avatars.
+     * POST /api/users/contact-avatars (auth required)
+     * Body: { "firebase_uids": [], "emails": [], "usernames": [] }
+     */
+    public function contactAvatarsBatch(Request $request)
+    {
+        if (! auth()->check()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $firebaseUids = array_values(array_unique(array_filter(array_map('strval', (array) $request->input('firebase_uids', [])))));
+        $emails = array_values(array_unique(array_filter(array_map('strval', (array) $request->input('emails', [])))));
+        $usernames = array_values(array_unique(array_filter(array_map('strval', (array) $request->input('usernames', [])))));
+
+        $firebaseUids = array_values(array_filter($firebaseUids, function ($u) {
+            $u = trim($u);
+
+            return strlen($u) > 0 && strlen($u) < 130 && strpos($u, 'pending_') !== 0;
+        }));
+        $firebaseUids = array_slice($firebaseUids, 0, 60);
+        $emails = array_slice(array_map(function ($e) {
+            return mb_strtolower(trim($e));
+        }, $emails), 0, 60);
+        $usernames = array_slice($usernames, 0, 60);
+
+        $byUid = [];
+        $byEmail = [];
+        $byUsername = [];
+
+        $table = (new User)->getTable();
+        $hasFb = Schema::hasColumn($table, 'firebase_uid');
+
+        if ($hasFb && count($firebaseUids) > 0) {
+            User::whereIn('firebase_uid', $firebaseUids)
+                ->get(['firebase_uid', 'profile_image'])
+                ->each(function ($u) use (&$byUid) {
+                    if (! empty($u->firebase_uid)) {
+                        $byUid[$u->firebase_uid] = $u->profile_image_link;
+                    }
+                });
+        }
+
+        if (count($emails) > 0) {
+            User::where(function ($q) use ($emails) {
+                foreach ($emails as $i => $le) {
+                    if ($i === 0) {
+                        $q->whereRaw('LOWER(email) = ?', [$le]);
+                    } else {
+                        $q->orWhereRaw('LOWER(email) = ?', [$le]);
+                    }
+                }
+            })->get(['email', 'profile_image'])->each(function ($u) use (&$byEmail) {
+                $byEmail[mb_strtolower($u->email)] = $u->profile_image_link;
+            });
+        }
+
+        foreach ($usernames as $un) {
+            $un = trim($un);
+            if ($un === '') {
+                continue;
+            }
+            $user = User::whereRaw('LOWER(user_name) = ?', [mb_strtolower($un)])->first(['user_name', 'profile_image']);
+            if ($user && $user->user_name) {
+                $byUsername[mb_strtolower($user->user_name)] = $user->profile_image_link;
+            }
+        }
+
+        return response()->json([
+            'by_uid' => $byUid,
+            'by_email' => $byEmail,
+            'by_username' => $byUsername,
+        ]);
+    }
 }

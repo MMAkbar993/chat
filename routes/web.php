@@ -114,6 +114,10 @@ Route::get('api/restore-chat-session', [App\Http\Controllers\FirebaseAdminContro
     ->name('api.restore-chat-session')
     ->middleware('auth');
 
+Route::post('api/users/contact-avatars', [UserSearchController::class, 'contactAvatarsBatch'])
+    ->name('api.users.contact-avatars')
+    ->middleware('auth');
+
 // Registration flow status polling (used by the signup page AJAX flow)
 Route::get('api/registration-status', function (\Illuminate\Http\Request $request) {
     $user = \Illuminate\Support\Facades\Auth::user()

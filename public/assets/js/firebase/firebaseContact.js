@@ -72,6 +72,96 @@ initializeFirebase(function (app, auth, database, storage) {
         return origin ? origin + "/" + path : s;
     }
 
+    /** Load profile_image URLs from Laravel for contacts with no Firebase/local avatar (auth + CSRF). */
+    async function fetchLaravelContactAvatars(payload) {
+        const origin = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
+        const token = typeof document !== "undefined" && document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute("content") : "";
+        if (!origin || !token) return null;
+        try {
+            const r = await fetch(origin + "/api/users/contact-avatars", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "X-CSRF-TOKEN": token,
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+                body: JSON.stringify(payload),
+            });
+            if (!r.ok) return null;
+            return await r.json();
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function applyLaravelAvatarMap(user, byUid, byEmail, byUsername) {
+        if (!user) return;
+        const uid = user.uid;
+        let url = "";
+        if (uid && String(uid).indexOf("pending_") !== 0 && byUid && byUid[uid]) url = byUid[uid];
+        if (!url && user.email && byEmail) {
+            const e = String(user.email).trim().toLowerCase();
+            if (e && byEmail[e]) url = byEmail[e];
+        }
+        if (!url && user.userName && byUsername) {
+            const un = String(user.userName).trim().toLowerCase();
+            if (un && byUsername[un]) url = byUsername[un];
+        }
+        if (url && String(url).trim()) {
+            user.image = resolveProfileImageUrl(String(url).trim());
+        }
+    }
+
+    async function enrichContactListAvatarsFromLaravel(usersArray) {
+        const need = usersArray.filter(function (u) {
+            return u && u._needsLaravelAvatar;
+        });
+        usersArray.forEach(function (u) {
+            if (u) delete u._needsLaravelAvatar;
+        });
+        if (!need.length) return;
+        const firebase_uids = [];
+        const seenUid = new Set();
+        const emails = [];
+        const seenEmail = new Set();
+        const usernames = [];
+        const seenUser = new Set();
+        need.forEach(function (u) {
+            if (u.uid && String(u.uid).indexOf("pending_") !== 0 && !seenUid.has(u.uid)) {
+                seenUid.add(u.uid);
+                firebase_uids.push(u.uid);
+            }
+            if (u.email && String(u.email).trim()) {
+                const e = String(u.email).trim().toLowerCase();
+                if (!seenEmail.has(e)) {
+                    seenEmail.add(e);
+                    emails.push(e);
+                }
+            }
+            if (u.userName && String(u.userName).trim()) {
+                const un = String(u.userName).trim();
+                if (!seenUser.has(un)) {
+                    seenUser.add(un);
+                    usernames.push(un);
+                }
+            }
+        });
+        const data = await fetchLaravelContactAvatars({
+            firebase_uids: firebase_uids.slice(0, 60),
+            emails: emails.slice(0, 60),
+            usernames: usernames.slice(0, 60),
+        });
+        if (!data) return;
+        const byUid = data.by_uid || {};
+        const byEmail = data.by_email || {};
+        const byUsername = data.by_username || {};
+        need.forEach(function (u) {
+            applyLaravelAvatarMap(u, byUid, byEmail, byUsername);
+        });
+    }
+
     function displayUsers(searchTerm = '') {
         const uid = currentUserId || (typeof getCurrentFirebaseUid === 'function' ? getCurrentFirebaseUid() : null);
         if (!uid) return;
@@ -105,6 +195,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                 lastName: contact.lastName || userData.lastName ||  "",
                                 userName: userData.username || userData.userName || userData.profileName || contact.user_name || "",
                                 image: resolveProfileImageUrl(rawAvatar),
+                                _needsLaravelAvatar: !rawAvatar,
                                 mobile_number: contact.mobile_number || userData.mobile_number ||  "",
                                 email: contact.email || userData.email ||  "",
                             };
@@ -114,7 +205,8 @@ initializeFirebase(function (app, auth, database, storage) {
                         }
                     })
                 );
-                const usersArray = usersArrayRaw.filter(function (user) { return user != null; });
+                let usersArray = usersArrayRaw.filter(function (user) { return user != null; });
+                await enrichContactListAvatarsFromLaravel(usersArray);
 
                 // Sort users alphabetically by first name; "Others" = anyone without both first and last name (so no one is dropped)
                 const validUsersArray = usersArray.filter(user => user.firstName && user.lastName);
@@ -252,9 +344,46 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (nameEl) nameEl.textContent = displayName;
                 const contactDetailNameEl = document.getElementById('contact-detail-name');
                 if (contactDetailNameEl) contactDetailNameEl.textContent = displayName;
-                // Profile image: same sources as contact list (contact.profile_image, then Firebase user fields)
+                // Profile image: contact + Firebase, then Laravel for older contacts without stored photo
                 var avatarImgEl = document.querySelector('#contact-details .avatar img');
                 var rawAvatar = (contactData && contactData.profile_image) || (userData && (userData.profile_image || userData.image || userData.profileImage || userData.photoURL || userData.avatar)) || '';
+                if (!rawAvatar) {
+                    const fbUids = userId && String(userId).indexOf('pending_') !== 0 ? [userId] : [];
+                    const emailList = [];
+                    const unList = [];
+                    if (contactData && contactData.email && String(contactData.email).trim()) emailList.push(String(contactData.email).trim().toLowerCase());
+                    if (userData && userData.email && String(userData.email).trim()) {
+                        const em = String(userData.email).trim().toLowerCase();
+                        if (emailList.indexOf(em) < 0) emailList.push(em);
+                    }
+                    if (contactData && contactData.user_name && String(contactData.user_name).trim()) unList.push(String(contactData.user_name).trim());
+                    if (userData && (userData.userName || userData.username)) {
+                        const un = String(userData.userName || userData.username).trim();
+                        if (un && unList.indexOf(un) < 0) unList.push(un);
+                    }
+                    const laravelMap = await fetchLaravelContactAvatars({
+                        firebase_uids: fbUids,
+                        emails: emailList,
+                        usernames: unList,
+                    });
+                    if (laravelMap) {
+                        const bu = laravelMap.by_uid || {};
+                        const be = laravelMap.by_email || {};
+                        const buser = laravelMap.by_username || {};
+                        if (fbUids.length && bu[userId]) rawAvatar = bu[userId];
+                        if (!rawAvatar && emailList.length) {
+                            for (let i = 0; i < emailList.length && !rawAvatar; i++) {
+                                if (be[emailList[i]]) rawAvatar = be[emailList[i]];
+                            }
+                        }
+                        if (!rawAvatar && unList.length) {
+                            for (let j = 0; j < unList.length && !rawAvatar; j++) {
+                                const k = String(unList[j]).toLowerCase();
+                                if (buser[k]) rawAvatar = buser[k];
+                            }
+                        }
+                    }
+                }
                 var chosenAvatar = resolveProfileImageUrl(rawAvatar);
                 if (avatarImgEl) avatarImgEl.src = chosenAvatar;
                 const phoneVal = contactData.mobile_number || userData.mobile_number || "N/A";
