@@ -299,12 +299,11 @@ initializeFirebase(function (app, auth, database, storage) {
                                     // Populate usersMap with contact users
                                     userIds.forEach((userId) => {
                                         if (users[userId]) {
+                                            const u = users[userId];
+                                            const nm = `${u.firstName || ""} ${u.lastName || ""}`.trim();
                                             usersMap[userId] = {
                                                 uid: userId,
-                                                userName:
-                                                    users[userId].firstName +
-                                                    " " +
-                                                    users[userId].lastName,
+                                                userName: nm || "",
                                                 profileImage:
                                                     users[userId]
                                                         .image ||
@@ -6639,6 +6638,160 @@ initializeFirebase(function (app, auth, database, storage) {
     const callRef = ref(database, 'data/calls');
     const usersRef = ref(database, 'data/users');
 
+    function resolveCallProfileImageUrl(raw) {
+        const origin = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
+        const defaultUrl = origin ? origin + "/assets/img/profiles/avatar-03.jpg" : "assets/img/profiles/avatar-03.jpg";
+        if (raw == null || !String(raw).trim()) return defaultUrl;
+        const s = String(raw).trim();
+        if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:")) return s;
+        if (s.startsWith("//")) return (window.location && window.location.protocol ? window.location.protocol : "https:") + s;
+        const path = s.replace(/^\.?\/+/, "");
+        return origin ? origin + "/" + path : defaultUrl;
+    }
+    function rawAvatarFromFirebaseAndContact(userData, contactData) {
+        if (contactData && contactData.profile_image) return String(contactData.profile_image).trim();
+        if (!userData || typeof userData !== "object") return "";
+        return (
+            (userData.profile_image && String(userData.profile_image).trim()) ||
+            (userData.image && String(userData.image).trim()) ||
+            (userData.profileImage && String(userData.profileImage).trim()) ||
+            (userData.photoURL && String(userData.photoURL).trim()) ||
+            (userData.avatar && String(userData.avatar).trim()) ||
+            (contactData && contactData.image && String(contactData.image).trim()) ||
+            ""
+        );
+    }
+    function buildContactAvatarsRequestBody(userId, userData, contactData) {
+        const body = { firebase_uids: [], emails: [], usernames: [] };
+        if (userId && String(userId).indexOf("pending_") !== 0) body.firebase_uids.push(userId);
+        if (contactData && contactData.email && String(contactData.email).trim()) {
+            body.emails.push(String(contactData.email).trim().toLowerCase());
+        }
+        if (userData && userData.email && String(userData.email).trim()) {
+            const em = String(userData.email).trim().toLowerCase();
+            if (body.emails.indexOf(em) < 0) body.emails.push(em);
+        }
+        if (contactData && contactData.user_name && String(contactData.user_name).trim()) {
+            body.usernames.push(String(contactData.user_name).trim());
+        }
+        const un = userData && (userData.userName || userData.username) ? String(userData.userName || userData.username).trim() : "";
+        if (un && body.usernames.indexOf(un) < 0) body.usernames.push(un);
+        return body;
+    }
+
+    function pickLaravelAvatarAndName(data, userId, body) {
+        const bu = data.by_uid || {};
+        const be = data.by_email || {};
+        const buser = data.by_username || {};
+        const nu = data.name_by_uid || {};
+        const ne = data.name_by_email || {};
+        const nuser = data.name_by_username || {};
+        let avatar = "";
+        let displayName = "";
+        if (userId && bu[userId]) avatar = bu[userId];
+        if (userId && nu[userId]) displayName = nu[userId];
+        if (!avatar) {
+            for (let i = 0; i < body.emails.length; i++) {
+                if (be[body.emails[i]]) {
+                    avatar = be[body.emails[i]];
+                    break;
+                }
+            }
+        }
+        if (!displayName) {
+            for (let i = 0; i < body.emails.length; i++) {
+                if (ne[body.emails[i]]) {
+                    displayName = ne[body.emails[i]];
+                    break;
+                }
+            }
+        }
+        if (!avatar) {
+            for (let j = 0; j < body.usernames.length; j++) {
+                const k = String(body.usernames[j]).toLowerCase();
+                if (buser[k]) {
+                    avatar = buser[k];
+                    break;
+                }
+            }
+        }
+        if (!displayName) {
+            for (let j = 0; j < body.usernames.length; j++) {
+                const k = String(body.usernames[j]).toLowerCase();
+                if (nuser[k]) {
+                    displayName = nuser[k];
+                    break;
+                }
+            }
+        }
+        return {
+            avatarUrl: avatar ? resolveCallProfileImageUrl(avatar) : "",
+            displayName: String(displayName || "").trim(),
+        };
+    }
+
+    async function resolveCallUserAvatarAndDisplayName(userId, userData, contactData, opts) {
+        const needLaravelName = !!(opts && opts.includeLaravelDisplayName);
+        const raw = rawAvatarFromFirebaseAndContact(userData, contactData);
+        const fallback = resolveCallProfileImageUrl("");
+        let imageUrl = raw ? resolveCallProfileImageUrl(raw) : "";
+        let displayName = "";
+        const body = buildContactAvatarsRequestBody(userId, userData, contactData);
+        if (!body.firebase_uids.length && !body.emails.length && !body.usernames.length) {
+            return { imageUrl: imageUrl || fallback, displayName };
+        }
+        const fetchForImage = !imageUrl;
+        if (!fetchForImage && !needLaravelName) {
+            return { imageUrl: imageUrl || fallback, displayName };
+        }
+        const token = typeof document !== "undefined" && document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute("content") : "";
+        const origin = typeof window !== "undefined" && window.location && window.location.origin ? window.location.origin : "";
+        if (!token || !origin) return { imageUrl: imageUrl || fallback, displayName };
+        try {
+            const r = await fetch(origin + "/api/users/contact-avatars", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "X-CSRF-TOKEN": token,
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+                body: JSON.stringify(body),
+            });
+            if (!r.ok) return { imageUrl: imageUrl || fallback, displayName };
+            const data = await r.json();
+            const picked = pickLaravelAvatarAndName(data, userId, body);
+            if (!imageUrl && picked.avatarUrl) imageUrl = picked.avatarUrl;
+            if (picked.displayName) displayName = picked.displayName;
+        } catch (err) { /* ignore */ }
+        return { imageUrl: imageUrl || fallback, displayName };
+    }
+
+    async function resolveCallUserAvatarUrl(userId, userData, contactData) {
+        const { imageUrl } = await resolveCallUserAvatarAndDisplayName(userId, userData, contactData, null);
+        return imageUrl;
+    }
+
+    function isGarbageConcatenatedName(s) {
+        const t = String(s || "").trim();
+        if (!t) return true;
+        const parts = t.split(/\s+/).filter(Boolean);
+        return parts.length > 0 && parts.every((p) => p === "undefined");
+    }
+
+    /** When Firebase user/contact lack name fields, chat list still has display name in usersMap. */
+    function callDisplayNameFromUsersMap(userId, nameSoFar) {
+        let cur = String(nameSoFar || "").trim();
+        if (isGarbageConcatenatedName(cur)) cur = "";
+        if (cur && cur !== "Unknown User") return cur;
+        if (typeof usersMap === "undefined" || !userId || !usersMap[userId]) return cur || "Unknown User";
+        let fromMap = String(usersMap[userId].userName || "").trim();
+        if (isGarbageConcatenatedName(fromMap)) fromMap = "";
+        if (fromMap && fromMap !== "Unknown User") return fromMap;
+        return cur || "Unknown User";
+    }
+
     const audioCallButton = document.getElementById("audio-call-btn");
     const joinCallButton = document.getElementById('join-audio-call');
     const endCallButton = document.getElementById("end-audio-call");
@@ -6701,6 +6854,8 @@ initializeFirebase(function (app, auth, database, storage) {
                     receiverName = String(receiverName || '').trim() || "Unknown User";
                 }
             }
+            callerName = callDisplayNameFromUsersMap(callerId, callerName);
+            receiverName = callDisplayNameFromUsersMap(receiverId, receiverName);
             const callerMobile = callerData.mobile_number || callerId;
             const receiverMobile = receiverData.mobile_number || receiverId;
 
@@ -7097,25 +7252,26 @@ initializeFirebase(function (app, auth, database, storage) {
         // Get current user's details
         const currentUserSnapshot = await get(child(usersRef, currentUser.uid));
 
+        const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${userId}`));
+        const contactDataForOther = contactSnap.exists() ? contactSnap.val() : null;
+
         if (otherUserSnapshot.exists()) {
             const userData = otherUserSnapshot.val();
             let userName = '';
-            let contactData = null;
             if (userData.firstName != null || userData.lastName != null) {
                 userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
+            } else if (contactDataForOther && (contactDataForOther.firstName != null || contactDataForOther.lastName != null)) {
+                userName = `${contactDataForOther.firstName || ''} ${contactDataForOther.lastName || ''}`.trim() || 'Unknown User';
             } else {
-                const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${userId}`));
-                contactData = contactSnap.exists() ? contactSnap.val() : null;
-                if (contactData && (contactData.firstName != null || contactData.lastName != null)) {
-                    userName = `${contactData.firstName || ''} ${contactData.lastName || ''}`.trim() || 'Unknown User';
-                } else {
-                    userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
-                }
+                userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
             }
             if ((!userName || userName === 'Unknown User') && callRecordName && String(callRecordName).trim()) {
                 userName = String(callRecordName).trim();
             }
-            const userImage = userData.image || (contactData && contactData.image) || 'assets/img/profiles/avatar-03.jpg';
+            userName = callDisplayNameFromUsersMap(userId, userName);
+            const needLaravelName = !userName || userName === "Unknown User" || isGarbageConcatenatedName(userName);
+            const { imageUrl: userImage, displayName: laravelDisplayName } = await resolveCallUserAvatarAndDisplayName(userId, userData, contactDataForOther, { includeLaravelDisplayName: needLaravelName });
+            if (needLaravelName && laravelDisplayName) userName = laravelDisplayName;
 
             // Update audio call modal (incoming call screen)
             $('.audio-name').text(userName);
@@ -7125,11 +7281,22 @@ initializeFirebase(function (app, auth, database, storage) {
             $('.new-name h6').first().text(userName);
             $('.avatar-new-audio img').attr('src', userImage);
             $('.avatar-new-audio-big img').attr('src', userImage);
+        } else if (contactDataForOther || callRecordName) {
+            let userName = (callRecordName && String(callRecordName).trim()) || (contactDataForOther && `${contactDataForOther.firstName || ''} ${contactDataForOther.lastName || ''}`.trim()) || 'Unknown User';
+            userName = callDisplayNameFromUsersMap(userId, userName);
+            const needLaravelName2 = !userName || userName === "Unknown User" || isGarbageConcatenatedName(userName);
+            const { imageUrl: userImage, displayName: laravelN2 } = await resolveCallUserAvatarAndDisplayName(userId, {}, contactDataForOther, { includeLaravelDisplayName: needLaravelName2 });
+            if (needLaravelName2 && laravelN2) userName = laravelN2;
+            $('.audio-name').text(userName);
+            $('.avatar-audio img').attr('src', userImage);
+            $('.new-name h6').first().text(userName);
+            $('.avatar-new-audio img').attr('src', userImage);
+            $('.avatar-new-audio-big img').attr('src', userImage);
         }
 
         if (currentUserSnapshot.exists()) {
             const currentUserData = currentUserSnapshot.val();
-            const currentUserImage = currentUserData.image || 'assets/img/profiles/avatar-03.jpg';
+            const currentUserImage = resolveCallProfileImageUrl(rawAvatarFromFirebaseAndContact(currentUserData, null));
 
             // Update current user's image in voice attend modal
             $('.current-image img').attr('src', currentUserImage);
@@ -7139,8 +7306,8 @@ initializeFirebase(function (app, auth, database, storage) {
     async function sendCallNotification(toId, phone, title, channelName, fromId, callerName) {
         try {
             const snapshot = await get(ref(database, `data/users/${toId}/deviceToken`));
-            if (!snapshot.exists()) {
-                console.error(`Device token not found for user: ${toId}`);
+            if (!snapshot.exists() || !snapshot.val()) {
+                // No FCM token (e.g. web-only callee) — call still signals via data/calls
                 return;
             }
             const deviceToken = snapshot.val();
@@ -7306,6 +7473,8 @@ initializeFirebase(function (app, auth, database, storage) {
                     receiverName = String(receiverName || '').trim() || "Unknown User";
                 }
             }
+            callerName = callDisplayNameFromUsersMap(callerId, callerName);
+            receiverName = callDisplayNameFromUsersMap(receiverId, receiverName);
 
             const callData = {
                 callerId: [receiverId], // The other person in the call
@@ -7653,33 +7822,27 @@ initializeFirebase(function (app, auth, database, storage) {
     async function updateRemoteUserDetails(userId) {
         try {
             const userSnapshot = await get(child(usersRef, userId));
-            if (!userSnapshot.exists()) return;
+            const userData = userSnapshot.exists() ? userSnapshot.val() : {};
+            const currentUser = auth.currentUser;
+            const contactSnap = currentUser ? await get(ref(database, `data/contacts/${currentUser.uid}/${userId}`)) : { exists: () => false };
+            const contactDataForImg = contactSnap.exists() ? contactSnap.val() : null;
 
-            const userData = userSnapshot.val();
             let userName = '';
-            let contactDataForImg = null;
             if (userData.firstName != null || userData.lastName != null) {
                 userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
+            } else if (contactDataForImg && (contactDataForImg.firstName != null || contactDataForImg.lastName != null)) {
+                userName = `${contactDataForImg.firstName || ''} ${contactDataForImg.lastName || ''}`.trim() || 'User';
             } else {
-                const currentUser = auth.currentUser;
-                if (currentUser) {
-                    const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${userId}`));
-                    contactDataForImg = contactSnap.exists() ? contactSnap.val() : null;
-                    if (contactDataForImg && (contactDataForImg.firstName != null || contactDataForImg.lastName != null)) {
-                        userName = `${contactDataForImg.firstName || ''} ${contactDataForImg.lastName || ''}`.trim() || 'User';
-                    } else {
-                        userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'User';
-                    }
-                } else {
-                    userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'User';
-                }
+                userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'User';
             }
 
+            const avatarUrl = await resolveCallUserAvatarUrl(userId, userData, contactDataForImg);
             // Update the header of the active call modal
-            document.querySelector('#start-video-call-container .user-video-head .user-name').textContent = userName;
+            const nameEl = document.querySelector('#start-video-call-container .user-video-head .user-name');
+            if (nameEl) nameEl.textContent = userName;
             const userImgElement = document.querySelector('#start-video-call-container .user-video-head .avatar-video img');
             if (userImgElement) {
-                userImgElement.src = userData.image || (contactDataForImg && contactDataForImg.image) || 'assets/img/profiles/avatar-03.jpg';
+                userImgElement.src = avatarUrl;
                 userImgElement.alt = userName;
             }
 
@@ -7698,28 +7861,20 @@ initializeFirebase(function (app, auth, database, storage) {
     async function showProfileImage(container, userId) {
         try {
             const userSnapshot = await get(child(usersRef, userId));
-            if (!userSnapshot.exists()) return;
+            const userData = userSnapshot.exists() ? userSnapshot.val() : {};
+            const currentUser = auth.currentUser;
+            const contactSnap = currentUser ? await get(ref(database, `data/contacts/${currentUser.uid}/${userId}`)) : { exists: () => false };
+            const contactDataImg = contactSnap.exists() ? contactSnap.val() : null;
 
-            const userData = userSnapshot.val();
             let userName = '';
-            let contactDataImg = null;
             if (userData.firstName != null || userData.lastName != null) {
                 userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'User';
+            } else if (contactDataImg && (contactDataImg.firstName != null || contactDataImg.lastName != null)) {
+                userName = `${contactDataImg.firstName || ''} ${contactDataImg.lastName || ''}`.trim() || 'User';
             } else {
-                const currentUser = auth.currentUser;
-                if (currentUser) {
-                    const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${userId}`));
-                    contactDataImg = contactSnap.exists() ? contactSnap.val() : null;
-                    if (contactDataImg && (contactDataImg.firstName != null || contactDataImg.lastName != null)) {
-                        userName = `${contactDataImg.firstName || ''} ${contactDataImg.lastName || ''}`.trim() || 'User';
-                    } else {
-                        userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'User';
-                    }
-                } else {
-                    userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'User';
-                }
+                userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'User';
             }
-            const userImage = userData.image || (contactDataImg && contactDataImg.image) || 'assets/img/profiles/avatar-03.jpg';
+            const userImage = await resolveCallUserAvatarUrl(userId, userData, contactDataImg);
 
             container.innerHTML = ''; // Clear previous content (like video player)
 
@@ -7863,27 +8018,26 @@ initializeFirebase(function (app, auth, database, storage) {
         if (!currentUser) return;
 
         try {
+            const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${otherUserId}`));
+            const contactData = contactSnap.exists() ? contactSnap.val() : null;
             const otherUserSnapshot = await get(child(usersRef, otherUserId));
-            if (!otherUserSnapshot.exists()) return;
+            const userData = otherUserSnapshot.exists() ? otherUserSnapshot.val() : {};
 
-            const userData = otherUserSnapshot.val();
             let userName = '';
-            let contactData = null;
             if (userData.firstName != null || userData.lastName != null) {
                 userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
+            } else if (contactData && (contactData.firstName != null || contactData.lastName != null)) {
+                userName = `${contactData.firstName || ''} ${contactData.lastName || ''}`.trim() || 'Unknown User';
             } else {
-                const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${otherUserId}`));
-                contactData = contactSnap.exists() ? contactSnap.val() : null;
-                if (contactData && (contactData.firstName != null || contactData.lastName != null)) {
-                    userName = `${contactData.firstName || ''} ${contactData.lastName || ''}`.trim() || 'Unknown User';
-                } else {
-                    userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
-                }
+                userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
             }
             if ((!userName || userName === 'Unknown User') && callData.callerName && String(callData.callerName).trim()) {
                 userName = String(callData.callerName).trim();
             }
-            const userImage = userData.image || (contactData && contactData.image) || 'assets/img/profiles/avatar-03.jpg';
+            userName = callDisplayNameFromUsersMap(otherUserId, userName);
+            const needVidName = !userName || userName === "Unknown User" || isGarbageConcatenatedName(userName);
+            const { imageUrl: userImage, displayName: laravelVid } = await resolveCallUserAvatarAndDisplayName(otherUserId, userData, contactData, { includeLaravelDisplayName: needVidName });
+            if (needVidName && laravelVid) userName = laravelVid;
 
             const modal = $('#video-call');
             modal.find('.modal-title').text(`Video Call from ${userName}`);
@@ -7898,8 +8052,7 @@ initializeFirebase(function (app, auth, database, storage) {
     async function sendVideoCallNotification(toId, fromName, title, channelName, callerName) {
         try {
             const snapshot = await get(ref(database, `data/users/${toId}/deviceToken`));
-            if (!snapshot.exists()) {
-                console.error(`Device token not found for user: ${toId}`);
+            if (!snapshot.exists() || !snapshot.val()) {
                 return;
             }
             const deviceToken = snapshot.val();
@@ -7931,32 +8084,27 @@ initializeFirebase(function (app, auth, database, storage) {
         const otherUserId = callData.callerId[0];
 
         try {
+            const currentUser = auth.currentUser;
+            const contactSnap = currentUser ? await get(ref(database, `data/contacts/${currentUser.uid}/${otherUserId}`)) : { exists: () => false };
+            const contactDataVideo = contactSnap.exists() ? contactSnap.val() : null;
             const otherUserSnapshot = await get(child(usersRef, otherUserId));
-            if (!otherUserSnapshot.exists()) return;
+            const userData = otherUserSnapshot.exists() ? otherUserSnapshot.val() : {};
 
-            const userData = otherUserSnapshot.val();
             let userName = '';
-            let contactDataVideo = null;
             if (userData.firstName != null || userData.lastName != null) {
                 userName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown User';
+            } else if (contactDataVideo && (contactDataVideo.firstName != null || contactDataVideo.lastName != null)) {
+                userName = `${contactDataVideo.firstName || ''} ${contactDataVideo.lastName || ''}`.trim() || 'Unknown User';
             } else {
-                const currentUser = auth.currentUser;
-                if (currentUser) {
-                    const contactSnap = await get(ref(database, `data/contacts/${currentUser.uid}/${otherUserId}`));
-                    contactDataVideo = contactSnap.exists() ? contactSnap.val() : null;
-                    if (contactDataVideo && (contactDataVideo.firstName != null || contactDataVideo.lastName != null)) {
-                        userName = `${contactDataVideo.firstName || ''} ${contactDataVideo.lastName || ''}`.trim() || 'Unknown User';
-                    } else {
-                        userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
-                    }
-                } else {
-                    userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
-                }
+                userName = (userData.username || userData.userName || userData.mobile_number || '').trim() || 'Unknown User';
             }
             if ((!userName || userName === 'Unknown User') && callData.receiverName && String(callData.receiverName).trim()) {
                 userName = String(callData.receiverName).trim();
             }
-            const userImage = userData.image || (contactDataVideo && contactDataVideo.image) || 'assets/img/profiles/avatar-03.jpg';
+            userName = callDisplayNameFromUsersMap(otherUserId, userName);
+            const needVidOut = !userName || userName === "Unknown User" || isGarbageConcatenatedName(userName);
+            const { imageUrl: userImage, displayName: laravelVidOut } = await resolveCallUserAvatarAndDisplayName(otherUserId, userData, contactDataVideo, { includeLaravelDisplayName: needVidOut });
+            if (needVidOut && laravelVidOut) userName = laravelVidOut;
 
             // Get the active call modal elements
             const modal = $('#start-video-call-container');

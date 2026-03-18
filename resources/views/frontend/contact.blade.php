@@ -160,7 +160,7 @@
                                             {{ __('Verified') }}
                                         </span>
                                     </div>
-                                    <p class="mb-0 small text-muted" id="contact-detail-title"></p>
+                                    <p class="mb-0 small text-muted" id="contact-detail-title" style="display: none;"></p>
                                 </div>
                             </div>
                             <div class="contact-actions d-flex align-items-center gap-2 mb-3">
@@ -178,49 +178,71 @@
                     <div class="card-header border-bottom"><h6 class="mb-0">{{ __('Personal Information')}}</h6></div>
                     <div class="card-body pb-1">
                         <div class="mb-2">
-                            <div class="row align-items-center">
+                            <div class="row align-items-center contact-detail-row" data-contact-row="local_time">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-clock-hour-4 me-1"></i>{{ __('Local Time')}}</p></div>
                                 <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="local_time">—</h6></div>
+                            </div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="dob" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-calendar-event me-1"></i>{{ __('Date of Birth')}}</p></div>
                                 <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="dob">—</h6></div>
-                                <div class="col-sm-6 d-none"><p class="mb-2 d-flex align-items-center"><i class="ti ti-phone me-1"></i>{{ __('Phone Number')}}</p></div>
-                                <div class="col-sm-6 d-none"><h6 class="fw-medium fs-14 mb-2" data-field="phone">—</h6></div>
-                                <div class="col-sm-6 d-none"><p class="mb-2 d-flex align-items-center"><i class="ti ti-mail me-1"></i>{{ __('Email')}}</p></div>
-                                <div class="col-sm-6 d-none"><h6 class="fw-medium fs-14 mb-2" data-field="email">—</h6></div>
+                            </div>
+                            <div class="row align-items-center d-none"><div class="col-sm-6 d-none"><p class="mb-2 d-flex align-items-center"><i class="ti ti-phone me-1"></i>{{ __('Phone Number')}}</p></div>
+                                <div class="col-sm-6 d-none"><h6 class="fw-medium fs-14 mb-2" data-field="phone">—</h6></div></div>
+                            <div class="row align-items-center d-none"><div class="col-sm-6 d-none"><p class="mb-2 d-flex align-items-center"><i class="ti ti-mail me-1"></i>{{ __('Email')}}</p></div>
+                                <div class="col-sm-6 d-none"><h6 class="fw-medium fs-14 mb-2" data-field="email">—</h6></div></div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="website" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-world me-1"></i>{{ __('Website')}}</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="website">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="website"></h6></div>
+                            </div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="bio" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-user-check me-1"></i>{{ __('Bio')}}</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="bio">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="bio"></h6></div>
+                            </div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="location" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-map-pin me-1"></i>{{ __('Location')}}</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="location">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="location"></h6></div>
+                            </div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="join_date" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-calendar me-1"></i>{{ __('Join Date')}}</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="join_date">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="join_date"></h6></div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="card border mb-0">
+                <div class="card border mb-0" id="contact-details-social-card">
                     <div class="card-header border-bottom d-flex align-items-center flex-wrap gap-2">
                         <h6 class="mb-0">{{ __('Social Information')}}</h6>
                         <span class="contact-social-verified badge verified-badge badge-xs" style="display:none;">{{ __('Verified') }}</span>
                     </div>
                     <div class="card-body pb-1">
                         <div class="mb-2">
-                            <div class="row align-items-center">
+                            <div class="row align-items-center contact-detail-row" data-contact-row="facebook" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-facebook me-1"></i>Facebook</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="facebook">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="facebook"></h6></div>
+                            </div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="twitter" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-twitter me-1"></i>Twitter</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="twitter">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="twitter"></h6></div>
+                            </div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="instagram" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-instagram me-1"></i>Instagram</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="instagram">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="instagram"></h6></div>
+                            </div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="linkedin" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-linkedin me-1"></i>LinkedIn <i class="linkedin-info-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ __('LinkedIn does not allow OAuth to verify profile') }}">i</i></p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="linkedin">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="linkedin"></h6></div>
+                            </div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="youtube" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-youtube me-1"></i>YouTube</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="youtube">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="youtube"></h6></div>
+                            </div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="kick" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-device-gamepad-2 me-1"></i>Kick</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="kick">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="kick"></h6></div>
+                            </div>
+                            <div class="row align-items-center contact-detail-row" data-contact-row="twitch" style="display: none;">
                                 <div class="col-sm-6"><p class="mb-2 d-flex align-items-center"><i class="ti ti-brand-twitch me-1"></i>Twitch</p></div>
-                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="twitch">—</h6></div>
+                                <div class="col-sm-6"><h6 class="fw-medium fs-14 mb-2" data-field="twitch"></h6></div>
                             </div>
                         </div>
                     </div>

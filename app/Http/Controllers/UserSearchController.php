@@ -108,7 +108,9 @@ class UserSearchController extends Controller
             ->first();
         if (!$user) {
             return response()->json([
+                'profile_loaded' => false,
                 'display_name' => '',
+                'primary_role' => '',
                 'bio' => '',
                 'location' => '',
                 'websites' => [],
@@ -147,7 +149,9 @@ class UserSearchController extends Controller
         }
 
         return response()->json([
+            'profile_loaded' => true,
             'display_name' => $user->public_display_name,
+            'primary_role' => $user->primary_role ? trim((string) $user->primary_role) : '',
             'bio' => $details->user_about ?? '',
             'location' => $user->country ?? $details->location ?? '',
             'websites' => $websites,
@@ -181,7 +185,9 @@ class UserSearchController extends Controller
 
         if (!$user) {
             return response()->json([
+                'profile_loaded' => false,
                 'display_name' => $username,
+                'primary_role' => '',
                 'bio' => '',
                 'location' => '',
                 'websites' => [],
@@ -222,7 +228,9 @@ class UserSearchController extends Controller
         }
 
         return response()->json([
+            'profile_loaded' => true,
             'display_name' => $user->public_display_name,
+            'primary_role' => $user->primary_role ? trim((string) $user->primary_role) : '',
             'bio' => $details->user_about ?? '',
             'location' => $user->country ?? $details->location ?? '',
             'websites' => $websites,
@@ -254,7 +262,9 @@ class UserSearchController extends Controller
 
         if (!$user) {
             return response()->json([
+                'profile_loaded' => false,
                 'display_name' => '',
+                'primary_role' => '',
                 'bio' => '',
                 'location' => '',
                 'websites' => [],
@@ -296,7 +306,9 @@ class UserSearchController extends Controller
         }
 
         return response()->json([
+            'profile_loaded' => true,
             'display_name' => $user->public_display_name,
+            'primary_role' => $user->primary_role ? trim((string) $user->primary_role) : '',
             'bio' => $details->user_about ?? '',
             'location' => $user->country ?? $details->location ?? '',
             'websites' => $websites,
@@ -338,16 +350,40 @@ class UserSearchController extends Controller
         $byUid = [];
         $byEmail = [];
         $byUsername = [];
+        $nameByUid = [];
+        $nameByEmail = [];
+        $nameByUsername = [];
+        $roleByUid = [];
+        $roleByEmail = [];
+        $roleByUsername = [];
 
         $table = (new User)->getTable();
         $hasFb = Schema::hasColumn($table, 'firebase_uid');
 
+        $displayNameFromUser = static function ($u) {
+            $fn = trim((string) ($u->first_name ?? ''));
+            $ln = trim((string) ($u->last_name ?? ''));
+            $full = trim((string) ($u->full_name ?? ''));
+            $un = trim((string) ($u->user_name ?? ''));
+            $combined = trim($fn.' '.$ln);
+
+            return $full !== '' ? $full : ($combined !== '' ? $combined : ($un !== '' ? $un : ''));
+        };
+
         if ($hasFb && count($firebaseUids) > 0) {
             User::whereIn('firebase_uid', $firebaseUids)
-                ->get(['firebase_uid', 'profile_image'])
-                ->each(function ($u) use (&$byUid) {
+                ->get(['firebase_uid', 'profile_image', 'primary_role', 'first_name', 'last_name', 'full_name', 'user_name'])
+                ->each(function ($u) use (&$byUid, &$nameByUid, &$roleByUid, $displayNameFromUser) {
                     if (! empty($u->firebase_uid)) {
                         $byUid[$u->firebase_uid] = $u->profile_image_link;
+                        $dn = $displayNameFromUser($u);
+                        if ($dn !== '') {
+                            $nameByUid[$u->firebase_uid] = $dn;
+                        }
+                        $role = $u->primary_role ? trim((string) $u->primary_role) : '';
+                        if ($role !== '') {
+                            $roleByUid[$u->firebase_uid] = $role;
+                        }
                     }
                 });
         }
@@ -361,8 +397,16 @@ class UserSearchController extends Controller
                         $q->orWhereRaw('LOWER(email) = ?', [$le]);
                     }
                 }
-            })->get(['email', 'profile_image'])->each(function ($u) use (&$byEmail) {
+            })->get(['email', 'profile_image', 'primary_role', 'first_name', 'last_name', 'full_name', 'user_name'])->each(function ($u) use (&$byEmail, &$nameByEmail, &$roleByEmail, $displayNameFromUser) {
                 $byEmail[mb_strtolower($u->email)] = $u->profile_image_link;
+                $dn = $displayNameFromUser($u);
+                if ($dn !== '') {
+                    $nameByEmail[mb_strtolower($u->email)] = $dn;
+                }
+                $role = $u->primary_role ? trim((string) $u->primary_role) : '';
+                if ($role !== '') {
+                    $roleByEmail[mb_strtolower($u->email)] = $role;
+                }
             });
         }
 
@@ -371,9 +415,18 @@ class UserSearchController extends Controller
             if ($un === '') {
                 continue;
             }
-            $user = User::whereRaw('LOWER(user_name) = ?', [mb_strtolower($un)])->first(['user_name', 'profile_image']);
+            $user = User::whereRaw('LOWER(user_name) = ?', [mb_strtolower($un)])->first(['user_name', 'profile_image', 'primary_role', 'first_name', 'last_name', 'full_name']);
             if ($user && $user->user_name) {
-                $byUsername[mb_strtolower($user->user_name)] = $user->profile_image_link;
+                $key = mb_strtolower($user->user_name);
+                $byUsername[$key] = $user->profile_image_link;
+                $dn = $displayNameFromUser($user);
+                if ($dn !== '') {
+                    $nameByUsername[$key] = $dn;
+                }
+                $role = $user->primary_role ? trim((string) $user->primary_role) : '';
+                if ($role !== '') {
+                    $roleByUsername[$key] = $role;
+                }
             }
         }
 
@@ -381,6 +434,12 @@ class UserSearchController extends Controller
             'by_uid' => $byUid,
             'by_email' => $byEmail,
             'by_username' => $byUsername,
+            'name_by_uid' => $nameByUid,
+            'name_by_email' => $nameByEmail,
+            'name_by_username' => $nameByUsername,
+            'role_by_uid' => $roleByUid,
+            'role_by_email' => $roleByEmail,
+            'role_by_username' => $roleByUsername,
         ]);
     }
 }

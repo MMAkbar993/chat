@@ -114,6 +114,23 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
+    function applyLaravelRoleMap(user, roleByUid, roleByEmail, roleByUsername) {
+        if (!user) return;
+        let r = "";
+        if (user.uid && String(user.uid).indexOf("pending_") !== 0 && roleByUid && roleByUid[user.uid]) {
+            r = roleByUid[user.uid];
+        }
+        if (!r && user.email && String(user.email).trim() && roleByEmail) {
+            const e = String(user.email).trim().toLowerCase();
+            if (roleByEmail[e]) r = roleByEmail[e];
+        }
+        if (!r && user.userName && String(user.userName).trim() && roleByUsername) {
+            const k = String(user.userName).trim().toLowerCase();
+            if (roleByUsername[k]) r = roleByUsername[k];
+        }
+        if (r) user.primaryRole = r;
+    }
+
     async function enrichContactListAvatarsFromLaravel(usersArray) {
         const need = usersArray.filter(function (u) {
             return u && u._needsLaravelAvatar;
@@ -121,14 +138,15 @@ initializeFirebase(function (app, auth, database, storage) {
         usersArray.forEach(function (u) {
             if (u) delete u._needsLaravelAvatar;
         });
-        if (!need.length) return;
+        if (!usersArray.length) return;
         const firebase_uids = [];
         const seenUid = new Set();
         const emails = [];
         const seenEmail = new Set();
         const usernames = [];
         const seenUser = new Set();
-        need.forEach(function (u) {
+        usersArray.forEach(function (u) {
+            if (!u) return;
             if (u.uid && String(u.uid).indexOf("pending_") !== 0 && !seenUid.has(u.uid)) {
                 seenUid.add(u.uid);
                 firebase_uids.push(u.uid);
@@ -154,6 +172,13 @@ initializeFirebase(function (app, auth, database, storage) {
             usernames: usernames.slice(0, 60),
         });
         if (!data) return;
+        const roleByUid = data.role_by_uid || {};
+        const roleByEmail = data.role_by_email || {};
+        const roleByUsername = data.role_by_username || {};
+        usersArray.forEach(function (u) {
+            applyLaravelRoleMap(u, roleByUid, roleByEmail, roleByUsername);
+        });
+        if (!need.length) return;
         const byUid = data.by_uid || {};
         const byEmail = data.by_email || {};
         const byUsername = data.by_username || {};
@@ -189,6 +214,10 @@ initializeFirebase(function (app, auth, database, storage) {
                                 userData.photoURL ||
                                 userData.avatar ||
                                 "";
+                            const prLocal =
+                                (contact.primary_role && String(contact.primary_role).trim()) ||
+                                (userData.primary_role && String(userData.primary_role).trim()) ||
+                                "";
                             return {
                                 uid: userId,
                                 firstName: contact.firstName || userData.firstName || "",
@@ -196,6 +225,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                 userName: userData.username || userData.userName || userData.profileName || contact.user_name || "",
                                 image: resolveProfileImageUrl(rawAvatar),
                                 _needsLaravelAvatar: !rawAvatar,
+                                primaryRole: prLocal,
                                 mobile_number: contact.mobile_number || userData.mobile_number ||  "",
                                 email: contact.email || userData.email ||  "",
                             };
@@ -261,6 +291,10 @@ initializeFirebase(function (app, auth, database, storage) {
                         const displayName = (contact.firstName || user.firstName || user.userName || user.mobile_number || user.email) + ' ' + (contact.lastName || user.lastName || '').trim();
                         const listLabel = displayName.trim() || user.email || user.userName || "Unknown";
                         const imgSrcSafe = String(user.image || "").replace(/"/g, "&quot;");
+                        const roleEsc = user.primaryRole
+                            ? String(user.primaryRole).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
+                            : "";
+                        const roleLine = roleEsc ? `<p class="text-muted small mb-0">${roleEsc}</p>` : "";
                         groupHtml += `
                         <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#contact-details" class="chat-user-list"
                             data-user-id="${user.uid}" data-username="${(user.userName || '').replace(/"/g, '&quot;')}">
@@ -270,6 +304,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             <div class="chat-user-info">
                                 <div class="chat-user-msg">
                                     <h6>${listLabel}</h6>
+                                    ${roleLine}
                                 </div>
                             </div>
                         </a>
@@ -315,6 +350,70 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
     
+    function contactDetailValuePresent(val) {
+        if (val === null || val === undefined) return false;
+        const s = String(val).trim();
+        return s !== "" && s !== "—";
+    }
+    function updateContactSocialCardVisibility() {
+        const card = document.getElementById("contact-details-social-card");
+        if (!card) return;
+        const keys = ["facebook", "twitter", "instagram", "linkedin", "youtube", "kick", "twitch"];
+        let any = false;
+        keys.forEach(function (k) {
+            const row = card.querySelector('[data-contact-row="' + k + '"]');
+            if (row && row.style.display !== "none") any = true;
+        });
+        card.style.display = any ? "" : "none";
+    }
+    function setContactDetailRow(field, value, asLink) {
+        const modal = document.getElementById("contact-details");
+        if (!modal) return;
+        const row = modal.querySelector('[data-contact-row="' + field + '"]');
+        const el = modal.querySelector('.fw-medium.fs-14.mb-2[data-field="' + field + '"]');
+        if (field === "local_time") {
+            if (el) el.textContent = value != null ? String(value) : "—";
+            if (row) row.style.display = "";
+            return;
+        }
+        if (!contactDetailValuePresent(value)) {
+            if (row) row.style.display = "none";
+            return;
+        }
+        if (row) row.style.display = "";
+        if (!el) return;
+        if (asLink && value && (String(value).indexOf("http") === 0 || String(value).indexOf("www") === 0)) {
+            const href = String(value).indexOf("http") === 0 ? value : "https://" + value;
+            el.innerHTML = '<a href="' + href.replace(/"/g, "&quot;") + '" target="_blank" rel="noopener">' + String(value).replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</a>";
+        } else {
+            el.textContent = String(value);
+        }
+    }
+    function setContactDetailRowIfPresent(field, value, asLink) {
+        if (value === null || value === undefined) return;
+        if (typeof value === "string" && value.trim() === "") return;
+        setContactDetailRow(field, value, asLink);
+    }
+    function setContactDetailRoleSubtitle(contactData, userData, pub) {
+        const el = document.getElementById("contact-detail-title");
+        if (!el) return;
+        let r = "";
+        if (pub && pub.primary_role != null && String(pub.primary_role).trim()) {
+            r = String(pub.primary_role).trim();
+        } else if (contactData && contactData.primary_role && String(contactData.primary_role).trim()) {
+            r = String(contactData.primary_role).trim();
+        } else if (userData && userData.primary_role && String(userData.primary_role).trim()) {
+            r = String(userData.primary_role).trim();
+        }
+        if (r) {
+            el.textContent = r;
+            el.style.display = "";
+        } else {
+            el.textContent = "";
+            el.style.display = "none";
+        }
+    }
+
     // Fetch user data from Firebase using user ID and display it in the modal
     function fetchUserData(userId) {
         const contactRef = ref(database, `data/contacts/${currentUserId}/${userId}`); // Reference to the contact data
@@ -340,10 +439,11 @@ initializeFirebase(function (app, auth, database, storage) {
                 const lastName = (contactData.lastName || userData.lastName || "").trim();
                 const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
                 const displayName = fullName || contactData.mobile_number || contactData.email || userData.userName || userData.mobile_number || userData.email || "—";
-                const nameEl = document.querySelector('#contact-details h6');
+                const nameEl = document.getElementById("contact-detail-name") || document.querySelector("#contact-details .modal-body h6");
                 if (nameEl) nameEl.textContent = displayName;
-                const contactDetailNameEl = document.getElementById('contact-detail-name');
+                const contactDetailNameEl = document.getElementById("contact-detail-name");
                 if (contactDetailNameEl) contactDetailNameEl.textContent = displayName;
+                setContactDetailRoleSubtitle(contactData, userData, null);
                 // Profile image: contact + Firebase, then Laravel for older contacts without stored photo
                 var avatarImgEl = document.querySelector('#contact-details .avatar img');
                 var rawAvatar = (contactData && contactData.profile_image) || (userData && (userData.profile_image || userData.image || userData.profileImage || userData.photoURL || userData.avatar)) || '';
@@ -405,29 +505,10 @@ initializeFirebase(function (app, auth, database, storage) {
                     }
                 }
 
-                // Populate Personal Information (local_time always; fill the rest with Firebase first,
-                // then overwrite with Laravel public-profile API values when they exist).
-                function setContactDetailField(field, value, asLink) {
-                    const el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
-                    if (!el) return;
-                    if (asLink && value && (String(value).indexOf('http') === 0 || String(value).indexOf('www') === 0)) {
-                        const href = String(value).indexOf('http') === 0 ? value : 'https://' + value;
-                        el.innerHTML = '<a href="' + href.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">' + String(value).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</a>';
-                    } else {
-                        el.textContent = value || '—';
-                    }
-                }
-                function setContactDetailFieldIfPresent(field, value, asLink) {
-                    if (value === null || value === undefined) return;
-                    if (typeof value === 'string' && value.trim() === '') return;
-                    setContactDetailField(field, value, asLink);
-                }
-
                 const now = new Date();
                 const localTimeStr = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
-                setContactDetailField('local_time', localTimeStr);
+                setContactDetailRow("local_time", localTimeStr);
 
-                // Firebase defaults (so users see content even if API lookup fails or email is missing)
                 const defaultDob = contactData?.dob || userData?.dob || '';
                 const defaultBio =
                     contactData?.about || contactData?.bio || userData?.about || userData?.bio || userData?.user_about || '';
@@ -440,11 +521,11 @@ initializeFirebase(function (app, auth, database, storage) {
                     userData?.website_url || userData?.website_link ||
                     contactData?.website_url || contactData?.website_link || '';
 
-                setContactDetailFieldIfPresent('dob', defaultDob);
-                setContactDetailFieldIfPresent('bio', defaultBio);
-                setContactDetailFieldIfPresent('location', defaultLocation);
-                setContactDetailFieldIfPresent('join_date', defaultJoin);
-                setContactDetailFieldIfPresent('website', defaultWebsite, true);
+                setContactDetailRowIfPresent("dob", defaultDob);
+                setContactDetailRowIfPresent("bio", defaultBio);
+                setContactDetailRowIfPresent("location", defaultLocation);
+                setContactDetailRowIfPresent("join_date", defaultJoin);
+                setContactDetailRowIfPresent("website", defaultWebsite, true);
 
                 const getDefaultSocial = function (k) {
                     return (
@@ -458,9 +539,50 @@ initializeFirebase(function (app, auth, database, storage) {
                     );
                 };
 
-                ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'].forEach(function (k) {
-                    setContactDetailFieldIfPresent(k, getDefaultSocial(k), true);
+                ["facebook", "twitter", "instagram", "linkedin", "youtube", "kick", "twitch"].forEach(function (k) {
+                    setContactDetailRowIfPresent(k, getDefaultSocial(k), true);
                 });
+                updateContactSocialCardVisibility();
+
+                function applyPubProfileToModal(pub) {
+                    if (!pub || pub.profile_loaded !== true) return;
+                    const h6El = document.getElementById("contact-detail-name");
+                    if (pub.display_name && h6El) h6El.textContent = pub.display_name;
+                    const subEl = document.getElementById("contact-detail-title");
+                    if (subEl) {
+                        const r = pub.primary_role && String(pub.primary_role).trim() ? String(pub.primary_role).trim() : "";
+                        if (r) {
+                            subEl.textContent = r;
+                            subEl.style.display = "";
+                        } else {
+                            subEl.textContent = "";
+                            subEl.style.display = "none";
+                        }
+                    }
+                    if (contactKycBadge) contactKycBadge.style.display = pub.kyc_verified ? "inline-flex" : "none";
+                    const socialVerifiedEl = document.querySelector("#contact-details .contact-social-verified");
+                    if (socialVerifiedEl) socialVerifiedEl.style.display = pub.social_verified ? "inline-flex" : "none";
+
+                    setContactDetailRowIfPresent("dob", pub.dob);
+                    setContactDetailRowIfPresent("bio", pub.bio);
+                    setContactDetailRowIfPresent("location", pub.location);
+                    setContactDetailRowIfPresent("join_date", pub.join_date);
+
+                    const socialKeys = ["facebook", "twitter", "instagram", "linkedin", "youtube", "kick", "twitch"];
+                    if (pub.websites && pub.websites.length > 0 && pub.websites[0].url) {
+                        setContactDetailRow("website", pub.websites[0].url, true);
+                    } else {
+                        setContactDetailRow("website", "");
+                    }
+                    if (pub.social_links) {
+                        socialKeys.forEach(function (k) {
+                            const v = pub.social_links[k];
+                            if (v && String(v).trim()) setContactDetailRow(k, v, true);
+                            else setContactDetailRow(k, "");
+                        });
+                    }
+                    updateContactSocialCardVisibility();
+                }
 
                 const contactEmail = (contactData && contactData.email) || (userData && userData.email);
                 const contactUsername =
@@ -470,93 +592,30 @@ initializeFirebase(function (app, auth, database, storage) {
                     (userData && userData.mobile_number);
 
                 // API enrichment (only overwrite when values are present)
-                if (contactEmail && String(contactEmail).trim() !== '') {
-                    fetch('/api/public-profile-by-email?email=' + encodeURIComponent(contactEmail))
+                if (contactEmail && String(contactEmail).trim() !== "") {
+                    fetch("/api/public-profile-by-email?email=" + encodeURIComponent(contactEmail))
                         .then(function (r) { return r.json(); })
                         .then(function (pub) {
                             if (!pub) return;
-                            const h6El = document.querySelector('#contact-details h6');
-                            if (pub.display_name && h6El) h6El.textContent = pub.display_name;
-                            if (contactKycBadge) contactKycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
-                            const socialVerifiedEl = document.querySelector('#contact-details .contact-social-verified');
-                            if (socialVerifiedEl) socialVerifiedEl.style.display = pub.social_verified ? 'inline-flex' : 'none';
-
-                            setContactDetailFieldIfPresent('dob', pub.dob);
-                            setContactDetailFieldIfPresent('bio', pub.bio);
-                            setContactDetailFieldIfPresent('location', pub.location);
-                            setContactDetailFieldIfPresent('join_date', pub.join_date);
-                            if (pub.websites && pub.websites.length > 0 && pub.websites[0].url) {
-                                setContactDetailField('website', pub.websites[0].url, true);
-                            }
-                            const socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
-                            if (pub.social_links) {
-                                socialKeys.forEach(function (k) {
-                                    setContactDetailFieldIfPresent(k, pub.social_links[k], true);
-                                });
-                            }
+                            applyPubProfileToModal(pub);
                         })
-                        .catch(function () {
-                            // Keep Firebase defaults
-                        });
-                } else if (contactUsername && String(contactUsername).trim() !== '') {
-                    fetch('/api/public-profile-by-username?username=' + encodeURIComponent(contactUsername))
+                        .catch(function () {});
+                } else if (contactUsername && String(contactUsername).trim() !== "") {
+                    fetch("/api/public-profile-by-username?username=" + encodeURIComponent(contactUsername))
                         .then(function (r) { return r.json(); })
                         .then(function (pub) {
                             if (!pub) return;
-                            const h6El = document.querySelector('#contact-details h6');
-                            if (pub.display_name && h6El) h6El.textContent = pub.display_name;
-                            if (contactKycBadge) contactKycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
-                            const socialVerifiedEl = document.querySelector('#contact-details .contact-social-verified');
-                            if (socialVerifiedEl) socialVerifiedEl.style.display = pub.social_verified ? 'inline-flex' : 'none';
-
-                            setContactDetailFieldIfPresent('dob', pub.dob);
-                            setContactDetailFieldIfPresent('bio', pub.bio);
-                            setContactDetailFieldIfPresent('location', pub.location);
-                            setContactDetailFieldIfPresent('join_date', pub.join_date);
-                            if (pub.websites && pub.websites.length > 0 && pub.websites[0].url) {
-                                setContactDetailField('website', pub.websites[0].url, true);
-                            }
-                            const socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
-                            if (pub.social_links) {
-                                socialKeys.forEach(function (k) {
-                                    setContactDetailFieldIfPresent(k, pub.social_links[k], true);
-                                });
-                            }
+                            applyPubProfileToModal(pub);
                         })
-                        .catch(function () {
-                            // Keep Firebase defaults
-                        });
+                        .catch(function () {});
                 } else {
-                    // No email/username in Firebase contact record; use Firebase UID => MySQL firebase_uid
-                    fetch('/api/public-profile-by-firebase-uid?uid=' + encodeURIComponent(userId))
+                    fetch("/api/public-profile-by-firebase-uid?uid=" + encodeURIComponent(userId))
                         .then(function (r) { return r.json(); })
                         .then(function (pub) {
                             if (!pub) return;
-                            const h6El = document.querySelector('#contact-details h6');
-                            if (pub.display_name && h6El) h6El.textContent = pub.display_name;
-                            if (contactKycBadge) contactKycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
-                            const socialVerifiedEl = document.querySelector('#contact-details .contact-social-verified');
-                            if (socialVerifiedEl) socialVerifiedEl.style.display = pub.social_verified ? 'inline-flex' : 'none';
-
-                            // Keep Firebase defaults unless API returns values
-                            setContactDetailFieldIfPresent('dob', pub.dob);
-                            setContactDetailFieldIfPresent('bio', pub.bio);
-                            setContactDetailFieldIfPresent('location', pub.location);
-                            setContactDetailFieldIfPresent('join_date', pub.join_date);
-                            if (pub.websites && pub.websites.length > 0 && pub.websites[0].url) {
-                                setContactDetailField('website', pub.websites[0].url, true);
-                            }
-                            const socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
-                            if (pub.social_links) {
-                                socialKeys.forEach(function (k) {
-                                    setContactDetailFieldIfPresent(k, pub.social_links[k], true);
-                                });
-                            }
-
+                            applyPubProfileToModal(pub);
                         })
-                        .catch(function () {
-                            // Keep Firebase defaults
-                        });
+                        .catch(function () {});
                 }
 
             } else {
@@ -981,6 +1040,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             const safe = (v) => (v != null ? String(v).replace(/"/g, "&quot;").replace(/</g, "&lt;") : "");
                             const avatarSrc = safe(resolveProfileImageUrl(u.profile_image || ""));
                             const profileEnc = encodeURIComponent(u.profile_image || "");
+                            const roleEnc = encodeURIComponent(u.primary_role != null ? String(u.primary_role) : "");
                             div.innerHTML = `
                                 <div class="d-flex align-items-center">
                                     <img src="${avatarSrc}" class="rounded-circle me-2" width="32" height="32" alt="">
@@ -989,7 +1049,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                         <br><small class="text-muted">@${(u.user_name || "").replace(/</g, "&lt;")}</small>
                                     </div>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${safe(u.firebase_uid)}" data-name="${safe(displayName)}" data-username="${safe(u.user_name)}" data-first-name="${safe(u.first_name)}" data-last-name="${safe(u.last_name)}" data-profile-image="${profileEnc}">Add</button>
+                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${safe(u.firebase_uid)}" data-name="${safe(displayName)}" data-username="${safe(u.user_name)}" data-first-name="${safe(u.first_name)}" data-last-name="${safe(u.last_name)}" data-profile-image="${profileEnc}" data-primary-role="${roleEnc}">Add</button>
                             `;
                             addContactSearchResults.appendChild(div);
                         });
@@ -1023,6 +1083,11 @@ initializeFirebase(function (app, auth, database, storage) {
                 const enc = btn.getAttribute("data-profile-image") || "";
                 if (enc) profileImageFromSearch = decodeURIComponent(enc);
             } catch (e) { profileImageFromSearch = btn.getAttribute("data-profile-image") || ""; }
+            let primaryRoleFromSearch = "";
+            try {
+                const re = btn.getAttribute("data-primary-role") || "";
+                if (re) primaryRoleFromSearch = decodeURIComponent(re);
+            } catch (e2) { primaryRoleFromSearch = btn.getAttribute("data-primary-role") || ""; }
             if (!dataUid && !email && !username && !name) {
                 if (typeof Swal !== "undefined") Swal.fire({ text: "Cannot add: no user info.", icon: "info", width: 400 });
                 return;
@@ -1034,9 +1099,9 @@ initializeFirebase(function (app, auth, database, storage) {
                         return;
                     }
                     if (resolvedUid) {
-                        addContactFromSearch(resolvedUid, name, username, email, firstNameFromApi, lastNameFromApi, profileImageFromSearch);
+                        addContactFromSearch(resolvedUid, name, username, email, firstNameFromApi, lastNameFromApi, profileImageFromSearch, primaryRoleFromSearch);
                     } else {
-                        addPendingContact(email, username, name, profileImageFromSearch);
+                        addPendingContact(email, username, name, profileImageFromSearch, primaryRoleFromSearch);
                     }
                 })
                 .catch(err => {
@@ -1122,7 +1187,7 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     /** Add a contact when we have no Firebase UID (pending contact). They appear in the list; chat works once they sign in. */
-    function addPendingContact(email, username, displayName, profileImageUrl) {
+    function addPendingContact(email, username, displayName, profileImageUrl, primaryRole) {
         const loggedInUserId = getCurrentFirebaseUid();
         if (!loggedInUserId) {
             if (typeof Swal !== "undefined") Swal.fire({ text: "Your chat session is not active. Please sign out and sign in again from the login page.", icon: "warning", width: 420 });
@@ -1163,6 +1228,9 @@ initializeFirebase(function (app, auth, database, storage) {
             if (profileImageUrl && String(profileImageUrl).trim()) {
                 pendingPayload.profile_image = String(profileImageUrl).trim();
             }
+            if (primaryRole && String(primaryRole).trim()) {
+                pendingPayload.primary_role = String(primaryRole).trim();
+            }
             set(contactRef, pendingPayload).then(() => {
                 Swal.fire({ text: "Contact added! They will appear in your list; you can chat once they sign in to the app.", icon: "success", width: 420 }).then(() => {
                     const inputEl = document.getElementById("add-contact-username-search");
@@ -1176,7 +1244,7 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    function addContactFromSearch(firebaseUid, displayName, username, emailFromApi, firstNameFromApi, lastNameFromApi, profileImageFromLaravel) {
+    function addContactFromSearch(firebaseUid, displayName, username, emailFromApi, firstNameFromApi, lastNameFromApi, profileImageFromLaravel, primaryRoleFromLaravel) {
         const loggedInUserId = getCurrentFirebaseUid();
         if (!loggedInUserId) {
             if (typeof Swal !== "undefined") Swal.fire({ text: "Your chat session is not active. Please sign out and sign in again from the login page.", icon: "warning", width: 420 });
@@ -1209,6 +1277,8 @@ initializeFirebase(function (app, auth, database, storage) {
                 } else if (firebaseImg) {
                     contactPayload.profile_image = firebaseImg;
                 }
+                const pr = primaryRoleFromLaravel && String(primaryRoleFromLaravel).trim() ? String(primaryRoleFromLaravel).trim() : "";
+                if (pr) contactPayload.primary_role = pr;
                 set(contactRef, contactPayload).then(() => {
                     Swal.fire({ text: "Contact added!", icon: "success", width: 400 }).then(() => {
                         const inputEl = document.getElementById("add-contact-username-search");
