@@ -623,7 +623,9 @@ function fetchUsers() {
                       
 
                         // Optionally display the logged-in user's details in the UI
-                        displayUserDetails(loggedInUserDetails);
+                        displayUserDetails(typeof mergeProfileDataForDisplay === 'function'
+                            ? mergeProfileDataForDisplay(loggedInUserDetails)
+                            : loggedInUserDetails);
                     } 
                 } 
             } 
@@ -655,14 +657,57 @@ async function fetchBasicSettings() {
 
 
 
+/**
+ * Merge Firebase RTDB user with Laravel (MySQL) profile so saved settings are not wiped
+ * when RTDB is empty or stale after saving via Laravel only.
+ */
+function mergeProfileDataForDisplay(firebaseUser) {
+    const fb = firebaseUser && typeof firebaseUser === 'object' ? { ...firebaseUser } : {};
+    if (typeof window.LARAVEL_USER === 'undefined' || !window.LARAVEL_USER) {
+        return fb;
+    }
+    const L = window.LARAVEL_USER;
+    const str = (v) => (v == null ? '' : String(v).trim());
+    const pick = (fbVal, laravelVal) => (str(fbVal) !== '' ? fbVal : (laravelVal != null ? laravelVal : ''));
+    return {
+        ...fb,
+        firstName: pick(fb.firstName, L.firstName),
+        lastName: pick(fb.lastName, L.lastName),
+        email: pick(fb.email, L.email),
+        mobile_number: pick(fb.mobile_number, L.mobile_number),
+        country: pick(fb.country, L.country),
+        gender: pick(fb.gender, L.gender),
+        about: pick(fb.about, L.about),
+        username: pick(fb.username, L.user_name || L.username),
+        dob: pick(fb.dob, L.dob),
+        primary_role: pick(fb.primary_role, L.primary_role),
+        other_role_text: pick(fb.other_role_text, L.other_role_text),
+        uid: pick(fb.uid, '') || fb.uid,
+        image: str(fb.image) || str(fb.profile_image) || str(L.profile_image) || str(L.image) || fb.image,
+        profile_image: str(fb.profile_image) || str(fb.image) || str(L.profile_image) || str(L.image),
+        website_link: pick(fb.website_link, L.website_url),
+        facebook_link: pick(fb.facebook_link, L.facebook_link),
+        instagram_link: pick(fb.instagram_link, L.instagram_link),
+        twitter_link: pick(fb.twitter_link, L.twitter_link),
+        linkedin_link: pick(fb.linkedin_link, L.linkedin_link),
+        youtube_link: pick(fb.youtube_link, L.youtube_link),
+        kick_link: pick(fb.kick_link, L.kick_link),
+        twitch_link: pick(fb.twitch_link, L.twitch_link),
+        timestamp: fb.timestamp,
+    };
+}
+
 // Get User Details
 function fetchUserDetails(userId) {
     const userRef = ref(database, 'data/users/' + userId);
     get(userRef)
         .then((snapshot) => {
             if (snapshot.exists()) {
-                const user = snapshot.val();
-                const safeSetVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+                const user = mergeProfileDataForDisplay(snapshot.val());
+                const safeSetVal = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = val != null && val !== undefined ? String(val) : '';
+                };
                 // Populate the input fields with existing user data
                 safeSetVal('firstName', user.firstName || '');
                 safeSetVal('lastName', user.lastName || '');
@@ -670,7 +715,7 @@ function fetchUserDetails(userId) {
                 safeSetVal('dob', user.dob || '');
                 safeSetVal('country', user.country || '');
                 safeSetVal('about', user.about || '');
-                safeSetVal('mobile_number', user.mobile_number || '');
+                safeSetVal('mobile_number', user.mobile_number != null && user.mobile_number !== '' ? String(user.mobile_number) : '');
                 safeSetVal('email', user.email || '');
                 safeSetVal('user_name', user.username || '');
                 safeSetVal('uid', user.uid || '');
@@ -829,22 +874,43 @@ function fetchUserDetails(userId) {
                 }
 
             } else {
-                // No user data in Firebase (e.g. new user or wrong DB) – clear "Loading..."
-                // #region agent log
-                fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'firebaseSettings.js:fetchUserDetails',message:'firebaseSettings calling displayUserDetails(empty) snapshot !exists',data:{userId:userId},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-                // #endregion
+                const user = mergeProfileDataForDisplay({});
+                const safeSetVal = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = val != null && val !== undefined ? String(val) : '';
+                };
+                safeSetVal('firstName', user.firstName || '');
+                safeSetVal('lastName', user.lastName || '');
+                safeSetVal('gender', user.gender || '');
+                safeSetVal('dob', user.dob || '');
+                safeSetVal('country', user.country || '');
+                safeSetVal('about', user.about || '');
+                safeSetVal('mobile_number', user.mobile_number != null ? String(user.mobile_number) : '');
+                safeSetVal('email', user.email || '');
+                safeSetVal('user_name', user.username || '');
+                safeSetVal('uid', user.uid || userId || '');
+                var roleSelect = document.getElementById('primary_role');
+                if (roleSelect && user.primary_role) roleSelect.value = user.primary_role;
+                var otherRoleWrapper = document.getElementById('other_role_wrapper');
+                var otherRoleInput = document.getElementById('other_role_text');
+                if (otherRoleWrapper && otherRoleInput) {
+                    if (user.primary_role === 'other') {
+                        otherRoleWrapper.style.display = 'block';
+                        otherRoleInput.value = user.other_role_text || '';
+                    } else {
+                        otherRoleWrapper.style.display = 'none';
+                    }
+                }
                 if (typeof displayUserDetails === 'function') {
-                    try { displayUserDetails({}); } catch (e) {}
+                    try { displayUserDetails(user); } catch (e) {}
                 }
             }
         })
         .catch((error) => {
             console.warn('[Firebase] Could not load profile from Realtime Database. Check FIREBASE_DATABASE_URL and RTDB rules. Profile will show placeholders.', error);
-            // #region agent log
-            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'firebaseSettings.js:fetchUserDetails.catch',message:'firebaseSettings calling displayUserDetails(empty) on error',data:{errMsg:(error&&error.message)||String(error)},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-            // #endregion
+            const user = mergeProfileDataForDisplay({});
             if (typeof displayUserDetails === 'function') {
-                try { displayUserDetails({}); } catch (e) {}
+                try { displayUserDetails(user); } catch (e) {}
             }
         });
 }

@@ -76,6 +76,16 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
             } catch (\Throwable $e) {
                 $profileImg = '';
             }
+            $dobDisplay = '';
+            try {
+                if ($u->dob) {
+                    $dobDisplay = $u->dob instanceof \Carbon\Carbon
+                        ? $u->dob->format('Y-m-d')
+                        : (string) $u->dob;
+                }
+            } catch (\Throwable $e) {
+                $dobDisplay = $u->dob ? (string) $u->dob : '';
+            }
             $laravelUserJson = json_encode([
                 'id' => $u->id,
                 'firstName' => $u->first_name,
@@ -86,6 +96,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                 'user_name' => $u->user_name,
                 'mobile_number' => $u->mobile_number ?? '',
                 'gender' => $u->gender ?? '',
+                'dob' => $dobDisplay,
                 'country' => $u->country ?? '',
                 'profile_image' => $profileImg,
                 'image' => $profileImg,
@@ -205,16 +216,34 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         var el = document.getElementById(id);
         if (el && value !== undefined && value !== null) el.value = value;
     }
-    function applyLaravelProfile(forceApply) {
+    window.applyLaravelProfile = function applyLaravelProfile(forceApply) {
         if (typeof window.LARAVEL_USER === 'undefined' || !window.LARAVEL_USER) return;
-        if (!forceApply && !window.FIREBASE_DISABLED) return;
-        // #region agent log
-        try {
-            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3be6ca'},body:JSON.stringify({sessionId:'3be6ca',location:'script.blade:applyLaravelProfile',message:'applyLaravelProfile applying',data:{forceApply:!!forceApply,FIREBASE_DISABLED:!!window.FIREBASE_DISABLED},timestamp:Date.now(),hypothesisId:'H4'})}).catch(function(){});
-        } catch(e) {}
-        // #endregion
         var u = window.LARAVEL_USER;
-        var fullName = (u.firstName || '') + ' ' + (u.lastName || '').trim() || u.full_name || 'No Name';
+        /* Settings form always reflects MySQL (Laravel) so Save/reload never leaves inputs blank. */
+        setInputValue('firstName', u.firstName);
+        setInputValue('lastName', u.lastName);
+        setInputValue('email', u.email);
+        setInputValue('user_name', u.user_name || u.username);
+        setInputValue('mobile_number', u.mobile_number);
+        setInputValue('gender', u.gender);
+        setInputValue('dob', u.dob);
+        setInputValue('country', u.country);
+        setInputValue('about', u.about);
+        var pr = document.getElementById('primary_role');
+        if (pr && u.primary_role) pr.value = u.primary_role;
+        setInputValue('other_role_text', u.other_role_text);
+        var orw = document.getElementById('other_role_wrapper');
+        if (orw) {
+            if (u.primary_role === 'other') orw.style.display = 'block';
+            else if (!forceApply && window.FIREBASE_DISABLED) orw.style.display = 'none';
+        }
+        setInputValue('edit-kick', u.kick_link || u.kick);
+        setInputValue('edit-twitch', u.twitch_link || u.twitch);
+        setInputValue('edit-instagram', u.instagram_link || u.instagram);
+        setInputValue('profile_display_name', u.profile_display_name || 'full_name');
+        if (document.getElementById('user-id')) document.getElementById('user-id').innerText = 'Logged in as: ' + u.id;
+        if (!forceApply && !window.FIREBASE_DISABLED) return;
+        var fullName = ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || 'No Name';
         var defaultImg = (typeof APP_URL !== 'undefined' ? APP_URL : '') + '/assets/img/profiles/avatar-03.jpg';
         if (defaultImg.indexOf('/') === 0) defaultImg = defaultImg.slice(1);
         if (!defaultImg.match(/^https?:\/\//)) defaultImg = (window.location.origin || '') + '/' + defaultImg.replace(/^\//,'');
@@ -242,26 +271,14 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         setImg('profileImageProfile', imgUrl);
         setImg('profileImageChat', imgUrl);
         setImg('ProfileImageSidebar', imgUrl);
-        setInputValue('firstName', u.firstName);
-        setInputValue('lastName', u.lastName);
-        setInputValue('email', u.email);
-        setInputValue('user_name', u.user_name || u.username);
-        setInputValue('mobile_number', u.mobile_number);
-        setInputValue('gender', u.gender);
-        setInputValue('edit-kick', u.kick_link || u.kick);
-        setInputValue('edit-twitch', u.twitch_link || u.twitch);
-        setInputValue('edit-instagram', u.instagram_link || u.instagram);
-        setInputValue('profile_display_name', u.profile_display_name || 'full_name');
-        if (document.getElementById('user-id')) document.getElementById('user-id').innerText = 'Logged in as: ' + u.id;
     }
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', applyLaravelProfile);
+        document.addEventListener('DOMContentLoaded', function() { window.applyLaravelProfile(false); });
     } else {
-        applyLaravelProfile();
+        window.applyLaravelProfile(false);
     }
-    setTimeout(applyLaravelProfile, 500);
-    // Delayed fallback when Firebase is enabled but never populates profile (e.g. init failed or no Firebase user)
-    setTimeout(function() { applyLaravelProfile(true); }, 1500);
+    setTimeout(function() { window.applyLaravelProfile(false); }, 100);
+    setTimeout(function() { window.applyLaravelProfile(true); }, 1500);
 })();
 
 /* Save settings (profile + image + social) via Laravel/MySQL. Runs when user is logged in (LARAVEL_USER). */

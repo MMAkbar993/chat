@@ -63,15 +63,35 @@ class ProfileSettingsController extends Controller
                 return back()->withErrors(['email' => $msg])->withInput();
             }
 
+            // Coerce JSON/multipart quirks (e.g. mobile as number) so users see "required" not "must be a string"
+            $stringKeys = [
+                'first_name', 'last_name', 'email', 'user_name', 'mobile_number', 'gender', 'dob', 'country',
+                'about', 'primary_role', 'other_role_text', 'firstName', 'lastName',
+            ];
+            foreach ($stringKeys as $key) {
+                if (!$request->exists($key)) {
+                    continue;
+                }
+                $v = $request->input($key);
+                if ($v === null) {
+                    continue;
+                }
+                if (is_array($v)) {
+                    $request->merge([$key => '']);
+                } elseif (!is_string($v)) {
+                    $request->merge([$key => (string) $v]);
+                }
+            }
+
             $rules = [
                 'first_name' => 'sometimes|string|max:255',
                 'last_name' => 'sometimes|string|max:255',
                 'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
                 'user_name' => 'sometimes|nullable|string|max:255',
-                'mobile_number' => 'sometimes|string|max:21',
+                'mobile_number' => 'required|string|max:21|regex:/^[0-9]{10,21}$/',
                 'gender' => 'sometimes|nullable|string|max:20',
                 'dob' => 'sometimes|nullable|string|max:20',
-                'country' => 'sometimes|nullable|string|max:100',
+                'country' => 'required|string|max:100',
                 'about' => 'sometimes|nullable|string|max:1000',
                 'primary_role' => 'sometimes|nullable|string|max:80',
                 'other_role_text' => 'sometimes|nullable|string|max:255',
@@ -79,7 +99,29 @@ class ProfileSettingsController extends Controller
                 'profile_display_name' => 'sometimes|nullable|string|in:full_name,username',
             ];
 
-            $validator = Validator::make($request->all(), $rules);
+            if ($nameLocked) {
+                unset($rules['first_name'], $rules['last_name']);
+            } else {
+                $rules['first_name'] = 'required|string|max:255|regex:/^[A-Za-z\s]+$/';
+                $rules['last_name'] = 'required|string|max:255|regex:/^[A-Za-z\s]+$/';
+            }
+            if ($emailLocked) {
+                unset($rules['email']);
+            } else {
+                $rules['email'] = 'required|string|email|max:255|unique:users,email,' . $user->id;
+            }
+
+            $messages = [
+                'mobile_number.required' => __('The mobile number is required.'),
+                'mobile_number.regex' => __('Enter a valid mobile number (10–21 digits).'),
+                'mobile_number.string' => __('The mobile number must be entered as digits.'),
+                'country.required' => __('The country is required.'),
+                'first_name.required' => __('The first name is required.'),
+                'last_name.required' => __('The last name is required.'),
+                'email.required' => __('The email address is required.'),
+            ];
+
+            $validator = Validator::make($request->all(), $rules, $messages);
             if ($validator->fails()) {
                 if ($request->wantsJson()) {
                     return response()->json(['message' => $validator->errors()->first()], 422);

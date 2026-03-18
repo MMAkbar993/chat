@@ -1257,7 +1257,10 @@
                                                                                     fetch('{{ url("/settings/websites") }}/' + id + '/verify', { method: 'POST', headers: { 'X-CSRF-TOKEN': token || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
                                                                                         .then(function(r) { return r.json(); })
                                                                                         .then(function(res) {
-                                                                                            if (res.code === '200' || res.code === 200) {
+                                                                                            var okCode = res.code === '200' || res.code === 200;
+                                                                                            var data = res.data || {};
+                                                                                            var verified = data.verified === true || data.already_verified === true;
+                                                                                            if (okCode && verified) {
                                                                                                 var row = btn.closest('.website-row');
                                                                                                 if (row) {
                                                                                                     var urlEl = row.querySelector('.website-display-url');
@@ -1268,6 +1271,8 @@
                                                                                                     attachWebsiteHandlers(row);
                                                                                                 }
                                                                                                 showToast(res.message || '{{ __("Website verified successfully!") }}');
+                                                                                            } else if (okCode && !verified) {
+                                                                                                showToast(res.message || '{{ __("Verification failed. Make sure the meta tag is in your site\'s <head> section and try again.") }}', true);
                                                                                             } else {
                                                                                                 showToast(res.message || '{{ __("Verification failed.") }}', true);
                                                                                             }

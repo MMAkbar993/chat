@@ -12,7 +12,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class VerifyWebsiteMetaTag implements ShouldQueue
@@ -31,38 +30,51 @@ class VerifyWebsiteMetaTag implements ShouldQueue
     public function handle(WebsiteVerificationService $verificationService): void
     {
         $userWebsite = UserWebsite::find($this->websiteId);
-        if (!$userWebsite) {
-            return;
-        }
-
-        $cacheKey = 'website_verify_' . $userWebsite->id;
-        if (Cache::has($cacheKey)) {
+        if (!$userWebsite || $userWebsite->verified_at) {
             return;
         }
 
         try {
-            $url = $verificationService->normalizeUrl($userWebsite->url);
             $domain = $verificationService->normalizeDomain($userWebsite->url);
+            $baseUrl = $verificationService->normalizeUrl($userWebsite->url);
 
             if ($verificationService->isDomainAlreadyVerified($domain)) {
-                Cache::put($cacheKey, 'checked', now()->addHours(1));
                 return;
             }
 
-            $response = Http::timeout(15)
-                ->withUserAgent('GreenUniMind-Verification/1.0')
-                ->get($url);
-
-            if (!$response->successful()) {
-                Log::info("Website verification failed for {$url}: HTTP {$response->status()}");
-                Cache::put($cacheKey, 'checked', now()->addHours(1));
-                return;
-            }
-
-            $html = $response->body();
             $token = $userWebsite->verification_token;
+            $urls = array_values(array_unique(array_filter([
+                $baseUrl,
+                $domain ? 'https://www.' . $domain : null,
+            ])));
 
-            if ($this->findMetaTag($html, $token)) {
+            $metaFound = false;
+            foreach ($urls as $tryUrl) {
+                foreach ([
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'GreenUniMind-Verification/1.0',
+                ] as $ua) {
+                    try {
+                        $response = Http::timeout(20)
+                            ->connectTimeout(10)
+                            ->withHeaders([
+                                'Accept' => 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+                                'Accept-Language' => 'en-US,en;q=0.9',
+                            ])
+                            ->withUserAgent($ua)
+                            ->get($tryUrl);
+
+                        if ($response->successful() && $this->findMetaTag($response->body(), $token)) {
+                            $metaFound = true;
+                            break 2;
+                        }
+                    } catch (\Throwable $e) {
+                        Log::debug('Website verify fetch attempt', ['url' => $tryUrl, 'error' => $e->getMessage()]);
+                    }
+                }
+            }
+
+            if ($metaFound) {
                 DB::transaction(function () use ($userWebsite, $domain) {
                     $website = Website::create([
                         'domain' => $domain,
@@ -77,23 +89,44 @@ class VerifyWebsiteMetaTag implements ShouldQueue
                     ]);
                 });
                 Log::info("Website verified: {$domain} for user {$userWebsite->user_id}");
+            } else {
+                Log::info("Website verification: meta tag not found or site unreachable for domain {$domain}");
             }
-
-            Cache::put($cacheKey, 'checked', now()->addHours(6));
         } catch (\Exception $e) {
             Log::warning("Website verification error for website #{$this->websiteId}: {$e->getMessage()}");
-            Cache::put($cacheKey, 'checked', now()->addHours(1));
         }
     }
 
     protected function findMetaTag(string $html, string $token): bool
     {
-        $pattern = '/<meta\s+[^>]*name\s*=\s*["\']' . preg_quote(self::META_TAG_NAME, '/') . '["\'][^>]*content\s*=\s*["\']' . preg_quote($token, '/') . '["\'][^>]*\/?>/i';
-        if (preg_match($pattern, $html)) {
-            return true;
+        $escapedName = preg_quote(self::META_TAG_NAME, '/');
+        $escapedToken = preg_quote($token, '/');
+        $patterns = [
+            '/<meta\s+[^>]*name\s*=\s*["\']' . $escapedName . '["\'][^>]*content\s*=\s*["\']' . $escapedToken . '["\'][^>]*>/i',
+            '/<meta\s+[^>]*content\s*=\s*["\']' . $escapedToken . '["\'][^>]*name\s*=\s*["\']' . $escapedName . '["\'][^>]*>/i',
+        ];
+        foreach ($patterns as $p) {
+            if (preg_match($p, $html)) {
+                return true;
+            }
         }
 
-        $patternReversed = '/<meta\s+[^>]*content\s*=\s*["\']' . preg_quote($token, '/') . '["\'][^>]*name\s*=\s*["\']' . preg_quote(self::META_TAG_NAME, '/') . '["\'][^>]*\/?>/i';
-        return (bool) preg_match($patternReversed, $html);
+        if (class_exists(\DOMDocument::class)) {
+            libxml_use_internal_errors(true);
+            $dom = new \DOMDocument();
+            $wrapped = '<?xml encoding="UTF-8">' . $html;
+            if (@$dom->loadHTML($wrapped, LIBXML_NOERROR | LIBXML_NOWARNING)) {
+                foreach ($dom->getElementsByTagName('meta') as $meta) {
+                    $name = strtolower(trim($meta->getAttribute('name')));
+                    if ($name === self::META_TAG_NAME && trim($meta->getAttribute('content')) === $token) {
+                        libxml_clear_errors();
+                        return true;
+                    }
+                }
+            }
+            libxml_clear_errors();
+        }
+
+        return false;
     }
 }
