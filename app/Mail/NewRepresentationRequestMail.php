@@ -18,18 +18,28 @@ class NewRepresentationRequestMail extends Mailable
 
     public function __construct(WebsiteRepresentative $representationRequest)
     {
-        $admin = $representationRequest->website->admin;
+        $representationRequest->loadMissing(['website.admin', 'user']);
+        $website = $representationRequest->website;
+        $admin = $website?->admin;
         $this->firstName = $admin && ($admin->first_name || $admin->full_name)
             ? ($admin->first_name ?: explode(' ', $admin->full_name ?? $admin->user_name ?? 'User')[0])
             : 'there';
 
         $requester = $representationRequest->user;
-        $this->userName = $requester->full_name ?? trim($requester->first_name . ' ' . ($requester->last_name ?? '')) ?: $requester->user_name ?? $requester->email;
+        $this->userName = 'Someone';
+        if ($requester) {
+            $this->userName = $requester->full_name
+                ?? trim(($requester->first_name ?? '') . ' ' . ($requester->last_name ?? ''))
+                ?: ($requester->user_name ?? $requester->email ?? 'Someone');
+        }
 
-        $website = $representationRequest->website;
-        $this->websiteName = $website->domain ?? 'Your website';
+        $this->websiteName = $website?->domain ?? 'Your website';
 
-        $this->approvalLink = route('profile') . '?tab=authorized-users';
+        try {
+            $this->approvalLink = route('profile', [], true) . '?tab=authorized-users';
+        } catch (\Throwable) {
+            $this->approvalLink = rtrim((string) config('app.url'), '/') . '/profile?tab=authorized-users';
+        }
     }
 
     public function build()

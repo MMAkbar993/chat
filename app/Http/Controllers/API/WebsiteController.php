@@ -440,10 +440,7 @@ class WebsiteController extends Controller
                 'requested_at' => now(),
             ]);
 
-            $admin = $website->admin;
-            if ($admin) {
-                $admin->notify(new \App\Notifications\RepresentationRequestNotification($rep));
-            }
+            $this->notifyAdminOfRepresentationRequest($rep);
 
             $result = json_encode([
                 'request_id' => $rep->id,
@@ -504,16 +501,35 @@ class WebsiteController extends Controller
             'requested_at' => now(),
         ]);
 
-        $admin = $website->admin;
-        if ($admin) {
-            $admin->notify(new \App\Notifications\RepresentationRequestNotification($rep));
-        }
+        $this->notifyAdminOfRepresentationRequest($rep);
 
         return response()->json([
             'code' => '200',
             'message' => __('Representation request sent. The owner will review your request.'),
             'data' => ['request_id' => $rep->id],
         ], 200);
+    }
+
+    /**
+     * Never fail the HTTP request if mail or notifications DB is misconfigured on the server.
+     */
+    private function notifyAdminOfRepresentationRequest(WebsiteRepresentative $rep): void
+    {
+        try {
+            $rep->loadMissing(['user', 'website.admin']);
+            $admin = $rep->website?->admin;
+            if (!$admin) {
+                Log::warning('Representation request: website has no admin user', ['website_id' => $rep->website_id]);
+
+                return;
+            }
+            $admin->notify(new \App\Notifications\RepresentationRequestNotification($rep));
+        } catch (\Throwable $e) {
+            Log::warning('Representation request: notify admin failed (request still saved)', [
+                'representation_id' => $rep->id,
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

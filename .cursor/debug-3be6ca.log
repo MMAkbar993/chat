@@ -14,3 +14,7 @@
 {"sessionId":"3be6ca","location":"firebaseSidebar.js:applyProfileFromFirebase","message":"applyProfileFromFirebase called","data":{"hasKeys":26,"firstName":true,"email":true},"timestamp":1773857765518,"hypothesisId":"H1"}
 {"sessionId":"3be6ca","location":"firebaseSidebar.js:onAuthStateChanged.get","message":"RTDB get resolved","data":{"snapshotExists":true,"rtdbKeys":3,"laravelPresent":true},"timestamp":1773858265782,"hypothesisId":"H2"}
 {"sessionId":"3be6ca","location":"firebaseSidebar.js:applyProfileFromFirebase","message":"applyProfileFromFirebase called","data":{"hasKeys":26,"firstName":true,"email":true},"timestamp":1773858265783,"hypothesisId":"H1"}
+{"sessionId":"3be6ca","location":"firebaseSidebar.js:onAuthStateChanged.get","message":"RTDB get resolved","data":{"snapshotExists":true,"rtdbKeys":3,"laravelPresent":true},"timestamp":1773858375015,"hypothesisId":"H2"}
+{"sessionId":"3be6ca","location":"firebaseSidebar.js:applyProfileFromFirebase","message":"applyProfileFromFirebase called","data":{"hasKeys":25,"firstName":true,"email":true},"timestamp":1773858375015,"hypothesisId":"H1"}
+{"sessionId":"3be6ca","location":"firebaseSidebar.js:onAuthStateChanged.get","message":"RTDB get resolved","data":{"snapshotExists":true,"rtdbKeys":3,"laravelPresent":true},"timestamp":1773858381467,"hypothesisId":"H2"}
+{"sessionId":"3be6ca","location":"firebaseSidebar.js:applyProfileFromFirebase","message":"applyProfileFromFirebase called","data":{"hasKeys":25,"firstName":true,"email":true},"timestamp":1773858381467,"hypothesisId":"H1"}
