@@ -58,6 +58,20 @@ initializeFirebase(function (app, auth, database, storage) {
     // Initialize Firebase Database reference
     const usersRef = ref(database, "data/users"); // Correct Firebase reference to the "users" node
 
+    /** Avatar URL for <img src> — handles http(s), data:, relative Laravel paths from any route. */
+    function resolveProfileImageUrl(raw) {
+        const origin = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
+        const defaultPath = "/assets/img/profiles/avatar-03.jpg";
+        if (raw == null || !String(raw).trim()) {
+            return origin ? origin + defaultPath : defaultPath.replace(/^\//, "assets/img/profiles/avatar-03.jpg");
+        }
+        const s = String(raw).trim();
+        if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:")) return s;
+        if (s.startsWith("//")) return (typeof window !== "undefined" && window.location && window.location.protocol ? window.location.protocol : "https:") + s;
+        const path = s.replace(/^\.?\/+/, "");
+        return origin ? origin + "/" + path : s;
+    }
+
     function displayUsers(searchTerm = '') {
         const uid = currentUserId || (typeof getCurrentFirebaseUid === 'function' ? getCurrentFirebaseUid() : null);
         if (!uid) return;
@@ -77,12 +91,20 @@ initializeFirebase(function (app, auth, database, storage) {
                             if (snapshot.exists()) {
                                 userData = snapshot.val(); // Get user details
                             }
+                            const rawAvatar =
+                                contact.profile_image ||
+                                userData.profile_image ||
+                                userData.image ||
+                                userData.profileImage ||
+                                userData.photoURL ||
+                                userData.avatar ||
+                                "";
                             return {
                                 uid: userId,
                                 firstName: contact.firstName || userData.firstName || "",
                                 lastName: contact.lastName || userData.lastName ||  "",
                                 userName: userData.username || userData.userName || userData.profileName || contact.user_name || "",
-                                image: userData.image || "assets/img/profiles/avatar-03.jpg",
+                                image: resolveProfileImageUrl(rawAvatar),
                                 mobile_number: contact.mobile_number || userData.mobile_number ||  "",
                                 email: contact.email || userData.email ||  "",
                             };
@@ -146,11 +168,12 @@ initializeFirebase(function (app, auth, database, storage) {
                         const contact = contacts[user.uid] || {};
                         const displayName = (contact.firstName || user.firstName || user.userName || user.mobile_number || user.email) + ' ' + (contact.lastName || user.lastName || '').trim();
                         const listLabel = displayName.trim() || user.email || user.userName || "Unknown";
+                        const imgSrcSafe = String(user.image || "").replace(/"/g, "&quot;");
                         groupHtml += `
                         <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#contact-details" class="chat-user-list"
                             data-user-id="${user.uid}" data-username="${(user.userName || '').replace(/"/g, '&quot;')}">
                             <div class="avatar avatar-lg me-2">
-                                <img src="${user.image}" class="rounded-circle" alt="image">
+                                <img src="${imgSrcSafe}" class="rounded-circle" alt="image">
                             </div>
                             <div class="chat-user-info">
                                 <div class="chat-user-msg">
@@ -229,7 +252,11 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (nameEl) nameEl.textContent = displayName;
                 const contactDetailNameEl = document.getElementById('contact-detail-name');
                 if (contactDetailNameEl) contactDetailNameEl.textContent = displayName;
-                document.querySelector('#contact-details .avatar img').src = userData.image || 'assets/img/profiles/avatar-03.jpg';
+                // Profile image: same sources as contact list (contact.profile_image, then Firebase user fields)
+                var avatarImgEl = document.querySelector('#contact-details .avatar img');
+                var rawAvatar = (contactData && contactData.profile_image) || (userData && (userData.profile_image || userData.image || userData.profileImage || userData.photoURL || userData.avatar)) || '';
+                var chosenAvatar = resolveProfileImageUrl(rawAvatar);
+                if (avatarImgEl) avatarImgEl.src = chosenAvatar;
                 const phoneVal = contactData.mobile_number || userData.mobile_number || "N/A";
                 const emailVal = contactData.email || userData.email || "N/A";
                 const phoneEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="phone"]');
@@ -301,6 +328,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         ''
                     );
                 };
+
                 ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'].forEach(function (k) {
                     setContactDetailFieldIfPresent(k, getDefaultSocial(k), true);
                 });
@@ -365,6 +393,37 @@ initializeFirebase(function (app, auth, database, storage) {
                                     setContactDetailFieldIfPresent(k, pub.social_links[k], true);
                                 });
                             }
+                        })
+                        .catch(function () {
+                            // Keep Firebase defaults
+                        });
+                } else {
+                    // No email/username in Firebase contact record; use Firebase UID => MySQL firebase_uid
+                    fetch('/api/public-profile-by-firebase-uid?uid=' + encodeURIComponent(userId))
+                        .then(function (r) { return r.json(); })
+                        .then(function (pub) {
+                            if (!pub) return;
+                            const h6El = document.querySelector('#contact-details h6');
+                            if (pub.display_name && h6El) h6El.textContent = pub.display_name;
+                            if (contactKycBadge) contactKycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
+                            const socialVerifiedEl = document.querySelector('#contact-details .contact-social-verified');
+                            if (socialVerifiedEl) socialVerifiedEl.style.display = pub.social_verified ? 'inline-flex' : 'none';
+
+                            // Keep Firebase defaults unless API returns values
+                            setContactDetailFieldIfPresent('dob', pub.dob);
+                            setContactDetailFieldIfPresent('bio', pub.bio);
+                            setContactDetailFieldIfPresent('location', pub.location);
+                            setContactDetailFieldIfPresent('join_date', pub.join_date);
+                            if (pub.websites && pub.websites.length > 0 && pub.websites[0].url) {
+                                setContactDetailField('website', pub.websites[0].url, true);
+                            }
+                            const socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
+                            if (pub.social_links) {
+                                socialKeys.forEach(function (k) {
+                                    setContactDetailFieldIfPresent(k, pub.social_links[k], true);
+                                });
+                            }
+
                         })
                         .catch(function () {
                             // Keep Firebase defaults
@@ -791,15 +850,17 @@ initializeFirebase(function (app, auth, database, storage) {
                             div.className = "d-flex align-items-center justify-content-between p-2 border-bottom";
                             const displayName = u.full_name || [u.first_name, u.last_name].filter(Boolean).join(" ") || u.user_name || "User";
                             const safe = (v) => (v != null ? String(v).replace(/"/g, "&quot;").replace(/</g, "&lt;") : "");
+                            const avatarSrc = safe(resolveProfileImageUrl(u.profile_image || ""));
+                            const profileEnc = encodeURIComponent(u.profile_image || "");
                             div.innerHTML = `
                                 <div class="d-flex align-items-center">
-                                    <img src="${(u.profile_image || "assets/img/profiles/avatar-03.jpg").replace(/"/g, "&quot;")}" class="rounded-circle me-2" width="32" height="32" alt="">
+                                    <img src="${avatarSrc}" class="rounded-circle me-2" width="32" height="32" alt="">
                                     <div>
                                         <strong>${displayName.replace(/</g, "&lt;")}</strong>
                                         <br><small class="text-muted">@${(u.user_name || "").replace(/</g, "&lt;")}</small>
                                     </div>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${safe(u.firebase_uid)}" data-name="${safe(displayName)}" data-username="${safe(u.user_name)}" data-first-name="${safe(u.first_name)}" data-last-name="${safe(u.last_name)}">Add</button>
+                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${safe(u.firebase_uid)}" data-name="${safe(displayName)}" data-username="${safe(u.user_name)}" data-first-name="${safe(u.first_name)}" data-last-name="${safe(u.last_name)}" data-profile-image="${profileEnc}">Add</button>
                             `;
                             addContactSearchResults.appendChild(div);
                         });
@@ -828,6 +889,11 @@ initializeFirebase(function (app, auth, database, storage) {
             const email = (btn.getAttribute("data-email") || "").trim();
             const firstNameFromApi = (btn.getAttribute("data-first-name") || "").trim();
             const lastNameFromApi = (btn.getAttribute("data-last-name") || "").trim();
+            let profileImageFromSearch = "";
+            try {
+                const enc = btn.getAttribute("data-profile-image") || "";
+                if (enc) profileImageFromSearch = decodeURIComponent(enc);
+            } catch (e) { profileImageFromSearch = btn.getAttribute("data-profile-image") || ""; }
             if (!dataUid && !email && !username && !name) {
                 if (typeof Swal !== "undefined") Swal.fire({ text: "Cannot add: no user info.", icon: "info", width: 400 });
                 return;
@@ -839,9 +905,9 @@ initializeFirebase(function (app, auth, database, storage) {
                         return;
                     }
                     if (resolvedUid) {
-                        addContactFromSearch(resolvedUid, name, username, email, firstNameFromApi, lastNameFromApi);
+                        addContactFromSearch(resolvedUid, name, username, email, firstNameFromApi, lastNameFromApi, profileImageFromSearch);
                     } else {
-                        addPendingContact(email, username, name);
+                        addPendingContact(email, username, name, profileImageFromSearch);
                     }
                 })
                 .catch(err => {
@@ -927,7 +993,7 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     /** Add a contact when we have no Firebase UID (pending contact). They appear in the list; chat works once they sign in. */
-    function addPendingContact(email, username, displayName) {
+    function addPendingContact(email, username, displayName, profileImageUrl) {
         const loggedInUserId = getCurrentFirebaseUid();
         if (!loggedInUserId) {
             if (typeof Swal !== "undefined") Swal.fire({ text: "Your chat session is not active. Please sign out and sign in again from the login page.", icon: "warning", width: 420 });
@@ -957,14 +1023,18 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             }
             const pendingFirstName = (displayName || username || email || "Pending").trim();
-            set(contactRef, {
+            const pendingPayload = {
                 contact_id: syntheticKey,
                 email: (email || "").trim(),
                 user_name: (username || "").trim(),
                 pending: true,
                 firstName: pendingFirstName,
                 lastName: "",
-            }).then(() => {
+            };
+            if (profileImageUrl && String(profileImageUrl).trim()) {
+                pendingPayload.profile_image = String(profileImageUrl).trim();
+            }
+            set(contactRef, pendingPayload).then(() => {
                 Swal.fire({ text: "Contact added! They will appear in your list; you can chat once they sign in to the app.", icon: "success", width: 420 }).then(() => {
                     const inputEl = document.getElementById("add-contact-username-search");
                     const resultsEl = document.getElementById("add-contact-search-results");
@@ -977,7 +1047,7 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    function addContactFromSearch(firebaseUid, displayName, username, emailFromApi, firstNameFromApi, lastNameFromApi) {
+    function addContactFromSearch(firebaseUid, displayName, username, emailFromApi, firstNameFromApi, lastNameFromApi, profileImageFromLaravel) {
         const loggedInUserId = getCurrentFirebaseUid();
         if (!loggedInUserId) {
             if (typeof Swal !== "undefined") Swal.fire({ text: "Your chat session is not active. Please sign out and sign in again from the login page.", icon: "warning", width: 420 });
@@ -996,13 +1066,21 @@ initializeFirebase(function (app, auth, database, storage) {
                 const parsed = parseDisplayName(displayName);
                 const firstName = (firstNameFromApi && firstNameFromApi.trim()) || (userData.firstName && userData.firstName.trim()) || parsed.firstName || "";
                 const lastName = (lastNameFromApi && lastNameFromApi.trim()) || (userData.lastName && userData.lastName.trim()) || parsed.lastName || "";
-                set(contactRef, {
+                const contactPayload = {
                     contact_id: firebaseUid,
                     email: email,
                     firstName: firstName,
                     lastName: lastName,
                     mobile_number: userData.mobile_number || "",
-                }).then(() => {
+                };
+                const laravelImg = (profileImageFromLaravel && String(profileImageFromLaravel).trim()) ? String(profileImageFromLaravel).trim() : "";
+                const firebaseImg = userData.image || userData.profile_image || userData.profileImage || userData.photoURL || "";
+                if (laravelImg) {
+                    contactPayload.profile_image = laravelImg;
+                } else if (firebaseImg) {
+                    contactPayload.profile_image = firebaseImg;
+                }
+                set(contactRef, contactPayload).then(() => {
                     Swal.fire({ text: "Contact added!", icon: "success", width: 400 }).then(() => {
                         const inputEl = document.getElementById("add-contact-username-search");
                         const resultsEl = document.getElementById("add-contact-search-results");

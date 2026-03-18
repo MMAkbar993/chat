@@ -107,6 +107,8 @@ Route::get('api/public-profile-by-email', [UserSearchController::class, 'publicP
 
 Route::get('api/public-profile-by-username', [UserSearchController::class, 'publicProfileByUsername'])->name('public-profile.by-username');
 
+Route::get('api/public-profile-by-firebase-uid', [UserSearchController::class, 'publicProfileByFirebaseUid'])->name('public-profile.by-firebase-uid');
+
 // Restore Firebase chat session using Laravel session (no re-login). Requires auth.
 Route::get('api/restore-chat-session', [App\Http\Controllers\FirebaseAdminController::class, 'restoreChatSession'])
     ->name('api.restore-chat-session')

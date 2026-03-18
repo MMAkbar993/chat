@@ -234,4 +234,78 @@ class UserSearchController extends Controller
             'social_links' => $socialLinks,
         ]);
     }
+
+    /**
+     * Public profile data by Firebase UID (for contact modal when email/username is missing).
+     * GET /api/public-profile-by-firebase-uid?uid=
+     */
+    public function publicProfileByFirebaseUid(Request $request)
+    {
+        $uid = $request->query('uid');
+        $uid = is_string($uid) ? trim($uid) : '';
+
+        if ($uid === '') {
+            return response()->json(['error' => 'UID required'], 400);
+        }
+
+        $user = User::where('firebase_uid', $uid)
+            ->with(['get_user_details', 'websites', 'socialAccounts'])
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                'display_name' => '',
+                'bio' => '',
+                'location' => '',
+                'websites' => [],
+                'join_date' => null,
+                'dob' => null,
+                'kyc_verified' => false,
+                'social_verified' => false,
+                'social_platforms' => [],
+                'social_links' => [],
+            ]);
+        }
+
+        $details = $user->get_user_details;
+        $verifiedPlatforms = $user->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
+        $websites = $user->websites->filter(fn ($w) => $w->isVerified())->map(fn ($w) => [
+            'url' => $w->getDisplayUrl(),
+        ])->values()->all();
+
+        $platformToDetail = [
+            'facebook' => optional($details)->facebook,
+            'x' => optional($details)->twitter,
+            'twitter' => optional($details)->twitter,
+            'instagram' => optional($details)->instagram,
+            'linkedin' => optional($details)->linkedin,
+            'youtube' => optional($details)->youtube,
+            'kick' => optional($details)->kick,
+            'twitch' => optional($details)->twitch,
+        ];
+
+        $socialLinks = [];
+        foreach (['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'] as $key) {
+            $url = $platformToDetail[$key] ?? null;
+            if (empty($url)) {
+                $oauthKey = $key === 'twitter' ? 'x' : $key;
+                $acc = $user->socialAccounts()->where('platform', $oauthKey)->where('oauth_verified', true)->first();
+                $url = $acc && $acc->profile_url ? $acc->profile_url : ($acc ? ('https://' . ($key === 'twitter' ? 'x.com' : $key . '.com')) : null);
+            }
+            $socialLinks[$key] = $url ?: '';
+        }
+
+        return response()->json([
+            'display_name' => $user->public_display_name,
+            'bio' => $details->user_about ?? '',
+            'location' => $user->country ?? $details->location ?? '',
+            'websites' => $websites,
+            'join_date' => $user->created_at?->format('F j, Y'),
+            'dob' => $user->dob ? \Carbon\Carbon::parse($user->dob)->format('d F Y') : null,
+            'kyc_verified' => $user->isKycVerified(),
+            'social_verified' => count($verifiedPlatforms) > 0,
+            'social_platforms' => $verifiedPlatforms,
+            'social_links' => $socialLinks,
+        ]);
+    }
 }
