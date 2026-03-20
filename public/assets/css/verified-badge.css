@@ -111,3 +111,35 @@
   color: #374151;
   border-color: #9ca3af;
 }
+
+/* Social Profiles (settings sidebar): same height & weight as Bootstrap btn-sm */
+.social-profile-action .social-connect-btn,
+.social-profile-action .social-disconnect-btn,
+.social-profile-action .verified-badge {
+  box-sizing: border-box;
+  min-height: 2.125rem;
+  padding: 0.25rem 0.75rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  line-height: 1.25 !important;
+  border-radius: 0.25rem !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.social-profile-action .social-disconnect-btn {
+  min-width: 2.125rem;
+  padding-left: 0.25rem !important;
+  padding-right: 0.25rem !important;
+}
+
+.social-profile-action .social-disconnect-btn .ti,
+.social-profile-action .social-disconnect-btn i {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.social-profile-action .verified-badge {
+  border-width: 1px !important;
+}
