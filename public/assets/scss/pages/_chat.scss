@@ -305,6 +305,7 @@
     display: -webkit-flex;
     overflow: hidden;
     visibility: hidden;
+    align-items: stretch;   
 }
 
 .main_content {
@@ -367,9 +368,12 @@
 
 .chat {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     transition: all .5s ease;
+    -webkit-transition: all .5s ease;
+    -ms-transition: all .5s ease;
     width: 100%;
     height: 100%;
     background-image: url('../img/bg/bg-01.png');
@@ -390,18 +394,15 @@
         order: 3;
         z-index: 999;
         background-color: $white;
-
-        // ✅ Move .show INSIDE the media query
-        &.show {
-            visibility: visible;
-            transform: translateX(0);
-        }
     }
 
-    // &.show {
-    //     visibility: visible;
-    //     transform: translateX(0);
+    // @include respond-below(xl) {
+    //     .chat.show {
+    //         visibility: visible;
+    //         transform: translateX(0);
+    //     }
     // }
+
     .slimscroll {
         height: calc(100vh - 65px) !important;
 
@@ -755,6 +756,13 @@
                 }
             }
         }
+    }
+}
+
+@include respond-below(xl) {
+    .chat.show {
+        visibility: visible;
+        transform: translateX(0);
     }
 }
 

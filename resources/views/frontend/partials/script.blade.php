@@ -52,6 +52,9 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
  <script>
     const APP_URL = "{{ env('APP_URL', '') }}";
     const APP_ID = "{{ env('AGORA_APP_ID', '') }}";
+    // firebaseChat.js is an ES module; expose Agora app id on window so join() matches /generate-token.
+    window.APP_URL = APP_URL;
+    window.APP_ID = APP_ID;
     const IS_KYC_VERIFIED = {{ (Auth::check() && Auth::user() && Auth::user()->isKycVerified()) ? 'true' : 'false' }};
     const IS_EMAIL_VERIFIED = {{ (Auth::check() && Auth::user() && Auth::user()->email_verified_at) ? 'true' : 'false' }};
     @php

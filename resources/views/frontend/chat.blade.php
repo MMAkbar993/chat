@@ -1783,44 +1783,7 @@
     <!-- /Add Call -->
 
 
-    <!-- Video Call -->
-    <div class="modal fade" id="video-call">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header justify-content-center border-0">
-                    <span
-                        class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
-                        <i class="ti ti-video"></i>
-                    </span>
-                    <h4 class="modal-title">{{ __('Video Calling...') }}</h4>
-                </div>
-                <div class="modal-body pb-0">
-                    <div class="card bg-light mb-0">
-                        <div class="card-body d-flex justify-content-center">
-                            <div>
-                                <span class="avatar avatar-xxl">
-                                    <img src="assets/img/profiles/avatar-06.jpg" class="rounded-circle"
-                                        alt="user">
-                                </span>
-                                <h6 class="fs-14"></h6>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer justify-content-center border-0">
-                    <a href="javascript:void(0);"
-                        class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2" id="join-video-call">
-                        <i class="ti ti-phone fs-20"></i>
-                    </a>
-                    <a href="javascript:void(0);"
-                        class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center" id="decline-video-call">
-                        <i class="ti ti-phone-off fs-20"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- /Video Call -->
+    {{-- Incoming video ring modal: frontend/partials/popups.blade.php (#video-call) --}}
 
     <!-- Mute User -->
     <div class="modal fade" id="mute-user">

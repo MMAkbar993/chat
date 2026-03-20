@@ -7594,6 +7594,21 @@ initializeFirebase(function (app, auth, database, storage) {
             if (lt) lt.textContent = '00:00:00';
             if (ht) ht.textContent = '00:00:00';
 
+            // Register listeners BEFORE join so we never miss user-published for users already in the channel.
+            videoClient.off("user-published", handleUserPublished);
+            videoClient.off("user-unpublished", handleUserUnpublished);
+            videoClient.off("user-joined");
+            videoClient.off("user-left");
+
+            videoClient.on("user-published", handleUserPublished);
+            videoClient.on("user-unpublished", handleUserUnpublished);
+            videoClient.on("user-left", (user) => {
+                console.log(`Video user ${user.uid} left the channel ${channelName}`);
+                if (window.agoraVideoUsers && window.agoraVideoUsers[user.uid]) {
+                    delete window.agoraVideoUsers[user.uid];
+                }
+            });
+
             let videoToken = null;
             try {
                 videoToken = await generateAgoraToken(channelName, uid);
@@ -7614,76 +7629,29 @@ initializeFirebase(function (app, auth, database, storage) {
 
             startVideoCallTimer(); // Start timer after successful join
 
-            // Alternative approach: Use user-joined event instead of user-published for video calls
-            videoClient.on("user-joined", async (user) => {
-                console.log(`Video user ${user.uid} joined the channel ${channelName}`);
-
-                try {
-                    // Subscribe to both audio and video immediately when user joins
-                    await videoClient.subscribe(user, "audio");
-                    await videoClient.subscribe(user, "video");
-                    console.log(`Successfully subscribed to audio and video for user ${user.uid}`);
-
-                    // Store user info for better tracking
+            // Second participant may already be publishing when we finish join; subscribe to anyone already present.
+            try {
+                for (const remoteUser of videoClient.remoteUsers) {
                     if (!window.agoraVideoUsers) window.agoraVideoUsers = {};
-                    window.agoraVideoUsers[user.uid] = {
-                        uid: user.uid,
+                    window.agoraVideoUsers[remoteUser.uid] = {
+                        uid: remoteUser.uid,
                         channelName: channelName,
                         appId: VIDEO_APP_ID,
                         joinedAt: Date.now()
                     };
-
-                    // Handle video display
-                    let remotePlayerContainer = document.getElementById(`remote-player-${user.uid}`);
-                    if (!remotePlayerContainer) {
-                        remotePlayerContainer = document.createElement("div");
-                        remotePlayerContainer.id = `remote-player-${user.uid}`;
-                        remotePlayerContainer.className = "remote-player";
-                        document.getElementById("remote-playerlist").appendChild(remotePlayerContainer);
+                    if (remoteUser.hasAudio && !remoteUser.audioTrack) {
+                        await videoClient.subscribe(remoteUser, "audio");
                     }
-
-                    // Play video track
-                    if (user.videoTrack) {
-                        console.log(`Playing video for user ${user.uid}`);
-                        remotePlayerContainer.innerHTML = '';
-                        user.videoTrack.play(remotePlayerContainer);
+                    if (remoteUser.hasVideo && !remoteUser.videoTrack) {
+                        await videoClient.subscribe(remoteUser, "video");
                     }
-
-                    // Play audio track
-                    if (user.audioTrack) {
-                        console.log(`Playing audio for user ${user.uid}`);
-                        user.audioTrack.play().catch(error => {
-                            console.error(`Audio playback failed for user ${user.uid}:`, error);
-
-                            // Create play button for user interaction
-                            const playButton = document.createElement('button');
-                            playButton.textContent = `Click to play audio from user ${user.uid}`;
-                            playButton.onclick = () => {
-                                user.audioTrack.play().catch(e => console.error("Still failed to play:", e));
-                                playButton.remove();
-                            };
-                            document.body.appendChild(playButton);
-                        });
+                    if (remoteUser.audioTrack || remoteUser.videoTrack) {
+                        handleVideoUserDisplay(remoteUser);
                     }
-
-                    updateRemoteUserDetails(user.uid);
-
-                } catch (error) {
-                    console.error(`Failed to subscribe to user ${user.uid}:`, error);
                 }
-            });
-
-            // Keep original event listeners as fallback
-            videoClient.on("user-published", handleUserPublished);
-            videoClient.on("user-unpublished", handleUserUnpublished);
-
-            // Additional event listeners for better user tracking
-            videoClient.on("user-left", (user) => {
-                console.log(`Video user ${user.uid} left the channel ${channelName}`);
-                if (window.agoraVideoUsers && window.agoraVideoUsers[user.uid]) {
-                    delete window.agoraVideoUsers[user.uid];
-                }
-            });
+            } catch (syncErr) {
+                console.error("Video remote user sync after join:", syncErr);
+            }
 
             // Manual subscription check every few seconds for video calls
             const videoManualSubscriptionInterval = setInterval(async () => {

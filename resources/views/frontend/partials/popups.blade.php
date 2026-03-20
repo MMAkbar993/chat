@@ -115,8 +115,8 @@
 <!-- /Add Call -->
 
 
-<!-- Video Call -->
-<div class="modal fade" id="video-call" data-bs-backdrop="static">
+<!-- Video Call (incoming ring — firebaseChat.js expects #join-video-call / #decline-video-call) -->
+<div class="modal fade" id="video-call" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header justify-content-center border-0">
@@ -131,20 +131,20 @@
                     <div class="card-body d-flex justify-content-center">
                         <div>
                             <span class="avatar avatar-xxl">
-                                <img src="assets/img/profiles/avatar-06.jpg" class="rounded-circle"
+                                <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle"
                                     alt="user">
                             </span>
-                            <h6 class="fs-14">Edward Lietz</h6>
+                            <h6 class="fs-14"></h6>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer justify-content-center border-0">
-                <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#start-video-call"
+                <a href="javascript:void(0);" id="join-video-call"
                     class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2">
                     <i class="ti ti-phone fs-20"></i>
                 </a>
-                <a href="javascript:void(0);"
+                <a href="javascript:void(0);" id="decline-video-call"
                     class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center"
                     data-bs-dismiss="modal" aria-label="close">
                     <i class="ti ti-phone-off fs-20"></i>
