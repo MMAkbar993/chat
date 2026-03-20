@@ -6792,6 +6792,52 @@ initializeFirebase(function (app, auth, database, storage) {
         return cur || "Unknown User";
     }
 
+    /** Incoming call ring: Settings → Notifications → Notification Sound (`notification_sound` in localStorage). */
+    let incomingCallRingAudio = null;
+    let incomingCallRingActiveId = null;
+
+    function isNotificationRingSoundEnabled() {
+        try {
+            if (localStorage.getItem("notification_sound") === "1") return true;
+            if (localStorage.getItem("NotificationSound") === "enabled") return true;
+            return false;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function stopIncomingCallRing() {
+        incomingCallRingActiveId = null;
+        if (incomingCallRingAudio) {
+            try {
+                incomingCallRingAudio.pause();
+                incomingCallRingAudio.currentTime = 0;
+            } catch (e) {}
+        }
+    }
+
+    function ensureIncomingCallRing(callId) {
+        if (!callId || !isNotificationRingSoundEnabled()) {
+            stopIncomingCallRing();
+            return;
+        }
+        if (incomingCallRingActiveId === callId) return;
+        stopIncomingCallRing();
+        incomingCallRingActiveId = callId;
+        if (!incomingCallRingAudio) {
+            incomingCallRingAudio = new Audio("assets/sounds/notification_sound.mp3");
+            incomingCallRingAudio.loop = true;
+        }
+        incomingCallRingAudio.play().catch(() => {});
+    }
+
+    if (typeof window !== "undefined") {
+        window.__dreamchatIncomingCallRing = {
+            ensure: ensureIncomingCallRing,
+            stop: stopIncomingCallRing,
+        };
+    }
+
     const audioCallButton = document.getElementById("audio-call-btn");
     const joinCallButton = document.getElementById('join-audio-call');
     const endCallButton = document.getElementById("end-audio-call");
@@ -7163,6 +7209,7 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function cleanUpLocalState() {
+        stopIncomingCallRing();
         stopCallTimer();
 
         // Clean up Agora resources
@@ -7358,6 +7405,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
         if (activeCall) {
             console.log("Active call found:", activeCall);
+            stopIncomingCallRing();
             currentCallId = activeCall.id;
             if (!localAudioTrack) {
                 // Determine who is the other participant
@@ -7385,6 +7433,7 @@ initializeFirebase(function (app, auth, database, storage) {
             
             // Adjust the modal UI based on whether it is an outgoing or incoming call
             if (ringingCall.inOrOut === 'OUT') {
+                stopIncomingCallRing();
                 $('#join-audio-call').hide();
                 $('#audio-call-modal .modal-title').text('Calling...');
             } else {
@@ -7393,6 +7442,9 @@ initializeFirebase(function (app, auth, database, storage) {
             }
             
             $('#audio-call-modal').modal('show');
+            if (ringingCall.inOrOut === 'IN') {
+                ensureIncomingCallRing(ringingCall.id);
+            }
         }
         else if (currentCallId) {
             cleanUpLocalState();
@@ -7863,6 +7915,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
 
     function cleanUpVideoLocalState() {
+        stopIncomingCallRing();
         stopVideoCallTimer();
 
         if (localVideoTrack) {
@@ -8137,6 +8190,7 @@ initializeFirebase(function (app, auth, database, storage) {
             // --- STATE 1: Call Accepted ---
             // The `duration` is "00:00:00". This is the trigger for both users to join the Agora channel.
             if (callToProcess.duration === "00:00:00") {
+                stopIncomingCallRing();
                 // Sender (caller) fix: update UI from "Ringing..." to "00:00:00" immediately when we receive accepted state,
                 // so the caller sees the call was picked up even before joinAgoraVideoChannel completes.
                 if (callToProcess.inOrOut === "OUT") {
@@ -8162,12 +8216,16 @@ initializeFirebase(function (app, auth, database, storage) {
             // --- STATE 2: Call is Ringing ---
             else if (callToProcess.duration === "Ringing") {
                 // If it's an INCOMING call for me, show the ringing modal.
-                if (callToProcess.inOrOut === "IN" && !$('#video-call').is(':visible')) {
-                    updateRingingModalDetails(callToProcess);
-                    $('#video-call').modal('show');
+                if (callToProcess.inOrOut === "IN") {
+                    if (!$('#video-call').is(':visible')) {
+                        updateRingingModalDetails(callToProcess);
+                        $('#video-call').modal('show');
+                    }
+                    ensureIncomingCallRing(callToProcess.id);
                 }
                 // If it's an OUTGOING call I started, show the "calling..." screen.
                 else if (callToProcess.inOrOut === "OUT" && !$('#start-video-call-container').is(':visible')) {
+                    stopIncomingCallRing();
                     showOutgoingCallUI(callToProcess);
                 }
             }

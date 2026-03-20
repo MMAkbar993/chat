@@ -1400,13 +1400,22 @@ onValue(ref(database, 'data/calls'), (snapshot) => {
                 $('#video-call-new-group, #audio_group_new, #video_group_new').modal('hide');
                 $('#audio-call-new-group').modal('show');
             }
+            if (typeof window !== 'undefined' && window.__dreamchatIncomingCallRing && myCall.inOrOut === 'IN') {
+                window.__dreamchatIncomingCallRing.ensure(myCall.id);
+            }
         } else {
+            if (typeof window !== 'undefined' && window.__dreamchatIncomingCallRing) {
+                window.__dreamchatIncomingCallRing.stop();
+            }
             // The call is active, enter the call screen
             enterActiveCall(myCall, currentUser);
         }
 
     } else {
         // No active or ringing call found for the user. Clean up.
+        if (typeof window !== 'undefined' && window.__dreamchatIncomingCallRing) {
+            window.__dreamchatIncomingCallRing.stop();
+        }
         if (currentCallId) {
             cleanUpLocalState();
         }
@@ -1759,6 +1768,9 @@ function handleGroupUserDisplay(remoteUser, isVideo) {
 }
 
 function cleanUpLocalState() {
+    if (typeof window !== 'undefined' && window.__dreamchatIncomingCallRing) {
+        window.__dreamchatIncomingCallRing.stop();
+    }
     stopCallTimer();
     if (localAudioTrack) {
         localAudioTrack.stop();

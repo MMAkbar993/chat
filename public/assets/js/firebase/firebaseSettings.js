@@ -1793,8 +1793,9 @@ let isNotificationSoundEnabled = false;
 
 if (notificationSoundSwitch) {
 window.addEventListener('load', function() {
-    const savedSetting = localStorage.getItem('NotificationSound');
-    if (savedSetting === 'enabled') {
+    const savedSetting = localStorage.getItem('notification_sound');
+    const legacy = localStorage.getItem('NotificationSound');
+    if (savedSetting === '1' || legacy === 'enabled') {
         isNotificationSoundEnabled = true;
         notificationSoundSwitch.checked = true; // Set the switch to enabled
     } else {
@@ -1807,7 +1808,8 @@ window.addEventListener('load', function() {
 notificationSoundSwitch.addEventListener('change', function() {
     isNotificationSoundEnabled = this.checked;
     if (isNotificationSoundEnabled) {
-        localStorage.setItem('NotificationSound', 'enabled');
+        localStorage.setItem('notification_sound', '1');
+        try { localStorage.removeItem('NotificationSound'); } catch (e) {}
         Toastify({
             text: "Notification Sound Enabled!",
             duration: 3000,
@@ -1823,7 +1825,8 @@ notificationSoundSwitch.addEventListener('change', function() {
             position: "right",
             style: { background: "#dc3545" },
         }).showToast();
-        localStorage.setItem('NotificationSound', 'disabled');
+        localStorage.setItem('notification_sound', '0');
+        try { localStorage.removeItem('NotificationSound'); } catch (e) {}
     }
 });
 }
