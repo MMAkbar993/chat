@@ -1021,6 +1021,7 @@
                     <div class="card border mb-3">
                         <div class="card-header border-bottom">
                             <h6>{{ __('Personal Information') }}</h6>
+                            <p class="text-muted small mb-0 mt-1">{{ __('Website verified via meta tag or approved for company representation') }}</p>
                         </div>
                         <div class="card-body pb-1">
                             <div class="mb-2">
@@ -1066,7 +1067,8 @@
                     </div>
                     <div class="card border mb-0">
                         <div class="card-header border-bottom">
-                            <h6>Social Information</h6>
+                            <h6>{{ __('Social Information') }}</h6>
+                            <p class="text-muted small mb-0 mt-1">{{ __('All social profiles are verified via OAuth unless otherwise stated.') }}</p>
                         </div>
                         <div class="card-body pb-1">
                             <div class="mb-2">

@@ -102,10 +102,6 @@
                     if (phoneEl) phoneEl.textContent = data.mobile_number || '—';
                     var emailEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="email"]');
                     if (emailEl) emailEl.textContent = data.email || '—';
-                    var kycBadge = document.querySelector('#contact-details .contact-kyc-badge');
-                    var socialVerified = document.querySelector('#contact-details .contact-social-verified');
-                    if (kycBadge) kycBadge.style.display = 'none';
-                    if (socialVerified) socialVerified.style.display = 'none';
                     var contactUsername = data.userName || data.user_name || '';
                     if (data.email) {
                         fetch(baseUrl + '/api/public-profile-by-email?email=' + encodeURIComponent(data.email))
@@ -113,8 +109,6 @@
                             .then(function (pub) {
                                 if (!pub) return;
                                 if (pub.display_name && nameEl) nameEl.textContent = pub.display_name;
-                                if (kycBadge) kycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
-                                if (socialVerified) socialVerified.style.display = (pub.social_verified ? 'inline-flex' : 'none');
                                 var setField = function (field, value, asLink) {
                                     var el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
                                     if (!el) return;
@@ -151,8 +145,6 @@
                             .then(function (pub) {
                                 if (!pub) return;
                                 if (pub.display_name && nameEl) nameEl.textContent = pub.display_name;
-                                if (kycBadge) kycBadge.style.display = pub.kyc_verified ? 'inline-flex' : 'none';
-                                if (socialVerified) socialVerified.style.display = (pub.social_verified ? 'inline-flex' : 'none');
                                 var setField = function (field, value, asLink) {
                                     var el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
                                     if (!el) return;

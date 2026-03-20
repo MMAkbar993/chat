@@ -154,12 +154,7 @@
                                     <img src="" class="rounded-circle" alt="img" id="contact-detail-avatar">
                                 </span>
                                 <div class="ms-2">
-                                    <div class="d-flex align-items-center gap-1 flex-wrap">
-                                        <h6 id="contact-detail-name"></h6>
-                                        <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
-                                            {{ __('Verified') }}
-                                        </span>
-                                    </div>
+                                    <h6 id="contact-detail-name"></h6>
                                     <p class="mb-0 small text-muted" id="contact-detail-title" style="display: none;"></p>
                                 </div>
                             </div>
@@ -175,7 +170,10 @@
                     </div>
                 </div>
                 <div class="card border mb-3">
-                    <div class="card-header border-bottom"><h6 class="mb-0">{{ __('Personal Information')}}</h6></div>
+                    <div class="card-header border-bottom">
+                        <h6 class="mb-0">{{ __('Personal Information')}}</h6>
+                        <p class="text-muted small mb-0 mt-1">{{ __('Website verified via meta tag or approved for company representation') }}</p>
+                    </div>
                     <div class="card-body pb-1">
                         <div class="mb-2">
                             <div class="row align-items-center contact-detail-row" data-contact-row="local_time">
@@ -210,9 +208,9 @@
                     </div>
                 </div>
                 <div class="card border mb-0" id="contact-details-social-card">
-                    <div class="card-header border-bottom d-flex align-items-center flex-wrap gap-2">
+                    <div class="card-header border-bottom">
                         <h6 class="mb-0">{{ __('Social Information')}}</h6>
-                        <span class="contact-social-verified badge verified-badge badge-xs" style="display:none;">{{ __('Verified') }}</span>
+                        <p class="text-muted small mb-0 mt-1">{{ __('All social profiles are verified via OAuth unless otherwise stated.') }}</p>
                     </div>
                     <div class="card-body pb-1">
                         <div class="mb-2">

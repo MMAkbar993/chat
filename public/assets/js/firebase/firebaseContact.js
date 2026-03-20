@@ -493,18 +493,6 @@ initializeFirebase(function (app, auth, database, storage) {
                 const emailEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="email"]');
                 if (emailEl) emailEl.textContent = emailVal;
 
-                const contactKycBadge = document.querySelector('#contact-details .contact-kyc-badge');
-                if (contactKycBadge) {
-                    contactKycBadge.style.display = 'none';
-                    const checkEmail = contactData.email || (userData && userData.email);
-                    if (checkEmail) {
-                        fetch(`/api/kyc-status?email=${encodeURIComponent(checkEmail)}`)
-                            .then(r => r.json())
-                            .then(data => { contactKycBadge.style.display = data.verified ? 'inline-flex' : 'none'; })
-                            .catch(() => {});
-                    }
-                }
-
                 const now = new Date();
                 const localTimeStr = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
                 setContactDetailRow("local_time", localTimeStr);
@@ -559,10 +547,6 @@ initializeFirebase(function (app, auth, database, storage) {
                             subEl.style.display = "none";
                         }
                     }
-                    if (contactKycBadge) contactKycBadge.style.display = pub.kyc_verified ? "inline-flex" : "none";
-                    const socialVerifiedEl = document.querySelector("#contact-details .contact-social-verified");
-                    if (socialVerifiedEl) socialVerifiedEl.style.display = pub.social_verified ? "inline-flex" : "none";
-
                     setContactDetailRowIfPresent("dob", pub.dob);
                     setContactDetailRowIfPresent("bio", pub.bio);
                     setContactDetailRowIfPresent("location", pub.location);
