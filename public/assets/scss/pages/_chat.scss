@@ -1822,6 +1822,17 @@
 
 }
 
+// 1:1 video ring (#video-call): compact card; outgoing hides green answer via .d-none + .video-call-ring-outgoing
+.video-call-ring-modal {
+    .modal-content {
+        border-radius: 16px;
+    }
+
+    .video-call-ring-avatar-wrap img {
+        object-fit: cover;
+    }
+}
+
 .d-none {
     display: none;
 }

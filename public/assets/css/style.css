@@ -12982,6 +12982,13 @@ Form help
   display: none;
 }
 
+.video-call-ring-modal .modal-content {
+  border-radius: 16px;
+}
+.video-call-ring-modal .video-call-ring-avatar-wrap img {
+  object-fit: cover;
+}
+
 .d-none {
   display: none;
 }

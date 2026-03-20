@@ -6633,6 +6633,7 @@ initializeFirebase(function (app, auth, database, storage) {
     let localAudioTrack = null;
     let callTimerInterval = null;
     let currentCallId = null; // Keep track of the active call
+    let lastAudioCallerDeclineToastId = null;
 
     // Firebase references
     const callRef = ref(database, 'data/calls');
@@ -7370,6 +7371,15 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
+    function notifyOutgoingCallDeclined() {
+        Toastify({
+            text: "The user declined your call. They may be busy or unavailable.",
+            duration: 4500,
+            gravity: "top",
+            position: "right",
+            backgroundColor: "#f59e0b",
+        }).showToast();
+    }
 
     onValue(ref(database, `data/calls`), (snapshot) => {
         const allCalls = snapshot.val();
@@ -7447,6 +7457,17 @@ initializeFirebase(function (app, auth, database, storage) {
             }
         }
         else if (currentCallId) {
+            const myCallRow = allCalls[currentUser.uid] && allCalls[currentUser.uid][currentCallId];
+            if (
+                myCallRow &&
+                myCallRow.video == false &&
+                myCallRow.duration === "Declined" &&
+                myCallRow.inOrOut === "OUT" &&
+                lastAudioCallerDeclineToastId !== currentCallId
+            ) {
+                lastAudioCallerDeclineToastId = currentCallId;
+                notifyOutgoingCallDeclined();
+            }
             cleanUpLocalState();
         }
     });
@@ -7461,6 +7482,7 @@ initializeFirebase(function (app, auth, database, storage) {
     let localAudioTrackForVideo = null;
     let videoCallTimerInterval = null;
     let currentVideoCallId = null;
+    let lastVideoCallerDeclineToastId = null;
 
     // Video call UI elements
     const videoCallButton = document.getElementById("video-call-new-btn");
@@ -7964,6 +7986,17 @@ initializeFirebase(function (app, auth, database, storage) {
         $('#start-video-call-container').modal('hide');
         $('#video-call').modal('hide');
 
+        const joinVideoRingBtn = document.getElementById('join-video-call');
+        if (joinVideoRingBtn) {
+            joinVideoRingBtn.classList.remove('d-none');
+            joinVideoRingBtn.style.removeProperty('display');
+        }
+        const ringStatus = document.getElementById('video-call-ring-status');
+        if (ringStatus) ringStatus.textContent = '';
+
+        const videoRingModal = document.getElementById('video-call');
+        if (videoRingModal) videoRingModal.classList.remove('video-call-ring-outgoing');
+
         currentVideoCallId = null;
     }
 
@@ -8061,9 +8094,17 @@ initializeFirebase(function (app, auth, database, storage) {
             if (needVidName && laravelVid) userName = laravelVid;
 
             const modal = $('#video-call');
-            modal.find('.modal-title').text(`Video Call from ${userName}`);
-            modal.find('.avatar img').attr('src', userImage).attr('alt', userName);
-            modal.find('h6').text(userName);
+            modal.removeClass('video-call-ring-outgoing');
+            modal.find('#video-call-ring-title').text('Incoming video call');
+            modal.find('.video-call-ring-name').text(userName);
+            modal.find('.video-call-ring-avatar').attr('src', userImage).attr('alt', userName);
+            const statusEl = document.getElementById('video-call-ring-status');
+            if (statusEl) statusEl.textContent = '';
+            const joinBtn = document.getElementById('join-video-call');
+            if (joinBtn) {
+                joinBtn.classList.remove('d-none');
+                joinBtn.style.removeProperty('display');
+            }
         } catch (error) {
             console.error('Error updating video modal details:', error);
         }
@@ -8098,8 +8139,8 @@ initializeFirebase(function (app, auth, database, storage) {
     // Add this new helper function somewhere in your "VIDEO CALL HELPER FUNCTIONS" section
 
     /**
-     * Shows the main video call UI for an outgoing call before it's connected.
-     * @param {object} callData The call data from Firebase.
+     * Simple outgoing ring UI (same shell as incoming): callee avatar, red cancel only.
+     * Full Agora UI opens in #start-video-call-container after the callee answers.
      */
     async function showOutgoingCallUI(callData) {
         const otherUserId = callData.callerId[0];
@@ -8127,27 +8168,17 @@ initializeFirebase(function (app, auth, database, storage) {
             const { imageUrl: userImage, displayName: laravelVidOut } = await resolveCallUserAvatarAndDisplayName(otherUserId, userData, contactDataVideo, { includeLaravelDisplayName: needVidOut });
             if (needVidOut && laravelVidOut) userName = laravelVidOut;
 
-            // Get the active call modal elements
-            const modal = $('#start-video-call-container');
-            const timerDisplay = modal.find('#local-call-timer');
-            const headerTimerDisplay = modal.find('#video-call-timer-display');
+            const modal = $('#video-call');
+            modal.addClass('video-call-ring-outgoing');
+            modal.find('#video-call-ring-title').text(`Calling ${userName}…`);
+            modal.find('.video-call-ring-name').text('');
+            modal.find('.video-call-ring-avatar').attr('src', userImage).attr('alt', userName);
+            const statusEl = document.getElementById('video-call-ring-status');
+            if (statusEl) statusEl.textContent = 'Ringing…';
 
-            // Update user details in the modal header
-            modal.find('.user-video-head .user-name').text(userName);
-            modal.find('.user-video-head .avatar-video img').attr('src', userImage);
+            const joinBtn = document.getElementById('join-video-call');
+            if (joinBtn) joinBtn.classList.add('d-none');
 
-            // Set the status to "Ringing..." instead of a timer
-            if (timerDisplay) timerDisplay.text('Ringing...');
-            if (headerTimerDisplay) headerTimerDisplay.text('Ringing...');
-
-            // Show the user's profile picture in the remote player area while ringing
-            const remotePlayerContainer = document.getElementById("remote-playerlist");
-            if (remotePlayerContainer) {
-                remotePlayerContainer.innerHTML = `<div id="remote-player-${otherUserId}" class="remote-player"></div>`;
-                await showProfileImage(document.getElementById(`remote-player-${otherUserId}`), otherUserId);
-            }
-
-            // Show the modal
             modal.modal('show');
 
         } catch (error) {
@@ -8224,7 +8255,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     ensureIncomingCallRing(callToProcess.id);
                 }
                 // If it's an OUTGOING call I started, show the "calling..." screen.
-                else if (callToProcess.inOrOut === "OUT" && !$('#start-video-call-container').is(':visible')) {
+                else if (callToProcess.inOrOut === "OUT" && !$('#video-call').is(':visible')) {
                     stopIncomingCallRing();
                     showOutgoingCallUI(callToProcess);
                 }
@@ -8234,6 +8265,18 @@ initializeFirebase(function (app, auth, database, storage) {
             // No call is "Ringing" or has the "00:00:00" trigger.
             // This means the call was ended (duration is now a timestamp like "00:02:15") or declined.
             // If we previously had a `currentVideoCallId`, it's time to clean up.
+            if (currentVideoCallId && userCalls && userCalls[currentVideoCallId]) {
+                const row = userCalls[currentVideoCallId];
+                if (
+                    row.video &&
+                    row.duration === "Declined" &&
+                    row.inOrOut === "OUT" &&
+                    lastVideoCallerDeclineToastId !== currentVideoCallId
+                ) {
+                    lastVideoCallerDeclineToastId = currentVideoCallId;
+                    notifyOutgoingCallDeclined();
+                }
+            }
             if (currentVideoCallId) {
                 cleanUpVideoLocalState();
             }

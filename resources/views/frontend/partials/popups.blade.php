@@ -115,39 +115,36 @@
 <!-- /Add Call -->
 
 
-<!-- Video Call (incoming ring — firebaseChat.js expects #join-video-call / #decline-video-call) -->
-<div class="modal fade" id="video-call" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header justify-content-center border-0">
-                <span
-                    class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
-                    <i class="ti ti-video"></i>
+{{-- 1:1 video ring UI: outgoing = red cancel only; incoming = green answer + red decline. Active call uses #start-video-call-container. --}}
+<div class="modal fade video-call-ring-modal" id="video-call" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-body text-center pt-4 pb-2 px-3">
+                <span class="model-icon bg-primary bg-opacity-10 text-primary d-inline-flex justify-content-center align-items-center rounded-circle mb-3" style="width:56px;height:56px;">
+                    <i class="ti ti-video fs-24"></i>
                 </span>
-                <h4 class="modal-title">{{ __('Video Calling...')}}</h4>
-            </div>
-            <div class="modal-body pb-0">
-                <div class="card bg-light mb-0">
-                    <div class="card-body d-flex justify-content-center">
-                        <div>
-                            <span class="avatar avatar-xxl">
-                                <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle"
-                                    alt="user">
-                            </span>
-                            <h6 class="fs-14"></h6>
-                        </div>
-                    </div>
+                <h5 class="modal-title mb-1" id="video-call-ring-title">{{ __('Video call')}}</h5>
+                <p class="text-muted small mb-0 video-call-ring-name"></p>
+                <p class="text-muted small mb-0 mt-1 video-call-ring-status" id="video-call-ring-status"></p>
+                <div class="d-flex justify-content-center my-4">
+                    <span class="avatar avatar-xxl video-call-ring-avatar-wrap">
+                        <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle video-call-ring-avatar" alt="">
+                    </span>
                 </div>
             </div>
-            <div class="modal-footer justify-content-center border-0">
+            <div class="modal-footer justify-content-center border-0 pt-0 pb-4 gap-2 flex-nowrap">
                 <a href="javascript:void(0);" id="join-video-call"
-                    class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2">
-                    <i class="ti ti-phone fs-20"></i>
+                    class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center"
+                    style="width:56px;height:56px;"
+                    title="{{ __('Answer') }}">
+                    <i class="ti ti-video fs-22"></i>
                 </a>
                 <a href="javascript:void(0);" id="decline-video-call"
                     class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center"
-                    data-bs-dismiss="modal" aria-label="close">
-                    <i class="ti ti-phone-off fs-20"></i>
+                    style="width:56px;height:56px;"
+                    data-bs-dismiss="modal" aria-label="{{ __('Decline') }}"
+                    title="{{ __('Decline') }}">
+                    <i class="ti ti-phone-off fs-22"></i>
                 </a>
             </div>
         </div>
