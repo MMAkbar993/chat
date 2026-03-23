@@ -35,20 +35,49 @@ import {
 
 initializeFirebase(function (app, auth, database,storage) {
 
+function resolveCallsProfileImageUrl(raw) {
+    const origin =
+        typeof window !== "undefined" && window.location && window.location.origin
+            ? window.location.origin
+            : "";
+    const defaultUrl = origin
+        ? origin + "/assets/img/profiles/avatar-03.jpg"
+        : "assets/img/profiles/avatar-03.jpg";
+    if (raw == null || !String(raw).trim()) return defaultUrl;
+    const s = String(raw).trim();
+    if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:"))
+        return s;
+    if (s.startsWith("//"))
+        return (window.location && window.location.protocol
+            ? window.location.protocol
+            : "https:") + s;
+    const path = s.replace(/^\.?\/+/, "");
+    return origin ? origin + "/" + path : defaultUrl;
+}
+
 let currentUser = null; // Define the current user here
 let selectedUserId = null; // Store the selected user ID
 let usersMap = {}; // Define usersMap here
+/** Latest calls payload so we can re-render when `users` loads after calls. */
+let lastCallsData = {};
+let unsubCallsListener = null;
 
 // Monitor the user's authentication state
 onAuthStateChanged(auth, (user) => {
+    if (unsubCallsListener) {
+        unsubCallsListener();
+        unsubCallsListener = null;
+    }
     if (user) {
-         const uid = user.uid;
-        currentUser = user; // Set currentUser to the signed-in user
-        document.getElementById('uid').innerText = `Logged in as: ${currentUser.uid}`;
-        fetchUsers();
+        currentUser = user;
+        const uidEl = document.getElementById("uid");
+        if (uidEl) uidEl.innerText = `Logged in as: ${currentUser.uid}`;
+        attachCallsListener();
     } else {
-        // window.location.href = "/login";
-        document.getElementById('uid').innerText = 'No user logged in';
+        currentUser = null;
+        lastCallsData = {};
+        const uidEl = document.getElementById("uid");
+        if (uidEl) uidEl.innerText = "No user logged in";
     }
 });
 
@@ -67,37 +96,45 @@ async function fetchUsers() {
 
 
 
-let users = {}; // Global variable to store users
+let users = {}; // Global variable to store users (for avatars / status)
 
 function fetchAndDisplayCalls() {
-    const usersRef = ref(database, 'data/users');
-    
-    // Fetch users
-    onValue(usersRef, (snapshot) => {
-        if (snapshot.exists()) {
-            users = snapshot.val(); // Store users data
-            fetchCalls(); // Fetch calls after loading users
-        } 
-    }, (error) => {
-       
-    });
+    const usersRef = ref(database, "data/users");
+    onValue(
+        usersRef,
+        (snapshot) => {
+            users = snapshot.exists() ? snapshot.val() : {};
+            void rerenderCallsTabsFromCache();
+        },
+        () => {}
+    );
 }
 
-function fetchCalls() {
-    if (!currentUser || !currentUser.uid) return;
-    const callsRef = ref(database, `data/calls/${currentUser.uid}`); // Reference to the calls node
+function attachCallsListener() {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const callsRef = ref(database, `data/calls/${uid}`);
+    unsubCallsListener = onValue(
+        callsRef,
+        (snapshot) => {
+            lastCallsData = snapshot.exists() ? snapshot.val() : {};
+            void rerenderCallsTabsFromCache();
+        },
+        () => {}
+    );
+}
 
-    // Fetch calls data from Firebase
-    onValue(callsRef, (snapshot) => {
-        if (snapshot.exists()) {
-            const calls = snapshot.val(); // Store calls data
-            displayAllCalls(calls); // Display all calls when loaded
-            displayAudioCalls(calls); // Call to display audio calls
-            displayVideoCalls(calls); // Call to display video calls
-        } 
-    }, (error) => {
-      
-    });
+async function rerenderCallsTabsFromCache() {
+    const c = lastCallsData && typeof lastCallsData === "object" ? lastCallsData : {};
+    try {
+        await Promise.all([
+            displayAllCalls(c),
+            displayAudioCalls(c),
+            displayVideoCalls(c),
+        ]);
+    } catch (e) {
+        /* ignore */
+    }
 }
 
 function formatedAgoTimestamp(timestamp) {
@@ -168,6 +205,138 @@ function capitalizeFirstLetter(str) {
  * @param {string} userId The UID of the user to fetch.
  * @returns {Promise<string>} The user's display name.
  */
+/** One-to-one call rows store the other party in callerId as [uid] (see firebaseChat callData). */
+function getCallOtherPartyUid(call) {
+    if (!call || call.type === "group") return null;
+    const c = call.callerId;
+    if (Array.isArray(c) && c.length) return String(c[0] || "").trim();
+    if (c != null && String(c).trim()) return String(c).trim();
+    const r = call.receiverId;
+    if (Array.isArray(r) && r.length) return String(r[0] || "").trim();
+    if (r != null && String(r).trim()) return String(r).trim();
+    return null;
+}
+
+async function getAvatarRawForCallUser(otherUserId, otherUser) {
+    if (!otherUserId || !currentUser) return "";
+    const contactRef = ref(
+        database,
+        `data/contacts/${currentUser.uid}/${otherUserId}`
+    );
+    const cs = await get(contactRef);
+    if (cs.exists()) {
+        const c = cs.val();
+        const fromC =
+            (c.profile_image && String(c.profile_image).trim()) ||
+            (c.image && String(c.image).trim());
+        if (fromC) return fromC;
+    }
+    if (otherUser && typeof otherUser === "object") {
+        return (
+            (otherUser.profile_image &&
+                String(otherUser.profile_image).trim()) ||
+            (otherUser.image && String(otherUser.image).trim()) ||
+            ""
+        );
+    }
+    return "";
+}
+
+async function enrichCallRowsFromLaravel(rows) {
+    const uids = [
+        ...new Set(rows.map((r) => r.otherUserId).filter(Boolean)),
+    ];
+    const token =
+        typeof document !== "undefined" &&
+        document.querySelector('meta[name="csrf-token"]')
+            ? document
+                  .querySelector('meta[name="csrf-token"]')
+                  .getAttribute("content")
+            : "";
+    const origin =
+        typeof window !== "undefined" && window.location && window.location.origin
+            ? window.location.origin
+            : "";
+    if (!token || !origin || uids.length === 0) return;
+
+    let contactsByPeer = {};
+    const me = auth.currentUser?.uid || currentUser?.uid;
+    if (me) {
+        try {
+            const cs = await get(ref(database, `data/contacts/${me}`));
+            contactsByPeer = cs.exists() ? cs.val() : {};
+        } catch (e) {
+            contactsByPeer = {};
+        }
+    }
+
+    function applyBatchResponse(data, chunk) {
+        const bu = data.by_uid || {};
+        const be = data.by_email || {};
+        const buser = data.by_username || {};
+        rows.forEach((row) => {
+            const uid = row.otherUserId;
+            if (!uid || chunk.indexOf(uid) === -1) return;
+            let url = bu[uid] || "";
+            const c = contactsByPeer[uid];
+            if (!url && c && c.email) {
+                const k = String(c.email).trim().toLowerCase();
+                if (k && be[k]) url = be[k];
+            }
+            if (!url && c && c.user_name) {
+                const k = String(c.user_name).trim().toLowerCase();
+                if (k && buser[k]) url = buser[k];
+            }
+            if (url && String(url).trim()) {
+                row.profileImage = resolveCallsProfileImageUrl(
+                    String(url).trim()
+                );
+            }
+        });
+    }
+
+    for (let i = 0; i < uids.length; i += 60) {
+        const chunk = uids.slice(i, i + 60);
+        const emails = [];
+        const usernames = [];
+        chunk.forEach((uid) => {
+            const c = contactsByPeer[uid];
+            if (c && c.email && String(c.email).trim()) {
+                emails.push(String(c.email).trim().toLowerCase());
+            }
+            if (c && c.user_name && String(c.user_name).trim()) {
+                usernames.push(String(c.user_name).trim());
+            }
+        });
+        try {
+            const r = await fetch(origin + "/api/users/contact-avatars", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "X-CSRF-TOKEN": token,
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+                body: JSON.stringify({
+                    firebase_uids: chunk,
+                    emails: [...new Set(emails)].slice(0, 60),
+                    usernames: [...new Set(usernames)].slice(0, 60),
+                }),
+            });
+            if (!r.ok) continue;
+            const data = await r.json();
+            applyBatchResponse(data, chunk);
+        } catch (e) {
+            /* ignore */
+        }
+    }
+}
+
+function escapeAttr(s) {
+    return String(s == null ? "" : s).replace(/"/g, "&quot;");
+}
+
 async function getUserDisplayName(userId) {
     if (!userId) return "Unknown User";
 
@@ -203,25 +372,38 @@ async function getUserDisplayName(userId) {
  */
 async function processCallData(call) {
     let displayName = "Unknown";
-    let profileImage = 'assets/img/profiles/avatar-03.jpg';
+    let profileImage = resolveCallsProfileImageUrl("");
     let userOnlineClass = "";
+    let otherUserId = null;
 
     // Handle Group vs. Single calls
     if (call.type === 'group') {
         // --- LOGIC FOR GROUP CALLS ---
         displayName = call.groupName || "Group Call"; // Assuming group name is stored in the call
-        profileImage = call.groupImage || 'assets/img/profiles/avatar-03.jpg'; // Assuming a group image
+        profileImage = resolveCallsProfileImageUrl(call.groupImage || "");
     
     } else {
         // --- LOGIC FOR SINGLE (ONE-TO-ONE) CALLS ---
-        const otherUserId = call.callerId === currentUser.uid ? call.receiverId : call.callerId;
-        const otherUser = users[otherUserId]; // Get basic user data from the pre-loaded 'users' map
+        otherUserId = getCallOtherPartyUid(call);
+        if (!otherUserId) return null;
 
-        if (!otherUser) return null; // If the other user doesn't exist, skip this call
+        let otherUser = users[otherUserId];
+        if (!otherUser || typeof otherUser !== "object") {
+            try {
+                const us = await get(
+                    ref(database, `data/users/${otherUserId}`)
+                );
+                otherUser = us.exists() ? us.val() : {};
+            } catch (e) {
+                otherUser = {};
+            }
+        }
 
         displayName = await getUserDisplayName(otherUserId);
-        profileImage = otherUser.image || 'assets/img/profiles/avatar-03.jpg';
-        userOnlineClass = otherUser.status === "online" ? "online" : "";
+        const raw = await getAvatarRawForCallUser(otherUserId, otherUser);
+        profileImage = resolveCallsProfileImageUrl(raw || "");
+        userOnlineClass =
+            otherUser && otherUser.status === "online" ? "online" : "";
     }
 
     // Determine Call Status Icon and Text based on 'inOrOut'
@@ -259,6 +441,7 @@ async function processCallData(call) {
     return {
         fullName: capitalizeFirstLetter(displayName),
         profileImage,
+        otherUserId,
         userOnlineClass,
         directionIcon,
         directionColor,
@@ -272,8 +455,9 @@ async function processCallData(call) {
  * MODIFIED: Now uses async/await to render correctly and handles new requirements.
  */
 async function displayAllCalls(calls) {
-    const container = document.querySelector('#all-calls');
-    container.innerHTML = ''; // Clear existing calls
+    const container = document.querySelector("#all-calls");
+    if (!container) return;
+    container.innerHTML = ""; // Clear existing calls
 
     const sortedCalls = Object.values(calls).sort((a, b) => b.currentMills - a.currentMills);
 
@@ -286,6 +470,8 @@ async function displayAllCalls(calls) {
     const promises = sortedCalls.map(call => processCallData(call));
     const renderedData = (await Promise.all(promises)).filter(Boolean); // filter(Boolean) removes any null entries
 
+    await enrichCallRowsFromLaravel(renderedData);
+
     const allCallsWrap = document.createElement('div');
     allCallsWrap.classList.add('chat-users-wrap');
 
@@ -293,10 +479,11 @@ async function displayAllCalls(calls) {
     renderedData.forEach(data => {
         const callItem = document.createElement('div');
         callItem.classList.add('chat-list');
+        const imgSrc = escapeAttr(data.profileImage);
         callItem.innerHTML = `
             <a href="#" class="chat-user-list">
                 <div class="avatar avatar-lg ${data.userOnlineClass} me-2">
-                    <img src="${data.profileImage}" class="rounded-circle" alt="image">
+                    <img src="${imgSrc}" class="rounded-circle" alt="image">
                 </div>
                 <div class="chat-user-info">
                     <div class="chat-user-msg">
@@ -324,8 +511,9 @@ async function displayAllCalls(calls) {
  * MODIFIED: Now uses async/await and filters for audio calls.
  */
 async function displayAudioCalls(calls) {
-    const container = document.querySelector('#audio-calls');
-    container.innerHTML = '';
+    const container = document.querySelector("#audio-calls");
+    if (!container) return;
+    container.innerHTML = "";
 
     const audioCalls = Object.values(calls)
         .filter(call => !call.video) // Filter for audio calls (video is false or undefined)
@@ -339,16 +527,19 @@ async function displayAudioCalls(calls) {
     const promises = audioCalls.map(call => processCallData(call));
     const renderedData = (await Promise.all(promises)).filter(Boolean);
 
+    await enrichCallRowsFromLaravel(renderedData);
+
     const audioCallsWrap = document.createElement('div');
     audioCallsWrap.classList.add('chat-users-wrap');
 
     renderedData.forEach(data => {
         const callItem = document.createElement('div');
         callItem.classList.add('chat-list');
+        const imgSrc = escapeAttr(data.profileImage);
         callItem.innerHTML = `
             <a href="#" class="chat-user-list">
                 <div class="avatar avatar-lg ${data.userOnlineClass} me-2">
-                    <img src="${data.profileImage}" class="rounded-circle" alt="image">
+                    <img src="${imgSrc}" class="rounded-circle" alt="image">
                 </div>
                 <div class="chat-user-info">
                     <div class="chat-user-msg">
@@ -376,8 +567,9 @@ async function displayAudioCalls(calls) {
  * MODIFIED: Now uses async/await and filters for video calls.
  */
 async function displayVideoCalls(calls) {
-    const container = document.querySelector('#video-calls');
-    container.innerHTML = '';
+    const container = document.querySelector("#video-calls");
+    if (!container) return;
+    container.innerHTML = "";
 
     const videoCalls = Object.values(calls)
         .filter(call => call.video === true) // Filter for video calls
@@ -391,16 +583,19 @@ async function displayVideoCalls(calls) {
     const promises = videoCalls.map(call => processCallData(call));
     const renderedData = (await Promise.all(promises)).filter(Boolean);
 
+    await enrichCallRowsFromLaravel(renderedData);
+
     const videoCallsWrap = document.createElement('div');
     videoCallsWrap.classList.add('chat-users-wrap');
 
     renderedData.forEach(data => {
         const callItem = document.createElement('div');
         callItem.classList.add('chat-list');
+        const imgSrc = escapeAttr(data.profileImage);
         callItem.innerHTML = `
             <a href="#" class="chat-user-list">
                 <div class="avatar avatar-lg ${data.userOnlineClass} me-2">
-                    <img src="${data.profileImage}" class="rounded-circle" alt="image">
+                    <img src="${imgSrc}" class="rounded-circle" alt="image">
                 </div>
                 <div class="chat-user-info">
                     <div class="chat-user-msg">
@@ -437,6 +632,22 @@ function formatCallDuration(timestamp) {
 // Initial fetch when the page loads
 fetchAndDisplayCalls();
 
+function refreshCallsWelcomeProfileFromLaravel() {
+    if (typeof window.syncLaravelUserProfileImages === "function") {
+        window.syncLaravelUserProfileImages();
+    }
+}
+if (document.readyState === "loading") {
+    document.addEventListener(
+        "DOMContentLoaded",
+        refreshCallsWelcomeProfileFromLaravel
+    );
+} else {
+    refreshCallsWelcomeProfileFromLaravel();
+}
+setTimeout(refreshCallsWelcomeProfileFromLaravel, 300);
+setTimeout(refreshCallsWelcomeProfileFromLaravel, 1500);
+
 
 
 async function populateUserList() {
@@ -451,7 +662,7 @@ async function populateUserList() {
         userItem.innerHTML = `
             <div class="d-flex align-items-center">
                 <div class="avatar avatar-lg">
-                    <img src="${user.image || 'assets/img/profiles/avatar-03.jpg'}" class="rounded-circle" alt="${user.firstName}">
+                    <img src="${resolveCallsProfileImageUrl((user.profile_image && String(user.profile_image).trim()) || user.image || '')}" class="rounded-circle" alt="${user.firstName}">
                 </div>
                 <div class="ms-2">
                     <h6>${user.firstName}</h6>

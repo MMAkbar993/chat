@@ -58,6 +58,24 @@ if (groupAddBtn) {
 
 let usersMap = {};
 
+function normalizeChatMediaUrl(url) {
+    if (!url || typeof url !== "string") return url;
+    if (url.startsWith("/")) return url;
+    try {
+        const parsed = new URL(url, window.location.origin);
+        const h = parsed.hostname;
+        if (
+            (h === "localhost" || h === "127.0.0.1") &&
+            parsed.pathname.startsWith("/storage/")
+        ) {
+            return parsed.pathname + (parsed.search || "") + (parsed.hash || "");
+        }
+    } catch (e) {
+        /* ignore */
+    }
+    return url;
+}
+
 // Function to fetch users from Firebase
 function fetchGroupUsers(currentUserId) {
     const contactsRef = ref(database, `data/contacts/${currentUserId}`); // Path to logged-in user's contacts
@@ -724,12 +742,28 @@ function loadGroupMessages(groupId) {
                         senderName = contactData.firstName || contactData.lastName 
                             ? `${contactData.firstName || ""} ${contactData.lastName || ""}`.trim()
                             : senderName;
-                        senderImage = contactData.image || senderImage;
+                        senderImage =
+                            (contactData.profile_image && String(contactData.profile_image).trim()) ||
+                            contactData.image ||
+                            senderImage;
                     } else if (users[messageData.senderId]) {
                         // Fallback to users collection if contact data isn't available
                         const userData = users[messageData.senderId];
                         senderName = `${userData.mobile_number}`;
-                        senderImage = userData.image || senderImage;
+                        senderImage =
+                            (userData.profile_image && String(userData.profile_image).trim()) ||
+                            userData.image ||
+                            senderImage;
+                    }
+                    if (
+                        messageData.senderId === loggedInUserId &&
+                        typeof window !== "undefined" &&
+                        window.LARAVEL_USER
+                    ) {
+                        const lu =
+                            window.LARAVEL_USER.profile_image ||
+                            window.LARAVEL_USER.image;
+                        if (lu && String(lu).trim()) senderImage = String(lu).trim();
                     }
     
                     const forwardedLabel = messageData.isForward
@@ -749,15 +783,18 @@ function loadGroupMessages(groupId) {
                     } else {
                        
                      
+                            const attUrl =
+                                messageData.attachment &&
+                                normalizeChatMediaUrl(messageData.attachment.url);
                             if (messageData.attachmentType === 3) {
-                                messageContent = `<audio controls src="${messageData.attachment.url}"></audio>`;
+                                messageContent = `<audio controls preload="metadata" src="${attUrl}"></audio>`;
                             }  else if (messageData.attachmentType === 2) {
-                                    messageContent = `<img src="${messageData.attachment.url}" alt="Image Preview" class="message-image-preview video-style"></img>`;
+                                    messageContent = `<img src="${attUrl}" alt="Image Preview" class="message-image-preview video-style"></img>`;
                                 } 
                             else if (messageData.attachmentType === 1) {
-                                messageContent = `<video width="200" controls src="${messageData.attachment.url}"></video>`;
+                                messageContent = `<video width="200" controls src="${attUrl}"></video>`;
                             } else if (messageData.attachmentType === 5) {
-                                messageContent = `<a href="${messageData.attachment.url}" target="_blank" download>Download ${messageData.fileName || 'File'}</a>`;
+                                messageContent = `<a href="${attUrl}" target="_blank" download>Download ${messageData.fileName || 'File'}</a>`;
                             } else {
                                 messageContent = "Unsupported message type.";
                             }
@@ -782,7 +819,7 @@ function loadGroupMessages(groupId) {
 
                                         break;
                                     case "2": // Image
-                                        replyContent = `<img src="${originalMessageData.attachment.url}" alt="Image" style="max-height: 70px; border-radius: 5px;">`;
+                                        replyContent = `<img src="${normalizeChatMediaUrl(originalMessageData.attachment && originalMessageData.attachment.url)}" alt="Image" style="max-height: 70px; border-radius: 5px;">`;
                                         break;
                                     case "3": // Audio
                                         replyContent = `<div><i class="ti ti-microphone"></i> Audio</div>`;
@@ -1469,8 +1506,26 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
         const userSnap = await get(child(usersRef, currentUser.uid));
         if (userSnap.exists()) {
             const userData = userSnap.val();
-            // This is YOU (the local user)
-            $('#local-user-avatar').attr('src', userData.image || 'assets/img/profiles/avatar-03.jpg');
+            // This is YOU (the local user) — prefer Laravel profile when Firebase has no image
+            const laravelSelf =
+                typeof window !== "undefined" &&
+                window.LARAVEL_USER &&
+                (window.LARAVEL_USER.profile_image || window.LARAVEL_USER.image)
+                    ? String(
+                          window.LARAVEL_USER.profile_image ||
+                              window.LARAVEL_USER.image
+                      ).trim()
+                    : "";
+            const firebaseSelf =
+                (userData.profile_image && String(userData.profile_image).trim()) ||
+                userData.image ||
+                "";
+            $('#local-user-avatar').attr(
+                'src',
+                laravelSelf ||
+                    firebaseSelf ||
+                    'assets/img/profiles/avatar-03.jpg'
+            );
             $('#local-user-name').text(`${userData.firstName} ${userData.lastName}`.trim() || 'You');
         }
 
@@ -1511,7 +1566,10 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
                 if (snap.exists()) {
                     const userData = snap.val();
                     const userName = `${userData.firstName} ${userData.lastName}`.trim() || 'Guest';
-                    const userImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
+                    const userImage =
+                        (userData.profile_image && String(userData.profile_image).trim()) ||
+                        userData.image ||
+                        'assets/img/profiles/avatar-03.jpg';
                     const userHtml = `
                         <div class="col-12 mb-3">
                             <div class="card audio-crd bg-transparent-dark border h-100 pt-4">

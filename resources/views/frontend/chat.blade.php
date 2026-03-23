@@ -1927,7 +1927,8 @@
                 <div class="modal-body">
                     <div class="form-group">
                         <div class="center-align">
-                            <audio controls id="audio"></audio>
+                            <p id="voice-record-timer" class="text-center mb-2 fw-semibold text-muted" aria-live="polite">0:00</p>
+                            <audio controls id="audio" preload="metadata"></audio>
                             <br>
                             <button type="button" class="btn btn-warning btn-sm" id="startRecording">Start</button>
                             <button type="button" class="btn btn-dark btn-sm" id="stopRecording" disabled>Stop</button>

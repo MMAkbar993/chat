@@ -94,6 +94,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     }
                     // fetchUsers creates the usersMap asynchronously.
                     // We need to wait for it before calling selectUser.
+                    populateUsersMap(); // archived/pinned/etc. + usersMap merged with contacts
                     fetchUsers();
 
                     // Check localStorage and trigger `selectUser` if a user ID is present
@@ -186,6 +187,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     // Load other user data
                     loadUserList();
                 } else {
+                    firebaseChatSidebarListenersAttached = false;
                     if (window.location.pathname !== "/login") {
                         // Redirect to login if trying to access any other route
                         // window.location.href = "/login";
@@ -303,73 +305,8 @@ initializeFirebase(function (app, auth, database, storage) {
     };
 
     let usersMap = {};
-
-    function fetchUsers() {
-        const loggedInUserId = auth.currentUser?.uid;
-        if (!loggedInUserId) {
-            return;
-        }
-
-        const contactsRef = ref(database, `data/users`);
-
-        get(contactsRef)
-            .then((snapshot) => {
-                if (snapshot.exists()) {
-                    const contacts = snapshot.val();
-                    const userIds = Object.keys(contacts);
-
-                    if (userIds.length > 0) {
-                        const usersRef = ref(database, "data/users");
-
-                        get(usersRef)
-                            .then((userSnapshot) => {
-                                if (userSnapshot.exists()) {
-                                    const users = userSnapshot.val();
-                                    usersMap = {}; // Reset usersMap
-
-                                    // Populate usersMap with contact users
-                                    userIds.forEach((userId) => {
-                                        if (users[userId]) {
-                                            const u = users[userId];
-                                            const nm = `${u.firstName || ""} ${u.lastName || ""}`.trim();
-                                            usersMap[userId] = {
-                                                uid: userId,
-                                                userName: nm || "",
-                                                profileImage:
-                                                    users[userId]
-                                                        .image ||
-                                                    "assets/img/profiles/avatar-03.jpg",
-                                            };
-                                        }
-                                    });
-
-                                    displayUsers(usersMap); // Display users in the UI
-                                }
-                            })
-                            .catch((error) => {
-                                console.error("Error fetching users: ", error);
-                            });
-                    } else {
-                        const usersList =
-                            document.getElementById("chat-users-wrap");
-                        const swiperList =
-                            document.querySelector(".swiper-wrapper");
-                        usersList.innerHTML = `<p>No Chat here ...</p>`;
-                        swiperList.innerHTML = `<p>No recent chats</p>`;
-                    }
-                } else {
-                    const usersList =
-                        document.getElementById("chat-users-wrap");
-                    const swiperList =
-                        document.querySelector(".swiper-wrapper");
-                    usersList.innerHTML = `<p>No Chat here ...</p>`;
-                    swiperList.innerHTML = `<p>No recent chats</p>`;
-                }
-            })
-            .catch((error) => {
-                console.error("Error fetching contacts: ", error);
-            });
-    }
+    /** Avoid duplicate onValue listeners if onAuthStateChanged fires more than once. */
+    let firebaseChatSidebarListenersAttached = false;
 
     const inviteFormChatEl = document.getElementById("inviteFormChat");
     if (inviteFormChatEl) {
@@ -681,15 +618,6 @@ initializeFirebase(function (app, auth, database, storage) {
     function displayUsers(users) {
         const usersList = document.getElementById("chat-users-wrap");
         const swiperList = document.querySelector(".swiper-wrapper"); // Swiper wrapper element for recent chats
-        const existingUsers = {}; // Track displayed users for updates
-
-        // Build an existing users map for efficient updates
-        document.querySelectorAll(".chat-list").forEach((userDiv) => {
-            const userId = userDiv.getAttribute("data-user-id");
-            if (userId) {
-                existingUsers[userId] = userDiv;
-            }
-        });
 
         const archiveChatsRef = ref(
             database,
@@ -792,21 +720,10 @@ initializeFirebase(function (app, auth, database, storage) {
                         );
 
                         validUsers.forEach(({ userId, user }) => {
-                            if (existingUsers[userId]) {
-                                updateUserUI(
-                                    existingUsers[userId],
-                                    user,
-                                    userId
-                                );
-                            } else {
-                                const newUserDiv = createUserElement(
-                                    user,
-                                    userId
-                                );
-                                usersList.appendChild(newUserDiv);
-                            }
+                            /* Always build fresh rows after innerHTML clear; reusing old nodes left them detached. */
+                            const newUserDiv = createUserElement(user, userId);
+                            usersList.appendChild(newUserDiv);
 
-                            // Add user to swiper
                             const userStatusRef = ref(
                                 database,
                                 `data/users/${userId}/status`
@@ -823,13 +740,6 @@ initializeFirebase(function (app, auth, database, storage) {
                             });
                         });
                     }
-
-                    // Remove users no longer in the list
-                    Object.keys(existingUsers).forEach((userId) => {
-                        if (!users[userId]) {
-                            existingUsers[userId].remove();
-                        }
-                    });
 
                     // Reinitialize swiper to update the UI
                     if (window.swiperInstance) {
@@ -1314,8 +1224,7 @@ initializeFirebase(function (app, auth, database, storage) {
         avatarDiv.classList.add("avatar", "avatar-lg", "me-2");
 
         const userImage = document.createElement("img");
-        userImage.src =
-            user.profileImage || "assets/img/profiles/avatar-03.jpg";
+        userImage.src = resolveCallProfileImageUrl(user.profileImage || "");
         userImage.classList.add("rounded-circle");
         userImage.alt = "image";
         avatarDiv.appendChild(userImage);
@@ -1883,8 +1792,7 @@ initializeFirebase(function (app, auth, database, storage) {
         }
 
         const userImage = document.createElement("img");
-        userImage.src =
-            user.profileImage || "assets/img/profiles/avatar-03.jpg";
+        userImage.src = resolveCallProfileImageUrl(user.profileImage || "");
         userImage.classList.add("rounded-circle");
         userImage.alt = "image";
 
@@ -2049,10 +1957,11 @@ initializeFirebase(function (app, auth, database, storage) {
         });
 
         // Update the user's profile image
-        const userImage =
-            usersMap[userId].profileImage ||
-            "assets/img/profiles/avatar-03.jpg";
-        document.querySelector(".chat-header img").src = userImage;
+        const userImage = resolveCallProfileImageUrl(
+            usersMap[userId].profileImage || ""
+        );
+        const headerImg = document.querySelector(".chat-header img");
+        if (headerImg) headerImg.src = userImage;
 
         // Fetch KYC verified badge status
         const kycBadges = document.querySelectorAll('.kyc-badge, .contact-kyc-badge');
@@ -2341,9 +2250,32 @@ initializeFirebase(function (app, auth, database, storage) {
                         ...message, // Spread the original message properties
                         id: newKey, // Add the generated key as the id
                     };
-                    let msg = await decryptlibsodiumMessage(
-                        message.body
-                    );
+                    // Only type 6 stores libsodium ciphertext in `body`. Attachments use `attachment`;
+                    // calling /decrypt with undefined or a non-ciphertext string causes HTTP 400.
+                    let msg = "New message";
+                    if (
+                        messageType == 6 &&
+                        message.body &&
+                        typeof message.body === "string"
+                    ) {
+                        const plain = await decryptlibsodiumMessage(
+                            message.body
+                        );
+                        if (plain) {
+                            msg = String(plain);
+                        }
+                    } else if (messageType != 6) {
+                        const labels = {
+                            1: "Sent a video",
+                            2: "Sent a photo",
+                            3: "Sent a voice message",
+                            4: "Sent a location",
+                            5: "Sent a file",
+                            8: "Sent a voice message",
+                        };
+                        msg =
+                            labels[messageType] || "Sent an attachment";
+                    }
                     const userMsgRef = ref(
                         database,
                         `data/users/${message.id}`
@@ -2387,6 +2319,177 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
+    /** Use same host as the page for /storage URLs so <audio>/<video> are not cross-origin (fixes 0:00 duration). */
+    function normalizeChatMediaUrl(url) {
+        if (!url || typeof url !== "string") return url;
+        if (url.startsWith("/")) return url;
+        try {
+            const parsed = new URL(url, window.location.origin);
+            const h = parsed.hostname;
+            if (
+                (h === "localhost" || h === "127.0.0.1") &&
+                parsed.pathname.startsWith("/storage/")
+            ) {
+                return parsed.pathname + (parsed.search || "") + (parsed.hash || "");
+            }
+        } catch (e) {
+            /* ignore */
+        }
+        return url;
+    }
+
+    function resolveCallProfileImageUrl(raw) {
+        const origin =
+            typeof window !== "undefined" && window.location && window.location.origin
+                ? window.location.origin
+                : "";
+        const defaultUrl = origin
+            ? origin + "/assets/img/profiles/avatar-03.jpg"
+            : "assets/img/profiles/avatar-03.jpg";
+        if (raw == null || !String(raw).trim()) return defaultUrl;
+        const s = String(raw).trim();
+        if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:"))
+            return s;
+        if (s.startsWith("//"))
+            return (window.location && window.location.protocol
+                ? window.location.protocol
+                : "https:") + s;
+        const path = s.replace(/^\.?\/+/, "");
+        return origin ? origin + "/" + path : defaultUrl;
+    }
+
+    function rawAvatarFromFirebaseAndContact(userData, contactData) {
+        if (contactData && contactData.profile_image)
+            return String(contactData.profile_image).trim();
+        if (!userData || typeof userData !== "object") return "";
+        return (
+            (userData.profile_image && String(userData.profile_image).trim()) ||
+            (userData.image && String(userData.image).trim()) ||
+            (userData.profileImage && String(userData.profileImage).trim()) ||
+            (userData.photoURL && String(userData.photoURL).trim()) ||
+            (userData.avatar && String(userData.avatar).trim()) ||
+            (contactData && contactData.image && String(contactData.image).trim()) ||
+            ""
+        );
+    }
+
+    /** Build usersMap from data/users + data/contacts/{me} so chat list matches Contacts (profile_image on contacts). */
+    function fillUsersMapFromFirebase(loggedInUserId) {
+        const usersRef = ref(database, "data/users");
+        const contactsPromise = loggedInUserId
+            ? get(ref(database, `data/contacts/${loggedInUserId}`))
+            : Promise.resolve(null);
+        return Promise.all([get(usersRef), contactsPromise])
+            .then(([userSnapshot, contactSnapshot]) => {
+                if (!userSnapshot.exists()) {
+                    usersMap = {};
+                    return;
+                }
+                const users = userSnapshot.val();
+                const contactsByPeer =
+                    contactSnapshot && contactSnapshot.exists()
+                        ? contactSnapshot.val()
+                        : {};
+                usersMap = {};
+                Object.keys(users).forEach((userId) => {
+                    const u = users[userId];
+                    if (!u) return;
+                    const contactData = contactsByPeer[userId] || null;
+                    const nm = `${u.firstName || ""} ${u.lastName || ""}`.trim();
+                    const raw = rawAvatarFromFirebaseAndContact(u, contactData);
+                    usersMap[userId] = {
+                        uid: userId,
+                        userName: nm || "",
+                        profileImage: resolveCallProfileImageUrl(raw || ""),
+                    };
+                });
+            });
+    }
+
+    /** Fill chat sidebar avatars from MySQL (same API as Contacts) when Firebase/contact nodes lack profile_image. */
+    async function enrichChatListUsersMapFromLaravel() {
+        const me = auth.currentUser?.uid;
+        const allIds = Object.keys(usersMap).filter(
+            (id) =>
+                id &&
+                id !== me &&
+                String(id).indexOf("pending_") !== 0
+        );
+        const token =
+            typeof document !== "undefined" &&
+            document.querySelector('meta[name="csrf-token"]')
+                ? document
+                      .querySelector('meta[name="csrf-token"]')
+                      .getAttribute("content")
+                : "";
+        const origin =
+            typeof window !== "undefined" && window.location && window.location.origin
+                ? window.location.origin
+                : "";
+        if (!token || !origin || allIds.length === 0) return;
+        for (let i = 0; i < allIds.length; i += 60) {
+            const chunk = allIds.slice(i, i + 60);
+            try {
+                const r = await fetch(origin + "/api/users/contact-avatars", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                    body: JSON.stringify({
+                        firebase_uids: chunk,
+                        emails: [],
+                        usernames: [],
+                    }),
+                });
+                if (!r.ok) continue;
+                const data = await r.json();
+                const byUid = data.by_uid || {};
+                chunk.forEach((uid) => {
+                    const url = byUid[uid];
+                    if (
+                        url &&
+                        String(url).trim() &&
+                        usersMap[uid]
+                    ) {
+                        usersMap[uid].profileImage = resolveCallProfileImageUrl(
+                            String(url).trim()
+                        );
+                    }
+                });
+            } catch (e) {
+                /* ignore */
+            }
+        }
+    }
+
+    function fetchUsers() {
+        const loggedInUserId = auth.currentUser?.uid;
+        if (!loggedInUserId) {
+            return;
+        }
+        fillUsersMapFromFirebase(loggedInUserId)
+            .then(() => enrichChatListUsersMapFromLaravel())
+            .then(() => {
+                const usersList = document.getElementById("chat-users-wrap");
+                const swiperList = document.querySelector(".swiper-wrapper");
+                const n = Object.keys(usersMap).length;
+                if (n === 0) {
+                    if (usersList) usersList.innerHTML = `<p>No Chat here ...</p>`;
+                    if (swiperList)
+                        swiperList.innerHTML = `<p>No recent chats</p>`;
+                    return;
+                }
+                displayUsers(usersMap);
+            })
+            .catch((error) => {
+                console.error("Error fetching users: ", error);
+            });
+    }
+
     async function displayMessage(message) {
         const chatBox = document.getElementById("chat-box");
         // Check if chatBox element exists
@@ -2424,13 +2527,14 @@ initializeFirebase(function (app, auth, database, storage) {
         const userRef = ref(database, `data/users/${userId}`); // Use message.from to get the correct user
 
         let senderName = ""; // Initialize with an empty string
-        let profileImage = "assets/img/profiles/avatar-03.jpg"; // Default profile image
+        let profileImage = resolveCallProfileImageUrl("");
 
+        let contactData = null;
         // First, check if the sender is in the current user's contacts
         get(contactsRef)
             .then((contactsSnapshot) => {
                 if (contactsSnapshot.exists()) {
-                    const contactData = contactsSnapshot.val();
+                    contactData = contactsSnapshot.val();
                     const contactFirstName =
                         contactData.firstName || contactData.mobile_number;
                     const contactLastName = contactData.lastName || "";
@@ -2442,12 +2546,24 @@ initializeFirebase(function (app, auth, database, storage) {
                 return get(userRef);
             })
             .then(async (userSnapshot) => {
-                if (userSnapshot.exists()) {
-                    const userData = userSnapshot.val();
-                    profileImage = userData.image || profileImage;
+                const userData = userSnapshot.exists()
+                    ? userSnapshot.val()
+                    : null;
+                let raw = rawAvatarFromFirebaseAndContact(userData, contactData);
+                if (
+                    message.senderId === currentUser.uid &&
+                    typeof window !== "undefined" &&
+                    window.LARAVEL_USER
+                ) {
+                    const lu =
+                        window.LARAVEL_USER.profile_image ||
+                        window.LARAVEL_USER.image;
+                    if (lu && String(lu).trim()) raw = String(lu).trim();
+                }
+                profileImage = resolveCallProfileImageUrl(raw || "");
+                if (userData) {
                     if (!senderName) {
                         const userFirstName = userData.mobile_number || "";
-                        const userLastName = userData.lastName || "";
                         senderName = `${userFirstName}`; // Combine first and last name
                     }
                 }
@@ -2464,7 +2580,9 @@ initializeFirebase(function (app, auth, database, storage) {
                     );
                     originalMessageChat = decryptedText;
                 } else if (message.attachmentType != 6) {
-                    originalMessageChat = message.attachment.url;
+                    originalMessageChat = normalizeChatMediaUrl(
+                        message.attachment && message.attachment.url
+                    );
                 }
 
                 const forwardedLabel = message.isForward
@@ -2544,10 +2662,10 @@ initializeFirebase(function (app, auth, database, storage) {
                         }, 0);
                         break;
                     case 3:
-                        messageContent = `<audio controls width="240" src="${originalMessageChat}"></audio>`;
+                        messageContent = `<audio controls preload="metadata" width="240" src="${originalMessageChat}"></audio>`;
                         break;
                     case 8:
-                        messageContent = `<audio controls width="240" src="${originalMessageChat}"></audio>`;
+                        messageContent = `<audio controls preload="metadata" width="240" src="${originalMessageChat}"></audio>`;
                         break;
                     case 1:
                         messageContent = `<video controls width="200" src="${originalMessageChat}"></video>`;
@@ -2975,15 +3093,21 @@ initializeFirebase(function (app, auth, database, storage) {
                     const users = [];
                     snapshot.forEach((childSnapshot) => {
                         const userData = childSnapshot.val();
+                        const rawAv =
+                            (userData.profile_image &&
+                                String(userData.profile_image).trim()) ||
+                            (userData.image &&
+                                String(userData.image).trim()) ||
+                            (userData.avatar &&
+                                String(userData.avatar).trim()) ||
+                            "";
                         users.push({
                             id: childSnapshot.key,
                             firstName: userData.firstName,
                             lastName: userData.lastName,
                             mobile_number: userData.mobile_number,
                             email: userData.email,
-                            avatar:
-                                userData.avatar ||
-                                "assets/img/profiles/avatar-03.jpg",
+                            avatar: resolveCallProfileImageUrl(rawAv || ""),
                         });
                     });
                     resolve(users);
@@ -4022,15 +4146,36 @@ initializeFirebase(function (app, auth, database, storage) {
             });
     }
 
-    // Function to upload file to Firebase Storage and get the file URL
+    // Upload chat attachments via Laravel (same origin) to avoid browser CORS against
+    // Firebase Storage on localhost / misconfigured buckets. Message payloads still store a URL.
     async function uploadFileToFirebase(file) {
-        const fileStorageRef = storageRef(
-            storage,
-            `chats/${currentUser.uid}/${file.name}`
-        );
-        await uploadBytes(fileStorageRef, file); // Upload file to Firebase Storage
-        const fileUrl = await getDownloadURL(fileStorageRef); // Get the file's URL
-        return fileUrl; // Return the uploaded file URL
+        const csrfToken = document
+            .querySelector('meta[name="csrf-token"]')
+            ?.getAttribute("content");
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/chat/upload-file", {
+            method: "POST",
+            headers: {
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRF-TOKEN": csrfToken || "",
+                Accept: "application/json",
+            },
+            body: formData,
+            credentials: "same-origin",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const msg =
+                data.error ||
+                data.message ||
+                (typeof data === "string" ? data : res.statusText);
+            throw new Error(msg || "Upload failed");
+        }
+        if (!data.url) {
+            throw new Error("Upload did not return a URL");
+        }
+        return data.url;
     }
 
     // Helper function to check if the text contains emojis
@@ -5056,34 +5201,18 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function populateUsersMap() {
-        const usersRef = ref(database, "data/users"); // Path to your users
-        get(usersRef)
-            .then((snapshot) => {
-                if (snapshot.exists()) {
-                    const usersData = snapshot.val();
-                    for (const userId in usersData) {
-                        // Combine firstName and lastName
-                        const firstName = usersData[userId].firstName || ""; // Fallback to empty string if not present
-                        const lastName = usersData[userId].lastName || ""; // Fallback to empty string if not present
-                        const fullName = `${firstName} ${lastName}`.trim(); // Combine and trim
-
-                        // Set profile image, with a default if none exists
-                        const profileImage =
-                            usersData[userId].image ||
-                            "assets/img/profiles/avatar-03.jpg";
-
-                        usersMap[userId] = {
-                            userName: fullName, // Set combined name
-                            profileImage: profileImage, // Use provided image or default
-                        };
-                    }
-                    fetchArchivedChats(currentUserId);
-                    fetchPinnedChats(currentUserId);
-                    fetchFavouriteChats(currentUserId);
-                    fetchTrashChats(currentUserId);
-                }
+        const uid = auth.currentUser?.uid || currentUserId;
+        fillUsersMapFromFirebase(uid || "")
+            .then(() => {
+                if (!uid) return;
+                if (firebaseChatSidebarListenersAttached) return;
+                firebaseChatSidebarListenersAttached = true;
+                fetchArchivedChats(uid);
+                fetchPinnedChats(uid);
+                fetchFavouriteChats(uid);
+                fetchTrashChats(uid);
             })
-            .catch((error) => { });
+            .catch(() => { });
     }
 
     populateUsersMap();
@@ -5172,8 +5301,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
         for (const user of archivedUsers) {
             let senderName = ""; // Initialize sender name
-            let profileImage =
-                user.profileImage || "assets/img/profiles/avatar-03.jpg"; // Default profile image
+            let profileImage = resolveCallProfileImageUrl("");
 
             // Reference to the contact and user tables
             const contactsRef = ref(
@@ -5183,10 +5311,11 @@ initializeFirebase(function (app, auth, database, storage) {
             const userRef = ref(database, `data/users/${user.userId}`);
 
             try {
+                let contactData = null;
                 // Fetch contact and user data
                 const contactSnapshot = await get(contactsRef);
                 if (contactSnapshot.exists()) {
-                    const contactData = contactSnapshot.val();
+                    contactData = contactSnapshot.val();
                     const contactFirstName =
                         contactData.firstName || contactData.mobile_number;
                     const contactLastName = contactData.lastName || "";
@@ -5195,15 +5324,25 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
 
                 const userSnapshot = await get(userRef);
-                if (userSnapshot.exists()) {
-                    const userData = userSnapshot.val();
-                    profileImage = userData.image || profileImage;
+                const userData = userSnapshot.exists()
+                    ? userSnapshot.val()
+                    : null;
+                let raw = rawAvatarFromFirebaseAndContact(userData, contactData);
+                if (
+                    user.userId === currentUser.uid &&
+                    typeof window !== "undefined" &&
+                    window.LARAVEL_USER
+                ) {
+                    const lu =
+                        window.LARAVEL_USER.profile_image ||
+                        window.LARAVEL_USER.image;
+                    if (lu && String(lu).trim()) raw = String(lu).trim();
+                }
+                profileImage = resolveCallProfileImageUrl(raw || "");
 
-                    if (!senderName) {
-                        const userFirstName = userData.mobile_number || "";
-                        //const userLastName = userData.lastName || "";
-                        senderName = `${userFirstName}`;
-                    }
+                if (userData && !senderName) {
+                    const userFirstName = userData.mobile_number || "";
+                    senderName = `${userFirstName}`;
                 }
             } catch (error) { }
 
@@ -5375,13 +5514,14 @@ initializeFirebase(function (app, auth, database, storage) {
             const userRef = ref(database, `data/users/${user.userId}`);
 
             let senderName = ""; // Initialize sender name
-            let profileImage = "assets/img/profiles/avatar-03.jpg"; // Default profile image
+            let profileImage = resolveCallProfileImageUrl("");
+            let contactData = null;
 
             // Fetch contact and user data
             get(contactsRef)
                 .then((contactsSnapshot) => {
                     if (contactsSnapshot.exists()) {
-                        const contactData = contactsSnapshot.val();
+                        contactData = contactsSnapshot.val();
                         const contactFirstName =
                             contactData.firstName || contactData.mobile_number;
                         const contactLastName = contactData.lastName || "";
@@ -5392,16 +5532,29 @@ initializeFirebase(function (app, auth, database, storage) {
                     return get(userRef);
                 })
                 .then((userSnapshot) => {
-                    if (userSnapshot.exists()) {
-                        const userData = userSnapshot.val();
-                        profileImage = userData.image || profileImage;
+                    const userData = userSnapshot.exists()
+                        ? userSnapshot.val()
+                        : null;
+                    let raw = rawAvatarFromFirebaseAndContact(
+                        userData,
+                        contactData
+                    );
+                    if (
+                        user.userId === currentUser.uid &&
+                        typeof window !== "undefined" &&
+                        window.LARAVEL_USER
+                    ) {
+                        const lu =
+                            window.LARAVEL_USER.profile_image ||
+                            window.LARAVEL_USER.image;
+                        if (lu && String(lu).trim()) raw = String(lu).trim();
+                    }
+                    profileImage = resolveCallProfileImageUrl(raw || "");
 
-                        if (!senderName) {
-                            const userFirstName =
-                                userData.firstName || userData.mobile_number;
-                            // const userLastName = userData.lastName || "";
-                            senderName = `${userFirstName}`;
-                        }
+                    if (userData && !senderName) {
+                        const userFirstName =
+                            userData.firstName || userData.mobile_number;
+                        senderName = `${userFirstName}`;
                     }
 
                     // Create the HTML elements for the user
@@ -5575,8 +5728,9 @@ initializeFirebase(function (app, auth, database, storage) {
             <div class="chat-list">
                 <a href="#" class="chat-user-list">
                     <div class="avatar avatar-lg me-2">
-                        <img src="${user.profileImage
-                }" class="rounded-circle" alt="image" />
+                        <img src="${resolveCallProfileImageUrl(
+                    user.profileImage || ""
+                )}" class="rounded-circle" alt="image" />
                     </div>
                     <div class="chat-user-info">
                         <div class="chat-user-msg">
@@ -5684,13 +5838,14 @@ initializeFirebase(function (app, auth, database, storage) {
             );
             const userRef = ref(database, `data/users/${user.userId}`);
             let senderName = ""; // Initialize with an empty string
-            let profileImage = "assets/img/profiles/avatar-03.jpg"; // Default profile image
+            let profileImage = resolveCallProfileImageUrl("");
+            let contactData = null;
 
             // First, check if the sender is in the current user's contacts
             get(contactsRef)
                 .then((contactsSnapshot) => {
                     if (contactsSnapshot.exists()) {
-                        const contactData = contactsSnapshot.val();
+                        contactData = contactsSnapshot.val();
                         const contactFirstName = contactData.firstName || "";
                         const contactLastName = contactData.lastName || "";
                         senderName =
@@ -5701,17 +5856,30 @@ initializeFirebase(function (app, auth, database, storage) {
                     return get(userRef);
                 })
                 .then((userSnapshot) => {
-                    if (userSnapshot.exists()) {
-                        const userData = userSnapshot.val();
-                        profileImage = userData.image || profileImage;
+                    const userData = userSnapshot.exists()
+                        ? userSnapshot.val()
+                        : null;
+                    let raw = rawAvatarFromFirebaseAndContact(
+                        userData,
+                        contactData
+                    );
+                    if (
+                        user.userId === currentUser.uid &&
+                        typeof window !== "undefined" &&
+                        window.LARAVEL_USER
+                    ) {
+                        const lu =
+                            window.LARAVEL_USER.profile_image ||
+                            window.LARAVEL_USER.image;
+                        if (lu && String(lu).trim()) raw = String(lu).trim();
+                    }
+                    profileImage = resolveCallProfileImageUrl(raw || "");
 
-                        // If senderName is still empty, fall back to the user's table data
-                        if (!senderName) {
-                            const userFirstName = userData.firstName || "";
-                            const userLastName = userData.lastName || "";
-                            senderName =
-                                `${userFirstName} ${userLastName}`.trim(); // Combine first and last name
-                        }
+                    if (userData && !senderName) {
+                        const userFirstName = userData.firstName || "";
+                        const userLastName = userData.lastName || "";
+                        senderName =
+                            `${userFirstName} ${userLastName}`.trim(); // Combine first and last name
                     }
 
                     // Create user elements with the resolved name and profile image
@@ -6462,20 +6630,118 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     });
 
-    //Recorder (single handler registration; preview uses #audio in record modal)
-    let recorder;
-    let context;
-    let mediaTracks = [];
+    // Voice: MediaRecorder (no ScriptProcessorNode / deprecated Recorder.js path for this modal)
+    let mediaRecorder = null;
+    let activeRecordStream = null;
+    let recordedChunks = [];
+    let lastVoiceBlob = null;
+    let voicePreviewObjectUrl = null;
+    let recordTimerId = null;
+    let recordStartedAt = 0;
     const recordAudioEl = document.getElementById("audio");
+    const recordTimerEl = document.getElementById("voice-record-timer");
     const startBtn = document.getElementById("startRecording");
     const stopBtn = document.getElementById("stopRecording");
     const send_voice = document.getElementById("send_voice");
+    const recordModalEl = document.getElementById("record_audio");
     window.URL = window.URL || window.webkitURL;
-    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+
+    function pickVoiceMimeType() {
+        const candidates = [
+            "audio/webm;codecs=opus",
+            "audio/webm",
+            "audio/mp4",
+        ];
+        for (let i = 0; i < candidates.length; i++) {
+            if (MediaRecorder.isTypeSupported(candidates[i])) {
+                return candidates[i];
+            }
+        }
+        return "";
+    }
 
     function stopMediaTracks() {
-        mediaTracks.forEach((track) => track.stop());
-        mediaTracks = [];
+        if (activeRecordStream) {
+            activeRecordStream.getTracks().forEach((track) => track.stop());
+            activeRecordStream = null;
+        }
+    }
+
+    function formatRecSecs(sec) {
+        const s = Math.max(0, Math.floor(sec));
+        const m = Math.floor(s / 60);
+        const r = s % 60;
+        return `${m}:${r.toString().padStart(2, "0")}`;
+    }
+
+    function stopRecordTimer() {
+        if (recordTimerId) {
+            clearInterval(recordTimerId);
+            recordTimerId = null;
+        }
+    }
+
+    function updateRecordTimerDisplay() {
+        if (recordTimerEl) {
+            recordTimerEl.textContent = formatRecSecs(
+                (Date.now() - recordStartedAt) / 1000
+            );
+        }
+    }
+
+    function revokeVoicePreviewUrl() {
+        if (voicePreviewObjectUrl) {
+            try {
+                URL.revokeObjectURL(voicePreviewObjectUrl);
+            } catch (e) {
+                /* ignore */
+            }
+            voicePreviewObjectUrl = null;
+        }
+    }
+
+    /** Chrome often reports duration 0/Infinity for MediaRecorder WebM blobs until seek forces metadata. */
+    function primeVoicePreviewDuration(audioEl) {
+        if (!audioEl) return;
+        const fix = () => {
+            audioEl.removeEventListener("loadedmetadata", fix);
+            const d = audioEl.duration;
+            if (isFinite(d) && d > 0 && d !== Infinity) {
+                return;
+            }
+            const onSeeked = () => {
+                audioEl.removeEventListener("seeked", onSeeked);
+                try {
+                    audioEl.currentTime = 0;
+                } catch (e) {
+                    /* ignore */
+                }
+            };
+            audioEl.addEventListener("seeked", onSeeked);
+            try {
+                audioEl.currentTime = Number.MAX_SAFE_INTEGER;
+            } catch (e) {
+                audioEl.removeEventListener("seeked", onSeeked);
+            }
+        };
+        audioEl.addEventListener("loadedmetadata", fix, { once: true });
+    }
+
+    function hideVoiceRecordModal() {
+        if (!recordModalEl) return;
+        const ae = document.activeElement;
+        if (ae && recordModalEl.contains(ae)) {
+            ae.blur();
+        }
+        if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+            let inst = bootstrap.Modal.getInstance(recordModalEl);
+            if (!inst && typeof bootstrap.Modal.getOrCreateInstance === "function") {
+                inst = bootstrap.Modal.getOrCreateInstance(recordModalEl);
+            }
+            if (inst) inst.hide();
+        } else if (window.jQuery && typeof window.jQuery.fn.modal === "function") {
+            window.jQuery(recordModalEl).modal("hide");
+        }
     }
 
     function onRecordFail(e) {
@@ -6483,55 +6749,184 @@ initializeFirebase(function (app, auth, database, storage) {
         console.log("Rejected!", e);
     }
 
+    if (recordModalEl) {
+        recordModalEl.addEventListener("hidden.bs.modal", () => {
+            stopRecordTimer();
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                try {
+                    mediaRecorder.stop();
+                } catch (e) { }
+            }
+            stopMediaTracks();
+            mediaRecorder = null;
+            recordedChunks = [];
+            lastVoiceBlob = null;
+            revokeVoicePreviewUrl();
+            if (recordTimerEl) {
+                recordTimerEl.style.display = "";
+                recordTimerEl.textContent = "0:00";
+            }
+            if (recordAudioEl) recordAudioEl.removeAttribute("src");
+            if (startBtn) startBtn.removeAttribute("disabled");
+            if (stopBtn) stopBtn.setAttribute("disabled", true);
+            if (send_voice) send_voice.setAttribute("disabled", true);
+        });
+    }
+
     if (stopBtn) {
         stopBtn.addEventListener("click", () => {
-            if (!recorder) return;
+            if (!mediaRecorder || mediaRecorder.state === "inactive") return;
+            stopRecordTimer();
+            if (recordTimerEl) {
+                recordTimerEl.textContent = formatRecSecs(
+                    (Date.now() - recordStartedAt) / 1000
+                );
+            }
             stopBtn.setAttribute("disabled", true);
             if (startBtn) startBtn.removeAttribute("disabled");
-            if (send_voice) send_voice.removeAttribute("disabled");
-            recorder.stop();
-            stopMediaTracks();
-            recorder.exportWAV(function (blob) {
-                if (recordAudioEl)
-                    recordAudioEl.src = window.URL.createObjectURL(blob);
-            });
+            if (send_voice) send_voice.setAttribute("disabled", true);
+            try {
+                mediaRecorder.stop();
+            } catch (e) {
+                console.error(e);
+                stopMediaTracks();
+                mediaRecorder = null;
+            }
         });
     }
 
     if (send_voice) {
-        send_voice.addEventListener("click", () => {
-            if (!recorder) return;
-            if (stopBtn) stopBtn.setAttribute("disabled", true);
-            if (startBtn) startBtn.setAttribute("disabled", true);
-            stopMediaTracks();
-            recorder.stop();
-            recorder.exportWAV(function (blob) {
-                const blobFile = new File(
-                    [blob],
-                    "file" + Date.now() + ".wav",
-                    { type: "audio/wav" }
-                );
-                voiceupload(blobFile, "");
-                $("#record_audio").modal("hide");
+        send_voice.addEventListener("click", async () => {
+            if (!lastVoiceBlob || !lastVoiceBlob.size) {
+                Toastify({
+                    text: "Wait for recording to finish processing, then try again.",
+                    duration: 4000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ff3d00",
+                    stopOnFocus: true,
+                }).showToast();
+                return;
+            }
+            if (!selectedUserId) {
+                Toastify({
+                    text: "Select a chat before sending a voice message.",
+                    duration: 4000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ff3d00",
+                    stopOnFocus: true,
+                }).showToast();
+                return;
+            }
+            const blobType = lastVoiceBlob.type || "audio/webm";
+            const ext = blobType.includes("webm")
+                ? "webm"
+                : blobType.includes("mp4") || blobType.includes("m4a")
+                    ? "m4a"
+                    : "webm";
+            const blobFile = new File(
+                [lastVoiceBlob],
+                "voice-" + Date.now() + "." + ext,
+                { type: blobType }
+            );
+            send_voice.setAttribute("disabled", true);
+            try {
+                await voiceupload(blobFile, "");
+                lastVoiceBlob = null;
+                revokeVoicePreviewUrl();
+                hideVoiceRecordModal();
                 if (recordAudioEl) recordAudioEl.removeAttribute("src");
-            });
+                if (startBtn) startBtn.removeAttribute("disabled");
+                if (stopBtn) stopBtn.setAttribute("disabled", true);
+            } catch (err) {
+                console.error("voiceupload", err);
+                Toastify({
+                    text: "Could not send voice message. Check connection and try again.",
+                    duration: 4000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ff3d00",
+                    stopOnFocus: true,
+                }).showToast();
+                if (send_voice) send_voice.removeAttribute("disabled");
+            }
         });
     }
 
     if (startBtn) {
         startBtn.addEventListener("click", () => {
+            if (typeof MediaRecorder === "undefined") {
+                Toastify({
+                    text: "Voice recording is not supported in this browser.",
+                    duration: 4000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ff3d00",
+                    stopOnFocus: true,
+                }).showToast();
+                return;
+            }
             navigator.mediaDevices
                 .getUserMedia({ audio: true })
                 .then((stream) => {
-                    mediaTracks = stream.getTracks();
+                    lastVoiceBlob = null;
+                    recordedChunks = [];
+                    revokeVoicePreviewUrl();
+                    if (recordAudioEl) recordAudioEl.removeAttribute("src");
+                    if (recordTimerEl) {
+                        recordTimerEl.style.display = "";
+                        recordTimerEl.textContent = "0:00";
+                    }
+                    recordStartedAt = Date.now();
+                    stopRecordTimer();
+                    recordTimerId = setInterval(updateRecordTimerDisplay, 200);
+                    activeRecordStream = stream;
                     startBtn.setAttribute("disabled", true);
                     if (send_voice) send_voice.setAttribute("disabled", true);
                     if (stopBtn) stopBtn.removeAttribute("disabled");
-                    context = new AudioContext();
-                    const mediaStreamSource =
-                        context.createMediaStreamSource(stream);
-                    recorder = new Recorder(mediaStreamSource);
-                    recorder.record();
+                    const mime = pickVoiceMimeType();
+                    const mr = mime
+                        ? new MediaRecorder(stream, { mimeType: mime })
+                        : new MediaRecorder(stream);
+                    mediaRecorder = mr;
+                    mr.ondataavailable = (ev) => {
+                        if (ev.data && ev.data.size > 0) {
+                            recordedChunks.push(ev.data);
+                        }
+                    };
+                    mr.onstop = () => {
+                        stopMediaTracks();
+                        const outType = mr.mimeType || mime || "audio/webm";
+                        lastVoiceBlob = new Blob(recordedChunks, {
+                            type: outType,
+                        });
+                        recordedChunks = [];
+                        mediaRecorder = null;
+                        if (recordAudioEl && lastVoiceBlob.size > 0) {
+                            revokeVoicePreviewUrl();
+                            voicePreviewObjectUrl = window.URL.createObjectURL(
+                                lastVoiceBlob
+                            );
+                            recordAudioEl.preload = "metadata";
+                            primeVoicePreviewDuration(recordAudioEl);
+                            recordAudioEl.src = voicePreviewObjectUrl;
+                            try {
+                                recordAudioEl.load();
+                            } catch (e) {
+                                /* ignore */
+                            }
+                            if (recordTimerEl) {
+                                recordTimerEl.style.display = "none";
+                            }
+                        }
+                        if (send_voice && lastVoiceBlob.size > 0) {
+                            send_voice.removeAttribute("disabled");
+                        } else if (send_voice) {
+                            send_voice.setAttribute("disabled", true);
+                        }
+                    };
+                    mr.start(200);
                 })
                 .catch(onRecordFail);
         });
@@ -6775,29 +7170,6 @@ initializeFirebase(function (app, auth, database, storage) {
     const callRef = ref(database, 'data/calls');
     const usersRef = ref(database, 'data/users');
 
-    function resolveCallProfileImageUrl(raw) {
-        const origin = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
-        const defaultUrl = origin ? origin + "/assets/img/profiles/avatar-03.jpg" : "assets/img/profiles/avatar-03.jpg";
-        if (raw == null || !String(raw).trim()) return defaultUrl;
-        const s = String(raw).trim();
-        if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:")) return s;
-        if (s.startsWith("//")) return (window.location && window.location.protocol ? window.location.protocol : "https:") + s;
-        const path = s.replace(/^\.?\/+/, "");
-        return origin ? origin + "/" + path : defaultUrl;
-    }
-    function rawAvatarFromFirebaseAndContact(userData, contactData) {
-        if (contactData && contactData.profile_image) return String(contactData.profile_image).trim();
-        if (!userData || typeof userData !== "object") return "";
-        return (
-            (userData.profile_image && String(userData.profile_image).trim()) ||
-            (userData.image && String(userData.image).trim()) ||
-            (userData.profileImage && String(userData.profileImage).trim()) ||
-            (userData.photoURL && String(userData.photoURL).trim()) ||
-            (userData.avatar && String(userData.avatar).trim()) ||
-            (contactData && contactData.image && String(contactData.image).trim()) ||
-            ""
-        );
-    }
     function buildContactAvatarsRequestBody(userId, userData, contactData) {
         const body = { firebase_uids: [], emails: [], usernames: [] };
         if (userId && String(userId).indexOf("pending_") !== 0) body.firebase_uids.push(userId);
@@ -8462,6 +8834,9 @@ initializeFirebase(function (app, auth, database, storage) {
             if (spaContent.firstChild) spaContent.insertBefore(first, spaContent.firstChild);
             else spaContent.appendChild(first);
             welcomeEl = document.getElementById("welcome-container");
+            if (typeof window.syncLaravelUserProfileImages === "function") {
+                window.syncLaravelUserProfileImages();
+            }
         }
 
         if (welcomeEl) {
@@ -8478,6 +8853,12 @@ initializeFirebase(function (app, auth, database, storage) {
 
         if (typeof document !== "undefined" && document.body) {
             document.body.setAttribute("data-chat-panel", hasSelectedUser ? "visible" : "welcome");
+        }
+        if (
+            !hasSelectedUser &&
+            typeof window.syncLaravelUserProfileImages === "function"
+        ) {
+            window.syncLaravelUserProfileImages();
         }
         if (auth.currentUser && !hasSelectedUser) fetchUsers();
     }

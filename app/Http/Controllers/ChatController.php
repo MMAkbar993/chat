@@ -173,7 +173,9 @@ class ChatController extends Controller
         };
 
         $path = $file->store("chat-uploads/{$subfolder}", 'public');
-        $url = Storage::disk('public')->url($path);
+        // Root-relative URL so the browser always loads from the current host (e.g. 127.0.0.1 vs localhost).
+        // A full APP_URL from Storage::url() causes cross-origin audio/video and 0:00 duration when hosts differ.
+        $url = '/storage/' . str_replace('\\', '/', $path);
 
         $attachmentType = match ($mimeBase) {
             'image' => 2,

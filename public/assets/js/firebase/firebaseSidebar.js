@@ -156,7 +156,23 @@ initializeFirebase(function (app, auth, database, storage) {
                         (rtdb.email != null && rtdb.email !== '')
                     );
                     if (hasRtdbProfile) {
-                        applyProfileFromFirebase(rtdb);
+                        // RTDB often has name/email but no image — keep Laravel profile photo (contacts/settings use it)
+                        const merged = { ...rtdb };
+                        if (laravelData) {
+                            const rImg = (v) =>
+                                v != null && String(v).trim() !== '';
+                            const hasRtdbImg =
+                                rImg(merged.image) ||
+                                rImg(merged.profile_image) ||
+                                rImg(merged.photoURL);
+                            const laravelImg =
+                                laravelData.profile_image || laravelData.image;
+                            if (!hasRtdbImg && rImg(laravelImg)) {
+                                merged.image = laravelImg;
+                                merged.profile_image = laravelImg;
+                            }
+                        }
+                        applyProfileFromFirebase(merged);
                     } else if (laravelData) {
                         // RTDB empty or has empty-string profile fields: use Laravel as base, only overwrite with non-empty RTDB values so profile doesn't disappear on server
                         const merged = { ...laravelData };

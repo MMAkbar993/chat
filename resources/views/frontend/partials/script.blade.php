@@ -215,6 +215,24 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         var el = document.getElementById(id);
         if (el && el.tagName === 'IMG' && src) el.src = src;
     }
+    /** Laravel profile photo for the logged-in user: welcome screen, sidebar, header (always; Firebase may omit image). */
+    window.syncLaravelUserProfileImages = function syncLaravelUserProfileImages() {
+        if (typeof window.LARAVEL_USER === 'undefined' || !window.LARAVEL_USER) return;
+        var u = window.LARAVEL_USER;
+        var defaultImg = (typeof APP_URL !== 'undefined' ? APP_URL : '') + '/assets/img/profiles/avatar-03.jpg';
+        if (defaultImg.indexOf('/') === 0) defaultImg = defaultImg.slice(1);
+        if (!defaultImg.match(/^https?:\/\//)) defaultImg = (window.location.origin || '') + '/' + defaultImg.replace(/^\//, '');
+        var imgUrl = u.profile_image || u.image || defaultImg;
+        setImg('profileImage', imgUrl);
+        setImg('profileImageProfile', imgUrl);
+        setImg('profileImageChat', imgUrl);
+        setImg('ProfileImageSidebar', imgUrl);
+        var fullName = ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || '';
+        var subWelcome = fullName
+            || String(u.email || u.user_name || u.username || '').trim();
+        if (subWelcome) setText('profile-info-chat-name', subWelcome + ' 😊');
+        else setText('profile-info-chat-name', 'there 😊');
+    };
     function setInputValue(id, value) {
         var el = document.getElementById(id);
         if (el && value !== undefined && value !== null) el.value = value;
@@ -245,6 +263,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         setInputValue('edit-instagram', u.instagram_link || u.instagram);
         setInputValue('profile_display_name', u.profile_display_name || 'full_name');
         if (document.getElementById('user-id')) document.getElementById('user-id').innerText = 'Logged in as: ' + u.id;
+        if (typeof window.syncLaravelUserProfileImages === 'function') window.syncLaravelUserProfileImages();
         if (!forceApply && !window.FIREBASE_DISABLED) return;
         var fullName = ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || 'No Name';
         var defaultImg = (typeof APP_URL !== 'undefined' ? APP_URL : '') + '/assets/img/profiles/avatar-03.jpg';

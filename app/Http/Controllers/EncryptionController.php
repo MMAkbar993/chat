@@ -24,13 +24,19 @@ class EncryptionController extends Controller
     public function decryptData(Request $request)
     {
         $encryptedData = $request->input('encryptedData');
-        
+
+        if ($encryptedData === null || $encryptedData === '') {
+            return response()->json([
+                'error' => 'Missing or empty encryptedData (expected base64 libsodium ciphertext for text messages).',
+            ], 422);
+        }
+
         try {
             $decryptedData = $this->encryptionService->decryptData($encryptedData);
             return response()->json(['decryptedData' => $decryptedData]);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 400);
-        } 
+        }
     }
 
     public function processEncryption(Request $request)
