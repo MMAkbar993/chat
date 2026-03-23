@@ -75,6 +75,15 @@ Version      : 2.7.6
 		var left_sidebar = $('.left-sidebar').width();
 		var chat_bar = $('.chat').width();
 		var win_width = $(window).width();
+		var spaPageContentElement = document.querySelector('#spa-page-content');
+		var mainContentContainer = document.querySelector('.content.main_content');
+		var spaParentBefore = spaPageContentElement ? spaPageContentElement.parentElement : null;
+		if (spaPageContentElement && mainContentContainer && spaParentBefore && spaParentBefore.classList && spaParentBefore.classList.contains('sidebar-group')) {
+			var sidebarGroup = mainContentContainer.querySelector(':scope > .sidebar-group');
+			if (sidebarGroup && sidebarGroup.nextElementSibling !== spaPageContentElement) {
+				mainContentContainer.insertBefore(spaPageContentElement, sidebarGroup.nextElementSibling);
+			}
+		}
 
 		$(".user-list-item:not(body.status-page .user-list-item, body.voice-call-page .user-list-item)").on('click', function () {
 			if ($(window).width() < 992) {

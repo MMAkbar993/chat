@@ -7228,6 +7228,13 @@ initializeFirebase(function (app, auth, database, storage) {
         $('#voice-attend-new').modal('hide');
         $('#audio-call-modal').modal('hide');
 
+        const joinAudioReset = document.getElementById('join-audio-call');
+        if (joinAudioReset) {
+            joinAudioReset.classList.remove('d-none');
+            joinAudioReset.classList.add('d-flex');
+            joinAudioReset.style.removeProperty('display');
+        }
+
         // Reset call tracking
         currentCallId = null;
 
@@ -7441,13 +7448,22 @@ initializeFirebase(function (app, auth, database, storage) {
             updateModalUserDetails(otherUserId, nameFromCall);
             $('#voice-attend-new').modal('hide');
             
-            // Adjust the modal UI based on whether it is an outgoing or incoming call
+            // Outgoing: red end only. Incoming: green answer + red decline.
+            // jQuery .hide() loses to Bootstrap .d-flex { display:flex !important } on the same element.
+            const joinAudioEl = document.getElementById('join-audio-call');
             if (ringingCall.inOrOut === 'OUT') {
                 stopIncomingCallRing();
-                $('#join-audio-call').hide();
+                if (joinAudioEl) {
+                    joinAudioEl.classList.add('d-none');
+                    joinAudioEl.classList.remove('d-flex');
+                }
                 $('#audio-call-modal .modal-title').text('Calling...');
             } else {
-                $('#join-audio-call').show();
+                if (joinAudioEl) {
+                    joinAudioEl.classList.remove('d-none');
+                    joinAudioEl.classList.add('d-flex');
+                    joinAudioEl.style.removeProperty('display');
+                }
                 $('#audio-call-modal .modal-title').text('Incoming Audio Call...');
             }
             
@@ -8323,6 +8339,7 @@ initializeFirebase(function (app, auth, database, storage) {
             if (hasSelectedUser) middleEl.classList.add("message-panel-visible");
             else middleEl.classList.remove("message-panel-visible");
         }
+
         if (typeof document !== "undefined" && document.body) {
             document.body.setAttribute("data-chat-panel", hasSelectedUser ? "visible" : "welcome");
         }

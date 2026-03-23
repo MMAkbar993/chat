@@ -11700,6 +11700,24 @@ Form help
   width: 100% !important;
 }
 
+/* Fill remaining width beside the chat list (desktop): SPA column was shrink-to-content */
+.content.main_content > #spa-page-content {
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+/* Conversation panel uses full width of the SPA column */
+.content.main_content > #spa-page-content > .chat {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+}
+
 .animate-typing .dot {
   display: inline-block;
   width: 4px;
