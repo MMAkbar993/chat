@@ -247,8 +247,8 @@ class RegisteredUserController extends Controller
         if (Auth::attempt($credentials)) {
             // Authentication passed
 
-            // Redirect to the index page after normal login
-            return redirect()->route('index'); // assuming 'index' is your route name
+            // Main app shell lives on /chat (same as Chats icon + logo); /index is legacy welcome-only.
+            return redirect()->route('chat');
 
         } else {
             return redirect()->back()->withErrors(['message' => 'Invalid email or password']);
@@ -425,7 +425,7 @@ class RegisteredUserController extends Controller
                     Auth::login($user, true);
                 }
 
-                return redirect()->route('index')->with('success', 'Login successful!');
+                return redirect()->route('chat')->with('success', 'Login successful!');
             } else {
                 return redirect()->route('signin')->withErrors(['error' => $response->json()['message'] ?? 'Login failed']);
             }
@@ -465,7 +465,7 @@ class RegisteredUserController extends Controller
                     Auth::login($user, true);
                 }
 
-                return redirect()->route('index')->with('success', 'Login successful!');
+                return redirect()->route('chat')->with('success', 'Login successful!');
             } else {
                 return redirect()->route('signin')->withErrors(['error' => $response->json()['message'] ?? 'Login failed']);
             }

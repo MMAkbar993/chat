@@ -306,6 +306,23 @@
         }
     });
 
+    // Logo: same SPA behavior as Chats (was full page /chat vs /index mismatch with welcome-only index view).
+    $(document).on('click', '.sidebar-menu .logo a[href]', function (e) {
+        var href = $(this).attr('href');
+        if (!href || !isSpaRoute(href)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var pathname = getPathname(href);
+        var current = getPathname(window.location.href);
+        if (pathname === '/chat' && current === '/chat') {
+            try {
+                window.dispatchEvent(new CustomEvent('spa-logo-chat-home'));
+            } catch (err) {}
+            return;
+        }
+        navigateTo(href);
+    });
+
     var prefetchTimer = null;
     $(document).on('mouseenter', '.sidebar-menu .main-menu .nav li a[href]', function () {
         var href = $(this).attr('href');
@@ -326,6 +343,27 @@
 
     $(document).on('mouseleave', '.sidebar-menu .main-menu .nav li a[href]', function () {
         if (prefetchTimer) { clearTimeout(prefetchTimer); prefetchTimer = null; }
+    });
+
+    var logoPrefetchTimer = null;
+    $(document).on('mouseenter', '.sidebar-menu .logo a[href]', function () {
+        var href = $(this).attr('href');
+        if (!href || !isSpaRoute(href)) return;
+        var pathname = getPathname(href);
+        if (!pathname || pathname === getPathname(window.location.href) || prefetchCache[pathname]) return;
+        var capturedHref = href;
+        var capturedPath = pathname;
+        logoPrefetchTimer = setTimeout(function () {
+            $.ajax({
+                url: capturedHref,
+                type: 'GET',
+                headers: { 'X-SPA-Request': '1' },
+                success: function (html) { prefetchCache[capturedPath] = html; }
+            });
+        }, 150);
+    });
+    $(document).on('mouseleave', '.sidebar-menu .logo a[href]', function () {
+        if (logoPrefetchTimer) { clearTimeout(logoPrefetchTimer); logoPrefetchTimer = null; }
     });
 
     window.addEventListener('popstate', function () {

@@ -155,23 +155,38 @@
 
                                     <!-- Left Chat Title -->
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h5 class="chat-title" id="chatTitle">{{ __('All Chats') }}</h5>
-                                        <div class="dropdowns">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            <h5 class="chat-title mb-0" id="chatTitle">{{ __('All Chats') }}</h5>
+                                            <span class="badge bg-danger rounded-pill d-none" id="chat-header-unread-badge" title="{{ __('Unread messages') }}"></span>
+                                        </div>
+                                        <div class="dropdowns dropdown">
                                             <a href="#" class="text-default fs-16 dropdown-toggle" data-bs-toggle="dropdown"
                                                 aria-expanded="false"><i class="ti ti-filter"></i></a>
-                                            <ul class=" dropdown-menu  p-3" id="innerTab"
+                                            <ul class="dropdown-menu dropdown-menu-end chat-filter-dropdown py-2" id="innerTab"
                                                 role="tablist">
                                                 <li role="presentation">
-                                                    <a class="dropdown-item active" id="all-chats-tab"
-                                                        data-bs-toggle="tab" data-bs-target="#all-chats" data-title="All Chats">{{ __('All Chats') }}</a>
+                                                    <a class="dropdown-item active d-flex justify-content-between align-items-center" id="all-chats-tab"
+                                                        data-bs-toggle="tab" data-bs-target="#all-chats" data-title="{{ __('All Chats') }}"><span>{{ __('All Chats') }}</span><span class="badge bg-danger rounded-pill ms-2 d-none" id="chat-filter-count-all" title="{{ __('Unread messages') }}">0</span></a>
                                                 </li>
+                                                <li><hr class="dropdown-divider my-1 mx-2"></li>
                                                 <li role="presentation">
-                                                    <a class="dropdown-item" id="pinned-chats-tab"
-                                                        data-bs-toggle="tab" data-bs-target="#pinned-chats" data-title="Pinned Chats">{{ __('Pinned Chats') }}</a>
+                                                    <a class="dropdown-item d-flex justify-content-between align-items-center" id="favourites-chats-tab"
+                                                        data-bs-toggle="tab" data-bs-target="#favourites-chats" data-title="{{ __('Favourite Chats') }}"><span>{{ __('Favourite Chats') }}</span><span class="badge bg-danger rounded-pill ms-2 d-none" id="chat-filter-count-favourite" title="{{ __('Unread in favourite chats') }}">0</span></a>
                                                 </li>
+                                                <li><hr class="dropdown-divider my-1 mx-2"></li>
                                                 <li role="presentation">
-                                                    <a class="dropdown-item" id="archive-chats-tab"
-                                                        data-bs-toggle="tab" data-bs-target="#archive-chats" data-title="Archived Chats">{{ __('Archive Chats') }}</a>
+                                                    <a class="dropdown-item d-flex justify-content-between align-items-center" id="pinned-chats-tab"
+                                                        data-bs-toggle="tab" data-bs-target="#pinned-chats" data-title="{{ __('Pinned Chats') }}"><span>{{ __('Pinned Chats') }}</span><span class="badge bg-danger rounded-pill ms-2 d-none" id="chat-filter-count-pinned" title="{{ __('Unread in pinned chats') }}">0</span></a>
+                                                </li>
+                                                <li><hr class="dropdown-divider my-1 mx-2"></li>
+                                                <li role="presentation">
+                                                    <a class="dropdown-item d-flex justify-content-between align-items-center" id="archive-chats-tab"
+                                                        data-bs-toggle="tab" data-bs-target="#archive-chats" data-title="{{ __('Archive Chats') }}"><span>{{ __('Archive Chats') }}</span><span class="badge bg-danger rounded-pill ms-2 d-none" id="chat-filter-count-archive" title="{{ __('Archived conversations') }}">0</span></a>
+                                                </li>
+                                                <li><hr class="dropdown-divider my-1 mx-2"></li>
+                                                <li role="presentation">
+                                                    <a class="dropdown-item d-flex justify-content-between align-items-center" id="trash-chats-tab"
+                                                        data-bs-toggle="tab" data-bs-target="#trash-chats" data-title="{{ __('Trash') }}"><span>{{ __('Trash') }}</span><span class="badge bg-danger rounded-pill ms-2 d-none" id="chat-filter-count-trash" title="{{ __('Chats in trash') }}">0</span></a>
                                                 </li>
                                             </ul>
                                         </div>
@@ -185,8 +200,8 @@
                                                     <a href="{{ route('chat') }}" class="chat-user-list">
 
                                                     </a>
-                                                    <div class="chat-dropdown">
-                                                        <a class="#" href="#" data-bs-toggle="dropdown">
+                                                    <div class="chat-dropdown dropdown">
+                                                        <a class="text-muted dropdown-toggle" href="#" data-bs-toggle="dropdown" aria-expanded="false">
                                                             <i class="ti ti-dots-vertical"></i>
                                                         </a>
                                                         <ul class="dropdown-menu dropdown-menu-end p-3">
@@ -210,13 +225,16 @@
                                             </div>
                                         </div>
                                         <div class="tab-pane fade" id="favourites-chats" role="tabpanel"
-                                            aria-labelledby="favourites-chat-tab">
+                                            aria-labelledby="favourites-chats-tab">
                                         </div>
                                         <div class="tab-pane fade" id="pinned-chats" role="tabpanel"
                                             aria-labelledby="pinned-chats-tab">
                                         </div>
                                         <div class="tab-pane fade" id="archive-chats" role="tabpanel"
                                             aria-labelledby="archive-chats-tab">
+                                        </div>
+                                        <div class="tab-pane fade" id="trash-chats" role="tabpanel"
+                                            aria-labelledby="trash-chats-tab">
                                         </div>
                                     </div>
 
@@ -601,7 +619,7 @@
                                         <div class="dropdowns">
                                             <a href="#" class="text-default fs-16" data-bs-toggle="dropdown"
                                                 aria-expanded="false"><i class="ti ti-chevron-down"></i></a>
-                                            <ul class=" dropdown-menu dropdown-menu-end p-3" id="innerTab"
+                                            <ul class=" dropdown-menu dropdown-menu-end p-3" id="calls-innerTab"
                                                 role="tablist">
                                                 <li role="presentation">
                                                     <a class="dropdown-item active" id="all-calls-tab"
@@ -625,7 +643,7 @@
                                         </div>
                                     </div>
                                     <!-- /Left Chat Title -->
-                                    <div class="tab-content" id="innerTabContent">
+                                    <div class="tab-content" id="calls-innerTabContent">
                                         <div class="tab-pane fade show active" id="all-calls" role="tabpanel"
                                             aria-labelledby="all-calls-tab">
                                         </div>

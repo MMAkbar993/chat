@@ -64,18 +64,28 @@
                             </a>
                         </li>
                         <li>
-                            <a class="btn no-bg" href="#" data-bs-toggle="dropdown">
+                            <a class="btn no-bg" href="javascript:void(0);" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ __('More options') }}">
                                 <i class="ti ti-dots-vertical"></i>
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end p-3">
-                                <li><a href="#" class="dropdown-item" id="close-chat-btn"><i
+                            <ul class="dropdown-menu dropdown-menu-end chat-header-more-dropdown py-2">
+                                <li><a href="javascript:void(0);" class="dropdown-item" id="close-chat-btn"><i
                                             class="ti ti-x me-2"></i>{{ __('Close Chat') }}</a></li>
-
-                                <li><a href="#" class="dropdown-item" data-bs-toggle="modal"
+                                <li><a href="javascript:void(0);" class="dropdown-item" data-bs-toggle="modal"
+                                        data-bs-target="#mute-notification"><i
+                                            class="ti ti-bell-off me-2"></i>{{ __('Mute Notification') }}</a></li>
+                                <li><a href="javascript:void(0);" class="dropdown-item" data-bs-toggle="modal"
+                                        data-bs-target="#disappearing-message-chat"><i
+                                            class="ti ti-clock me-2"></i>{{ __('Disappearing Message') }}</a></li>
+                                <li><a href="javascript:void(0);" class="dropdown-item" data-bs-toggle="modal"
                                         data-bs-target="#clear-user-chat"><i
-                                            class="ti ti-trash me-2"></i>{{ __('Clear Message') }}</a></li>
-
-                                <li class="d-none"><a href="#" class="dropdown-item" data-bs-toggle="modal"
+                                            class="ti ti-list me-2"></i>{{ __('Clear Message') }}</a></li>
+                                <li><a href="javascript:void(0);" class="dropdown-item text-danger" data-bs-toggle="modal"
+                                        data-bs-target="#delete-user-chat"><i
+                                            class="ti ti-trash me-2"></i>{{ __('Delete Chat') }}</a></li>
+                                <li><a href="javascript:void(0);" class="dropdown-item" data-bs-toggle="modal"
+                                        data-bs-target="#report-user"><i
+                                            class="ti ti-thumb-down me-2"></i>{{ __('Report') }}</a></li>
+                                <li><a href="javascript:void(0);" class="dropdown-item" data-bs-toggle="modal"
                                         data-bs-target="#block-user" id="blockUserDropdownBtn"><i
                                             class="ti ti-ban me-2"></i>{{ __('Block') }}</a></li>
                             </ul>
@@ -191,147 +201,216 @@
     <!-- /Chat -->
 
     <!-- Contact Info -->
-    <div class="chat-offcanvas offcanvas offcanvas-end" data-bs-scroll="true" data-bs-backdrop="false"
+    <div class="chat-offcanvas offcanvas offcanvas-end contact-profile-offcanvas" data-bs-scroll="true" data-bs-backdrop="false"
         tabindex="-1" id="contact-profile" aria-labelledby="chatUserMoreLabel">
-        <div class="offcanvas-header">
-            <h4 class="offcanvas-title" id="chatUserMoreLabel">{{ __('Contact Info') }}</h4>
+        <div class="offcanvas-header border-0 pb-0">
+            <h4 class="offcanvas-title fw-semibold mb-0" id="chatUserMoreLabel">{{ __('Contact Info') }}</h4>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"><i
                     class="ti ti-x"></i></button>
         </div>
-        <div class="offcanvas-body">
-            <div class="chat-contact-info">
-                <div class="profile-content">
-                    <div class="contact-profile-info">
-                        <div class="avatar avatar-xxl online mb-2">
-                            <img id="contact-avatar" src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                alt="img">
+        <div class="offcanvas-body p-0">
+            <div class="chat-contact-info contact-info-sidebar">
+                <div class="profile-content px-3 pb-4">
+                    {{-- Identity --}}
+                    <div class="contact-profile-info text-center pt-2">
+                        <div class="avatar avatar-xxl online mb-3 mx-auto contact-panel-avatar-wrap">
+                            <img id="contact-avatar" src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle"
+                                alt="">
                         </div>
-                        <div class="d-flex align-items-center justify-content-center gap-1">
-                            <h6 id="contact-full-name"></h6>
-                            <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
-                                {{ __('Verified') }}
-                            </span>
+                        <div class="d-flex align-items-center justify-content-center gap-1 flex-wrap">
+                            <h4 class="contact-panel-name mb-0 fw-semibold" id="contact-full-name"></h4>
+                            <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">{{ __('Verified') }}</span>
                         </div>
-                        <p id="contact-last-seen"></p>
-                        <div class="d-flex align-items-center justify-content-center gap-2 mt-2">
-                            <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-profile-audio-btn" title="{{ __('Audio') }}"><i class="ti ti-phone"></i></a>
-                            <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" id="contact-profile-video-btn" title="{{ __('Video') }}"><i class="ti ti-video"></i></a>
-                            @if($callsProvider === 'meet')
-                            <a href="https://meet.google.com/new" target="_blank" class="btn btn-sm btn-outline-primary" title="{{ __('Google Meet') }}"><img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon"></a>
-                            @endif
-                            <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" title="{{ __('Chat') }}"><i class="ti ti-message"></i></a>
-                            <a href="javascript:void(0);" class="btn btn-sm btn-outline-primary" title="{{ __('Search') }}"><i class="ti ti-search"></i></a>
-                        </div>
+                        <p class="contact-panel-last-seen text-muted small mb-0 mt-2" id="contact-last-seen"></p>
                     </div>
-                    <div class="content-wrapper">
-                        <h5 class="sub-title">{{ __('Profile Info') }}</h5>
-                        <div class="card">
-                            <div class="card-body">
-                                <ul class="list-group profile-item">
-                                    <li class="list-group-item">
-                                        <div class="profile-info">
-                                            <h6>{{ __('Name') }}</h6>
-                                            <p id="contact-name" class="d-flex align-items-center flex-wrap gap-1">
+
+                    {{-- Quick actions: Audio, Video, Chat, Search --}}
+                    <div class="contact-action-grid mb-4">
+                        <a href="javascript:void(0);" class="contact-action-tile" id="contact-profile-audio-btn" title="{{ __('Audio') }}">
+                            <i class="ti ti-phone"></i>
+                            <span>{{ __('Audio') }}</span>
+                        </a>
+                        <a href="javascript:void(0);" class="contact-action-tile" id="contact-profile-video-btn" title="{{ __('Video') }}">
+                            <i class="ti ti-video"></i>
+                            <span>{{ __('Video') }}</span>
+                        </a>
+                        <a href="javascript:void(0);" class="contact-action-tile" id="contact-profile-chat-btn" title="{{ __('Chat') }}">
+                            <i class="ti ti-message"></i>
+                            <span>{{ __('Chat') }}</span>
+                        </a>
+                        <a href="javascript:void(0);" class="contact-action-tile" id="contact-profile-search-btn" title="{{ __('Search') }}">
+                            <i class="ti ti-search"></i>
+                            <span>{{ __('Search') }}</span>
+                        </a>
+                    </div>
+
+                    {{-- Profile Info: Name, Email, Phone + extra rows --}}
+                    <div class="content-wrapper mb-3">
+                        <h5 class="sub-title mb-2">{{ __('Profile Info') }}</h5>
+                        <div class="card contact-info-card border-0">
+                            <div class="card-body p-0">
+                                <ul class="list-group list-group-flush profile-item contact-profile-rows">
+                                    <li class="list-group-item border-0 px-0 py-3">
+                                        <div class="profile-info flex-grow-1 pe-2">
+                                            <h6 class="contact-field-label mb-1">{{ __('Name') }}</h6>
+                                            <p class="contact-field-value mb-0 d-flex align-items-center flex-wrap gap-1" id="contact-name">
                                                 <span id="contact-name-text"></span>
-                                                <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">
-                                                    {{ __('Verified') }}
-                                                </span>
+                                                <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">{{ __('Verified') }}</span>
                                             </p>
                                         </div>
-                                        <div class="profile-icon">
-                                            <i class="ti ti-user-circle"></i>
-                                        </div>
+                                        <div class="profile-icon text-muted"><i class="ti ti-user"></i></div>
                                     </li>
-                                    <li class="list-group-item">
-                                        <div class="info">
-                                            <h6>{{ __('Bio') }}</h6>
-                                            <p id="contact-bio"></p>
+                                    <li class="list-group-item border-0 px-0 py-3 d-none" aria-hidden="true">
+                                        <div class="profile-info flex-grow-1 pe-2">
+                                            <h6 class="contact-field-label mb-1">{{ __('Email Address') }}</h6>
+                                            <p class="contact-field-value mb-0" id="contact-email">—</p>
                                         </div>
-                                        <div class="icon">
-                                            <i class="ti ti-user-check"></i>
-                                        </div>
+                                        <div class="profile-icon text-muted"><i class="ti ti-mail"></i></div>
                                     </li>
-                                    <li class="list-group-item">
-                                        <div class="info">
-                                            <h6>{{ __('Location') }}</h6>
-                                            <p id="contact-location"></p>
+                                    <li class="list-group-item border-0 px-0 py-3 d-none" aria-hidden="true">
+                                        <div class="profile-info flex-grow-1 pe-2">
+                                            <h6 class="contact-field-label mb-1">{{ __('Phone') }}</h6>
+                                            <p class="contact-field-value mb-0" id="contact-phone">—</p>
                                         </div>
-                                        <div class="icon">
-                                            <i class="ti ti-map-pin"></i>
-                                        </div>
+                                        <div class="profile-icon text-muted"><i class="ti ti-phone"></i></div>
                                     </li>
-                                    <li class="list-group-item">
-                                        <div class="info">
-                                            <h6>{{ __('Website') }}</h6>
-                                            <p id="contact-website" class="mb-0"></p>
+                                    <li class="list-group-item border-0 px-0 py-3">
+                                        <div class="profile-info flex-grow-1 pe-2">
+                                            <h6 class="contact-field-label mb-1">{{ __('Location') }}</h6>
+                                            <p class="contact-field-value mb-0" id="contact-location">—</p>
                                         </div>
-                                        <div class="icon">
-                                            <i class="ti ti-world"></i>
-                                        </div>
+                                        <div class="profile-icon text-muted"><i class="ti ti-map-pin"></i></div>
                                     </li>
-                                    <li class="list-group-item">
-                                        <div class="info">
-                                            <h6>{{ __('Join Date') }}</h6>
-                                            <p id="contact-join-date"></p>
+                                    <li class="list-group-item border-0 px-0 py-3">
+                                        <div class="profile-info flex-grow-1 pe-2">
+                                            <h6 class="contact-field-label mb-1">{{ __('Website') }}</h6>
+                                            <p class="contact-field-value mb-0" id="contact-website">—</p>
                                         </div>
-                                        <div class="icon">
-                                            <i class="ti ti-calendar-event"></i>
+                                        <div class="profile-icon text-muted"><i class="ti ti-world"></i></div>
+                                    </li>
+                                    <li class="list-group-item border-0 px-0 py-3">
+                                        <div class="profile-info flex-grow-1 pe-2">
+                                            <h6 class="contact-field-label mb-1">{{ __('Join Date') }}</h6>
+                                            <p class="contact-field-value mb-0" id="contact-join-date">—</p>
                                         </div>
+                                        <div class="profile-icon text-muted"><i class="ti ti-calendar-event"></i></div>
                                     </li>
                                 </ul>
                             </div>
                         </div>
                     </div>
-                    <div class="content-wrapper">
-                        <h5 class="sub-title">{{ __('Social Profiles') }}</h5>
-                        <div class="card">
-                            <div class="card-body">
-                                <div class="social-icon d-flex align-items-center flex-wrap gap-2">
-                                    <a id="facebook-link" href="javascript:void(0);"><i class="ti ti-brand-facebook"></i></a>
-                                    <a id="twitter-link" href="javascript:void(0);"><i class="ti ti-brand-twitter"></i></a>
-                                    <a id="google-link" href="javascript:void(0);"><i class="ti ti-brand-google"></i></a>
-                                    <a id="linkedin-link" href="javascript:void(0);"><i class="ti ti-brand-linkedin"></i></a>
+
+                    {{-- Bio --}}
+                    <div class="content-wrapper mb-3">
+                        <h5 class="sub-title mb-2">{{ __('Bio') }}</h5>
+                        <div class="card contact-info-card border-0">
+                            <div class="card-body d-flex align-items-start justify-content-between gap-2 py-3">
+                                <p class="contact-field-value mb-0 flex-grow-1" id="contact-bio">—</p>
+                                <div class="profile-icon text-muted flex-shrink-0"><i class="ti ti-user"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Social --}}
+                    <div class="content-wrapper mb-3">
+                        <h5 class="sub-title mb-2">{{ __('Social Profiles') }}</h5>
+                        <div class="card contact-info-card border-0">
+                            <div class="card-body py-3">
+                                <div class="social-icon d-flex align-items-center flex-wrap gap-3 justify-content-start">
+                                    <a id="facebook-link" href="javascript:void(0);" class="contact-social-link" aria-label="Facebook"><i class="ti ti-brand-facebook"></i></a>
+                                    <a id="twitter-link" href="javascript:void(0);" class="contact-social-link" aria-label="Twitter"><i class="ti ti-brand-twitter"></i></a>
+                                    <a id="instagram-link" href="javascript:void(0);" class="contact-social-link" aria-label="Instagram"><i class="ti ti-brand-instagram"></i></a>
+                                    <a id="linkedin-link" href="javascript:void(0);" class="contact-social-link" aria-label="LinkedIn"><i class="ti ti-brand-linkedin"></i></a>
                                     <span class="contact-social-verified badge verified-badge badge-xs ms-1" style="display:none;" title="{{ __('Verified') }}">{{ __('Verified') }}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div id="common-groups-container" class="content-wrapper other-info">
-                        <h5 class="sub-title">{{ __('Common Groups') }}</h5>
-                        <div class="card">
-                            <div class="card-body list-group profile-item">
+
+                    {{-- Media --}}
+                    <div class="content-wrapper mb-3">
+                        <h5 class="sub-title mb-2">{{ __('Media Details') }}</h5>
+                        <div class="card contact-info-card border-0">
+                            <div class="card-body list-group list-group-flush profile-item p-0">
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-photos">
+                                    <div class="d-flex align-items-center gap-2"><i class="ti ti-photo text-primary"></i><span>{{ __('Photos') }}</span></div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-videos">
+                                    <div class="d-flex align-items-center gap-2"><i class="ti ti-video text-primary"></i><span>{{ __('Videos') }}</span></div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-links">
+                                    <div class="d-flex align-items-center gap-2"><i class="ti ti-link text-primary"></i><span>{{ __('Links') }}</span></div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-docs">
+                                    <div class="d-flex align-items-center gap-2"><i class="ti ti-file-text text-primary"></i><span>{{ __('Documents') }}</span></div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
                             </div>
                         </div>
                     </div>
-                    <div class="content-wrapper other-info mb-0">
-                        <h5 class="sub-title">{{ __('Others') }}</h5>
-                        <div class="card mb-0">
-                            <div class="card-body list-group profile-item">
-                                <a href="javascript:void(0);" class="dropdown-item list-group-item"
-                                    id="blockedUserDropdownBtn">
-                                    <div class="profile-info">
-                                        <h6 id="blockUserLabel"><i class="ti ti-user-off me-2 text-info"></i></h6>
-                                    </div>
-                                    <div>
-                                        <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
-                                    </div>
-                                </a>
 
-                                <a href="javascript:void(0);" data-bs-toggle="modal"
-                                    data-bs-target="#delete-user-chat" class="list-group-item">
-                                    <div class="profile-info">
-                                        <h6><i class="ti ti-trash me-2 text-danger"></i>{{ __('Delete Chat') }}</h6>
+                    {{-- Common groups --}}
+                    <div id="common-groups-container" class="content-wrapper other-info mb-3">
+                        <h5 class="sub-title mb-2" id="common-groups-heading">{{ __('Common Groups') }}</h5>
+                        <div class="card contact-info-card border-0">
+                            <div class="card-body list-group profile-item p-3" id="common-groups-list">
+                            </div>
+                        </div>
+                        <div class="text-center mt-2 mb-1">
+                            <a href="{{ route('group-chat') }}" class="small fw-medium contact-more-groups-link">{{ __('More Groups') }} →</a>
+                        </div>
+                    </div>
+
+                    {{-- Others --}}
+                    <div class="content-wrapper other-info mb-0">
+                        <h5 class="sub-title mb-2">{{ __('Others') }}</h5>
+                        <div class="card contact-info-card border-0 mb-0">
+                            <div class="card-body list-group profile-item p-0">
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" id="contact-open-favourites">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="ti ti-bookmark text-primary"></i>
+                                        <span class="fw-medium">{{ __('Favorites') }}</span>
+                                        <span class="badge bg-danger rounded-pill ms-1 d-none" id="contact-favourites-badge">0</span>
                                     </div>
-                                    <div>
-                                        <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#mute-notification">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="ti ti-bell-off text-warning"></i>
+                                        <span class="fw-medium">{{ __('Mute Notifications') }}</span>
                                     </div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" id="blockedUserDropdownBtn">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="ti ti-user-off text-info"></i>
+                                        <span class="fw-medium" id="blockUserLabel">{{ __('Block Users') }}</span>
+                                    </div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#report-user">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="ti ti-flag text-info"></i>
+                                        <span class="fw-medium">{{ __('Report Users') }}</span>
+                                    </div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#delete-user-chat">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="ti ti-trash text-danger"></i>
+                                        <span class="fw-medium text-danger">{{ __('Delete Chat') }}</span>
+                                    </div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
                                 </a>
                             </div>
                         </div>
-                        <div id="block-message" style="display: none;" class="notification">
+                        <div id="block-message" style="display: none;" class="notification mt-2">
                             {{ __('You blocked this contact. Tap to unblock.') }}
                         </div>
-                        <div id="unblock-message" style="display: none;" class="notification">
+                        <div id="unblock-message" style="display: none;" class="notification mt-2">
                             {{ __('You unblocked this contact.') }}
                         </div>
                     </div>
@@ -482,6 +561,55 @@
     </div>
     <!-- /Mute -->
 
+    <!-- Disappearing messages (private chat — UI parity with DreamsChat) -->
+    <div class="modal fade" id="disappearing-message-chat" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">{{ __('Disappearing Messages') }}</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}">
+                        <i class="ti ti-x"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form action="{{ route('chat') }}" method="get">
+                        <div class="block-wrap mb-3">
+                            <p class="text-muted small mb-0">
+                                {{ __('For more privacy and storage, new messages can disappear after the duration you choose. This is a display preference on this device.') }}
+                            </p>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="radio" name="disappear_duration" id="dm-chat-24h">
+                                <label class="form-check-label" for="dm-chat-24h">{{ __('24 Hours') }}</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="radio" name="disappear_duration" id="dm-chat-7d">
+                                <label class="form-check-label" for="dm-chat-7d">{{ __('7 Days') }}</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="radio" name="disappear_duration" id="dm-chat-90d">
+                                <label class="form-check-label" for="dm-chat-90d">{{ __('90 Days') }}</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="radio" name="disappear_duration" id="dm-chat-off" checked>
+                                <label class="form-check-label" for="dm-chat-off">{{ __('Off') }}</label>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <button type="button" class="btn btn-outline-primary w-100" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                            </div>
+                            <div class="col-6">
+                                <button type="button" class="btn btn-primary w-100" data-bs-dismiss="modal">{{ __('Save') }}</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- /Disappearing messages -->
 
     <!-- Delete -->
     <div class="modal fade" id="message-delete">

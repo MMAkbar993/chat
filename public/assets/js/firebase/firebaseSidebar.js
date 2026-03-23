@@ -1004,12 +1004,14 @@ initializeFirebase(function (app, auth, database, storage) {
 
 
     // Add event listener to each dropdown item
-    document.querySelectorAll('#innerTab .dropdown-item').forEach(item => {
-        item.addEventListener('click', function () {
-            // Get the title from the data attribute and update the title
-            const title = this.getAttribute('data-title');
-            document.getElementById('c').textContent = title;
+    document
+        .querySelectorAll('#chat-menu #innerTab .dropdown-item')
+        .forEach((item) => {
+            item.addEventListener('click', function () {
+                const title = this.getAttribute('data-title');
+                const chatTitleEl = document.getElementById('chatTitle');
+                if (chatTitleEl) chatTitleEl.textContent = title;
+            });
         });
-    });
 
 });

@@ -1396,6 +1396,19 @@ ul .btn-primary:not(:disabled):not(.disabled):active:focus, ul .btn-primary:not(
 .darkmode .chat .chat-header .chat-options .dropdown-menu li a {
   color: #D8DFEB;
 }
+.darkmode .chat .chat-header .chat-options .dropdown-menu .dropdown-item:hover,
+.darkmode .chat .chat-header .chat-options .dropdown-menu .dropdown-item:focus {
+  background-color: #1a1a1c;
+  color: #fff;
+}
+.chat-header-more-dropdown {
+  min-width: 220px;
+}
+.chat-header-more-dropdown .dropdown-item {
+  border-radius: 8px;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
 .darkmode .chat .chat-body {
   background-image: url(/assets/img/bg/dark-background.png);
 }
@@ -11507,6 +11520,175 @@ Form help
   transition: all 0.5s ease;
 }
 
+/* Chat sidebar funnel filter: list + dividers (template-style) */
+#chat-menu .chat-filter-dropdown.dropdown-menu {
+  min-width: 228px;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+#chat-menu .chat-filter-dropdown .dropdown-item {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9375rem;
+}
+#chat-menu .chat-filter-dropdown .dropdown-divider {
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
+  opacity: 1;
+}
+.darkmode #chat-menu .chat-filter-dropdown.dropdown-menu {
+  background-color: #1a1a1c;
+  border-color: #2a2a2e;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.darkmode #chat-menu .chat-filter-dropdown .dropdown-item {
+  color: #e8eaed;
+}
+.darkmode #chat-menu .chat-filter-dropdown .dropdown-item:hover,
+.darkmode #chat-menu .chat-filter-dropdown .dropdown-item:focus {
+  background-color: #2d2d32;
+  color: #fff;
+}
+.darkmode #chat-menu .chat-filter-dropdown .dropdown-item.active {
+  background-color: rgba(99, 56, 246, 0.22);
+  color: #c4b5ff;
+}
+.darkmode #chat-menu .chat-filter-dropdown .dropdown-divider {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Chat — right Contact Info offcanvas (template layout) */
+.contact-profile-offcanvas.offcanvas-end {
+  width: min(400px, calc(100vw - 20px));
+  max-width: 100%;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+}
+.darkmode .contact-profile-offcanvas.offcanvas-end {
+  background: #141416;
+  border-left-color: #2a2a2e;
+}
+.contact-info-sidebar .contact-panel-name {
+  font-size: 1.25rem;
+  color: inherit;
+}
+.contact-info-sidebar .contact-panel-last-seen {
+  font-size: 0.8125rem;
+}
+.contact-info-sidebar .contact-panel-avatar-wrap.avatar-xxl,
+.contact-info-sidebar .contact-panel-avatar-wrap .avatar-xxl {
+  width: 112px;
+  height: 112px;
+}
+.contact-info-sidebar .contact-panel-avatar-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.contact-action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.contact-action-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  background: #fff;
+  border: 1px solid #ececef;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.contact-action-tile:hover {
+  color: inherit;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.contact-action-tile i {
+  font-size: 1.25rem;
+  color: #6338f6;
+}
+.contact-action-tile span {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #141b27;
+  text-align: center;
+  line-height: 1.2;
+}
+.contact-info-card {
+  background: #f4f5f7 !important;
+  border-radius: 12px !important;
+}
+.contact-field-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #8b9199;
+}
+.contact-field-value {
+  color: #141b27;
+  font-weight: 500;
+  font-size: 0.9375rem;
+}
+.contact-social-link {
+  color: #6338f6;
+}
+.contact-social-link i {
+  font-size: 1.35rem;
+}
+.common-group-avatar {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #6338f6, #3b82f6);
+}
+.common-group-row {
+  background: #eef0f3 !important;
+  border: none !important;
+}
+.contact-more-groups-link {
+  color: #6338f6 !important;
+}
+.darkmode .contact-action-tile {
+  background: #1f1f23;
+  border-color: #2d2d32;
+  box-shadow: none;
+}
+.darkmode .contact-action-tile span {
+  color: #e8eaed;
+}
+.darkmode .contact-info-card {
+  background: #1c1c1f !important;
+}
+.darkmode .contact-field-label {
+  color: #9aa0aa;
+}
+.darkmode .contact-field-value {
+  color: #f1f3f5 !important;
+}
+.darkmode .contact-info-sidebar .text-muted {
+  color: #9aa0aa !important;
+}
+.darkmode .contact-more-groups-link {
+  color: #a78bfa !important;
+}
+.darkmode .common-group-row {
+  background: #232328 !important;
+}
+
 .welcome-info .welcome-box {
   padding: 10px;
   box-shadow: 0px 4px 10px 0px rgba(0, 0, 0, 0.1);
@@ -11716,6 +11898,61 @@ Form help
   min-width: 0;
   width: 100%;
   max-width: none;
+}
+
+/* Desktop: Contact Info as right column (list | conversation | contact), not between list and chat */
+@media (min-width: 1200px) {
+  .content.main_content > #spa-page-content.contact-profile-dock-open {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+
+  .content.main_content > #spa-page-content.contact-profile-dock-open > #middle.chat {
+    flex: 1 1 0%;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  #spa-page-content.contact-profile-dock-open #contact-profile.chat-offcanvas.offcanvas.show {
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    transform: none !important;
+    z-index: 1;
+    flex: 0 0 400px;
+    width: 400px;
+    max-width: 400px;
+    min-width: 300px;
+    align-self: stretch;
+    height: auto;
+    overflow: hidden;
+    display: flex !important;
+    flex-direction: column;
+    border-left: 1px solid #e8e8e9;
+  }
+
+  @media (max-width: 1399.98px) {
+    #spa-page-content.contact-profile-dock-open #contact-profile.chat-offcanvas.offcanvas.show {
+      flex: 0 0 330px;
+      width: 330px;
+      max-width: 330px;
+      min-width: 280px;
+    }
+  }
+
+  .darkmode #spa-page-content.contact-profile-dock-open #contact-profile.chat-offcanvas.offcanvas.show {
+    border-left-color: #2a2a2e;
+  }
+
+  #spa-page-content.contact-profile-dock-open #contact-profile.chat-offcanvas.offcanvas.show .offcanvas-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
 }
 
 .animate-typing .dot {

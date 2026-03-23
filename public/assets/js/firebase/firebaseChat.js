@@ -755,6 +755,8 @@ initializeFirebase(function (app, auth, database, storage) {
                             }
                         );
                     }
+
+                    scheduleRefreshChatFilterBadgeCounts();
                 });
 
                 // Listen for new messages dynamically and update the UI
@@ -763,62 +765,154 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    // Listen for new messages and update the user list in real-time
+    // Sidebar rows use per-room onValue listeners for unread counts; avoid duplicating badge updates here.
     function listenForNewMessages(users) {
-        const chatRef = ref(database, `data/chats`);
+        void users;
+    }
 
-        // Listen for new chat rooms dynamically
-        onChildAdded(chatRef, (chatRoomSnapshot) => {
-            const chatRoomId = chatRoomSnapshot.key; // Get the chat room ID
-            const messageRef = ref(database, `data/chats/${chatRoomId}`);
+    let chatFilterBadgeDebounce = null;
+    function scheduleRefreshChatFilterBadgeCounts() {
+        if (typeof document === "undefined") return;
+        if (chatFilterBadgeDebounce) clearTimeout(chatFilterBadgeDebounce);
+        chatFilterBadgeDebounce = setTimeout(() => {
+            chatFilterBadgeDebounce = null;
+            refreshChatFilterBadgeCounts();
+        }, 120);
+    }
 
-            // Listen for new messages within the specific chat room
-            onChildAdded(messageRef, (messageSnapshot) => {
-                const message = messageSnapshot.val();
-
-                if (!message || !message.senderId) {
-                    return;
-                }
-
-                const senderId = message.senderId;
-
-                // Skip if the sender is not in the users list
-                if (!users[senderId]) {
-                    return;
-                }
-
-                const userDiv = document.querySelector(
-                    `[data-user-id="${senderId}"]`
-                );
-                if (!userDiv) {
-                    return;
-                }
-
-                const messageCountSpan =
-                    userDiv.querySelector(".count-message");
-                if (!messageCountSpan) {
-                    return;
-                }
-
-                let unseenMessageCount =
-                    parseInt(messageCountSpan.textContent) || 0;
-
-                if (selectedUserId === senderId) {
-                    return; // Do not show the count if the chat is open for this user
-                }
-
-                // Increment unseen message count for messages not marked as seen
-                if (!message.seen && message.recipientId === currentUserId) {
-                    unseenMessageCount++;
-                    messageCountSpan.style.display =
-                        unseenMessageCount > 0 ? "block" : "none";
-                    messageCountSpan.textContent =
-                        unseenMessageCount > 0
-                            ? unseenMessageCount.toString()
-                            : "";
-                }
+    function sumUnreadInChatListContainer(root) {
+        if (!root) return 0;
+        let sum = 0;
+        root
+            .querySelectorAll(".chat-list[data-user-id] .count-message")
+            .forEach((span) => {
+                if (span.style.display === "none") return;
+                const t = (span.textContent || "").trim();
+                if (!t) return;
+                const n = parseInt(t, 10);
+                if (!isNaN(n)) sum += n;
             });
+        return sum;
+    }
+
+    function collectPeerIdsFromContainer(root) {
+        if (!root) return [];
+        return [...root.querySelectorAll(".chat-list[data-user-id]")].map((el) =>
+            el.getAttribute("data-user-id")
+        );
+    }
+
+    function sumUnreadForPeersInAllChats(peerIds) {
+        const set = new Set((peerIds || []).filter(Boolean));
+        if (set.size === 0) return 0;
+        const pane = document.querySelector("#chat-menu #all-chats");
+        if (!pane) return 0;
+        let sum = 0;
+        pane.querySelectorAll(".chat-list[data-user-id]").forEach((row) => {
+            const id = row.getAttribute("data-user-id");
+            if (!set.has(id)) return;
+            const span = row.querySelector(".count-message");
+            if (!span || span.style.display === "none") return;
+            const n = parseInt(span.textContent, 10);
+            if (!isNaN(n)) sum += n;
         });
+        return sum;
+    }
+
+    function refreshChatFilterBadgeCounts() {
+        if (typeof document === "undefined") return;
+        const chatMenu = document.getElementById("chat-menu");
+        if (!chatMenu) return;
+
+        const allEl = chatMenu.querySelector("#chat-filter-count-all");
+        const favEl = chatMenu.querySelector("#chat-filter-count-favourite");
+        const pinEl = chatMenu.querySelector("#chat-filter-count-pinned");
+        const archEl = chatMenu.querySelector("#chat-filter-count-archive");
+        const trashEl = chatMenu.querySelector("#chat-filter-count-trash");
+        const headerBadge = chatMenu.querySelector("#chat-header-unread-badge");
+        if (
+            !allEl &&
+            !favEl &&
+            !pinEl &&
+            !archEl &&
+            !trashEl &&
+            !headerBadge
+        )
+            return;
+
+        const wrap = chatMenu.querySelector("#chat-users-wrap");
+        const allUnread = sumUnreadInChatListContainer(wrap);
+
+        const favRoot = chatMenu.querySelector("#favourites-chats");
+        const favUnread = sumUnreadForPeersInAllChats(
+            collectPeerIdsFromContainer(favRoot)
+        );
+
+        const pinRoot = chatMenu.querySelector("#pinned-chats");
+        const pinUnread = sumUnreadForPeersInAllChats(
+            collectPeerIdsFromContainer(pinRoot)
+        );
+
+        const archRoot = chatMenu.querySelector("#archive-chats");
+        const archCount = collectPeerIdsFromContainer(archRoot).length;
+
+        const trashRoot = chatMenu.querySelector("#trash-chats");
+        const trashCount = collectPeerIdsFromContainer(trashRoot).length;
+
+        function setUnreadBadge(el, n) {
+            if (!el) return;
+            if (n > 0) {
+                el.textContent = String(n);
+                el.classList.remove("d-none");
+            } else {
+                el.textContent = "";
+                el.classList.add("d-none");
+            }
+        }
+
+        setUnreadBadge(allEl, allUnread);
+        setUnreadBadge(favEl, favUnread);
+        setUnreadBadge(pinEl, pinUnread);
+
+        function tabPaneActive(pane) {
+            return (
+                pane &&
+                pane.classList.contains("active") &&
+                pane.classList.contains("show")
+            );
+        }
+
+        const allPane = chatMenu.querySelector("#all-chats.tab-pane");
+        const favPane = chatMenu.querySelector("#favourites-chats.tab-pane");
+        const pinnedPane = chatMenu.querySelector("#pinned-chats.tab-pane");
+        const archivePane = chatMenu.querySelector("#archive-chats.tab-pane");
+        const trashPane = chatMenu.querySelector("#trash-chats.tab-pane");
+        let headerN = allUnread;
+        if (tabPaneActive(favPane)) headerN = favUnread;
+        else if (tabPaneActive(pinnedPane)) headerN = pinUnread;
+        else if (tabPaneActive(archivePane)) headerN = archCount;
+        else if (tabPaneActive(trashPane)) headerN = trashCount;
+        else if (tabPaneActive(allPane)) headerN = allUnread;
+        setUnreadBadge(headerBadge, headerN);
+
+        if (archEl) {
+            if (archCount > 0) {
+                archEl.textContent = String(archCount);
+                archEl.classList.remove("d-none");
+            } else {
+                archEl.textContent = "";
+                archEl.classList.add("d-none");
+            }
+        }
+        if (trashEl) {
+            if (trashCount > 0) {
+                trashEl.textContent = String(trashCount);
+                trashEl.classList.remove("d-none");
+            } else {
+                trashEl.textContent = "";
+                trashEl.classList.add("d-none");
+            }
+        }
     }
 
     // Sanitize Firebase keys by replacing invalid characters with underscores or other valid characters
@@ -1217,7 +1311,6 @@ initializeFirebase(function (app, auth, database, storage) {
         const userLink = document.createElement("a");
         userLink.href = "#";
         userLink.classList.add("chat-user-list");
-        userLink.onclick = () => selectUser(userId);
 
         // Avatar Div
         const avatarDiv = document.createElement("div");
@@ -1301,13 +1394,13 @@ initializeFirebase(function (app, auth, database, storage) {
         userLink.appendChild(chatUserInfoDiv);
         userDiv.appendChild(userLink);
 
-        // Chat Dropdown (Options menu)
+        // Chat Dropdown (Options menu) — use .dropdown (not .dropup) so menu opens below the ⋮ like the template
         const chatDropdown = document.createElement("div");
-        chatDropdown.classList.add("chat-dropdown", "dropup");
+        chatDropdown.classList.add("chat-dropdown", "dropdown");
 
         const dropdownToggle = document.createElement("a");
         dropdownToggle.href = "#";
-        dropdownToggle.classList.add("#");
+        dropdownToggle.classList.add("text-muted", "dropdown-toggle");
         dropdownToggle.setAttribute("data-bs-toggle", "dropdown");
         dropdownToggle.setAttribute("aria-expanded", "false");
         dropdownToggle.innerHTML = `<i class="ti ti-dots-vertical"></i>`;
@@ -1324,15 +1417,34 @@ initializeFirebase(function (app, auth, database, storage) {
                 click: () => archiveChat(userId),
             },
             {
+                text: "Mark as Favourite",
+                icon: "ti ti-heart",
+                click: () => favouriteChat(userId),
+            },
+            {
+                text: "Mark as Unread",
+                icon: "ti ti-check",
+                click: () => markChatAsUnread(userId),
+            },
+            {
                 text: "Pin Chats",
                 icon: "ti ti-pinned",
                 click: () => pinChat(userId),
             },
-            // {
-            //     text: "Delete",
-            //     icon: "ti ti-trash",
-            //     click: () => deleteChat(userId),
-            // },
+            {
+                text: "Delete",
+                icon: "ti ti-trash",
+                click: () => {
+                    if (
+                        typeof window !== "undefined" &&
+                        window.confirm(
+                            "Delete this chat from your list?"
+                        )
+                    ) {
+                        deleteChat(userId);
+                    }
+                },
+            },
         ];
 
         // Create dropdown items
@@ -1390,329 +1502,172 @@ initializeFirebase(function (app, auth, database, storage) {
             }
         });
 
-        const chatsRef = ref(database, "data/chats");
+        const roomIdForRow = getDeterministicChatRoomId(
+            currentUserId,
+            userId
+        );
+        const chatRoomRef = ref(database, `data/chats/${roomIdForRow}`);
+        const markedUnreadRef = ref(
+            database,
+            `data/users/${currentUser.uid}/marked_unread/${userId}`
+        );
 
-        let lastMessage = null;
-        let unseenMessageCount = 0;
-        let chatMessages = [];
-        onChildAdded(chatsRef, async (snapshot) => {
-            const chat = snapshot.val();
-            chatMessages.push(chat);
+        let lastUnseenFromChat = 0;
+        let markedUnreadActive = false;
 
-            // Sort all messages in the chat by timestamp
-            const sortedMessages = Object.values(chat).sort(
-                (a, b) => b.timestamp - a.timestamp
-            ); // Sort by timestamp descending
-            const lastMessage = sortedMessages[0]; // Get the most recent message
-            // Increment unseen message count if the message is unseen
-            if (
-                lastMessage &&
-                lastMessage.recipientId === currentUser.uid &&
-                !lastMessage.seen
-            ) {
-                unseenMessageCount++;
+        function applyUnreadBadge() {
+            if (selectedUserId === userId) {
+                messageCountSpan.style.display = "none";
+                messageCountSpan.textContent = "";
+            } else {
+                const n = markedUnreadActive
+                    ? Math.max(lastUnseenFromChat, 1)
+                    : lastUnseenFromChat;
+                if (n > 0) {
+                    messageCountSpan.style.display = "inline-block";
+                    messageCountSpan.textContent = String(n);
+                } else {
+                    messageCountSpan.style.display = "none";
+                    messageCountSpan.textContent = "";
+                }
+            }
+            scheduleRefreshChatFilterBadgeCounts();
+        }
+
+        userDiv._applySidebarUnreadBadge = applyUnreadBadge;
+
+        onValue(markedUnreadRef, (snap) => {
+            markedUnreadActive = snap.exists();
+            applyUnreadBadge();
+        });
+
+        const pinnedListRef = ref(
+            database,
+            `data/users/${currentUserId}/pinnedUserId`
+        );
+        onValue(pinnedListRef, (snap) => {
+            const pinned = snap.val() || [];
+            const arr = Array.isArray(pinned) ? pinned : [];
+            pinsIcon.innerHTML = arr.includes(userId)
+                ? '<i class="ti ti-pin"></i>'
+                : "";
+        });
+
+        onValue(chatRoomRef, async (snapshot) => {
+            if (!snapshot.exists()) {
+                applySidebarPreview("No messages");
+                timeElement.textContent = "";
+                lastUnseenFromChat = 0;
+                pinIcon.innerHTML = "";
+                applyUnreadBadge();
+                return;
             }
 
-            const roomId = snapshot.key;
-            const [fromUserId, toUserId] = roomId.split("-");
-            if (
-                (fromUserId === currentUser.uid && toUserId === userId) ||
-                (fromUserId === userId && toUserId === currentUser.uid)
-            ) {
-                const lastMessage = chat[Object.keys(chat).pop()]; // Last message in chat
+            let latestMsg = null;
+            let latestTs = 0;
+            let unseen = 0;
+
+            snapshot.forEach((childSnapshot) => {
+                const message = childSnapshot.val();
+                if (!message || !message.timestamp) return;
                 if (
-                    lastMessage &&
-                    lastMessage.recipientId === currentUserId &&
-                    !lastMessage.seen
+                    message.recipientId === currentUser.uid &&
+                    !message.seen
                 ) {
-                    unseenMessageCount++;
+                    unseen++;
                 }
-
-                const messageCountSpan =
-                    userDiv.querySelector(".count-message");
-                if (userId !== currentUserId) {
-                    messageCountSpan.style.display = "none"; // Hide for sender
-                    messageCountSpan.textContent = "";
-                } else {
-                    messageCountSpan.style.display =
-                        unseenMessageCount > 0 ? "block" : "none";
-                    messageCountSpan.textContent =
-                        unseenMessageCount.toString();
+                if (message.timestamp > latestTs) {
+                    latestTs = message.timestamp;
+                    latestMsg = message;
                 }
+            });
 
-                let displayMessage = "No messages";
+            lastUnseenFromChat = unseen;
 
-                // Determine message type and process it
-                const messageType = lastMessage.attachmentType || "unknown";
-                if (messageType === 6) {
+            if (!latestMsg) {
+                applySidebarPreview("No messages");
+                timeElement.textContent = "";
+                pinIcon.innerHTML = "";
+                applyUnreadBadge();
+                return;
+            }
+
+            let displayMessage = "No messages";
+            const messageType = latestMsg.attachmentType || "unknown";
+            if (messageType === 6) {
+                try {
                     const originalMessage = await decryptlibsodiumMessage(
-                        lastMessage.body
+                        latestMsg.body
                     );
                     displayMessage = originalMessage || "No messages";
-                } else if (messageType === 5) {
-                    displayMessage = "File sent";
-                } else if (messageType === 2) {
-                    displayMessage = "Image sent";
-                } else if (messageType === 6) {
-                    displayMessage = "Emoji";
-                } else if (messageType === 1) {
-                    displayMessage = "Video sent";
-                } else if (messageType === 3) {
-                    displayMessage = "Audio sent";
-                } else if (messageType === 8) {
-                    displayMessage = "Audio Record sent";
-                } else {
-                    displayMessage = "Unknown message type";
+                } catch (e) {
+                    displayMessage = "Unable to decrypt message";
                 }
-
-                // Update the displayed last message and time
-                applySidebarPreview(displayMessage);
-                const lastMessageTimestamp = lastMessage?.timestamp;
-
-                timeElement.textContent = lastMessageTimestamp
-                    ? moment(lastMessageTimestamp).calendar(null, {
-                        sameDay: "h:mm A", // Today
-                        lastDay: "[Yesterday]", // Yesterday
-                        lastWeek: "MM/D/YYYY", // Last week
-                        sameElse: "MM/D/YYYY", // Older dates
-                    })
-                    : "No time";
-                // messageCountSpan.textContent = unseenMessageCount > 0 ? unseenMessageCount.toString() : "";
-
-                userLink.onclick = () => {
-                    selectUser(userId);
-
-                    // Reset unseen message count
-                    unseenMessageCount = 0;
-                    messageCountSpan.style.display = "none"; // Hide the count span
-                    messageCountSpan.textContent = "";
-
-                    // Update the database to mark messages as seen
-                    const chatRef1 = ref(
-                        database,
-                        `data/chats/${currentUserId}-${userId}`
-                    );
-                    const chatRef2 = ref(
-                        database,
-                        `data/chats/${userId}-${currentUserId}`
-                    );
-
-                    [chatRef1, chatRef2].forEach((chatRef) => {
-                        get(chatRef).then((snapshot) => {
-                            if (snapshot.exists()) {
-                                snapshot.forEach((childSnapshot) => {
-                                    const message = childSnapshot.val();
-                                    if (
-                                        message.recipientId ===
-                                        currentUser.uid &&
-                                        !message.seen
-                                    ) {
-
-                                        update(
-                                            child(chatRef, childSnapshot.key),
-                                            { seen: true }
-                                        );
-                                    }
-                                });
-                            }
-                        });
-                    });
-                };
-
-                const pinnedIcon = document.querySelector(
-                    `[data-user-id="${userId}"] .pinned-icon`
-                );
-
-                if (pinnedIcon) {
-                    const pinnedChatsRef = ref(
-                        database,
-                        `data/users/${currentUserId}/pinnedUserId`
-                    );
-
-                    get(pinnedChatsRef)
-                        .then((snapshot) => {
-                            const pinnedChats = snapshot.val() || []; // Ensure pinnedChats is an array
-
-                            // Check if the userId is in the pinnedChats array
-                            const isPinned = pinnedChats.includes(userId);
-
-                            // If the user is pinned, show the pin icon
-                            if (isPinned) {
-                                pinnedIcon.innerHTML =
-                                    '<i class="ti ti-pin"></i>'; // Show pin icon
-                            } else {
-                                pinnedIcon.innerHTML = ""; // Clear the pin icon if not pinned
-                            }
-                        })
-                        .catch((error) => {
-                            console.error(
-                                "Error fetching pinned chats:",
-                                error
-                            );
-                        });
-                }
-
-                if (lastMessage.senderId === currentUserId) {
-                    // Update message status (check marks)
-                    const statusIcon = document.querySelector(
-                        `[data-user-id="${userId}"] .status-icon`
-                    );
-                    if (!lastMessage.delivered && !lastMessage.readMsg) {
-                        statusIcon.innerHTML = `<i class="ti ti-check"></i>`; // Single tick
-                    } else if (lastMessage.delivered && !lastMessage.readMsg) {
-                        statusIcon.innerHTML = `<i class="ti ti-checks"></i>`; // Double ticks (delivered)
-                    } else if (lastMessage.delivered && lastMessage.readMsg) {
-                        statusIcon.innerHTML = `<i class="ti ti-checks text-success">3</i>`; // Double ticks (read)
-                    }
-                }
+            } else if (messageType === 5) {
+                displayMessage = "File sent";
+            } else if (messageType === 2) {
+                displayMessage = "Image sent";
+            } else if (messageType === 1) {
+                displayMessage = "Video sent";
+            } else if (messageType === 3) {
+                displayMessage = "Audio sent";
+            } else if (messageType === 8) {
+                displayMessage = "Audio Record sent";
+            } else {
+                displayMessage = "Unknown message type";
             }
+
+            applySidebarPreview(displayMessage);
+            timeElement.textContent = latestTs
+                ? moment(latestTs).calendar(null, {
+                    sameDay: "h:mm A",
+                    lastDay: "[Yesterday]",
+                    lastWeek: "MM/D/YYYY",
+                    sameElse: "MM/D/YYYY",
+                })
+                : "";
+
+            if (latestMsg.senderId === currentUserId) {
+                if (!latestMsg.delivered && !latestMsg.readMsg) {
+                    pinIcon.innerHTML = `<i class="ti ti-check"></i>`;
+                } else if (
+                    latestMsg.delivered &&
+                    !latestMsg.readMsg
+                ) {
+                    pinIcon.innerHTML = `<i class="ti ti-checks"></i>`;
+                } else if (latestMsg.delivered && latestMsg.readMsg) {
+                    pinIcon.innerHTML = `<i class="ti ti-checks text-success"></i>`;
+                }
+            } else {
+                pinIcon.innerHTML = "";
+            }
+
+            applyUnreadBadge();
         });
-        onChildChanged(chatsRef, async (snapshot) => {
-            const chat = snapshot.val();
-            const roomId = snapshot.key;
-            const [fromUserId, toUserId] = roomId.split("-");
-            let displayMessage = "No messages";
-            if (
-                (fromUserId === currentUser.uid && toUserId === userId) ||
-                (fromUserId === userId && toUserId === currentUser.uid)
-            ) {
-                const lastMessage = chat[Object.keys(chat).pop()]; // Last message in chat
-                if (lastMessage) {
-                    // Determine the correct status icon based on the message's status
-                    const statusIcon = document.querySelector(
-                        `[data-user-id="${userId}"] .status-icon`
-                    );
-                    if (lastMessage.senderId === currentUserId) {
-                        if (statusIcon) {
-                            if (
-                                !lastMessage.delivered &&
-                                !lastMessage.readMsg
-                            ) {
-                                statusIcon.innerHTML = `<i class="ti ti-check"></i>`; // Single tick
-                            } else if (
-                                lastMessage.delivered &&
-                                !lastMessage.readMsg
-                            ) {
-                                statusIcon.innerHTML = `<i class="ti ti-checks"></i>`; // Double ticks (delivered)
-                            } else if (
-                                lastMessage.delivered &&
-                                lastMessage.readMsg
-                            ) {
-                                statusIcon.innerHTML = `<i class="ti ti-checks text-success">4</i>`; // Double ticks (read)
-                            }
-                        }
+
+        userLink.onclick = (e) => {
+            e.preventDefault();
+            selectUser(userId);
+            remove(markedUnreadRef).catch(() => {});
+            messageCountSpan.style.display = "none";
+            messageCountSpan.textContent = "";
+
+            const chatRef = ref(database, `data/chats/${roomIdForRow}`);
+            get(chatRef).then((snap) => {
+                if (!snap.exists()) return;
+                snap.forEach((childSnapshot) => {
+                    const message = childSnapshot.val();
+                    if (
+                        message.recipientId === currentUser.uid &&
+                        !message.seen
+                    ) {
+                        update(child(chatRef, childSnapshot.key), {
+                            seen: true,
+                        }).catch(() => {});
                     }
-                }
-                if (lastMessage && lastMessage.body) {
-                    const messageType = lastMessage.attachmentType || "unknown";
-                    if (messageType === 6) {
-                        const originalMessage = await decryptlibsodiumMessage(
-                            lastMessage.body
-                        );
-                        displayMessage = originalMessage || "No messages";
-                    } else if (messageType === 5) {
-                        displayMessage = "File sent";
-                    } else if (messageType === 2) {
-                        displayMessage = "Image sent";
-                    } else if (messageType === 6) {
-                        displayMessage = "Emoji";
-                    } else if (messageType === 3) {
-                        displayMessage = "Audio sent";
-                    } else if (messageType === 8) {
-                        displayMessage = "Audio Record sent";
-                    } else if (messageType === 1) {
-                        displayMessage = "Video sent";
-                    } else {
-                        displayMessage = "Unknown message type";
-                    }
-                    applySidebarPreview(displayMessage);
-                    // Update the unseen message count
-
-                    const lastMessageTimestamp = lastMessage?.timestamp;
-
-                    timeElement.textContent = lastMessageTimestamp
-                        ? moment(lastMessageTimestamp).calendar(null, {
-                            sameDay: "h:mm A", // Today
-                            lastDay: "[Yesterday]", // Yesterday
-                            lastWeek: "MM/D/YYYY", // Last week
-                            sameElse: "MM/D/YYYY", // Older dates
-                        })
-                        : "No time";
-                }
-            }
-        });
-        // Fetch last message and timestamp
-        const chatRef1 = ref(database, `data/chats/${currentUserId}-${userId}`);
-        const chatRef2 = ref(database, `data/chats/${userId}-${currentUserId}`);
-        const chatQuery1 = query(
-            chatRef1,
-            orderByChild("timestamp"),
-            limitToLast(1)
-        );
-        const chatQuery2 = query(
-            chatRef2,
-            orderByChild("timestamp"),
-            limitToLast(1)
-        );
-
-        // Fetch messages from both possible paths
-        Promise.all([get(chatQuery1), get(chatQuery2)]).then(
-            async ([snapshot1, snapshot2]) => {
-                let latestMessage = null;
-                let latestTimestamp = 0;
-
-                // Helper function to process a snapshot
-                const processSnapshot = (snapshot) => {
-                    if (snapshot.exists()) {
-                        snapshot.forEach((childSnapshot) => {
-                            const message = childSnapshot.val();
-                            if (message.timestamp > latestTimestamp) {
-                                latestMessage = message;
-                                latestTimestamp = message.timestamp;
-                            }
-                        });
-                    }
-                };
-
-                // Process both snapshots
-                processSnapshot(snapshot1);
-                processSnapshot(snapshot2);
-
-                if (latestMessage) {
-                    // Decrypt message if it's text
-                    let displayMessage = "";
-                    if (latestMessage.attachmentType === 6) {
-                        try {
-                            const originalMessage =
-                                await decryptlibsodiumMessage(
-                                    latestMessage.body
-                                );
-                            displayMessage = originalMessage;
-                        } catch (error) {
-                            displayMessage = "Unable to decrypt message";
-                        }
-                    } else {
-                        displayMessage =
-                            latestMessage.attachmentType === 2
-                                ? "Image sent"
-                                : latestMessage.attachmentType === 5
-                                    ? "File sent"
-                                    : latestMessage.attachmentType === 3
-                                        ? "Audio sent"
-                                        : latestMessage.attachmentType === 8
-                                            ? "Audio Record sent"
-                                            : latestMessage.attachmentType === 1
-                                                ? "Video sent"
-                                                : "Unknown message type";
-                    }
-
-                    // Update message and timestamp
-                    applySidebarPreview(displayMessage);
-                    timeElement.textContent =
-                        formatDisplayTimestamp(latestTimestamp);
-                }
-            }
-        );
+                });
+            });
+        };
 
         const peerTypingRowRef = ref(database, `data/users/${userId}/typing`);
         onValue(peerTypingRowRef, (snap) => {
@@ -1859,6 +1814,14 @@ initializeFirebase(function (app, auth, database, storage) {
 
         const loggedInUserId = currentUserId;
         selectedUserId = userId; // Set the selected user ID
+        if (currentUser?.uid) {
+            remove(
+                ref(
+                    database,
+                    `data/users/${currentUser.uid}/marked_unread/${userId}`
+                )
+            ).catch(() => {});
+        }
         const userDetails = await getUserDetails(userId);
 
         // Check if user exists in usersMap
@@ -1979,6 +1942,19 @@ initializeFirebase(function (app, auth, database, storage) {
         showContactInfo(userId);
         handleShowCommonGroups();
         highlightActiveUser(userId);
+
+        queueMicrotask(() => {
+            document
+                .querySelectorAll(
+                    "#chat-menu #chat-users-wrap .chat-list[data-user-id]"
+                )
+                .forEach((row) => {
+                    if (typeof row._applySidebarUnreadBadge === "function") {
+                        row._applySidebarUnreadBadge();
+                    }
+                });
+            scheduleRefreshChatFilterBadgeCounts();
+        });
     }
 
     function highlightActiveUser(userId) {
@@ -4557,6 +4533,28 @@ initializeFirebase(function (app, auth, database, storage) {
             }
         });
     }
+
+    function markChatAsUnread(userId) {
+        if (!currentUser?.uid || !userId) return;
+        set(
+            ref(
+                database,
+                `data/users/${currentUser.uid}/marked_unread/${userId}`
+            ),
+            Date.now()
+        )
+            .then(() => {
+                Toastify({
+                    text: "Chat marked as unread",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#28a745",
+                }).showToast();
+            })
+            .catch(() => {});
+    }
+
     function removeUserFromUI(userId) {
         const userDiv = document.querySelector(
             `.chat-list[data-user-id='${userId}']`
@@ -4587,14 +4585,139 @@ initializeFirebase(function (app, auth, database, storage) {
             .catch((error) => { });
     }
 
+    function refreshContactFavouritesBadgeCount() {
+        if (!currentUser?.uid) return;
+        get(ref(database, `data/users/${currentUser.uid}/favourite_chats`))
+            .then((s) => {
+                const badge = document.getElementById(
+                    "contact-favourites-badge"
+                );
+                if (!badge) return;
+                let n = 0;
+                if (s.exists()) {
+                    const v = s.val();
+                    n =
+                        v && typeof v === "object"
+                            ? Object.keys(v).length
+                            : 0;
+                }
+                if (n > 0) {
+                    badge.textContent = String(n);
+                    badge.classList.remove("d-none");
+                } else {
+                    badge.textContent = "";
+                    badge.classList.add("d-none");
+                }
+            })
+            .catch(() => {});
+    }
+
     const contactInfoButton = document.getElementById("contactInfoButton");
     if (contactInfoButton) {
         contactInfoButton.addEventListener("click", () => {
             if (selectedUserId) {
-                showContactInfo(selectedUserId); // Call with the selected user ID
+                showContactInfo(selectedUserId);
+                refreshContactFavouritesBadgeCount();
             }
         });
     }
+
+    (function wireContactInfoPanelActions() {
+        const audio = document.getElementById("contact-profile-audio-btn");
+        const video = document.getElementById("contact-profile-video-btn");
+        const chatBtn = document.getElementById("contact-profile-chat-btn");
+        const searchBtn = document.getElementById("contact-profile-search-btn");
+        if (audio && !audio.dataset.wired) {
+            audio.dataset.wired = "1";
+            audio.addEventListener("click", (e) => {
+                e.preventDefault();
+                document.getElementById("audio-call-btn")?.click();
+            });
+        }
+        if (video && !video.dataset.wired) {
+            video.dataset.wired = "1";
+            video.addEventListener("click", (e) => {
+                e.preventDefault();
+                document.getElementById("video-call-new-btn")?.click();
+            });
+        }
+        if (chatBtn && !chatBtn.dataset.wired) {
+            chatBtn.dataset.wired = "1";
+            chatBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                const oc = document.getElementById("contact-profile");
+                if (oc && typeof bootstrap !== "undefined") {
+                    const inst = bootstrap.Offcanvas.getInstance(oc);
+                    if (inst) inst.hide();
+                }
+                document.getElementById("message-input")?.focus();
+            });
+        }
+        if (searchBtn && !searchBtn.dataset.wired) {
+            searchBtn.dataset.wired = "1";
+            searchBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                document.querySelector(".chat-search-btn")?.click();
+            });
+        }
+        [
+            "contact-media-photos",
+            "contact-media-videos",
+            "contact-media-links",
+            "contact-media-docs",
+        ].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el && !el.dataset.wired) {
+                el.dataset.wired = "1";
+                el.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    const oc = document.getElementById("contact-profile");
+                    if (oc && typeof bootstrap !== "undefined") {
+                        const inst = bootstrap.Offcanvas.getInstance(oc);
+                        if (inst) inst.hide();
+                    }
+                    document.querySelector(".chat-search-btn")?.click();
+                });
+            }
+        });
+        const favOpen = document.getElementById("contact-open-favourites");
+        if (favOpen && !favOpen.dataset.wired) {
+            favOpen.dataset.wired = "1";
+            favOpen.addEventListener("click", (e) => {
+                e.preventDefault();
+                const main = document.getElementById("contact-profile");
+                const fav = document.getElementById("contact-favourite");
+                if (main && typeof bootstrap !== "undefined") {
+                    const inst = bootstrap.Offcanvas.getInstance(main);
+                    if (inst) inst.hide();
+                }
+                if (fav && typeof bootstrap !== "undefined") {
+                    let favInst = bootstrap.Offcanvas.getInstance(fav);
+                    if (!favInst) favInst = new bootstrap.Offcanvas(fav);
+                    favInst.show();
+                }
+            });
+        }
+    })();
+
+    (function bindContactProfileDockLayout() {
+        const spa = document.getElementById("spa-page-content");
+        const panel = document.getElementById("contact-profile");
+        if (!spa || !panel || panel.dataset.contactDockBound === "1") return;
+        panel.dataset.contactDockBound = "1";
+        const setDockOpen = function (open) {
+            spa.classList.toggle("contact-profile-dock-open", !!open);
+        };
+        panel.addEventListener("shown.bs.offcanvas", function () {
+            setDockOpen(true);
+        });
+        panel.addEventListener("hidden.bs.offcanvas", function () {
+            setDockOpen(false);
+        });
+        if (panel.classList.contains("show")) {
+            setDockOpen(true);
+        }
+    })();
 
     function getUserInfo(userId) {
         const userRef = ref(database, "data/users/" + userId); // Create a reference to the user node
@@ -4635,9 +4758,23 @@ initializeFirebase(function (app, auth, database, storage) {
             // Check if the current user is excluded from seeing this profile
             if (excludedUsers.includes(currentUserId)) {
                 setContactName("Profile info hidden");
-                const ids = ["contact-bio", "contact-location", "contact-website", "contact-join-date", "contact-last-seen"];
-                ids.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ""; });
+                const ids = [
+                    "contact-bio",
+                    "contact-location",
+                    "contact-website",
+                    "contact-join-date",
+                    "contact-last-seen",
+                ];
+                ids.forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = "";
+                });
                 document.querySelectorAll('#contact-profile .contact-kyc-badge, #contact-profile .contact-social-verified').forEach(b => { b.style.display = "none"; });
+                const avHidden = document.getElementById("contact-avatar");
+                if (avHidden) {
+                    avHidden.src = resolveCallProfileImageUrl("");
+                    avHidden.alt = "";
+                }
                 return;
             }
 
@@ -4700,100 +4837,444 @@ initializeFirebase(function (app, auth, database, storage) {
         if (fullNameEl) fullNameEl.textContent = text;
     }
 
-    // Helper function to update the UI (public profile: Name, Bio, Location, Website, Social, Join Date + Verified badges)
-    // userIdForRef: optional; used to build user path when fetching fallback avatar (contact key / user id)
+    // Contact Info: same data path as #contact-details modal (firebaseContact.js): Firebase merge + Laravel public profile by email, username, or Firebase UID.
     function updateContactUI(displayName, userData, userIdForRef) {
-        setContactName(capitalizeFirstLetter(displayName));
+        const contactKycBadges = document.querySelectorAll("#contact-profile .contact-kyc-badge");
+        const socialVerifiedEls = document.querySelectorAll("#contact-profile .contact-social-verified");
+        contactKycBadges.forEach((b) => {
+            b.style.display = "none";
+        });
+        socialVerifiedEls.forEach((b) => {
+            b.style.display = "none";
+        });
 
-        const contactKycBadges = document.querySelectorAll('#contact-profile .contact-kyc-badge');
-        const socialVerifiedEls = document.querySelectorAll('#contact-profile .contact-social-verified');
-        contactKycBadges.forEach(b => b.style.display = 'none');
-        socialVerifiedEls.forEach(b => b.style.display = 'none');
+        const uid =
+            userIdForRef ||
+            (userData && (userData.contact_id || userData.uid || userData.id)) ||
+            "";
+        const curUid = auth.currentUser?.uid;
+        const initialName = String(displayName || "").trim();
 
-        function setPublicFields(pub) {
-            if (pub && pub.display_name) setContactName(pub.display_name);
+        function normalizeExcludedList(v) {
+            if (!v) return [];
+            if (Array.isArray(v)) return v;
+            if (typeof v === "object") return Object.keys(v).map((k) => v[k]).filter(Boolean);
+            return [];
+        }
+
+        function formatJoinDateDisplay(v) {
+            if (v == null || v === "") return "";
+            const s = String(v).trim();
+            if (/^\d+$/.test(s)) {
+                const n = Number(s);
+                if (!Number.isNaN(n) && n > 0) {
+                    const d = new Date(n);
+                    if (!Number.isNaN(d.getTime())) {
+                        return d.toLocaleDateString(undefined, {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                        });
+                    }
+                }
+            }
+            const d = new Date(v);
+            if (!Number.isNaN(d.getTime())) {
+                return d.toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                });
+            }
+            return s;
+        }
+
+        function firstWebsiteFromFirebase(websites) {
+            if (!websites) return "";
+            if (Array.isArray(websites)) {
+                const x = websites[0];
+                return (x && (x.url || x)) || "";
+            }
+            if (typeof websites === "object") {
+                const keys = Object.keys(websites).sort();
+                for (let i = 0; i < keys.length; i++) {
+                    const item = websites[keys[i]];
+                    if (item && typeof item === "object" && item.url) return String(item.url);
+                    if (typeof item === "string") return item;
+                }
+            }
+            return "";
+        }
+
+        async function fetchPublicProfileLikeContactModal(uid, merged, contactData) {
+            const em = String(merged.email || "").trim();
+            const un = String(
+                (contactData &&
+                    (contactData.userName ||
+                        contactData.username ||
+                        contactData.user_name)) ||
+                    merged.userName ||
+                    merged.username ||
+                    merged.user_name ||
+                    merged.mobile_number ||
+                    ""
+            ).trim();
+            try {
+                if (em) {
+                    const r = await fetch(
+                        "/api/public-profile-by-email?email=" +
+                            encodeURIComponent(em)
+                    );
+                    return await r.json();
+                }
+                if (un) {
+                    const r = await fetch(
+                        "/api/public-profile-by-username?username=" +
+                            encodeURIComponent(un)
+                    );
+                    return await r.json();
+                }
+                if (uid) {
+                    const r = await fetch(
+                        "/api/public-profile-by-firebase-uid?uid=" +
+                            encodeURIComponent(uid)
+                    );
+                    return await r.json();
+                }
+            } catch (e) {
+                /* ignore */
+            }
+            return null;
+        }
+
+        function applySocialFromMerged(merged) {
+            const fb = document.getElementById("facebook-link");
+            const tw = document.getElementById("twitter-link");
+            const ig = document.getElementById("instagram-link");
+            const li = document.getElementById("linkedin-link");
+            const hrefOrVoid = function (u) {
+                const s = String(u || "").trim();
+                return s || "javascript:void(0);";
+            };
+            if (fb)
+                fb.href = hrefOrVoid(
+                    merged.facebook_link || merged.facebook
+                );
+            if (tw)
+                tw.href = hrefOrVoid(
+                    merged.twitter_link || merged.twitter
+                );
+            if (ig)
+                ig.href = hrefOrVoid(
+                    merged.instagram_link || merged.instagram
+                );
+            if (li)
+                li.href = hrefOrVoid(
+                    merged.linkedin_link || merged.linkedin
+                );
+        }
+
+        if (!uid) {
+            setContactName(capitalizeFirstLetter(initialName || "Unknown User"));
+            const m = userData && typeof userData === "object" ? userData : {};
             const bioEl = document.getElementById("contact-bio");
             const locEl = document.getElementById("contact-location");
             const webEl = document.getElementById("contact-website");
             const joinEl = document.getElementById("contact-join-date");
-            if (bioEl) bioEl.textContent = (pub && pub.bio) ? pub.bio : "—";
-            if (locEl) locEl.textContent = (pub && pub.location) ? pub.location : "—";
-            if (joinEl) joinEl.textContent = (pub && pub.join_date) ? pub.join_date : "—";
+            if (bioEl) bioEl.textContent = m.about || m.bio || "—";
+            if (locEl)
+                locEl.textContent =
+                    m.country || m.location || m.address || "—";
             if (webEl) {
-                if (pub && pub.websites && pub.websites.length > 0) {
-                    webEl.innerHTML = pub.websites.map(function (w) { return '<a href="' + w.url + '" target="_blank" rel="noopener">' + w.url + '</a>'; }).join(", ");
-                } else { webEl.textContent = "—"; }
+                const w = m.website_url || m.website_link || m.website || "";
+                const ws = String(w).trim();
+                if (ws && /^https?:\/\//i.test(ws)) {
+                    webEl.innerHTML =
+                        '<a href="' +
+                        ws +
+                        '" target="_blank" rel="noopener">' +
+                        ws +
+                        "</a>";
+                } else if (ws) {
+                    webEl.innerHTML =
+                        '<a href="https://' +
+                        ws.replace(/^\/+/, "") +
+                        '" target="_blank" rel="noopener">' +
+                        ws +
+                        "</a>";
+                } else webEl.textContent = "—";
             }
-            contactKycBadges.forEach(function (b) { b.style.display = (pub && pub.kyc_verified) ? 'inline-flex' : 'none'; });
-            socialVerifiedEls.forEach(function (b) { b.style.display = (pub && pub.social_verified) ? 'inline-flex' : 'none'; });
-        }
-
-        if (userData && userData.email) {
-            fetch('/api/public-profile-by-email?email=' + encodeURIComponent(userData.email))
-                .then(function (r) { return r.json(); })
-                .then(setPublicFields)
-                .catch(function () { setPublicFields(null); });
-        } else {
-            const bioEl = document.getElementById("contact-bio");
-            if (bioEl) bioEl.textContent = userData && userData.about ? userData.about : "—";
-            const locEl = document.getElementById("contact-location");
-            const webEl = document.getElementById("contact-website");
-            const joinEl = document.getElementById("contact-join-date");
-            if (locEl) locEl.textContent = "—";
-            if (webEl) webEl.textContent = "—";
-            if (joinEl) joinEl.textContent = "—";
-        }
-
-        const avatarElement = document.getElementById("contact-avatar");
-
-        if (userData?.image) {
-            // Use image if available
-            avatarElement.src = userData.image;
-        } else {
-            // Fallback: Fetch from the "users" collection (use contact_id from userData or passed userIdForRef)
-            const uid = userData?.contact_id || userIdForRef;
-            if (uid) {
-                const userRef = ref(database, `data/users/${uid}`);
-                get(userRef)
-                    .then((userSnapshot) => {
-                        const userDataFallback = userSnapshot.val();
-                        if (userDataFallback?.image) {
-                            avatarElement.src = userDataFallback.image;
-                        } else {
-                            avatarElement.src = "assets/img/profiles/avatar-03.jpg";
-                        }
-                    })
-                    .catch((error) => {
-                        console.error(
-                            "Error fetching fallback profile image:",
-                            error
-                        );
-                        avatarElement.src = "assets/img/profiles/avatar-03.jpg";
-                    });
-            } else {
-                avatarElement.src = "assets/img/profiles/avatar-03.jpg";
+            if (joinEl) {
+                let j = "";
+                if (m.timestamp)
+                    try {
+                        j = new Date(m.timestamp).toLocaleDateString(undefined, {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                        });
+                    } catch (e) { /* ignore */ }
+                joinEl.textContent = j || "—";
             }
-        }
-
-        if (userData?.lastSeen) {
-            const lastSeenTime = formatLastSeenInfo(userData.lastSeen);
-            document.getElementById(
-                "contact-last-seen"
-            ).textContent = `Last seen at ${lastSeenTime}`;
-        } else {
+            applySocialFromMerged(m);
+            const avatarElement = document.getElementById("contact-avatar");
+            if (avatarElement) {
+                avatarElement.src = resolveCallProfileImageUrl("");
+                avatarElement.alt = initialName || "";
+            }
             const lastSeenEl = document.getElementById("contact-last-seen");
             if (lastSeenEl) lastSeenEl.textContent = "";
+            return;
         }
 
-        // Update social profile links (from Firebase/userData)
-        document.getElementById("facebook-link").href =
-            userData?.facebook_link || userData?.facebook || "javascript:void(0);";
-        document.getElementById("twitter-link").href =
-            userData?.twitter_link || userData?.twitter || "javascript:void(0);";
-        document.getElementById("google-link").href =
-            userData?.google_link || userData?.google || "javascript:void(0);";
-        document.getElementById("linkedin-link").href =
-            userData?.linkedin_link || userData?.linkedin || "javascript:void(0);";
+        Promise.all([
+            get(ref(database, `data/users/${uid}`)).then((s) =>
+                s.exists() ? s.val() : {}
+            ),
+            curUid
+                ? get(ref(database, `data/contacts/${curUid}/${uid}`)).then((s) =>
+                      s.exists() ? s.val() : null
+                  )
+                : Promise.resolve(null),
+            get(ref(database, `data/users/${uid}/status`))
+                .then((s) => (s.exists() ? s.val() : null))
+                .catch(() => null),
+            get(ref(database, `data/users/${uid}/lastSeen`))
+                .then((s) => (s.exists() ? s.val() : null))
+                .catch(() => null),
+            curUid
+                ? getExcludedLastSeenUsers(curUid).then(normalizeExcludedList)
+                : Promise.resolve([]),
+        ])
+            .then(async ([firebaseUser, contactData, statusVal, lastSeenVal, excludedIds]) => {
+                const merged = Object.assign({}, firebaseUser || {}, contactData || {});
+                const pub = await fetchPublicProfileLikeContactModal(
+                    uid,
+                    merged,
+                    contactData
+                );
+
+                const laravel = await resolveCallUserAvatarAndDisplayName(
+                    uid,
+                    firebaseUser || {},
+                    contactData,
+                    { includeLaravelDisplayName: true }
+                );
+
+                let finalName =
+                    (pub && pub.profile_loaded && pub.display_name) ||
+                    (laravel.displayName && String(laravel.displayName).trim()) ||
+                    `${merged.firstName || merged.first_name || ""} ${merged.lastName || merged.last_name || ""}`.trim() ||
+                    `${(contactData && contactData.firstName) || ""} ${(contactData && contactData.lastName) || ""}`.trim() ||
+                    (merged.user_name && String(merged.user_name).trim()) ||
+                    (merged.userName && String(merged.userName).trim()) ||
+                    (merged.username && String(merged.username).trim()) ||
+                    merged.mobile_number ||
+                    initialName;
+                if (isGarbageConcatenatedName(finalName)) finalName = initialName || merged.mobile_number || "";
+                setContactName(
+                    capitalizeFirstLetter(String(finalName || "Unknown User").trim())
+                );
+
+                const pubOk = pub && pub.profile_loaded;
+                contactKycBadges.forEach((b) => {
+                    b.style.display = pubOk && pub.kyc_verified ? "inline-flex" : "none";
+                });
+                socialVerifiedEls.forEach((b) => {
+                    b.style.display = pubOk && pub.social_verified ? "inline-flex" : "none";
+                });
+
+                const defaultBio =
+                    (contactData && (contactData.about || contactData.bio)) ||
+                    (firebaseUser &&
+                        (firebaseUser.about ||
+                            firebaseUser.bio ||
+                            firebaseUser.user_about)) ||
+                    merged.about ||
+                    merged.bio ||
+                    merged.user_about ||
+                    "";
+                const defaultLoc =
+                    (contactData &&
+                        (contactData.location || contactData.country)) ||
+                    (firebaseUser &&
+                        (firebaseUser.country || firebaseUser.location)) ||
+                    merged.location ||
+                    merged.country ||
+                    merged.address ||
+                    "";
+                const defaultSiteRaw =
+                    firstWebsiteFromFirebase(
+                        (firebaseUser && firebaseUser.websites) ||
+                            (contactData && contactData.websites) ||
+                            merged.websites
+                    ) ||
+                    merged.website_url ||
+                    merged.website_link ||
+                    merged.website ||
+                    "";
+                const defaultJoinRaw =
+                    (firebaseUser &&
+                        (firebaseUser.join_date ||
+                            firebaseUser.created_at ||
+                            firebaseUser.timestamp)) ||
+                    (contactData &&
+                        (contactData.join_date ||
+                            contactData.created_at ||
+                            contactData.timestamp)) ||
+                    merged.join_date ||
+                    merged.created_at ||
+                    merged.timestamp ||
+                    "";
+
+                const bioEl = document.getElementById("contact-bio");
+                const bio =
+                    (pubOk && pub.bio && String(pub.bio).trim()) ||
+                    String(defaultBio).trim() ||
+                    "";
+                if (bioEl) bioEl.textContent = bio || "—";
+
+                const locEl = document.getElementById("contact-location");
+                const loc =
+                    (pubOk && pub.location && String(pub.location).trim()) ||
+                    String(defaultLoc).trim() ||
+                    "";
+                if (locEl) locEl.textContent = loc || "—";
+
+                const webEl = document.getElementById("contact-website");
+                if (webEl) {
+                    if (pubOk && pub.websites && pub.websites.length > 0) {
+                        webEl.innerHTML = pub.websites
+                            .map(function (w) {
+                                return (
+                                    '<a href="' +
+                                    w.url +
+                                    '" target="_blank" rel="noopener">' +
+                                    w.url +
+                                    "</a>"
+                                );
+                            })
+                            .join(", ");
+                    } else {
+                        const ws = String(defaultSiteRaw).trim();
+                        if (ws && /^https?:\/\//i.test(ws)) {
+                            webEl.innerHTML =
+                                '<a href="' +
+                                ws +
+                                '" target="_blank" rel="noopener">' +
+                                ws +
+                                "</a>";
+                        } else if (ws) {
+                            webEl.innerHTML =
+                                '<a href="https://' +
+                                ws.replace(/^\/+/, "") +
+                                '" target="_blank" rel="noopener">' +
+                                ws +
+                                "</a>";
+                        } else webEl.textContent = "—";
+                    }
+                }
+
+                const joinEl = document.getElementById("contact-join-date");
+                let joinStr =
+                    pubOk && pub.join_date
+                        ? String(pub.join_date).trim()
+                        : "";
+                if (!joinStr) {
+                    joinStr = formatJoinDateDisplay(defaultJoinRaw);
+                }
+                if (joinEl) joinEl.textContent = joinStr || "—";
+
+                const lastSeenEl = document.getElementById("contact-last-seen");
+                if (lastSeenEl) {
+                    lastSeenEl.classList.remove(
+                        "text-success",
+                        "text-danger",
+                        "text-muted"
+                    );
+                    const hideLast = excludedIds.indexOf(uid) >= 0;
+                    if (hideLast) {
+                        lastSeenEl.textContent = "";
+                    } else {
+                        const st = String(statusVal || "offline").toLowerCase();
+                        if (st === "online") {
+                            lastSeenEl.textContent = "Online";
+                            lastSeenEl.classList.add("text-success");
+                        } else {
+                            lastSeenEl.classList.add("text-muted");
+                            let lsRaw = lastSeenVal;
+                            if (
+                                (lsRaw == null || lsRaw === "") &&
+                                merged.lastSeen != null
+                            ) {
+                                lsRaw = merged.lastSeen;
+                            }
+                            if (
+                                lsRaw != null &&
+                                lsRaw !== "" &&
+                                !Number.isNaN(Number(lsRaw))
+                            ) {
+                                const d = new Date(Number(lsRaw));
+                                if (!Number.isNaN(d.getTime())) {
+                                    lastSeenEl.textContent =
+                                        "Last seen at " +
+                                        d.toLocaleTimeString(undefined, {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                            hour12: true,
+                                        }) +
+                                        " · " +
+                                        d.toLocaleDateString(undefined, {
+                                            month: "short",
+                                            day: "numeric",
+                                            year: "numeric",
+                                        });
+                                } else {
+                                    lastSeenEl.textContent = "Offline";
+                                    lastSeenEl.classList.add("text-danger");
+                                }
+                            } else {
+                                lastSeenEl.textContent = "Offline";
+                                lastSeenEl.classList.add("text-danger");
+                            }
+                        }
+                    }
+                }
+
+                const fb = document.getElementById("facebook-link");
+                const tw = document.getElementById("twitter-link");
+                const ig = document.getElementById("instagram-link");
+                const li = document.getElementById("linkedin-link");
+                const sl = pub && pub.social_links;
+                const hrefOrVoid = function (u) {
+                    const s = String(u || "").trim();
+                    return s || "javascript:void(0);";
+                };
+                if (sl) {
+                    if (fb) fb.href = hrefOrVoid(sl.facebook);
+                    if (tw) tw.href = hrefOrVoid(sl.twitter || sl.x);
+                    if (ig) ig.href = hrefOrVoid(sl.instagram);
+                    if (li) li.href = hrefOrVoid(sl.linkedin);
+                } else {
+                    applySocialFromMerged(merged);
+                }
+
+                const avatarElement = document.getElementById("contact-avatar");
+                if (avatarElement) {
+                    const url = await resolveCallUserAvatarUrl(
+                        uid,
+                        firebaseUser || {},
+                        contactData
+                    );
+                    avatarElement.src = url;
+                    avatarElement.alt = String(finalName || "").trim();
+                }
+            })
+            .catch(() => {
+                setContactName(
+                    capitalizeFirstLetter(initialName || "Unknown User")
+                );
+            });
     }
 
     function formatLastSeen(timestamp) {
@@ -4888,68 +5369,83 @@ initializeFirebase(function (app, auth, database, storage) {
                 selectedUserGroups.some((group) => group.groupId === groupId)
             );
 
-        // Prepare to display common groups
-        const commonGroupsContainer = document.querySelector(
-            ".content-wrapper.other-info .card-body"
+        const commonWrap = document.getElementById("common-groups-container");
+        const commonGroupsContainer = document.getElementById(
+            "common-groups-list"
         );
-        commonGroupsContainer.innerHTML = ""; // Clear previous content
+        const commonHeading = document.getElementById("common-groups-heading");
+        if (!commonGroupsContainer) {
+            return [];
+        }
+        commonGroupsContainer.innerHTML = "";
 
         if (commonGroupIds.length === 0) {
-            document.querySelector(
-                ".content-wrapper.other-info"
-            ).style.display = "none";
-            return []; // Return an empty array if no common groups
-        } else {
-            document.querySelector("#common-groups-container").style.display =
-                "block"; // Ensure the container is visible
+            if (commonWrap) commonWrap.style.display = "none";
+            return [];
+        }
+        if (commonWrap) commonWrap.style.display = "";
+        if (commonHeading) {
+            commonHeading.textContent = `Common in ${commonGroupIds.length} Groups`;
+        }
 
-            // Initialize an array to hold common groups data
-            const commonGroups = [];
+        const commonGroups = [];
 
-            // Show the common groups section and populate it with the groups
-            commonGroupIds.forEach((groupId) => {
-                const group = currentUserGroups.find(
-                    (g) => g.groupId === groupId
+        commonGroupIds.forEach((groupId) => {
+            const group = currentUserGroups.find((g) => g.groupId === groupId);
+            if (group) {
+                commonGroups.push(group);
+
+                const groupItem = document.createElement("a");
+                groupItem.classList.add(
+                    "list-group-item",
+                    "list-group-item-action",
+                    "d-flex",
+                    "align-items-center",
+                    "justify-content-between",
+                    "rounded-3",
+                    "mb-2",
+                    "common-group-row"
                 );
-                if (group) {
-                    commonGroups.push(group); // Push the group data into the commonGroups array
+                groupItem.href = "javascript:void(0);";
+                groupItem.setAttribute("data-group-id", groupId);
 
-                    const groupItem = document.createElement("a");
-                    groupItem.classList.add("list-group-item");
-                    groupItem.href = "javascript:void(0);";
-                    groupItem.setAttribute("data-group-id", groupId); // Add data attribute for redirection
+                const initials = (group.name || "G")
+                    .split(/\s+/)
+                    .map((w) => w[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase();
+                const m = group.members;
+                const preview =
+                    Array.isArray(m) && m.length
+                        ? `${m.length} ${m.length === 1 ? "member" : "members"}`
+                        : "";
 
-                    const avatarURL =
-                        group.image || "assets/img/profiles/avatar-03.jpg"; // Replace with your default image URL
-
-                    groupItem.innerHTML = `
-                        <div class="d-flex align-items-center">
-                            <div class="avatar avatar-lg rounded-circle me-2" style="background-image: url(${avatarURL});"></div>
-                            <div class="chat-user-info">
-                                <h6>${group.name}</h6>
+                groupItem.innerHTML = `
+                        <div class="d-flex align-items-center gap-2 min-w-0 flex-grow-1">
+                            <div class="common-group-avatar flex-shrink-0">${initials}</div>
+                            <div class="chat-user-info min-w-0">
+                                <h6 class="mb-0 text-truncate">${group.name || "Group"}</h6>
+                                <p class="text-muted small mb-0 text-truncate">${preview}</p>
                             </div>
                         </div>
-                        <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                        <span class="link-icon flex-shrink-0 ms-2"><i class="ti ti-chevron-right"></i></span>
                     `;
 
-                    // Append the group item to the container
-                    commonGroupsContainer.appendChild(groupItem);
-                }
-            });
+                commonGroupsContainer.appendChild(groupItem);
+            }
+        });
 
-            // Add click event listeners for redirection
-            const groupItems =
-                commonGroupsContainer.querySelectorAll(".list-group-item");
-            groupItems.forEach((item) => {
-                item.addEventListener("click", function () {
-                    const groupId = this.getAttribute("data-group-id");
-                    // Redirect to the group chat page
-                    window.location.href = `/group-chat`;
-                });
+        const groupItems =
+            commonGroupsContainer.querySelectorAll("[data-group-id]");
+        groupItems.forEach((item) => {
+            item.addEventListener("click", function () {
+                const groupId = this.getAttribute("data-group-id");
+                window.location.href = `/group-chat`;
             });
+        });
 
-            return commonGroups; // Return the common groups data for further use
-        }
+        return commonGroups;
     }
 
     const clearChatBtn = document.getElementById("clearChatBtn");
@@ -5071,10 +5567,10 @@ initializeFirebase(function (app, auth, database, storage) {
     if (blockUserLabel) {
         if (isUserInfoBlocked) {
             blockUserLabel.innerHTML =
-                '<i class="ti ti-user me-2 text-info"></i> Unblock User';
+                '<i class="ti ti-user-check me-2 text-info"></i> Unblock User';
         } else {
             blockUserLabel.innerHTML =
-                '<i class="ti ti-user-off me-2 text-info"></i> Block User';
+                '<i class="ti ti-user-off me-2 text-info"></i> Block Users';
         }
     }
 
@@ -5117,8 +5613,9 @@ initializeFirebase(function (app, auth, database, storage) {
         update(blockedUserRef, blockedUserData)
             .then(() => {
                 const el = document.getElementById("blockUserLabel");
-                if (el) el.innerHTML =
-                    '<i class="ti ti-user me-2 text-info"></i> Unblock User';
+                if (el)
+                    el.innerHTML =
+                        '<i class="ti ti-user-check me-2 text-info"></i> Unblock User';
                 isUserInfoBlocked = true;
                 localStorage.setItem("isUserInfoBlocked", "true");
                 // Close the block modal explicitly
@@ -5146,8 +5643,9 @@ initializeFirebase(function (app, auth, database, storage) {
         remove(blockedUserRef)
             .then(() => {
                 const el = document.getElementById("blockUserLabel");
-                if (el) el.innerHTML =
-                    '<i class="ti ti-user-off me-2 text-info"></i> Block User';
+                if (el)
+                    el.innerHTML =
+                        '<i class="ti ti-user-off me-2 text-info"></i> Block Users';
                 isUserInfoBlocked = false;
                 localStorage.setItem("isUserInfoBlocked", "false");
                 // Close the unblock modal explicitly
@@ -5296,6 +5794,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
         if (archivedUsers.length === 0) {
             sidebarElement.innerHTML = "<p>No archived users found.</p>";
+            scheduleRefreshChatFilterBadgeCounts();
             return;
         }
 
@@ -5397,6 +5896,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 chatDropdown.querySelector(".unarchive-chat");
             unarchiveButton.addEventListener("click", handleUnarchiveClick);
         }
+        scheduleRefreshChatFilterBadgeCounts();
     }
 
     function handleUnarchiveClick(event, archivedUsers = []) {
@@ -5502,6 +6002,7 @@ initializeFirebase(function (app, auth, database, storage) {
         // Check if there are pinned users
         if (pinnedUsers.length === 0) {
             sidebarElement.innerHTML = "<p>No pinned users found.</p>";
+            scheduleRefreshChatFilterBadgeCounts();
             return;
         }
 
@@ -5609,6 +6110,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     // Attach event listener for the unpin button
                     const unpinButton = userDiv.querySelector(".unpin-chat");
                     unpinButton.addEventListener("click", handleUnpinClick);
+                    scheduleRefreshChatFilterBadgeCounts();
                 })
                 .catch((error) => { });
         });
@@ -5710,22 +6212,23 @@ initializeFirebase(function (app, auth, database, storage) {
     function displayFavouriteUsers(usersMap, favouriteUsers) {
         // Get the sidebar element where users will be displayed
         const sidebarElement = document.getElementById("favourites-chats");
+        if (!sidebarElement) return;
 
         // Clear the sidebar first to avoid duplication
         sidebarElement.innerHTML = "";
 
-        // Check if there are pinned users
         if (favouriteUsers.length === 0) {
-            sidebarElement.innerHTML = "<p>No pinned users found.</p>";
+            sidebarElement.innerHTML =
+                '<p class="px-3 py-2 text-muted small mb-0">No favourite chats yet.</p>';
+            scheduleRefreshChatFilterBadgeCounts();
             return;
         }
 
-        // Loop through the pinned users and create HTML elements for each
         favouriteUsers.forEach((user) => {
             const userElement = document.createElement("div");
             userElement.classList.add("chat-users-wrap");
             userElement.innerHTML = `
-            <div class="chat-list">
+            <div class="chat-list" data-user-id="${user.userId}">
                 <a href="#" class="chat-user-list">
                     <div class="avatar avatar-lg me-2">
                         <img src="${resolveCallProfileImageUrl(
@@ -5748,8 +6251,8 @@ initializeFirebase(function (app, auth, database, storage) {
                         </div>
                     </div>
                 </a>
-                <div class="chat-dropdown">
-                    <a href="#"  data-bs-toggle="dropdown" aria-expanded="false">
+                <div class="chat-dropdown dropdown">
+                    <a href="#" class="dropdown-toggle text-muted" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="ti ti-dots-vertical"></i>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end p-3">
@@ -5771,9 +6274,16 @@ initializeFirebase(function (app, auth, database, storage) {
             </div>
         `;
 
-            // Append the user element to the sidebar
             sidebarElement.appendChild(userElement);
+            const favLink = userElement.querySelector(".chat-user-list");
+            if (favLink) {
+                favLink.onclick = (e) => {
+                    e.preventDefault();
+                    selectUser(user.userId);
+                };
+            }
         });
+        scheduleRefreshChatFilterBadgeCounts();
     }
 
     function fetchTrashChats(userId) {
@@ -5818,19 +6328,18 @@ initializeFirebase(function (app, auth, database, storage) {
     // fetchTrashChats(currentUserId);
 
     function displayTrashUsers(usersMap, trashUsers) {
-        // Get the sidebar element where users will be displayed
         const sidebarElement = document.getElementById("trash-chats");
+        if (!sidebarElement) return;
 
-        // Clear the sidebar first to avoid duplication
-        //sidebarElement.innerHTML = "";
+        sidebarElement.innerHTML = "";
 
-        // Check if there are Trash users
         if (trashUsers.length === 0) {
-            // sidebarElement.innerHTML = "<p>No Trash users found.</p>";
+            sidebarElement.innerHTML =
+                '<p class="px-3 py-2 text-muted small mb-0">No chats in trash.</p>';
+            scheduleRefreshChatFilterBadgeCounts();
             return;
         }
 
-        // Loop through the Trash users and create HTML elements for each
         trashUsers.forEach((user) => {
             const contactsRef = ref(
                 database,
@@ -5947,6 +6456,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             handleUndeleteClick
                         );
                     }
+                    scheduleRefreshChatFilterBadgeCounts();
                 })
                 .catch((error) => { });
         });
@@ -5977,22 +6487,36 @@ initializeFirebase(function (app, auth, database, storage) {
             .catch((error) => { });
     }
 
+    function resetChatShellToWelcome() {
+        try {
+            localStorage.removeItem("selectedUserId");
+        } catch (e) { /* ignore */ }
+        const chatSection = document.getElementById("middle");
+        const welcomeContainer = document.getElementById("welcome-container");
+        if (chatSection) {
+            chatSection.style.setProperty("display", "none", "important");
+            chatSection.classList.remove("message-panel-visible");
+        }
+        if (document.body) document.body.setAttribute("data-chat-panel", "welcome");
+        if (welcomeContainer) {
+            welcomeContainer.style.setProperty("display", "flex", "important");
+            welcomeContainer.style.setProperty("visibility", "visible", "important");
+            welcomeContainer.style.setProperty("opacity", "1", "important");
+        }
+        if (typeof ensureChatPageVisible === "function") {
+            ensureChatPageVisible();
+        }
+    }
+
+    window.addEventListener("spa-logo-chat-home", function () {
+        resetChatShellToWelcome();
+    });
+
     const closeChatBtn = document.getElementById("close-chat-btn");
     if (closeChatBtn) {
         closeChatBtn.addEventListener("click", function (event) {
-            event.preventDefault(); // Prevent default link behavior
-
-            // Get the chat section by its ID
-            const chatSection = document.getElementById("middle");
-            const welcomeContainer =
-                document.getElementById("welcome-container");
-
-            if (chatSection) {
-                chatSection.style.display = "none"; // Hide the chat section
-                chatSection.classList.remove("message-panel-visible");
-            }
-            if (document.body) document.body.setAttribute("data-chat-panel", "welcome");
-            if (welcomeContainer) welcomeContainer.style.display = "flex";
+            event.preventDefault();
+            resetChatShellToWelcome();
         });
     }
 
@@ -6081,13 +6605,29 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     // Add event listener to each dropdown item
-    document.querySelectorAll("#innerTab .dropdown-item").forEach((item) => {
-        item.addEventListener("click", function () {
-            // Get the title from the data attribute and update the title
-            const title = this.getAttribute("data-title");
-            document.getElementById("chatTitle").textContent = title;
+    document
+        .querySelectorAll("#chat-menu #innerTab .dropdown-item")
+        .forEach((item) => {
+            item.addEventListener("click", function () {
+                document
+                    .querySelectorAll("#chat-menu #innerTab .dropdown-item")
+                    .forEach((el) => el.classList.remove("active"));
+                this.classList.add("active");
+                const title = this.getAttribute("data-title");
+                const chatTitleEl = document.getElementById("chatTitle");
+                if (chatTitleEl) chatTitleEl.textContent = title;
+                scheduleRefreshChatFilterBadgeCounts();
+            });
         });
-    });
+
+    const chatSidebarTabContent = document.querySelector(
+        "#chat-menu #innerTabContent"
+    );
+    if (chatSidebarTabContent) {
+        chatSidebarTabContent.addEventListener("shown.bs.tab", () => {
+            scheduleRefreshChatFilterBadgeCounts();
+        });
+    }
 
     const emojis = [
         // Smilies and Expressions
