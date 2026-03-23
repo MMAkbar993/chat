@@ -14314,6 +14314,7 @@ audio{
   position: absolute;
   bottom: 80px;
   left: 10px;
+  z-index: 1080;
   background-color: #fff;
   border: 1px solid #ccc;
   border-radius: 5px;

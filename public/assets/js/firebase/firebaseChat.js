@@ -46,6 +46,31 @@ initializeFirebase(function (app, auth, database, storage) {
     let selectedUserId = null; // Store the selected user ID
     let currentUserId = null;
 
+    let typingIdleTimer = null;
+    function clearChatTyping() {
+        if (typingIdleTimer) {
+            clearTimeout(typingIdleTimer);
+            typingIdleTimer = null;
+        }
+        if (!currentUser || !currentUser.uid) return;
+        update(ref(database, `data/users/${currentUser.uid}`), {
+            typing: "",
+        }).catch(() => {});
+    }
+    function pulseChatTyping(recipientId) {
+        if (!currentUser || !currentUser.uid || !recipientId) return;
+        update(ref(database, `data/users/${currentUser.uid}`), {
+            typing: recipientId,
+        }).catch(() => {});
+        if (typingIdleTimer) clearTimeout(typingIdleTimer);
+        typingIdleTimer = setTimeout(clearChatTyping, 3000);
+    }
+
+    let chatHeaderStatusUnsub = null;
+    let chatHeaderTypingUnsub = null;
+    let lastPartnerStatusForHeader = "offline";
+    let headerShowsTyping = false;
+
     /* Set body attribute immediately so at 1200px+ the message panel shows (CSS uses data-chat-panel) */
     if (typeof document !== "undefined" && document.body) {
         var p = (typeof location !== "undefined" && location.pathname) ? location.pathname.replace(/\/+$/, "") || "/" : "";
@@ -143,6 +168,12 @@ initializeFirebase(function (app, auth, database, storage) {
                     );
                     set(userStatusRef, "online");
                     onDisconnect(userStatusRef).set("offline");
+
+                    const typingDisconnectRef = ref(
+                        database,
+                        `data/users/${user.uid}/typing`
+                    );
+                    onDisconnect(typingDisconnectRef).set("");
 
                     // Real-time listener for connectivity
                     const connectedRef = ref(database, ".info/connected");
@@ -938,6 +969,14 @@ initializeFirebase(function (app, auth, database, storage) {
         const userMessageElement = userDiv.querySelector("p");
         const userStatusElement = userDiv.querySelector(".avatar");
 
+        function applySidebarPreviewRow(text) {
+            if (!userMessageElement) return;
+            userMessageElement.dataset.lastPreview = text;
+            if (userMessageElement.getAttribute("data-typing-peer") !== "1") {
+                userMessageElement.textContent = text;
+            }
+        }
+
         // Update the user's name
         const contactsRef = ref(
             database,
@@ -1018,7 +1057,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
 
                 // Update the displayed last message and time
-                userMessageElement.textContent = displayMessage;
+                applySidebarPreviewRow(displayMessage);
                 const lastMessageTimestamp = lastMessage?.timestamp;
 
                 timeElement.textContent = lastMessageTimestamp
@@ -1197,7 +1236,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     } else {
                         displayMessage = "Unknown message type";
                     }
-                    userMessage.textContent = displayMessage;
+                    applySidebarPreviewRow(displayMessage);
                     // Update the unseen message count
                 }
             }
@@ -1211,6 +1250,20 @@ initializeFirebase(function (app, auth, database, storage) {
         const chatPromises = chatRefs.map((chatRef) =>
             get(query(chatRef, orderByChild("timestamp"), limitToLast(1)))
         );
+
+        const peerTypingListRef = ref(database, `data/users/${userId}/typing`);
+        onValue(peerTypingListRef, (snap) => {
+            if (!userMessageElement) return;
+            const v = snap.val();
+            if (v === currentUser.uid) {
+                userMessageElement.setAttribute("data-typing-peer", "1");
+                userMessageElement.textContent = "Typing...";
+            } else {
+                userMessageElement.removeAttribute("data-typing-peer");
+                userMessageElement.textContent =
+                    userMessageElement.dataset.lastPreview || "No messages";
+            }
+        });
 
         Promise.all(chatPromises).then((snapshots) => {
             let lastMessage = null;
@@ -1238,9 +1291,9 @@ initializeFirebase(function (app, auth, database, storage) {
                                 ? "File sent"
                                 : "Unknown message type";
 
-                userMessageElement.textContent = displayMessage;
+                applySidebarPreviewRow(displayMessage);
             } else {
-                userMessageElement.textContent = "No messages";
+                applySidebarPreviewRow("No messages");
             }
         });
     }
@@ -1277,6 +1330,13 @@ initializeFirebase(function (app, auth, database, storage) {
         // Create userName and userMessage elements
         const userName = document.createElement("h6");
         const userMessage = document.createElement("p");
+
+        function applySidebarPreview(text) {
+            userMessage.dataset.lastPreview = text;
+            if (userMessage.getAttribute("data-typing-peer") !== "1") {
+                userMessage.textContent = text;
+            }
+        }
 
         // Append userName first, then userMessage
         chatUserMsgDiv.appendChild(userName);
@@ -1497,7 +1557,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
 
                 // Update the displayed last message and time
-                userMessage.textContent = displayMessage;
+                applySidebarPreview(displayMessage);
                 const lastMessageTimestamp = lastMessage?.timestamp;
 
                 timeElement.textContent = lastMessageTimestamp
@@ -1656,7 +1716,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     } else {
                         displayMessage = "Unknown message type";
                     }
-                    userMessage.textContent = displayMessage;
+                    applySidebarPreview(displayMessage);
                     // Update the unseen message count
 
                     const lastMessageTimestamp = lastMessage?.timestamp;
@@ -1738,12 +1798,25 @@ initializeFirebase(function (app, auth, database, storage) {
                     }
 
                     // Update message and timestamp
-                    userMessage.textContent = displayMessage;
+                    applySidebarPreview(displayMessage);
                     timeElement.textContent =
                         formatDisplayTimestamp(latestTimestamp);
                 }
             }
         );
+
+        const peerTypingRowRef = ref(database, `data/users/${userId}/typing`);
+        onValue(peerTypingRowRef, (snap) => {
+            const v = snap.val();
+            if (v === currentUser.uid) {
+                userMessage.setAttribute("data-typing-peer", "1");
+                userMessage.textContent = "Typing...";
+            } else {
+                userMessage.removeAttribute("data-typing-peer");
+                userMessage.textContent =
+                    userMessage.dataset.lastPreview || "No messages";
+            }
+        });
 
         return userDiv;
     }
@@ -1894,11 +1967,45 @@ initializeFirebase(function (app, auth, database, storage) {
         // Start listening for messages with the selected user
         listenForMessages(loggedInUserId, selectedUserId, chatRoomId);
 
+        if (chatHeaderStatusUnsub) {
+            chatHeaderStatusUnsub();
+            chatHeaderStatusUnsub = null;
+        }
+        if (chatHeaderTypingUnsub) {
+            chatHeaderTypingUnsub();
+            chatHeaderTypingUnsub = null;
+        }
+        headerShowsTyping = false;
+
         // Fetch user status from the database
         const userStatusRef = ref(database, `data/users/${userId}/status`);
-        onValue(userStatusRef, (snapshot) => {
-            const userStatus = snapshot.val() || "offline"; // Default to offline if no status found
-            updateUserDetails(userId, userStatus, loggedInUserId); // Pass status to update function
+        chatHeaderStatusUnsub = onValue(userStatusRef, (snapshot) => {
+            const userStatus = snapshot.val() || "offline";
+            lastPartnerStatusForHeader = userStatus;
+            if (!headerShowsTyping) {
+                updateUserDetails(userId, userStatus, loggedInUserId);
+            }
+        });
+
+        const partnerTypingRef = ref(database, `data/users/${userId}/typing`);
+        chatHeaderTypingUnsub = onValue(partnerTypingRef, (snapshot) => {
+            if (selectedUserId !== userId) return;
+            const el = document.querySelector(".chat-header .last-seen");
+            if (!el) return;
+            const v = snapshot.val();
+            if (v === currentUser.uid) {
+                headerShowsTyping = true;
+                el.textContent = "Typing...";
+                el.classList.remove("text-success", "text-danger");
+                el.classList.add("text-muted");
+            } else {
+                headerShowsTyping = false;
+                updateUserDetails(
+                    userId,
+                    lastPartnerStatusForHeader,
+                    loggedInUserId
+                );
+            }
         });
 
         // Update the chat header with the selected user's name
@@ -3585,6 +3692,20 @@ initializeFirebase(function (app, auth, database, storage) {
     const locationButton = document.getElementById("location-button");
     const GOOGLE_MAPS_API_KEY = "AIzaSyCAcoMewuBBAdWw5CEv6VfBcHPMl-k8uc8";
 
+    if (messageInput) {
+        messageInput.addEventListener("input", () => {
+            if (!selectedUserId || !currentUser) return;
+            if (messageInput.value.trim().length > 0) {
+                pulseChatTyping(selectedUserId);
+            } else {
+                clearChatTyping();
+            }
+        });
+        messageInput.addEventListener("blur", () => {
+            clearChatTyping();
+        });
+    }
+
     // Create a container for file preview and the Clear button
     const messagePreview = document.createElement("div");
     messagePreview.id = "message-preview"; // A container to preview uploaded files
@@ -3647,6 +3768,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 // 4. Clear the input and close the reply box
                 messageInput.value = "";
                 closeReplyBox();
+                clearChatTyping();
 
                 // 5. Encrypt and send the real message in the background
                 try {
@@ -3681,6 +3803,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     default: messageType = 5; break;
                 }
                 sendMessage(selectedUserId, attachment, messageType);
+                clearChatTyping();
 
                 // Clear file preview
                 fileInput.value = "";
@@ -3748,6 +3871,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             lng: longitude,
                         };
                         sendMessage(selectedUserId, attachment, 4, null, tempKey);
+                        clearChatTyping();
                     } catch (err) {
                         console.error("Error preparing location message:", err);
                     } finally {
@@ -5797,11 +5921,6 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     });
 
-    const emojiButton = document.getElementById("emoji-button");
-    const emojiPicker = document.getElementById("emoji-picker");
-    const emojiList = document.getElementById("emoji-list");
-    const inputField = document.getElementById("message-input");
-
     const emojis = [
         // Smilies and Expressions
         "😀",
@@ -6294,8 +6413,8 @@ initializeFirebase(function (app, auth, database, storage) {
         "📶",
     ];
 
-    // Populate the emoji list dynamically (only when chat UI exists)
-    if (emojiList && emojiButton && emojiPicker && inputField) {
+    function ensureChatEmojiListFilled(emojiList) {
+        if (!emojiList || emojiList.dataset.emojiFilled === "1") return;
         emojis.forEach((emoji) => {
             const li = document.createElement("li");
             const emojiElement = document.createElement("a");
@@ -6305,100 +6424,116 @@ initializeFirebase(function (app, auth, database, storage) {
             li.appendChild(emojiElement);
             emojiList.appendChild(li);
         });
+        emojiList.dataset.emojiFilled = "1";
+    }
 
-        // Toggle emoji picker visibility when the emoji button is clicked
-        emojiButton.addEventListener("click", () => {
-            emojiPicker.style.display =
+    // Delegated handlers: chat footer may load later via SPA (/index → /chat), so direct
+    // getElementById + addEventListener on first paint would miss #emoji-button.
+    document.addEventListener("click", (e) => {
+        const emojiToggle = e.target.closest("#emoji-button");
+        if (emojiToggle) {
+            e.preventDefault();
+            const emojiPicker = document.getElementById("emoji-picker");
+            const emojiList = document.getElementById("emoji-list");
+            const inputField = document.getElementById("message-input");
+            if (!emojiPicker || !emojiList || !inputField) return;
+            ensureChatEmojiListFilled(emojiList);
+            const isHidden =
                 emojiPicker.style.display === "none" ||
-                    emojiPicker.style.display === ""
-                    ? "block"
-                    : "none";
-        });
+                emojiPicker.style.display === "";
+            emojiPicker.style.display = isHidden ? "block" : "none";
+            return;
+        }
 
-        // Add emoji to input field when an emoji is selected
-        const emojisInPicker = emojiPicker.querySelectorAll(".emoji");
-        emojisInPicker.forEach((emoji) => {
-            emoji.addEventListener("click", () => {
-                inputField.value += emoji.textContent; // Add emoji to message input
-                inputField.focus(); // Focus the input field
-                inputField.selectionStart = inputField.selectionEnd =
-                    inputField.value.length; // Move cursor to the end
-                emojiPicker.style.display = "none"; // Hide the picker after selection
+        const emojiChoice = e.target.closest("#emoji-picker a.emoji");
+        if (emojiChoice) {
+            e.preventDefault();
+            const inputField = document.getElementById("message-input");
+            const emojiPicker = document.getElementById("emoji-picker");
+            if (!inputField || !emojiPicker) return;
+            inputField.value += emojiChoice.textContent;
+            inputField.focus();
+            inputField.selectionStart = inputField.selectionEnd =
+                inputField.value.length;
+            emojiPicker.style.display = "none";
+            if (selectedUserId && currentUser && inputField.value.trim()) {
+                pulseChatTyping(selectedUserId);
+            }
+        }
+    });
+
+    //Recorder (single handler registration; preview uses #audio in record modal)
+    let recorder;
+    let context;
+    let mediaTracks = [];
+    const recordAudioEl = document.getElementById("audio");
+    const startBtn = document.getElementById("startRecording");
+    const stopBtn = document.getElementById("stopRecording");
+    const send_voice = document.getElementById("send_voice");
+    window.URL = window.URL || window.webkitURL;
+    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+
+    function stopMediaTracks() {
+        mediaTracks.forEach((track) => track.stop());
+        mediaTracks = [];
+    }
+
+    function onRecordFail(e) {
+        alert("Error " + e);
+        console.log("Rejected!", e);
+    }
+
+    if (stopBtn) {
+        stopBtn.addEventListener("click", () => {
+            if (!recorder) return;
+            stopBtn.setAttribute("disabled", true);
+            if (startBtn) startBtn.removeAttribute("disabled");
+            if (send_voice) send_voice.removeAttribute("disabled");
+            recorder.stop();
+            stopMediaTracks();
+            recorder.exportWAV(function (blob) {
+                if (recordAudioEl)
+                    recordAudioEl.src = window.URL.createObjectURL(blob);
             });
         });
     }
 
-    //Recorder
-
-    let recorder;
-    let context;
-    let audio = document.querySelector("audio");
-    let startBtn = document.getElementById("startRecording");
-    let stopBtn = document.getElementById("stopRecording");
-    let send_voice = document.getElementById("send_voice");
-    window.URL = window.URL || window.webkitURL;
-
-    /**
-     * Detecte the correct AudioContext for the browser
-     * */
-    window.AudioContext = window.AudioContext || window.webkitAudioContext;
-    navigator.getUserMedia =
-        navigator.getUserMedia ||
-        navigator.webkitGetUserMedia ||
-        navigator.mozGetUserMedia ||
-        navigator.msGetUserMedia;
-
-    let onFail = function (e) {
-        alert("Error " + e);
-        console.log("Rejected!", e);
-    };
-
-    let onSuccess = function (s) {
-        let tracks = s.getTracks();
-        startBtn.setAttribute("disabled", true);
-        send_voice.setAttribute("disabled", true);
-        stopBtn.removeAttribute("disabled");
-        context = new AudioContext();
-        let mediaStreamSource = context.createMediaStreamSource(s);
-        recorder = new Recorder(mediaStreamSource);
-        recorder.record();
-
-        stopBtn.addEventListener("click", () => {
-            stopBtn.setAttribute("disabled", true);
-            startBtn.removeAttribute("disabled");
-            send_voice.removeAttribute("disabled");
-            recorder.stop();
-            tracks.forEach((track) => track.stop());
-            recorder.exportWAV(function (s) {
-                audio.src = window.URL.createObjectURL(s);
-                const blobFile = new File([s], "file" + Date.now() + ".wav", {
-                    type: "audio/wav",
-                });
-            });
-        });
-
+    if (send_voice) {
         send_voice.addEventListener("click", () => {
-            stopBtn.setAttribute("disabled", true);
-            startBtn.setAttribute("disabled", true);
-            tracks.forEach((track) => track.stop());
-
-            recorder.exportWAV(function (s) {
-                const blobFile = new File([s], "file" + Date.now() + ".wav", {
-                    type: "audio/wav",
-                });
+            if (!recorder) return;
+            if (stopBtn) stopBtn.setAttribute("disabled", true);
+            if (startBtn) startBtn.setAttribute("disabled", true);
+            stopMediaTracks();
+            recorder.stop();
+            recorder.exportWAV(function (blob) {
+                const blobFile = new File(
+                    [blob],
+                    "file" + Date.now() + ".wav",
+                    { type: "audio/wav" }
+                );
                 voiceupload(blobFile, "");
                 $("#record_audio").modal("hide");
-                audio.removeAttribute("src");
+                if (recordAudioEl) recordAudioEl.removeAttribute("src");
             });
         });
-    };
+    }
 
     if (startBtn) {
         startBtn.addEventListener("click", () => {
             navigator.mediaDevices
                 .getUserMedia({ audio: true })
-                .then(onSuccess)
-                .catch(onFail);
+                .then((stream) => {
+                    mediaTracks = stream.getTracks();
+                    startBtn.setAttribute("disabled", true);
+                    if (send_voice) send_voice.setAttribute("disabled", true);
+                    if (stopBtn) stopBtn.removeAttribute("disabled");
+                    context = new AudioContext();
+                    const mediaStreamSource =
+                        context.createMediaStreamSource(stream);
+                    recorder = new Recorder(mediaStreamSource);
+                    recorder.record();
+                })
+                .catch(onRecordFail);
         });
     }
 
@@ -6414,6 +6549,7 @@ initializeFirebase(function (app, auth, database, storage) {
             url: fileUrl,
         };
         sendMessage(selectedUserId, attachment, atttype);
+        clearChatTyping();
     }
 
     const toggleRecentChatsLink = document.getElementById("toggleRecentChats");
