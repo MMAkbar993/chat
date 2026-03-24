@@ -1863,6 +1863,38 @@ initializeFirebase(function (app, auth, database, storage) {
         const welcomeContainer = document.getElementById("welcome-container");
         if (!chatBox || !middleEl) return;
 
+        const userDetails = await getUserDetails(userId);
+
+        // Only switch from welcome → chat shell when the peer exists in the sidebar map.
+        // Otherwise we used to show an empty #middle (wrong avatar, blank messages) until refresh.
+        if (!usersMap[userId]) {
+            highlightActiveUser("");
+            try {
+                if (selectedUserId === userId) selectedUserId = null;
+            } catch (e) { /* ignore */ }
+            try {
+                if (typeof history !== "undefined" && history.replaceState) {
+                    const u = new URL(window.location.href);
+                    if (u.searchParams.get("user") === String(userId)) {
+                        u.searchParams.delete("user");
+                        history.replaceState({}, "", u.toString());
+                    }
+                }
+            } catch (e) { /* ignore */ }
+            try {
+                const stored = sessionStorage.getItem(
+                    CHAT_ACTIVE_PEER_SESSION_KEY
+                );
+                if (stored === String(userId)) {
+                    sessionStorage.removeItem(CHAT_ACTIVE_PEER_SESSION_KEY);
+                }
+            } catch (e) { /* ignore */ }
+            if (typeof ensureChatPageVisible === "function") {
+                ensureChatPageVisible();
+            }
+            return;
+        }
+
         // Persist selection for other modules; panel visibility uses selectedUserId / ?user / session only.
         try { localStorage.setItem("selectedUserId", String(userId)); } catch (e) { }
         try {
@@ -1876,7 +1908,7 @@ initializeFirebase(function (app, auth, database, storage) {
             }
         } catch (e) { }
 
-        // Show chat panel and hide welcome as soon as we have a valid context (so panel is visible when arriving from contact with ?call=)
+        // Show chat panel and hide welcome only after we know the conversation can load.
         middleEl.style.setProperty("display", "flex", "important");
         middleEl.classList.add("message-panel-visible");
         if (document.body) document.body.setAttribute("data-chat-panel", "visible");
@@ -1891,12 +1923,6 @@ initializeFirebase(function (app, auth, database, storage) {
                     `data/users/${currentUser.uid}/marked_unread/${userId}`
                 )
             ).catch(() => {});
-        }
-        const userDetails = await getUserDetails(userId);
-
-        // Check if user exists in usersMap
-        if (!usersMap[userId]) {
-            return; // Exit the function early to avoid further errors
         }
 
         // Clear the chat box
@@ -2849,42 +2875,6 @@ initializeFirebase(function (app, auth, database, storage) {
                     return; // Skip displaying the message
                 }
 
-                // #region agent log
-                {
-                    let deletedForSkip = false;
-                    let deletedForCheckErr = null;
-                    try {
-                        deletedForSkip = uidIncludedInFirebaseList(
-                            message.deletedFor,
-                            currentUser.uid
-                        );
-                    } catch (err) {
-                        deletedForCheckErr = String(err && err.message ? err.message : err);
-                    }
-                    fetch("http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-Debug-Session-Id": "4c1412",
-                        },
-                        body: JSON.stringify({
-                            sessionId: "4c1412",
-                            location: "firebaseChat.js:displayMessage:deletedFor",
-                            message: "deletedFor gate",
-                            data: {
-                                messageKey: message.key,
-                                deletedForRaw: message.deletedFor,
-                                dfIsArray: Array.isArray(message.deletedFor),
-                                deletedForSkip,
-                                deletedForCheckErr,
-                            },
-                            timestamp: Date.now(),
-                            hypothesisId: "B",
-                        }),
-                    }).catch(() => {});
-                }
-                // #endregion
-
                 if (uidIncludedInFirebaseList(message.deletedFor, currentUser.uid)) {
                     return; // Skip displaying the message
                 }
@@ -3505,45 +3495,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     const writes = [];
                     if (snapPri.exists()) writes.push(update(refPri, updates));
                     if (snapMir.exists()) writes.push(update(refMir, updates));
-                    return Promise.all(writes).then(() => {
-                        // #region agent log
-                        return Promise.all([get(refPri), get(refMir)])
-                            .then(([sp, sm]) => {
-                                fetch(
-                                    "http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702",
-                                    {
-                                        method: "POST",
-                                        headers: {
-                                            "Content-Type": "application/json",
-                                            "X-Debug-Session-Id": "4c1412",
-                                        },
-                                        body: JSON.stringify({
-                                            sessionId: "4c1412",
-                                            runId: "post-fix",
-                                            location: "firebaseChat.js:deleteForMe:afterUpdate",
-                                            message: "both paths after deleteForMe",
-                                            data: {
-                                                messageKey,
-                                                chatRoomId,
-                                                mirrorChatRoomId,
-                                                priExists: sp.exists(),
-                                                mirExists: sm.exists(),
-                                                priDeletedFor: sp.exists()
-                                                    ? sp.val().deletedFor
-                                                    : null,
-                                                mirDeletedFor: sm.exists()
-                                                    ? sm.val().deletedFor
-                                                    : null,
-                                            },
-                                            timestamp: Date.now(),
-                                            hypothesisId: "A",
-                                        }),
-                                    }
-                                ).catch(() => {});
-                            })
-                            .catch(() => {});
-                        // #endregion
-                    });
+                    return Promise.all(writes);
                 }
                 return Promise.resolve();
             })
@@ -3581,40 +3533,6 @@ initializeFirebase(function (app, auth, database, storage) {
         );
         Promise.all([remove(messageRef), remove(mirrorMessageRef)])
             .then(() => {
-                // #region agent log
-                const refMir = ref(
-                    database,
-                    `data/chats/${mirrorChatRoomId}/${messageKey}`
-                );
-                get(refMir)
-                    .then((snapMir) => {
-                        fetch(
-                            "http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702",
-                            {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                    "X-Debug-Session-Id": "4c1412",
-                                },
-                                body: JSON.stringify({
-                                    sessionId: "4c1412",
-                                    runId: "post-fix",
-                                    location: "firebaseChat.js:deleteForEveryone:afterRemove",
-                                    message: "mirror path after remove both",
-                                    data: {
-                                        messageKey,
-                                        chatRoomId,
-                                        mirrorChatRoomId,
-                                        mirStillExists: snapMir.exists(),
-                                    },
-                                    timestamp: Date.now(),
-                                    hypothesisId: "A",
-                                }),
-                            }
-                        ).catch(() => {});
-                    })
-                    .catch(() => {});
-                // #endregion
                 if (messageElement) {
                     messageElement.remove(); // Remove the element locally
                 } else {
@@ -4111,41 +4029,6 @@ initializeFirebase(function (app, auth, database, storage) {
                 );
             });
             const mergedMessages = [...mergedByKey.values()];
-
-            // #region agent log
-            {
-                const keyCount = {};
-                mergedMessages.forEach((m) => {
-                    const k = m.key;
-                    keyCount[k] = (keyCount[k] || 0) + 1;
-                });
-                const duplicateKeys = Object.keys(keyCount).filter(
-                    (k) => keyCount[k] > 1
-                );
-                fetch("http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-Debug-Session-Id": "4c1412",
-                    },
-                    body: JSON.stringify({
-                        sessionId: "4c1412",
-                        runId: "post-fix",
-                        location: "firebaseChat.js:listenForMessages:initialLoad",
-                        message: "after dedupe merge",
-                        data: {
-                            rawTotal: allMessages.length,
-                            mergedTotal: mergedMessages.length,
-                            duplicateKeys,
-                            chatRoomId1,
-                            chatRoomId2,
-                        },
-                        timestamp: Date.now(),
-                        hypothesisId: "E",
-                    }),
-                }).catch(() => {});
-            }
-            // #endregion
 
             // Sort messages by timestamp and display them
             mergedMessages.sort((a, b) => a.timestamp - b.timestamp);
