@@ -7,8 +7,6 @@
         @includeIf('frontend.partials.sidebar')
 
         <div id="spa-page-content">
-            @includeIf('frontend.partials.chat-content')
-
             @if(config('calls.provider') === 'meet')
             <div class="card border-0 shadow-sm mx-3 mt-3" id="google-meet-cta">
                 <div class="card-body text-center py-4">

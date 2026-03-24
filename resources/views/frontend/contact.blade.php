@@ -9,7 +9,7 @@
     <div id="spa-page-content">
         {{-- Optional legacy target; do not use data-contact-list here — it duplicated the sidebar contact list next to the welcome panel. --}}
         <div id="chat-container"></div>
-        @includeIf('frontend.partials.chat-content')
+        {{-- Welcome / profileImageChat live only on chat + index + group-chat; including chat-content here duplicated the welcome on every SPA tab. --}}
     </div>
 
 </div>

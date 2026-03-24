@@ -8,7 +8,6 @@
 
     <div id="spa-page-content">
         <div id="chat-container"></div>
-        @includeIf('frontend.partials.chat-content')
     </div>
 
 </div>
