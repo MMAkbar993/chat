@@ -1804,6 +1804,58 @@ initializeFirebase(function (app, auth, database, storage) {
         return a < b ? `${a}-${b}` : `${b}-${a}`;
     }
 
+    /** RTDB often returns "arrays" as objects; normalize to string uid list. */
+    function firebaseUidList(raw) {
+        if (raw == null) return [];
+        if (Array.isArray(raw)) return raw.filter((x) => x != null && String(x));
+        if (typeof raw === "object")
+            return Object.values(raw).filter(
+                (x) => x != null && String(x)
+            );
+        return [];
+    }
+
+    function uidIncludedInFirebaseList(raw, uid) {
+        if (uid == null) return false;
+        return firebaseUidList(raw).includes(uid);
+    }
+
+    function mergeFirebaseUidLists(a, b) {
+        const s = new Set();
+        firebaseUidList(a).forEach((x) => s.add(x));
+        firebaseUidList(b).forEach((x) => s.add(x));
+        return [...s];
+    }
+
+    /** Same pairing as sendMessage mirror path (forward vs reverse room id). */
+    function chatMirrorRoomId(chatRoomId, userA, userB) {
+        const idA = `${userA}-${userB}`;
+        const idB = `${userB}-${userA}`;
+        return chatRoomId === idA ? idB : idA;
+    }
+
+    /** Refs for the same message under deterministic room id and its mirror path. */
+    function getChatMessageRefsBothPaths(messageKey, chatRoomId, userA, userB) {
+        const mirrorChatRoomId = chatMirrorRoomId(chatRoomId, userA, userB);
+        return {
+            refPri: ref(database, `data/chats/${chatRoomId}/${messageKey}`),
+            refMir: ref(database, `data/chats/${mirrorChatRoomId}/${messageKey}`),
+            mirrorChatRoomId,
+        };
+    }
+
+    function loadChatMessageFromEitherPath(messageKey, chatRoomId, userA, userB) {
+        const { refPri, refMir, mirrorChatRoomId } =
+            getChatMessageRefsBothPaths(messageKey, chatRoomId, userA, userB);
+        return Promise.all([get(refPri), get(refMir)]).then(([snapPri, snapMir]) => ({
+            snapPri,
+            snapMir,
+            refPri,
+            refMir,
+            mirrorChatRoomId,
+        }));
+    }
+
     // Function to select a user and display their chat details
     async function selectUser(userId) {
         const chatBox = document.getElementById("chat-box");
@@ -2793,17 +2845,47 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
 
                 // Check if the message is cleared for the current user
-                if (
-                    message.clearedFor &&
-                    message.clearedFor.includes(currentUser.uid)
-                ) {
+                if (uidIncludedInFirebaseList(message.clearedFor, currentUser.uid)) {
                     return; // Skip displaying the message
                 }
 
-                if (
-                    message.deletedFor &&
-                    message.deletedFor.includes(currentUser.uid)
-                ) {
+                // #region agent log
+                {
+                    let deletedForSkip = false;
+                    let deletedForCheckErr = null;
+                    try {
+                        deletedForSkip = uidIncludedInFirebaseList(
+                            message.deletedFor,
+                            currentUser.uid
+                        );
+                    } catch (err) {
+                        deletedForCheckErr = String(err && err.message ? err.message : err);
+                    }
+                    fetch("http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-Debug-Session-Id": "4c1412",
+                        },
+                        body: JSON.stringify({
+                            sessionId: "4c1412",
+                            location: "firebaseChat.js:displayMessage:deletedFor",
+                            message: "deletedFor gate",
+                            data: {
+                                messageKey: message.key,
+                                deletedForRaw: message.deletedFor,
+                                dfIsArray: Array.isArray(message.deletedFor),
+                                deletedForSkip,
+                                deletedForCheckErr,
+                            },
+                            timestamp: Date.now(),
+                            hypothesisId: "B",
+                        }),
+                    }).catch(() => {});
+                }
+                // #endregion
+
+                if (uidIncludedInFirebaseList(message.deletedFor, currentUser.uid)) {
                     return; // Skip displaying the message
                 }
 
@@ -3286,34 +3368,41 @@ initializeFirebase(function (app, auth, database, storage) {
                 return;
             }
 
-            const messageRef = ref(
-                database,
-                `data/chats/${chatRoomId}/${messageKey}`
-            );
-
-            // Fetch the message details from Firebase
-            get(messageRef)
-                .then((snapshot) => {
-                    if (snapshot.exists()) {
-                        const message = snapshot.val();
-                        // Check if senderId matches current user ID
-                        if (message.senderId == currentUserId) {
-                            // Hide the "Delete For Everyone" option
-                            const deleteForEveryoneDiv =
-                                document.getElementById("delete-for-everyone-wrap");
-                            if (deleteForEveryoneDiv) {
-                                deleteForEveryoneDiv.style.display = "block";
-                            }
-                        } else {
-                            // Ensure the "Delete For Everyone" option is visible
-                            const deleteForEveryoneDiv =
-                                document.getElementById("delete-for-everyone-wrap");
-                            if (deleteForEveryoneDiv) {
-                                deleteForEveryoneDiv.style.display = "none";
-                            }
+            loadChatMessageFromEitherPath(
+                messageKey,
+                chatRoomId,
+                currentUserId,
+                selectedUserId
+            )
+                .then(({ snapPri, snapMir }) => {
+                    const exists = snapPri.exists() || snapMir.exists();
+                    if (!exists) {
+                        console.error("Message not found in Firebase (either path)");
+                        return;
+                    }
+                    const message = snapPri.exists()
+                        ? snapMir.exists()
+                            ? {
+                                  ...snapPri.val(),
+                                  deletedFor: mergeFirebaseUidLists(
+                                      snapPri.val().deletedFor,
+                                      snapMir.val().deletedFor
+                                  ),
+                              }
+                            : snapPri.val()
+                        : snapMir.val();
+                    if (message.senderId == currentUserId) {
+                        const deleteForEveryoneDiv =
+                            document.getElementById("delete-for-everyone-wrap");
+                        if (deleteForEveryoneDiv) {
+                            deleteForEveryoneDiv.style.display = "block";
                         }
                     } else {
-                        console.error("Message not found in Firebase");
+                        const deleteForEveryoneDiv =
+                            document.getElementById("delete-for-everyone-wrap");
+                        if (deleteForEveryoneDiv) {
+                            deleteForEveryoneDiv.style.display = "none";
+                        }
                     }
                 })
                 .catch((error) => {
@@ -3392,33 +3481,73 @@ initializeFirebase(function (app, auth, database, storage) {
 
     // Delete message for the current user
     function deleteForMe(messageElement, messageKey, chatRoomId) {
-        const messageRef = ref(
-            database,
-            `data/chats/${chatRoomId}/${messageKey}`
-        );
-
-        // Read the current value of the `deletedFor` field
-        get(messageRef)
-            .then((snapshot) => {
-                if (snapshot.exists()) {
-                    const messageData = snapshot.val();
-                    const deletedFor = messageData.deletedFor || []; // Existing array or initialize empty array
-
-                    // Only update if the current user is not already in the `deletedFor` array
-                    if (!deletedFor.includes(currentUserId)) {
-                        const updates = {};
-                        updates[`deletedFor`] = [...deletedFor, currentUserId];
-
-                        // Update the message with the new `deletedFor` value
-                        return update(messageRef, updates);
-                    }
-                    return Promise.resolve(); // Already deleted for this user; no update needed
-                } else {
-                    console.error("Message does not exist.");
+        loadChatMessageFromEitherPath(
+            messageKey,
+            chatRoomId,
+            currentUserId,
+            selectedUserId
+        )
+            .then(({ snapPri, snapMir, refPri, refMir, mirrorChatRoomId }) => {
+                if (!snapPri.exists() && !snapMir.exists()) {
+                    console.error(
+                        "Message does not exist on either chat path; UI left unchanged."
+                    );
+                    return Promise.reject(new Error("deleteForMe_missing"));
                 }
+
+                const deletedFor = mergeFirebaseUidLists(
+                    snapPri.exists() ? snapPri.val().deletedFor : null,
+                    snapMir.exists() ? snapMir.val().deletedFor : null
+                );
+
+                if (!deletedFor.includes(currentUserId)) {
+                    const updates = { deletedFor: [...deletedFor, currentUserId] };
+                    const writes = [];
+                    if (snapPri.exists()) writes.push(update(refPri, updates));
+                    if (snapMir.exists()) writes.push(update(refMir, updates));
+                    return Promise.all(writes).then(() => {
+                        // #region agent log
+                        return Promise.all([get(refPri), get(refMir)])
+                            .then(([sp, sm]) => {
+                                fetch(
+                                    "http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702",
+                                    {
+                                        method: "POST",
+                                        headers: {
+                                            "Content-Type": "application/json",
+                                            "X-Debug-Session-Id": "4c1412",
+                                        },
+                                        body: JSON.stringify({
+                                            sessionId: "4c1412",
+                                            runId: "post-fix",
+                                            location: "firebaseChat.js:deleteForMe:afterUpdate",
+                                            message: "both paths after deleteForMe",
+                                            data: {
+                                                messageKey,
+                                                chatRoomId,
+                                                mirrorChatRoomId,
+                                                priExists: sp.exists(),
+                                                mirExists: sm.exists(),
+                                                priDeletedFor: sp.exists()
+                                                    ? sp.val().deletedFor
+                                                    : null,
+                                                mirDeletedFor: sm.exists()
+                                                    ? sm.val().deletedFor
+                                                    : null,
+                                            },
+                                            timestamp: Date.now(),
+                                            hypothesisId: "A",
+                                        }),
+                                    }
+                                ).catch(() => {});
+                            })
+                            .catch(() => {});
+                        // #endregion
+                    });
+                }
+                return Promise.resolve();
             })
             .then(() => {
-                // Remove the message locally after the update
                 if (messageElement) {
                     messageElement.remove();
                 } else {
@@ -3426,7 +3555,12 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             })
             .catch((error) => {
-                console.error("Error deleting message for me:", error);
+                if (
+                    !error ||
+                    String(error.message || error) !== "deleteForMe_missing"
+                ) {
+                    console.error("Error deleting message for me:", error);
+                }
             });
     }
 
@@ -3436,8 +3570,51 @@ initializeFirebase(function (app, auth, database, storage) {
             database,
             `data/chats/${chatRoomId}/${messageKey}`
         );
-        remove(messageRef)
+        const mirrorChatRoomId = chatMirrorRoomId(
+            chatRoomId,
+            currentUserId,
+            selectedUserId
+        );
+        const mirrorMessageRef = ref(
+            database,
+            `data/chats/${mirrorChatRoomId}/${messageKey}`
+        );
+        Promise.all([remove(messageRef), remove(mirrorMessageRef)])
             .then(() => {
+                // #region agent log
+                const refMir = ref(
+                    database,
+                    `data/chats/${mirrorChatRoomId}/${messageKey}`
+                );
+                get(refMir)
+                    .then((snapMir) => {
+                        fetch(
+                            "http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702",
+                            {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "X-Debug-Session-Id": "4c1412",
+                                },
+                                body: JSON.stringify({
+                                    sessionId: "4c1412",
+                                    runId: "post-fix",
+                                    location: "firebaseChat.js:deleteForEveryone:afterRemove",
+                                    message: "mirror path after remove both",
+                                    data: {
+                                        messageKey,
+                                        chatRoomId,
+                                        mirrorChatRoomId,
+                                        mirStillExists: snapMir.exists(),
+                                    },
+                                    timestamp: Date.now(),
+                                    hypothesisId: "A",
+                                }),
+                            }
+                        ).catch(() => {});
+                    })
+                    .catch(() => {});
+                // #endregion
                 if (messageElement) {
                     messageElement.remove(); // Remove the element locally
                 } else {
@@ -3762,31 +3939,63 @@ initializeFirebase(function (app, auth, database, storage) {
             // Ensure we only process the message once
             if (!displayedMessages.has(messageKey)) {
                 displayedMessages.add(messageKey);
-                message.key = messageKey;
+                const msg = { ...message, key: messageKey };
 
                 if (
-                    (message.senderId === fromUserId &&
-                        message.recipientId === toUserId) ||
-                    (message.senderId === toUserId &&
-                        message.recipientId === fromUserId)
+                    (msg.senderId === fromUserId &&
+                        msg.recipientId === toUserId) ||
+                    (msg.senderId === toUserId &&
+                        msg.recipientId === fromUserId)
                 ) {
-                    console.log("New message received:", message);
-                    console.log("Message sender:", message.senderId, "recipient:", message.recipientId);
-                    console.log("Expected from:", fromUserId, "to:", toUserId);
-                    displayMessage(message);
+                    const otherPath =
+                        chatRoomPath === chatRoomId1 ? chatRoomId2 : chatRoomId1;
+                    get(
+                        ref(
+                            database,
+                            `data/chats/${otherPath}/${messageKey}`
+                        )
+                    )
+                        .then((otherSnap) => {
+                            if (otherSnap.exists()) {
+                                const ov = otherSnap.val();
+                                msg.deletedFor = mergeFirebaseUidLists(
+                                    msg.deletedFor,
+                                    ov.deletedFor
+                                );
+                                msg.clearedFor = mergeFirebaseUidLists(
+                                    msg.clearedFor,
+                                    ov.clearedFor
+                                );
+                            }
+                            console.log("New message received:", msg);
+                            console.log(
+                                "Message sender:",
+                                msg.senderId,
+                                "recipient:",
+                                msg.recipientId
+                            );
+                            console.log("Expected from:", fromUserId, "to:", toUserId);
+                            displayMessage(msg);
 
-                    // Handle new message notifications for the current user
-                    if (!message.seen && message.recipientId === currentUser.uid) {
-                        playMessageReceivedSound();
-                        markMessageAsSeen(chatRoomPath, messageKey);
-                    }
+                            if (!msg.seen && msg.recipientId === currentUser.uid) {
+                                playMessageReceivedSound();
+                                markMessageAsSeen(chatRoomPath, messageKey);
+                            }
+                        })
+                        .catch(() => {
+                            displayMessage(msg);
+                            if (!msg.seen && msg.recipientId === currentUser.uid) {
+                                playMessageReceivedSound();
+                                markMessageAsSeen(chatRoomPath, messageKey);
+                            }
+                        });
                 }
             }
         };
 
         // Function to handle message updates
         const handleMessageUpdate = (snapshot, chatRoomPath) => {
-            const updatedMessage = snapshot.val();
+            const updatedMessage = { ...snapshot.val(), key: snapshot.key };
             const messageKey = snapshot.key;
 
             // Update the message only if it is already displayed
@@ -3795,10 +4004,33 @@ initializeFirebase(function (app, auth, database, storage) {
                     `[data-message-key="${messageKey}"]`
                 );
                 if (existingMessageElement) {
-                    // Remove and redisplay the updated message
-                    existingMessageElement.remove();
-                    updatedMessage.key = messageKey; // Include the unique message key
-                    displayMessage(updatedMessage);
+                    const otherPath =
+                        chatRoomPath === chatRoomId1 ? chatRoomId2 : chatRoomId1;
+                    get(
+                        ref(
+                            database,
+                            `data/chats/${otherPath}/${messageKey}`
+                        )
+                    )
+                        .then((otherSnap) => {
+                            if (otherSnap.exists()) {
+                                const ov = otherSnap.val();
+                                updatedMessage.deletedFor = mergeFirebaseUidLists(
+                                    updatedMessage.deletedFor,
+                                    ov.deletedFor
+                                );
+                                updatedMessage.clearedFor = mergeFirebaseUidLists(
+                                    updatedMessage.clearedFor,
+                                    ov.clearedFor
+                                );
+                            }
+                            existingMessageElement.remove();
+                            displayMessage(updatedMessage);
+                        })
+                        .catch(() => {
+                            existingMessageElement.remove();
+                            displayMessage(updatedMessage);
+                        });
                 }
             }
         };
@@ -3861,10 +4093,64 @@ initializeFirebase(function (app, auth, database, storage) {
 
             console.log("Total messages collected:", allMessages.length);
 
-            // Sort messages by timestamp and display them
-            allMessages.sort((a, b) => a.timestamp - b.timestamp);
+            const mergedByKey = new Map();
+            allMessages.forEach((msg) => {
+                const k = msg.key;
+                if (!mergedByKey.has(k)) {
+                    mergedByKey.set(k, { ...msg });
+                    return;
+                }
+                const cur = mergedByKey.get(k);
+                cur.deletedFor = mergeFirebaseUidLists(
+                    cur.deletedFor,
+                    msg.deletedFor
+                );
+                cur.clearedFor = mergeFirebaseUidLists(
+                    cur.clearedFor,
+                    msg.clearedFor
+                );
+            });
+            const mergedMessages = [...mergedByKey.values()];
 
-            allMessages.forEach((message) => {
+            // #region agent log
+            {
+                const keyCount = {};
+                mergedMessages.forEach((m) => {
+                    const k = m.key;
+                    keyCount[k] = (keyCount[k] || 0) + 1;
+                });
+                const duplicateKeys = Object.keys(keyCount).filter(
+                    (k) => keyCount[k] > 1
+                );
+                fetch("http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Debug-Session-Id": "4c1412",
+                    },
+                    body: JSON.stringify({
+                        sessionId: "4c1412",
+                        runId: "post-fix",
+                        location: "firebaseChat.js:listenForMessages:initialLoad",
+                        message: "after dedupe merge",
+                        data: {
+                            rawTotal: allMessages.length,
+                            mergedTotal: mergedMessages.length,
+                            duplicateKeys,
+                            chatRoomId1,
+                            chatRoomId2,
+                        },
+                        timestamp: Date.now(),
+                        hypothesisId: "E",
+                    }),
+                }).catch(() => {});
+            }
+            // #endregion
+
+            // Sort messages by timestamp and display them
+            mergedMessages.sort((a, b) => a.timestamp - b.timestamp);
+
+            mergedMessages.forEach((message) => {
                 if (
                     (message.senderId === fromUserId &&
                         message.recipientId === toUserId) ||
@@ -5709,7 +5995,9 @@ initializeFirebase(function (app, auth, database, storage) {
                     // Prepare updates for each message
                     const updates = {};
                     Object.keys(messages).forEach((messageId) => {
-                        const clearedFor = messages[messageId].clearedFor || [];
+                        const clearedFor = firebaseUidList(
+                            messages[messageId].clearedFor
+                        );
 
                         // Only update if the current user is not already in the clearedFor array
                         if (!clearedFor.includes(currentUserId)) {

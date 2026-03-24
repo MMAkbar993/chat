@@ -11,3 +11,11 @@
 .modal {
   z-index: 2005 !important;
 }
+
+/* Let clicks reach the dialog when a parent uses odd stacking (backdrop above chrome). */
+body.modal-open .modal.show {
+  pointer-events: none;
+}
+body.modal-open .modal.show .modal-dialog {
+  pointer-events: auto;
+}

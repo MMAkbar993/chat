@@ -15,6 +15,9 @@
 </div>
 <!-- /Content -->
 
+@endsection
+
+@push('spa-modals')
 <div id="spa-page-modals">
 <!-- Add Contact -->
 <div class="modal fade" id="add-contact" tabindex="-1" aria-labelledby="add-contact-label" aria-hidden="true">
@@ -964,4 +967,4 @@
 </div>
 
 </div>
-@endsection
+@endpush

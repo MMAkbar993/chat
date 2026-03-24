@@ -28,6 +28,7 @@
     @endif
     @yield('content')
     </div>
+    @stack('spa-modals')
     @includeIf('frontend.partials.popups')
     @includeIf('frontend.partials.script')
 </body>

@@ -42,6 +42,25 @@
  <!-- Custom JS -->
  <script src="{{ asset('assets/js/script.js') }}"></script>
 
+{{-- Bootstrap modal backdrop is on body; #spa-page-modals must not stay inside .main-wrapper or the dimmer stacks above dialogs (chat / SPA shell). --}}
+<script>
+(function () {
+    function relocateSpaPageModals() {
+        var box = document.getElementById('spa-page-modals');
+        var mw = document.querySelector('.main-wrapper');
+        if (!box || !mw || !mw.contains(box)) return;
+        var parent = mw.parentNode;
+        if (!parent) return;
+        parent.insertBefore(box, mw.nextSibling);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', relocateSpaPageModals);
+    } else {
+        relocateSpaPageModals();
+    }
+})();
+</script>
+
 <script src="{{ asset('assets/js/toastify.js') }}"></script>
 @php
 try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
