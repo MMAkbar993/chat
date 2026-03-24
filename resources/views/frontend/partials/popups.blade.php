@@ -152,6 +152,8 @@
 </div>
 <!-- /Video Call -->
 
+@include('frontend.partials.agora-video-call-modals')
+
 <!-- Voice Call attend (active audio call) - global so receiver can see on any page -->
 <div class="modal fade" id="voice-attend-new">
     <div class="modal-dialog modal-dialog-centered">

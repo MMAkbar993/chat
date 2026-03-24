@@ -316,14 +316,17 @@ initializeFirebase(function (app, auth, database, storage) {
 
                 containers.forEach(function (c) { c.innerHTML = fullHtml; });
 
-                // Add event listener for fetching user details when clicking on a user
-                document.querySelectorAll('.chat-user-list').forEach(item => {
-                    item.addEventListener('click', function () {
-                        const userId = this.getAttribute('data-user-id');
-                        const modal = document.getElementById('contact-details');
-                        const modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
-                        if (modalInput) modalInput.value = userId || '';
-                        fetchUserData(userId); // Fetch and display user details in modal
+                // Bind only inside contact list containers — not document-wide (All Chats rows also use .chat-user-list with data-user-id on .chat-list parent).
+                containers.forEach(function (c) {
+                    c.querySelectorAll('.chat-user-list').forEach(function (item) {
+                        item.addEventListener('click', function () {
+                            const row = this.closest('.chat-list');
+                            const userId = this.getAttribute('data-user-id') || (row ? row.getAttribute('data-user-id') : null);
+                            const modal = document.getElementById('contact-details');
+                            const modalInput = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : null;
+                            if (modalInput) modalInput.value = userId || '';
+                            fetchUserData(userId);
+                        });
                     });
                 });
             } else {
@@ -340,11 +343,13 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function getContactListContainers() {
-        const byId = [document.getElementById('chatContainer'), document.getElementById('chat-container')];
+        /* Only the sidebar list (#chatContainer) and explicit [data-contact-list] hooks — never #chat-container in spa-page-content (that sat beside welcome and duplicated the full list on /contact). */
+        const byId = [document.getElementById('chatContainer')];
         const byAttr = Array.prototype.slice.call(document.querySelectorAll('[data-contact-list]'));
         const seen = new Set();
         return byId.concat(byAttr).filter(function (el) {
             if (!el || seen.has(el)) return false;
+            if (el.id === 'chat-container') return false;
             seen.add(el);
             return true;
         });
@@ -416,12 +421,17 @@ initializeFirebase(function (app, auth, database, storage) {
 
     // Fetch user data from Firebase using user ID and display it in the modal
     function fetchUserData(userId) {
-        const contactRef = ref(database, `data/contacts/${currentUserId}/${userId}`); // Reference to the contact data
+        const uid = userId != null ? String(userId).trim() : '';
+        if (!currentUserId || !uid) {
+            return;
+        }
+
+        const contactRef = ref(database, `data/contacts/${currentUserId}/${uid}`); // Reference to the contact data
 
         // Fetch contact data from Firebase
         get(contactRef).then(async snapshot => {
             if (snapshot.exists()) {
-                const userRef = ref(database, `data/users/${userId}`); // Correct Firebase reference
+                const userRef = ref(database, `data/users/${uid}`); // Correct Firebase reference
                 const snapshot = await get(userRef); // Fetch user details
                 let userData = {};
                 if (snapshot.exists()) {
@@ -430,10 +440,10 @@ initializeFirebase(function (app, auth, database, storage) {
                 const snapshotContact = await get(contactRef);
                 const contactData = snapshotContact.val();
                 // Update modal content with fetched data (set both modal input and legacy id for compatibility)
-                const modalInput = document.getElementById('contact-details')?.querySelector('input[id="edit-user-id"]');
-                if (modalInput) modalInput.value = userId;
-                const legacyEl = document.getElementById("edit-user-id");
-                if (legacyEl) legacyEl.value = userId;
+                const modalInput = document.getElementById('contact-details')?.querySelector('input[id="contact-detail-user-id"]');
+                if (modalInput) modalInput.value = uid;
+                const legacyEl = document.getElementById("edit-contact-user-id");
+                if (legacyEl) legacyEl.value = uid;
                 // Name: contact first, then userData fallback; then mobile/email/userName
                 const firstName = (contactData.firstName || userData.firstName || "").trim();
                 const lastName = (contactData.lastName || userData.lastName || "").trim();
@@ -448,7 +458,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 var avatarImgEl = document.querySelector('#contact-details .avatar img');
                 var rawAvatar = (contactData && contactData.profile_image) || (userData && (userData.profile_image || userData.image || userData.profileImage || userData.photoURL || userData.avatar)) || '';
                 if (!rawAvatar) {
-                    const fbUids = userId && String(userId).indexOf('pending_') !== 0 ? [userId] : [];
+                    const fbUids = uid && String(uid).indexOf('pending_') !== 0 ? [uid] : [];
                     const emailList = [];
                     const unList = [];
                     if (contactData && contactData.email && String(contactData.email).trim()) emailList.push(String(contactData.email).trim().toLowerCase());
@@ -470,7 +480,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         const bu = laravelMap.by_uid || {};
                         const be = laravelMap.by_email || {};
                         const buser = laravelMap.by_username || {};
-                        if (fbUids.length && bu[userId]) rawAvatar = bu[userId];
+                        if (fbUids.length && bu[uid]) rawAvatar = bu[uid];
                         if (!rawAvatar && emailList.length) {
                             for (let i = 0; i < emailList.length && !rawAvatar; i++) {
                                 if (be[emailList[i]]) rawAvatar = be[emailList[i]];
@@ -593,7 +603,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         })
                         .catch(function () {});
                 } else {
-                    fetch("/api/public-profile-by-firebase-uid?uid=" + encodeURIComponent(userId))
+                    fetch("/api/public-profile-by-firebase-uid?uid=" + encodeURIComponent(uid))
                         .then(function (r) { return r.json(); })
                         .then(function (pub) {
                             if (!pub) return;
@@ -646,8 +656,8 @@ initializeFirebase(function (app, auth, database, storage) {
 
     function handleVoiceCallClick() {
         const modal = document.getElementById('contact-details');
-        const modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
-        const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById('edit-user-id')?.value || '').trim();
+        const modalInput = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : null;
+        const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById('edit-contact-user-id')?.value || '').trim();
         if (!currentUserId || !userId) return;
 
         const modalEl = document.getElementById('contact-details');
@@ -667,8 +677,8 @@ initializeFirebase(function (app, auth, database, storage) {
 
     function handleVideoCallClick() {
         const modal = document.getElementById('contact-details');
-        const modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
-        const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById('edit-user-id')?.value || '').trim();
+        const modalInput = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : null;
+        const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById('edit-contact-user-id')?.value || '').trim();
         if (!currentUserId || !userId) return;
 
         const modalEl = document.getElementById('contact-details');
@@ -688,8 +698,8 @@ initializeFirebase(function (app, auth, database, storage) {
 
     function handleChatButtonClick() {
         const modal = document.getElementById("contact-details");
-        const modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
-        const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById("edit-user-id")?.value || '').trim();
+        const modalInput = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : null;
+        const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById("edit-contact-user-id")?.value || '').trim();
         if (!userId) {
             Toastify({
                 text: "Please select a contact first.",
@@ -931,7 +941,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         }).then((result) => {
                             if (result.isConfirmed) {
                                 // Redirect to the desired page
-                                window.location.href = "/contact";
+                                displayUsers();
                             }
                         });
                     }
@@ -966,7 +976,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         }).then((result) => {
                             if (result.isConfirmed) {
                                 // Redirect to the desired page
-                                window.location.href = "/contact";
+                                displayUsers();
                             }
                         });
                     })
@@ -1287,8 +1297,9 @@ initializeFirebase(function (app, auth, database, storage) {
     const editContactModal = document.getElementById('edit-contact');
     if (editContactModal) {
         editContactModal.addEventListener('show.bs.modal', function (event) {
-            const userId = document.getElementById("edit-user-id").value;
-            document.querySelector('#edit-contact .modal-body #edit-user-id').value = userId; // Set the user ID
+            const userId = document.getElementById("contact-detail-user-id")?.value || "";
+            const editUserInput = document.querySelector('#edit-contact .modal-body #edit-contact-user-id');
+            if (editUserInput) editUserInput.value = userId; // Set the user ID for edit modal
             fetchUserDataForEdit(userId);
         });
     }
@@ -1297,7 +1308,7 @@ initializeFirebase(function (app, auth, database, storage) {
     const blockContactUserModal = document.getElementById('block-contact-user');
     if (blockContactUserModal) {
         blockContactUserModal.addEventListener('show.bs.modal', function (event) {
-            const userId = document.getElementById("edit-user-id").value;
+            const userId = document.getElementById("contact-detail-user-id")?.value || "";
             const otherUserId = userId;
             isUserContactBlocked = localStorage.getItem("isUserContactBlocked") === "true";
             if (isUserContactBlocked) {
@@ -1305,14 +1316,15 @@ initializeFirebase(function (app, auth, database, storage) {
             } else {
                 document.getElementById("blockContactUserLabel").textContent = "Block";
             }
-            document.querySelector('#block-contact-user .modal-body #edit-user-id').value = userId; // Set the user ID
+            const blockUserInput = document.querySelector('#block-contact-user .modal-body #block-contact-user-id');
+            if (blockUserInput) blockUserInput.value = userId; // Set the user ID for block modal
             // blockUser(userId);
         });
     }
     const blockContactUserDropdownBtn = document.getElementById("blockContactUserDropdownBtn");
     if (blockContactUserDropdownBtn) {
         blockContactUserDropdownBtn.addEventListener("click", function (event) {
-            const userId = document.getElementById("edit-user-id").value;
+            const userId = document.getElementById("contact-detail-user-id")?.value || "";
             otherUserId = userId; // Replace with actual user ID logic
             const EditpopupElement = document.getElementById('contact-details');  // The contact details modal ID
             if (EditpopupElement) {
@@ -1358,7 +1370,8 @@ initializeFirebase(function (app, auth, database, storage) {
     document.querySelectorAll('.chat-user-list').forEach(item => {
         item.addEventListener('click', function () {
             const userId = this.getAttribute('data-user-id');
-            document.getElementById('edit-user-id').value = userId; // Set the user ID
+            const editUserInput = document.getElementById('edit-contact-user-id');
+            if (editUserInput) editUserInput.value = userId; // Set the user ID
             $('#edit-contact').modal('show'); // Open the edit modal
         });
     });
@@ -1367,7 +1380,7 @@ initializeFirebase(function (app, auth, database, storage) {
     function handleEditFormSubmit(event) {
         event.preventDefault(); // Prevent the form from reloading the page
         const loggedInUserId = currentUserId;
-        const userId = document.getElementById('edit-user-id').value;
+        const userId = document.getElementById('edit-contact-user-id')?.value || "";
         const firstName = document.getElementById('edit-first-name').value;
         const lastName = document.getElementById('edit-last-name').value;
         const email_edit = document.getElementById('edit-email').value;
@@ -1396,7 +1409,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             }).then((result) => {
                                 if (result.isConfirmed) {
                                     // Redirect to the desired page
-                                    window.location.href = "/contact";
+                                    displayUsers();
                                 }
                             });
 
@@ -1598,7 +1611,7 @@ initializeFirebase(function (app, auth, database, storage) {
     const confirmBlockContactUserBtn = document.getElementById("confirmBlockContactUserBtn");
     if (confirmBlockContactUserBtn) confirmBlockContactUserBtn.addEventListener("click", function (event) {
         event.preventDefault(); // Prevent default form submission
-        const otherUserId = document.getElementById("edit-user-id").value;
+        const otherUserId = document.getElementById("block-contact-user-id")?.value || "";
         if (otherUserId) {
             blockUser(otherUserId); // Call the function to block the user
             // Close the block modal after blocking
@@ -1611,7 +1624,7 @@ initializeFirebase(function (app, auth, database, storage) {
     });
     const confirmUnblockContactBtn = document.getElementById("confirmUnblockContactBtn");
     if (confirmUnblockContactBtn) confirmUnblockContactBtn.addEventListener("click", function () {
-        const otherUserIdEl = document.getElementById("edit-user-id");
+        const otherUserIdEl = document.getElementById("block-contact-user-id");
         if (otherUserIdEl && otherUserIdEl.value) {
             unblockUser(otherUserIdEl.value);
             const unblockModalInstance = bootstrap.Modal.getInstance(document.getElementById("unblock-contact-user"));
@@ -1630,7 +1643,17 @@ initializeFirebase(function (app, auth, database, storage) {
     // Add event listener to the delete button
     if (deleteContactBtn) deleteContactBtn.addEventListener('click', function (event) {
         event.preventDefault(); // Prevent form submission
-        const contactId = document.getElementById("edit-user-id").value;
+        const contactId = document.getElementById("contact-detail-user-id")?.value || "";
+        if (!contactId) {
+            Toastify({
+                text: "Contact not found. Please reopen contact details.",
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#ff6b6b",
+            }).showToast();
+            return;
+        }
 
         // Reference to the specific contact document to be deleted
         const contactRef = ref(database, `data/contacts/${currentUserId}/${contactId}`);
@@ -1646,11 +1669,11 @@ initializeFirebase(function (app, auth, database, storage) {
                 }).showToast();
                
                 $('#delete-contact').modal('hide'); 
-                window.location.href = "/contact";
+                displayUsers();
             })
             .catch((error) => {
 
                 // Handle error, show an alert or message to the user
             });
     });
-});
+}); 

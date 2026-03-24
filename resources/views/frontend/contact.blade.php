@@ -7,7 +7,8 @@
     @includeIf('frontend.partials.sidebar')
 
     <div id="spa-page-content">
-        <div id="chat-container" data-contact-list="1"></div>
+        {{-- Optional legacy target; do not use data-contact-list here — it duplicated the sidebar contact list next to the welcome panel. --}}
+        <div id="chat-container"></div>
         @includeIf('frontend.partials.chat-content')
     </div>
 
@@ -52,7 +53,7 @@
             </div>
             <div class="modal-body">
                 <form id="edit-contact-form">
-                    <input type="hidden" id="edit-user-id" />
+                    <input type="hidden" id="edit-contact-user-id" />
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -147,7 +148,7 @@
             <div class="modal-body">
                 <div class="card bg-light shadow-none">
                     <div class="card-body pb-1">
-                        <input type="hidden" id="edit-user-id" />
+                        <input type="hidden" id="contact-detail-user-id" />
                         <div class="d-flex align-items-center justify-content-between">
                             <div class="d-flex align-items-center mb-3">
                                 <span class="avatar avatar-lg">
@@ -707,8 +708,7 @@
     </div>
 </div>
 <!-- /Voice Call group -->
-
-@include('frontend.partials.agora-video-call-modals')
+{{-- Agora active 1:1 modal: included globally in frontend.partials.popups --}}
 
 <!-- Video Call group -->
 <div class="modal fade" id="video_group" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
@@ -884,7 +884,7 @@
             </div>
             <div class="modal-body">
                 <form id="blockUserForm">
-                    <input type="hidden" id="edit-user-id" />
+                    <input type="hidden" id="block-contact-user-id" />
                     <div class="block-wrap text-center mb-3">
                         <span class="user-icon mb-3 mx-auto bg-transparent-info">
                             <i class="ti ti-user-off text-info"></i>

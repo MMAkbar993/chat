@@ -1,10 +1,13 @@
 /**
- * SPA modals fix: Bootstrap appends the modal backdrop to body (z-index 1050).
- * Modals live inside .main-wrapper, so the wrapper must sit above the backdrop
- * or the overlay covers the modal and the screen is dark/unclickable.
+ * SPA / global modals: full-viewport dim must sit above .main-wrapper and .sidebar-menu.
+ * Do NOT raise .main-wrapper above .modal-backdrop — that keeps sidebars bright while the
+ * backdrop sits underneath (see debug: mainWrapperZ 1060 vs backdropZ 1050).
+ * Lift backdrop + .modal above app chrome (.sidebar-menu uses z-index 999).
  */
-.main-wrapper {
-  position: relative;
-  z-index: 1060;
+.modal-backdrop {
+  z-index: 2000 !important;
 }
 
+.modal {
+  z-index: 2005 !important;
+}

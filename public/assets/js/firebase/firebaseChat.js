@@ -45,6 +45,8 @@ initializeFirebase(function (app, auth, database, storage) {
     let currentUser = null; // Define the current user here
     let selectedUserId = null; // Store the selected user ID
     let currentUserId = null;
+    /** Same-tab only: restores open chat after refresh. Do not use localStorage for panel visibility (stale after SPA / no selection). */
+    const CHAT_ACTIVE_PEER_SESSION_KEY = "dreamchat_active_peer";
 
     let typingIdleTimer = null;
     function clearChatTyping() {
@@ -76,7 +78,13 @@ initializeFirebase(function (app, auth, database, storage) {
         var p = (typeof location !== "undefined" && location.pathname) ? location.pathname.replace(/\/+$/, "") || "/" : "";
         var onChat = p === "/chat" || p === "/index";
         var hasUser = false;
-        try { hasUser = !!(localStorage.getItem("selectedUserId") || (typeof location !== "undefined" && location.search && new URLSearchParams(location.search).get("user"))); } catch (e) {}
+        try {
+            hasUser = !!(
+                typeof location !== "undefined" &&
+                location.search &&
+                new URLSearchParams(location.search).get("user")
+            );
+        } catch (e) { }
         document.body.setAttribute("data-chat-panel", onChat && hasUser ? "visible" : "welcome");
     }
 
@@ -97,15 +105,21 @@ initializeFirebase(function (app, auth, database, storage) {
                     populateUsersMap(); // archived/pinned/etc. + usersMap merged with contacts
                     fetchUsers();
 
-                    // Check localStorage and trigger `selectUser` if a user ID is present
-                    let storedUserId = localStorage.getItem("selectedUserId"); // Retrieve the stored user ID
+                    // Restore open chat from ?user= or same-tab session only (not localStorage — it stays set after SPA nav and hides welcome incorrectly).
+                    const urlParams = new URLSearchParams(window.location.search);
+                    let storedUserId = urlParams.get("user");
                     if (!storedUserId) {
-                        const urlParams = new URLSearchParams(window.location.search);
-                        storedUserId = urlParams.get('user');
+                        try {
+                            storedUserId = sessionStorage.getItem(CHAT_ACTIVE_PEER_SESSION_KEY) || "";
+                        } catch (e) {
+                            storedUserId = "";
+                        }
+                    }
+                    if (!storedUserId) {
+                        storedUserId = null;
                     }
 
                     if (storedUserId) {
-                        const urlParams = new URLSearchParams(window.location.search);
                         const callAction = urlParams.get('call');
                         function showChatPanelIfPresent() {
                             const middleEl = document.getElementById("middle");
@@ -1441,7 +1455,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             "Delete this chat from your list?"
                         )
                     ) {
-                        deleteChat(userId);
+                        removeChatFromSidebarList(userId);
                     }
                 },
             },
@@ -1729,6 +1743,7 @@ initializeFirebase(function (app, auth, database, storage) {
         swiperSlideDiv.classList.add("swiper-slide", "swiper-slide-active"); // Add both classes
         swiperSlideDiv.style.width = "59px"; // Set width
         swiperSlideDiv.style.marginRight = "15px"; // Set margin-right
+        swiperSlideDiv.setAttribute("data-recent-user-id", String(userId));
 
         const swiperUserLink = document.createElement("a");
         swiperUserLink.classList.add("chat-status", "text-center");
@@ -1796,8 +1811,11 @@ initializeFirebase(function (app, auth, database, storage) {
         const welcomeContainer = document.getElementById("welcome-container");
         if (!chatBox || !middleEl) return;
 
-        // Persist selection so layout logic (and welcome panel) behaves consistently across breakpoints.
+        // Persist selection for other modules; panel visibility uses selectedUserId / ?user / session only.
         try { localStorage.setItem("selectedUserId", String(userId)); } catch (e) { }
+        try {
+            sessionStorage.setItem(CHAT_ACTIVE_PEER_SESSION_KEY, String(userId));
+        } catch (e) { }
         try {
             if (typeof history !== "undefined" && history.replaceState) {
                 const u = new URL(window.location.href);
@@ -2806,7 +2824,12 @@ initializeFirebase(function (app, auth, database, storage) {
                                     <ul class="dropdown-menu dropdown-menu-end p-3">
                                         <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
                                         <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
+                                        <li><a class="dropdown-item copy-btn" href="#"><i class="ti ti-copy me-2"></i>Copy</a></li>
+                                        <li><a class="dropdown-item favourite-chat-btn" href="#"><i class="ti ti-heart me-2"></i>Mark as Favourite</a></li>
                                         <li><a class="dropdown-item delete-btn" href="#" id="delete-btn" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
+                                        <li><a class="dropdown-item mark-unread-chat-btn" href="#"><i class="ti ti-check me-2"></i>Mark as Unread</a></li>
+                                        <li><a class="dropdown-item archive-chat-btn" href="#"><i class="ti ti-box-align-right me-2"></i>Archive Chat</a></li>
+                                        <li><a class="dropdown-item pin-chat-btn" href="#"><i class="ti ti-pinned me-2"></i>Pin Chat</a></li>
                                     </ul>
                                 </div>   
                                 <div class="message-content">
@@ -2849,7 +2872,12 @@ initializeFirebase(function (app, auth, database, storage) {
                                      <ul class="dropdown-menu dropdown-menu-end p-3">
                                         <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
                                         <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
+                                        <li><a class="dropdown-item copy-btn" href="#"><i class="ti ti-copy me-2"></i>Copy</a></li>
+                                        <li><a class="dropdown-item favourite-chat-btn" href="#"><i class="ti ti-heart me-2"></i>Mark as Favourite</a></li>
                                         <li><a class="dropdown-item delete-btn" href="#" id="delete-btn" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
+                                        <li><a class="dropdown-item mark-unread-chat-btn" href="#"><i class="ti ti-check me-2"></i>Mark as Unread</a></li>
+                                        <li><a class="dropdown-item archive-chat-btn" href="#"><i class="ti ti-box-align-right me-2"></i>Archive Chat</a></li>
+                                        <li><a class="dropdown-item pin-chat-btn" href="#"><i class="ti ti-pinned me-2"></i>Pin Chat</a></li>
                                     </ul>
                                 </div> 
                             </div>
@@ -2885,8 +2913,10 @@ initializeFirebase(function (app, auth, database, storage) {
 
     // Event listener for the reply button
     document.addEventListener("click", (e) => {
-        if (e.target.classList.contains("reply-btn")) {
-            const messageElement = e.target.closest(".chats");
+        const replyBtn = e.target.closest(".reply-btn");
+        if (replyBtn) {
+            e.preventDefault();
+            const messageElement = replyBtn.closest(".chats");
 
             // Extract user and type information
             const replyUser = "";
@@ -2982,8 +3012,10 @@ initializeFirebase(function (app, auth, database, storage) {
 
     let forwardContent = null;
     document.addEventListener("click", (e) => {
-        if (e.target.classList.contains("forward-btn")) {
-            const messageElement = e.target.closest(".chats");
+        const forwardBtn = e.target.closest(".forward-btn");
+        if (forwardBtn) {
+            e.preventDefault();
+            const messageElement = forwardBtn.closest(".chats");
             const messageContentElement =
                 messageElement.querySelector(".message-content");
             const messageKey = messageElement.getAttribute("data-message-key");
@@ -3238,8 +3270,11 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     document.addEventListener("click", (e) => {
-        if (e.target.classList.contains("delete-btn")) {
-            const messageElement = e.target.closest(".chats");
+        const deleteBtn = e.target.closest(".delete-btn");
+        if (deleteBtn) {
+            e.preventDefault();
+            const messageElement = deleteBtn.closest(".chats");
+            if (!messageElement) return;
             const messageKey = messageElement.dataset.messageKey; // Unique message key
             const chatRoomId = getDeterministicChatRoomId(currentUserId, selectedUserId); // Generate chatRoomId dynamically
 
@@ -3265,14 +3300,14 @@ initializeFirebase(function (app, auth, database, storage) {
                         if (message.senderId == currentUserId) {
                             // Hide the "Delete For Everyone" option
                             const deleteForEveryoneDiv =
-                                document.getElementById("delete-for-everyone");
+                                document.getElementById("delete-for-everyone-wrap");
                             if (deleteForEveryoneDiv) {
                                 deleteForEveryoneDiv.style.display = "block";
                             }
                         } else {
                             // Ensure the "Delete For Everyone" option is visible
                             const deleteForEveryoneDiv =
-                                document.getElementById("delete-for-everyone");
+                                document.getElementById("delete-for-everyone-wrap");
                             if (deleteForEveryoneDiv) {
                                 deleteForEveryoneDiv.style.display = "none";
                             }
@@ -3285,6 +3320,74 @@ initializeFirebase(function (app, auth, database, storage) {
                     console.error("Error fetching message details:", error);
                 });
         }
+    });
+
+    document.addEventListener("click", async (e) => {
+        const copyBtn = e.target.closest(".copy-btn");
+        if (!copyBtn) return;
+        e.preventDefault();
+        const messageElement = copyBtn.closest(".chats");
+        if (!messageElement) return;
+        const bodyEl = messageElement.querySelector(
+            ".message-content > div:not(.message-reply)"
+        );
+        const textToCopy = bodyEl ? String(bodyEl.textContent || "").trim() : "";
+        if (!textToCopy) return;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(textToCopy);
+            } else {
+                const ta = document.createElement("textarea");
+                ta.value = textToCopy;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand("copy");
+                ta.remove();
+            }
+            Toastify({
+                text: "Message copied",
+                duration: 2200,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#28a745",
+            }).showToast();
+        } catch (err) {
+            Toastify({
+                text: "Unable to copy message",
+                duration: 2200,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#dc3545",
+            }).showToast();
+        }
+    });
+
+    document.addEventListener("click", (e) => {
+        const favBtn = e.target.closest(".favourite-chat-btn");
+        if (!favBtn) return;
+        e.preventDefault();
+        if (selectedUserId) favouriteChat(selectedUserId);
+    });
+
+    document.addEventListener("click", (e) => {
+        const unreadBtn = e.target.closest(".mark-unread-chat-btn");
+        if (!unreadBtn) return;
+        e.preventDefault();
+        if (selectedUserId) markChatAsUnread(selectedUserId);
+    });
+
+    document.addEventListener("click", (e) => {
+        const archiveBtn = e.target.closest(".archive-chat-btn");
+        if (!archiveBtn) return;
+        e.preventDefault();
+        if (selectedUserId) archiveChat(selectedUserId);
+    });
+
+    document.addEventListener("click", (e) => {
+        const pinBtn = e.target.closest(".pin-chat-btn");
+        if (!pinBtn) return;
+        e.preventDefault();
+        if (selectedUserId) pinChat(selectedUserId);
     });
 
     // Delete message for the current user
@@ -3308,12 +3411,8 @@ initializeFirebase(function (app, auth, database, storage) {
 
                         // Update the message with the new `deletedFor` value
                         return update(messageRef, updates);
-                    } else {
-                        console.log(
-                            "Message already marked as deleted for this user."
-                        );
-                        return Promise.resolve(); // No update needed
                     }
+                    return Promise.resolve(); // Already deleted for this user; no update needed
                 } else {
                     console.error("Message does not exist.");
                 }
@@ -3350,18 +3449,45 @@ initializeFirebase(function (app, auth, database, storage) {
             );
     }
 
+    // Before Bootstrap applies aria-hidden, ensure no focused control remains inside #message-delete (avoids a11y warning when .btn-close or submit holds focus).
+    const messageDeleteModalEl = document.getElementById("message-delete");
+    if (messageDeleteModalEl) {
+        messageDeleteModalEl.addEventListener("hide.bs.modal", () => {
+            const ae = document.activeElement;
+            if (ae && messageDeleteModalEl.contains(ae)) {
+                try {
+                    ae.blur();
+                } catch (err) {
+                    /* ignore */
+                }
+            }
+        });
+    }
+
     // Form submission handler
     const deleteChatForm = document.getElementById("delete-chat-form");
     if (deleteChatForm) {
         deleteChatForm.addEventListener("submit", (e) => {
             e.preventDefault(); // Prevent form default behavior
 
+            const submitter =
+                typeof SubmitEvent !== "undefined" && e instanceof SubmitEvent
+                    ? e.submitter
+                    : null;
+            if (
+                submitter &&
+                typeof submitter.blur === "function"
+            ) {
+                submitter.blur();
+            }
+
             const messageKey =
                 document.getElementById("message-to-delete").value;
             const chatRoomId = document.getElementById("room-id").value;
-            const action = document.querySelector(
+            const checkedDel = document.querySelector(
                 'input[name="delete-chat"]:checked'
-            ).id;
+            );
+            const action = checkedDel ? checkedDel.id : "";
 
             const messageElement = document.querySelector(
                 `[data-message-key="${messageKey}"]`
@@ -3375,13 +3501,53 @@ initializeFirebase(function (app, auth, database, storage) {
                 console.error("Unknown action.");
             }
 
-            // Close the modal
-            const modal = bootstrap.Modal.getInstance(
-                document.getElementById("message-delete")
-            );
-            modal.hide();
-            document.body.classList.remove("modal-open");
-            document.querySelector(".modal-backdrop").remove();
+            // Close the modal: move focus outside, then hide after layout — avoids Chrome warning when aria-hidden is set while the submit button still holds focus
+            const modalEl = document.getElementById("message-delete");
+            if (
+                modalEl &&
+                typeof bootstrap !== "undefined" &&
+                bootstrap.Modal
+            ) {
+                const modal =
+                    bootstrap.Modal.getInstance(modalEl) ||
+                    (typeof bootstrap.Modal.getOrCreateInstance === "function"
+                        ? bootstrap.Modal.getOrCreateInstance(modalEl)
+                        : null);
+                if (modal) {
+                    const ae = document.activeElement;
+                    if (ae && modalEl.contains(ae)) {
+                        try {
+                            ae.blur();
+                        } catch (err) {
+                            /* ignore */
+                        }
+                    }
+                    const focusSink = document.createElement("button");
+                    focusSink.type = "button";
+                    focusSink.setAttribute("tabindex", "-1");
+                    focusSink.setAttribute("aria-label", "");
+                    focusSink.style.cssText =
+                        "position:fixed;left:-10000px;width:1px;height:1px;overflow:hidden;opacity:0;";
+                    document.body.appendChild(focusSink);
+                    focusSink.focus({ preventScroll: true });
+                    let cleaned = false;
+                    const cleanup = () => {
+                        if (cleaned) return;
+                        cleaned = true;
+                        modalEl.removeEventListener("hidden.bs.modal", onHidden);
+                        clearTimeout(fallbackTimer);
+                        focusSink.remove();
+                    };
+                    const onHidden = () => cleanup();
+                    const fallbackTimer = setTimeout(cleanup, 2000);
+                    modalEl.addEventListener("hidden.bs.modal", onHidden);
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            modal.hide();
+                        });
+                    });
+                }
+            }
         });
     }
 
@@ -3790,7 +3956,62 @@ initializeFirebase(function (app, auth, database, storage) {
     const fileInput = document.getElementById("files");
     const messageInput = document.getElementById("message-input");
     const locationButton = document.getElementById("location-button");
+    const attachCameraBtn = document.getElementById("attach-camera");
+    const attachGalleryBtn = document.getElementById("attach-gallery");
+    const attachAudioBtn = document.getElementById("attach-audio");
+    const attachLocationBtn = document.getElementById("attach-location");
+    const attachContactBtn = document.getElementById("attach-contact");
     const GOOGLE_MAPS_API_KEY = "AIzaSyCAcoMewuBBAdWw5CEv6VfBcHPMl-k8uc8";
+
+    function openAttachmentPicker(options) {
+        if (!fileInput) return;
+        fileInput.value = "";
+        fileInput.removeAttribute("capture");
+        fileInput.removeAttribute("multiple");
+        fileInput.accept = (options && options.accept) ? options.accept : "*/*";
+        if (options && options.capture) {
+            fileInput.setAttribute("capture", options.capture);
+        }
+        fileInput.click();
+    }
+
+    if (attachCameraBtn) {
+        attachCameraBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            openAttachmentPicker({ accept: "image/*,video/*", capture: "environment" });
+        });
+    }
+    if (attachGalleryBtn) {
+        attachGalleryBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            openAttachmentPicker({ accept: "image/*,video/*" });
+        });
+    }
+    if (attachAudioBtn) {
+        attachAudioBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            openAttachmentPicker({ accept: "audio/*" });
+        });
+    }
+    if (attachLocationBtn) {
+        attachLocationBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            locationButton?.click();
+        });
+    }
+    if (attachContactBtn) {
+        attachContactBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            const contactModalEl = document.getElementById("add-contact");
+            if (contactModalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                let m = bootstrap.Modal.getInstance(contactModalEl);
+                if (!m) m = new bootstrap.Modal(contactModalEl);
+                m.show();
+                return;
+            }
+            window.location.href = "/contact";
+        });
+    }
 
     if (messageInput) {
         messageInput.addEventListener("input", () => {
@@ -4500,7 +4721,9 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    function deleteChat(userId) {
+    /** Records chat under delete_chats (so displayUsers hides it), removes sidebar row, resets view if open. */
+    function removeChatFromSidebarList(userId) {
+        if (!userId || !currentUser?.uid) return;
         const userRef = `data/users/${currentUser.uid}/delete_chats`;
 
         checkIfUserExists(userId, userRef).then((exists) => {
@@ -4521,6 +4744,18 @@ initializeFirebase(function (app, auth, database, storage) {
                 })
                     .then(() => {
                         removeUserFromUI(userId);
+                        if (selectedUserId === userId) {
+                            selectedUserId = null;
+                            resetChatShellToWelcome();
+                            try {
+                                if (typeof history !== "undefined" && history.replaceState) {
+                                    const u = new URL(window.location.href);
+                                    u.searchParams.delete("user");
+                                    history.replaceState({}, "", u.toString());
+                                }
+                            } catch (e) { /* ignore */ }
+                        }
+                        scheduleRefreshChatFilterBadgeCounts();
                         Toastify({
                             text: "Chat deleted successfully!",
                             duration: 3000,
@@ -4556,11 +4791,17 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function removeUserFromUI(userId) {
-        const userDiv = document.querySelector(
-            `.chat-list[data-user-id='${userId}']`
+        document
+            .querySelectorAll(`.chat-list[data-user-id='${userId}']`)
+            .forEach((el) => el.remove());
+        const slide = document.querySelector(
+            `.swiper-slide[data-recent-user-id='${userId}']`
         );
-        if (userDiv) {
-            userDiv.remove(); // This will remove the user's chat from the UI immediately
+        if (slide) slide.remove();
+        if (window.swiperInstance && typeof window.swiperInstance.update === "function") {
+            try {
+                window.swiperInstance.update();
+            } catch (e) { /* ignore */ }
         }
     }
     function displayLastSeen(userId) {
@@ -5452,7 +5693,7 @@ initializeFirebase(function (app, auth, database, storage) {
     if (clearChatBtn) {
         clearChatBtn.addEventListener("click", function (event) {
             event.preventDefault(); // Prevent the default form submission
-            clearChat(selectedUserId); // Pass the selectedUserId to the deleteChat function
+            clearChat(selectedUserId); // Pass the selectedUserId to clearChat
         });
     }
 
@@ -5506,54 +5747,14 @@ initializeFirebase(function (app, auth, database, storage) {
     if (deleteChatBtn) {
         deleteChatBtn.addEventListener("click", function (event) {
             event.preventDefault(); // Prevent the default form submission
-            deleteChat(selectedUserId); // Pass the selectedUserId to the deleteChat function
+            if (!selectedUserId) return;
+            removeChatFromSidebarList(selectedUserId);
+            const modal = document.getElementById("delete-user-chat");
+            if (modal && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                const modalInstance = bootstrap.Modal.getInstance(modal);
+                modalInstance?.hide();
+            }
         });
-    }
-
-    function deleteChat(selectedUserId) {
-        const chatRoomId = getDeterministicChatRoomId(currentUserId, selectedUserId);
-        const messagesRef = ref(database, `data/chats/${chatRoomId}`);
-
-        get(messagesRef)
-            .then((snapshot) => {
-                if (snapshot.exists()) {
-                    const messages = snapshot.val();
-
-                    // Prepare updates for each message
-                    const updates = {};
-                    Object.keys(messages).forEach((messageId) => {
-                        const deletedFor = messages[messageId].deletedFor || [];
-
-                        // Only update if the current user is not already in the deletedFor array
-                        if (!deletedFor.includes(currentUserId)) {
-                            updates[`${messageId}/deletedFor`] = [
-                                ...deletedFor,
-                                currentUserId,
-                            ];
-                        }
-                    });
-
-                    // Apply updates to the database
-                    return update(messagesRef, updates);
-                }
-            })
-            .then(() => {
-                // Clear UI
-                const chatBox = document.getElementById("chat-box");
-                if (chatBox) {
-                    chatBox.innerHTML = ""; // Clear the chat box
-                }
-
-                // Close modal if applicable
-                const modal = document.getElementById("delete-user-chat");
-                if (modal) {
-                    const modalInstance = bootstrap.Modal.getInstance(modal);
-                    modalInstance?.hide();
-                }
-            })
-            .catch((error) => {
-                console.error("Error deleting chat:", error);
-            });
     }
 
     let otherblockUserId = "";
@@ -6490,6 +6691,19 @@ initializeFirebase(function (app, auth, database, storage) {
     function resetChatShellToWelcome() {
         try {
             localStorage.removeItem("selectedUserId");
+        } catch (e) { /* ignore */ }
+        try {
+            sessionStorage.removeItem(CHAT_ACTIVE_PEER_SESSION_KEY);
+        } catch (e) { /* ignore */ }
+        try {
+            selectedUserId = null;
+        } catch (e) { /* ignore */ }
+        try {
+            if (typeof history !== "undefined" && history.replaceState) {
+                const u = new URL(window.location.href);
+                u.searchParams.delete("user");
+                history.replaceState({}, "", u.toString());
+            }
         } catch (e) { /* ignore */ }
         const chatSection = document.getElementById("middle");
         const welcomeContainer = document.getElementById("welcome-container");
@@ -8031,15 +8245,21 @@ initializeFirebase(function (app, auth, database, storage) {
                 get(ref(database, `data/calls/${otherUserId}/${currentCallId}`)),
             ]);
 
+            // Caller hanging up while still ringing = cancel, not "declined by callee"
+            const finalDuration =
+                callData.inOrOut === "OUT" && callData.duration === "Ringing"
+                    ? "Cancelled"
+                    : "Declined";
+
             // 2. Update DB with final duration while preserving other data
             const updates = {};
             updates[`data/calls/${currentUser.uid}/${currentCallId}`] = {
                 ...currentUserCall.val(),
-                duration: "Declined",
+                duration: finalDuration,
             };
             updates[`data/calls/${otherUserId}/${currentCallId}`] = {
                 ...otherUserCall.val(),
-                duration: "Declined",
+                duration: finalDuration,
             };
 
             await update(ref(database), updates);
@@ -8451,7 +8671,11 @@ initializeFirebase(function (app, auth, database, storage) {
             for (const callId in allCalls[currentUser.uid]) {
                 const call = allCalls[currentUser.uid][callId];
 
-                if (call.duration === "Declined" || call.duration === "Ended") {
+                if (
+                    call.duration === "Declined" ||
+                    call.duration === "Ended" ||
+                    call.duration === "Cancelled"
+                ) {
                     continue;
                 }
 
@@ -8677,7 +8901,6 @@ initializeFirebase(function (app, auth, database, storage) {
     async function endOrDeclineCall(status) {
         if (!currentVideoCallId) return;
 
-        const finalDuration = (status === "Declined") ? "Declined" : stopVideoCallTimer();
         const currentUser = auth.currentUser;
         const callSnapshot = await get(ref(database, `data/calls/${currentUser.uid}/${currentVideoCallId}`));
         if (!callSnapshot.exists()) {
@@ -8687,6 +8910,16 @@ initializeFirebase(function (app, auth, database, storage) {
 
         const callData = callSnapshot.val();
         const otherUserId = callData.callerId[0];
+
+        let finalDuration;
+        if (status === "Declined") {
+            finalDuration =
+                callData.inOrOut === "OUT" && callData.duration === "Ringing"
+                    ? "Cancelled"
+                    : "Declined";
+        } else {
+            finalDuration = stopVideoCallTimer();
+        }
 
         // <-- FIX: Update the database for BOTH users to end the call for everyone.
         const updates = {};
@@ -9354,7 +9587,8 @@ initializeFirebase(function (app, auth, database, storage) {
         let welcomeEl = document.getElementById("welcome-container");
         const middleEl = document.getElementById("middle");
         const spaContent = document.getElementById("spa-page-content");
-        const hasSelectedUser = !!localStorage.getItem("selectedUserId") || !!new URLSearchParams(window.location.search).get("user");
+        const urlPeer = new URLSearchParams(window.location.search || "").get("user");
+        const hasSelectedUser = !!(urlPeer || selectedUserId);
         if (spaContent) {
             spaContent.style.setProperty("display", "flex", "important");
             spaContent.style.setProperty("visibility", "visible", "important");
@@ -9406,7 +9640,8 @@ initializeFirebase(function (app, auth, database, storage) {
     function guardWelcomeVisible() {
         const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
         if (path !== "/chat" && path !== "/index") return;
-        if (localStorage.getItem("selectedUserId") || new URLSearchParams(window.location.search).get("user")) return;
+        const gUrl = new URLSearchParams(window.location.search || "").get("user");
+        if (gUrl || selectedUserId) return;
         const welcomeEl = document.getElementById("welcome-container");
         if (!welcomeEl) return;
         const computed = window.getComputedStyle(welcomeEl);

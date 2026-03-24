@@ -2055,18 +2055,26 @@ async function sendGroupMessage(groupId, messageText, messageType = 'text', file
     }
 }
 
+let pendingGroupDelete = { messageKey: "", groupId: "" };
+
 document.addEventListener("click", (e) => {
     if (e.target.classList.contains("delete-btn")) {
+        e.preventDefault();
         const messageElement = e.target.closest(".chats");
+        if (!messageElement) return;
         const messageKey = messageElement.dataset.messageKey; // Unique message key
         const groupIdkey = messageElement.dataset.groupId; // Get the group ID
-        // Populate hidden inputs in the form
-        document.getElementById("message-to-delete").value = messageKey;
-        document.getElementById("group-id").value = groupIdkey;
+        // Ignore one-to-one chat delete buttons handled in firebaseChat.js
+        if (!groupIdkey) return;
+        if (!messageKey || !groupIdkey) return;
 
-        if (!messageKey || !groupIdkey) {
-            return;
-        }
+        pendingGroupDelete = { messageKey: messageKey, groupId: groupIdkey };
+
+        const messageToDeleteInput = document.getElementById("message-to-delete");
+        const groupIdInput = document.getElementById("group-id");
+        // Populate hidden inputs in the form
+        if (messageToDeleteInput) messageToDeleteInput.value = messageKey;
+        if (groupIdInput) groupIdInput.value = groupIdkey;
     
         const messageRef = ref(database, `data/chats/${groupIdkey}/${messageKey}`);
   
@@ -2156,9 +2164,32 @@ if (deleteChatForm) {
     deleteChatForm.addEventListener("submit", (e) => {
         e.preventDefault(); // Prevent form default behavior
 
-        const messageKey = document.getElementById("message-to-delete").value;
-        const groupId = document.getElementById("group-id").value;
-        const action = document.querySelector('input[name="delete-chat"]:checked').id;
+        const submitter =
+            typeof SubmitEvent !== "undefined" && e instanceof SubmitEvent
+                ? e.submitter
+                : null;
+        if (submitter && typeof submitter.blur === "function") {
+            submitter.blur();
+        }
+
+        const messageToDeleteInput = document.getElementById("message-to-delete");
+        const groupIdInput = document.getElementById("group-id");
+        const messageKey =
+            (messageToDeleteInput && messageToDeleteInput.value) ||
+            pendingGroupDelete.messageKey ||
+            "";
+        const groupId =
+            (groupIdInput && groupIdInput.value) ||
+            pendingGroupDelete.groupId ||
+            "";
+        if (!messageKey || !groupId) return;
+
+        const selectedAction = document.querySelector('input[name="delete-chat"]:checked');
+        if (!selectedAction) {
+            console.warn("No delete action selected.");
+            return;
+        }
+        const action = selectedAction.id;
         
         // Ensure you're selecting the message element using messageKey
         const messageElement = document.querySelector(`[data-message-key="${messageKey}"]`);
@@ -2171,11 +2202,50 @@ if (deleteChatForm) {
             console.error("Unknown action.");
         }
 
-        // Close the modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById("message-delete"));
-        modal.hide();
-        document.body.classList.remove("modal-open");
-        document.querySelector(".modal-backdrop").remove();
+        // Close the modal: move focus outside, then hide after layout — avoids Chrome warning when aria-hidden is set while the submit button still holds focus
+        const modalEl = document.getElementById("message-delete");
+        if (
+            modalEl &&
+            typeof bootstrap !== "undefined" &&
+            bootstrap.Modal
+        ) {
+            const modalH =
+                bootstrap.Modal.getInstance(modalEl) ||
+                (typeof bootstrap.Modal.getOrCreateInstance === "function"
+                    ? bootstrap.Modal.getOrCreateInstance(modalEl)
+                    : null);
+            if (modalH) {
+                const focusSink = document.createElement("button");
+                focusSink.type = "button";
+                focusSink.setAttribute("tabindex", "-1");
+                focusSink.setAttribute("aria-hidden", "true");
+                focusSink.style.cssText =
+                    "position:fixed;left:-10000px;width:1px;height:1px;overflow:hidden;";
+                document.body.appendChild(focusSink);
+                focusSink.focus();
+                let cleaned = false;
+                const cleanup = () => {
+                    if (cleaned) return;
+                    cleaned = true;
+                    modalEl.removeEventListener("hidden.bs.modal", onHidden);
+                    clearTimeout(fallbackTimer);
+                    focusSink.remove();
+                    pendingGroupDelete = { messageKey: "", groupId: "" };
+                };
+                const onHidden = () => cleanup();
+                const fallbackTimer = setTimeout(cleanup, 2000);
+                modalEl.addEventListener("hidden.bs.modal", onHidden);
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        modalH.hide();
+                    });
+                });
+            } else {
+                pendingGroupDelete = { messageKey: "", groupId: "" };
+            }
+        } else {
+            pendingGroupDelete = { messageKey: "", groupId: "" };
+        }
     });
 }
 

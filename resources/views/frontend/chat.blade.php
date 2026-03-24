@@ -156,7 +156,7 @@
                                 <i class="ti ti-mood-smile"></i>
                             </a>
                         </div>
-                        <div class="form-item emoj-action-foot">
+                        <div class="form-item emoj-action-foot d-none">
                             <a href="javascript:void(0);" id="location-button" class="action-circle">
                                 <i class="ti ti-location"></i>
                             </a>
@@ -174,12 +174,19 @@
                         </div>
 
 
-                        <!-- File Upload -->
-                        <div class="form-item position-relative d-flex align-items-center justify-content-center">
-                            <a href="#" class="action-circle file-action position-absolute">
-                                <i class="ti ti-folder"></i>
+                        <!-- Attachment Menu -->
+                        <div class="form-item dropdown">
+                            <a href="javascript:void(0);" class="action-circle" data-bs-toggle="dropdown" aria-expanded="false" title="{{ __('Attachments') }}">
+                                <i class="ti ti-plus"></i>
                             </a>
-                            <input type="file" class="open-file position-relative" name="files" id="files">
+                            <ul class="dropdown-menu dropdown-menu-end p-2">
+                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-camera"><i class="ti ti-camera me-2"></i>{{ __('Camera') }}</a></li>
+                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-gallery"><i class="ti ti-photo me-2"></i>{{ __('Gallery') }}</a></li>
+                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-audio"><i class="ti ti-music me-2"></i>{{ __('Audio') }}</a></li>
+                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-location"><i class="ti ti-map-pin me-2"></i>{{ __('Location') }}</a></li>
+                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-contact"><i class="ti ti-user me-2"></i>{{ __('Contact') }}</a></li>
+                            </ul>
+                            <input type="file" class="d-none" name="files" id="files">
                         </div>
 
                         <!-- Send Button -->
@@ -624,7 +631,7 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <form id="delete-chat-form">
+                    <form id="delete-chat-form" method="post" action="#" onsubmit="return false">
                         <!-- Hidden input to store the messageId -->
                         <input type="hidden" id="message-to-delete" value="">
                         <input type="hidden" id="room-id" name="room-id">
@@ -632,7 +639,7 @@
                             <input class="form-check-input" type="radio" value="for-me" name="delete-chat" id="delete-for-me" checked>
                             <label class="form-check-label" for="delete-for-me">Delete For Me</label>
                         </div>
-                        <div class="form-check mb-3" id="delete-for-everyone">
+                        <div class="form-check mb-3" id="delete-for-everyone-wrap">
                             <input class="form-check-input" type="radio" value="for-everyone" name="delete-chat" id="delete-for-everyone">
                             <label class="form-check-label" for="delete-for-everyone">Delete For Everyone</label>
                         </div>
@@ -1730,59 +1737,9 @@
     </div>
     <!-- /Invite -->
 
-  <div class="modal fade" id="start-video-call-container">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header d-flex border-0 pb-0">
-                <div class="user-video-head">
-                    <div class="">
-                        <div class="d-flex align-items-center">
-                            <span class="avatar avatar-video avatar-lg online me-2">
-                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="user">
-                            </span>
-                            <div class="user-name">
-                                <!-- Remote user name will be inserted here -->
-                            </div>
-                            <span class="badge border border-primary text-primary badge-sm ms-5">
-                                <div class="call-duration" id="local-call-timer">00:00:00</div>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-body border-0 pt-0">
-                <!-- Full video view for remote user -->
-                <div class="row video-group">
-                    <!-- Remote video container -->
-                    <div id="remote-playerlist" class="remote-player-container">
-                        <!-- Remote video will be inserted here -->
-                    </div>
-
-                    <!-- Local video preview -->
-                    <div id="video-container" class="mini-video-view active br-8 position-absolute">
-                        <div class="bg-soft-primary mx-auto default-profile rounded-circle align-items-center justify-content-center">
-                            <span class="avatar avatar-lg rounded-circle bg-primary">You</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer justify-content-center border-0 pt-0">
-                    <div class="call-controll-block d-flex align-items-center justify-content-center rounded-pill">
-                        <a href="javascript:void(0);" id="mute-call" class="call-controll mute-call-btn">
-                            <i class="ti ti-microphone"></i>
-                        </a>
-                        <a href="javascript:void(0);" id="leave-video-call" class="call-controll call-decline">
-                            <i class="ti ti-phone"></i>
-                        </a>
-                        <a href="javascript:void(0);" id="video-mute-call" class="call-controll video-call-btn">
-                            <i class="ti ti-video"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+    {{-- Active 1:1 video (Agora): frontend.partials.agora-video-call-modals via popups.blade.php --}}
     </div>
-    </div>
-</div>
+    {{-- /#spa-page-content: page-local modals below are siblings (still inside .content.main_content) --}}
 
 <div id="spa-page-modals">
     <div class="modal fade" id="video_group_new" data-bs-backdrop="static" data-bs-keyboard="false"
