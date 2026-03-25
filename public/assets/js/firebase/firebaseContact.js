@@ -1639,12 +1639,31 @@ initializeFirebase(function (app, auth, database, storage) {
 
     // Reference to the delete button
     const deleteContactBtn = document.getElementById('deleteContactBtn');
+    const deleteContactModalForm = document.querySelector('#delete-contact form');
+
+    // #region agent log
+    fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3eda53'},body:JSON.stringify({sessionId:'3eda53',runId:'pre-fix',hypothesisId:'H1',location:'firebaseContact.js:1641',message:'delete contact handlers init',data:{hasDeleteBtn:!!deleteContactBtn,deleteBtnCount:document.querySelectorAll('#deleteContactBtn').length,hasDeleteForm:!!deleteContactModalForm},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+
+    if (deleteContactModalForm) {
+        deleteContactModalForm.addEventListener('submit', function (event) {
+            // #region agent log
+            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3eda53'},body:JSON.stringify({sessionId:'3eda53',runId:'pre-fix',hypothesisId:'H2',location:'firebaseContact.js:1644',message:'delete modal form submit fired',data:{defaultPrevented:event.defaultPrevented,activeElementId:document.activeElement&&document.activeElement.id?String(document.activeElement.id):null,currentUserId:currentUserId?String(currentUserId):null,contactDetailUserId:(document.getElementById("contact-detail-user-id")&&document.getElementById("contact-detail-user-id").value)?String(document.getElementById("contact-detail-user-id").value):""},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion agent log
+        });
+    }
 
     // Add event listener to the delete button
     if (deleteContactBtn) deleteContactBtn.addEventListener('click', function (event) {
+        // #region agent log
+        fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3eda53'},body:JSON.stringify({sessionId:'3eda53',runId:'pre-fix',hypothesisId:'H1',location:'firebaseContact.js:1648',message:'deleteContactBtn click fired',data:{defaultPreventedBefore:event.defaultPrevented,currentUserId:currentUserId?String(currentUserId):null,contactDetailUserId:(document.getElementById("contact-detail-user-id")&&document.getElementById("contact-detail-user-id").value)?String(document.getElementById("contact-detail-user-id").value):""},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
         event.preventDefault(); // Prevent form submission
         const contactId = document.getElementById("contact-detail-user-id")?.value || "";
         if (!contactId) {
+            // #region agent log
+            fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3eda53'},body:JSON.stringify({sessionId:'3eda53',runId:'pre-fix',hypothesisId:'H3',location:'firebaseContact.js:1652',message:'delete aborted missing contactId',data:{currentUserId:currentUserId?String(currentUserId):null},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion agent log
             Toastify({
                 text: "Contact not found. Please reopen contact details.",
                 duration: 3000,
@@ -1657,9 +1676,15 @@ initializeFirebase(function (app, auth, database, storage) {
 
         // Reference to the specific contact document to be deleted
         const contactRef = ref(database, `data/contacts/${currentUserId}/${contactId}`);
+        // #region agent log
+        fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3eda53'},body:JSON.stringify({sessionId:'3eda53',runId:'pre-fix',hypothesisId:'H4',location:'firebaseContact.js:1660',message:'attempting remove(contactRef)',data:{currentUserId:currentUserId?String(currentUserId):null,contactId:String(contactId),path:`data/contacts/${currentUserId}/${contactId}`},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
 
         remove(contactRef)
             .then(() => {
+                // #region agent log
+                fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3eda53'},body:JSON.stringify({sessionId:'3eda53',runId:'pre-fix',hypothesisId:'H4',location:'firebaseContact.js:1663',message:'remove(contactRef) success',data:{currentUserId:currentUserId?String(currentUserId):null,contactId:String(contactId)},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion agent log
                 Toastify({
                     text: "Contact deleted successfully!",
                     duration: 3000,
@@ -1672,6 +1697,9 @@ initializeFirebase(function (app, auth, database, storage) {
                 displayUsers();
             })
             .catch((error) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7865/ingest/d139c47a-6c4a-40c5-bdee-2cb2437ea702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3eda53'},body:JSON.stringify({sessionId:'3eda53',runId:'pre-fix',hypothesisId:'H4',location:'firebaseContact.js:1676',message:'remove(contactRef) failed',data:{currentUserId:currentUserId?String(currentUserId):null,contactId:String(contactId),errorMessage:error&&error.message?String(error.message):'unknown'},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion agent log
 
                 // Handle error, show an alert or message to the user
             });
