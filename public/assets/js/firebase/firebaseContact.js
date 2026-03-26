@@ -1226,14 +1226,14 @@ initializeFirebase(function (app, auth, database, storage) {
                 pendingPayload.primary_role = String(primaryRole).trim();
             }
             set(contactRef, pendingPayload).then(() => {
-                Swal.fire({ text: "Contact added! They will appear in your list; you can chat once they sign in to the app.", icon: "success", width: 420 }).then(() => {
-                    const inputEl = document.getElementById("add-contact-username-search");
-                    const resultsEl = document.getElementById("add-contact-search-results");
-                    if (inputEl) inputEl.value = "";
-                    if (resultsEl) { resultsEl.style.display = "none"; resultsEl.innerHTML = ""; }
-                    displayUsers();
-                    bootstrap.Modal.getInstance(document.getElementById("add-contact"))?.hide();
-                });
+                const inputEl = document.getElementById("add-contact-username-search");
+                const resultsEl = document.getElementById("add-contact-search-results");
+                if (inputEl) inputEl.value = "";
+                if (resultsEl) { resultsEl.style.display = "none"; resultsEl.innerHTML = ""; }
+                const addContactModal = document.getElementById("add-contact");
+                if (addContactModal) bootstrap.Modal.getOrCreateInstance(addContactModal).hide();
+                displayUsers();
+                Swal.fire({ text: "Contact added! They will appear in your list; you can chat once they sign in to the app.", icon: "success", width: 420 });
             }).catch(err => Swal.fire({ text: err.message || "Failed to add", icon: "error", width: 400 }));
         });
     }
@@ -1274,14 +1274,14 @@ initializeFirebase(function (app, auth, database, storage) {
                 const pr = primaryRoleFromLaravel && String(primaryRoleFromLaravel).trim() ? String(primaryRoleFromLaravel).trim() : "";
                 if (pr) contactPayload.primary_role = pr;
                 set(contactRef, contactPayload).then(() => {
-                    Swal.fire({ text: "Contact added!", icon: "success", width: 400 }).then(() => {
-                        const inputEl = document.getElementById("add-contact-username-search");
-                        const resultsEl = document.getElementById("add-contact-search-results");
-                        if (inputEl) inputEl.value = "";
-                        if (resultsEl) { resultsEl.style.display = "none"; resultsEl.innerHTML = ""; }
-                        displayUsers();
-                        bootstrap.Modal.getInstance(document.getElementById("add-contact"))?.hide();
-                    });
+                    const inputEl = document.getElementById("add-contact-username-search");
+                    const resultsEl = document.getElementById("add-contact-search-results");
+                    if (inputEl) inputEl.value = "";
+                    if (resultsEl) { resultsEl.style.display = "none"; resultsEl.innerHTML = ""; }
+                    const addContactModal = document.getElementById("add-contact");
+                    if (addContactModal) bootstrap.Modal.getOrCreateInstance(addContactModal).hide();
+                    displayUsers();
+                    Swal.fire({ text: "Contact added!", icon: "success", width: 400 });
                 }).catch(err => Swal.fire({ text: err.message || "Failed to add", icon: "error", width: 400 }));
             });
         });
