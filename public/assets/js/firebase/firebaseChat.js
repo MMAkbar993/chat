@@ -9683,10 +9683,9 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     });
 
-    // When on chat page: ensure welcome panel is visible (override CSS that hides it below 1200px)
+    // Ensure welcome panel is visible on all SPA pages when no chat is selected
     function ensureChatPageVisible() {
         const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
-        if (path !== "/chat" && path !== "/index") return;
         let welcomeEl = document.getElementById("welcome-container");
         const middleEl = document.getElementById("middle");
         const spaContent = document.getElementById("spa-page-content");
@@ -9741,8 +9740,6 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function guardWelcomeVisible() {
-        const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
-        if (path !== "/chat" && path !== "/index") return;
         const gUrl = new URLSearchParams(window.location.search || "").get("user");
         if (gUrl || selectedUserId) return;
         const welcomeEl = document.getElementById("welcome-container");
@@ -9755,29 +9752,16 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
     window.addEventListener("spa-page-applied", function (e) {
-        const path = (e && e.detail && e.detail.pathname) ? e.detail.pathname : (window.location.pathname || "").replace(/\/+$/, "") || "/";
-        if (path === "/chat" || path === "/index") {
-            [0, 50, 150, 400, 800].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
-            var guardCount = 0;
-            var guardInterval = setInterval(function () {
-                guardWelcomeVisible();
-                guardCount++;
-                if (guardCount >= 50) clearInterval(guardInterval);
-            }, 200);
-        } else {
-            // On non-chat pages, ensure the welcome container is hidden/removed
-            const welcomeEl = document.getElementById("welcome-container");
-            if (welcomeEl) welcomeEl.style.setProperty("display", "none", "important");
-            const spaContent = document.getElementById("spa-page-content");
-            if (spaContent) {
-                spaContent.style.removeProperty("display");
-                spaContent.style.removeProperty("visibility");
-                spaContent.style.removeProperty("min-height");
-            }
-        }
+        [0, 50, 150, 400, 800].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
+        var guardCount = 0;
+        var guardInterval = setInterval(function () {
+            guardWelcomeVisible();
+            guardCount++;
+            if (guardCount >= 50) clearInterval(guardInterval);
+        }, 200);
     });
     var initialPath = (window.location.pathname || "").replace(/\/+$/, "") || "/";
-    if (initialPath === "/chat" || initialPath === "/index") {
+    {
         [100, 200, 500, 800, 1200, 2000, 3000, 4000].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
         var guardCount = 0;
         var guardInterval = setInterval(function () {

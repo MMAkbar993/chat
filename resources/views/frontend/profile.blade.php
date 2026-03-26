@@ -7,6 +7,7 @@
     @includeIf('frontend.partials.sidebar')
 
     <div id="spa-page-content">
+        @includeIf('frontend.partials.chat-content')
         <div id="chat-container"></div>
     </div>
 
