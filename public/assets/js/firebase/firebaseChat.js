@@ -159,7 +159,10 @@ initializeFirebase(function (app, auth, database, storage) {
                         setTimeout(() => {
                             showChatPanelIfPresent();
                             if (document.getElementById("middle") && document.getElementById("chat-box")) {
-                                selectUser(storedUserId);
+                                // Only call if not already listening to this user (prevents double load)
+                                if (selectedUserId !== storedUserId) {
+                                    selectUser(storedUserId);
+                                }
                             }
                         }, 1500);
 
@@ -3808,6 +3811,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
     let messageListener = null;
     const displayedMessages = new Set(); // Keep track of displayed message keys
+    const pendingOptimisticKeys = new Set(); // Track tempKeys before DOM insertion
 
     function listenForMessages(fromUserId, toUserId, chatRoomId) {
         // Remove the previous listener before adding a new one
@@ -3836,21 +3840,20 @@ initializeFirebase(function (app, auth, database, storage) {
             const messageKey = snapshot.key;
 
             if (message.senderId === currentUser.uid && message.tempKey) {
-                const optimisticElement = document.querySelector(`[data-message-key="${message.tempKey}"]`);
-                if (optimisticElement) {
-                    // It exists! Let's update it instead of creating a new one.
-                    optimisticElement.dataset.messageKey = messageKey; // Update to the real key from Firebase
-                    optimisticElement.dataset.messageId = `msg-${message.timestamp}-${message.senderId}`;
-
-                    // Update the status icon from 'sending' (clock) to 'sent' (single check)
-                    const statusElement = optimisticElement.querySelector('.msg-read');
-                    if (statusElement) {
-                        statusElement.innerHTML = `<i class="ti ti-check"></i>`; // Sent icon
+                if (pendingOptimisticKeys.has(message.tempKey)) {
+                    pendingOptimisticKeys.delete(message.tempKey);
+                    displayedMessages.add(messageKey); // prevent duplicate from second listener
+                    // Update DOM element if it has already been appended
+                    const optimisticElement = document.querySelector(`[data-message-key="${message.tempKey}"]`);
+                    if (optimisticElement) {
+                        optimisticElement.dataset.messageKey = messageKey;
+                        optimisticElement.dataset.messageId = `msg-${message.timestamp}-${message.senderId}`;
+                        const statusElement = optimisticElement.querySelector('.msg-read');
+                        if (statusElement) {
+                            statusElement.innerHTML = `<i class="ti ti-check"></i>`;
+                        }
                     }
-
-                    // Mark as processed so it doesn't get added again
-                    displayedMessages.add(messageKey);
-                    return; // We're done, so we exit the function here.
+                    return; // optimistic bubble handles display — skip creating a new one
                 }
             }
 
@@ -3979,81 +3982,7 @@ initializeFirebase(function (app, auth, database, storage) {
             updateListener2();
         };
 
-        // Load existing messages from both paths
-        Promise.all([
-            get(messageRef1),
-            get(messageRef2)
-        ]).then(([snapshot1, snapshot2]) => {
-            const allMessages = [];
-
-            console.log("Loading existing messages...");
-            console.log("Snapshot1 exists:", snapshot1.exists(), "Snapshot2 exists:", snapshot2.exists());
-
-            // Collect messages from first path
-            if (snapshot1.exists()) {
-                snapshot1.forEach((childSnapshot) => {
-                    const message = childSnapshot.val();
-                    message.key = childSnapshot.key;
-                    allMessages.push(message);
-                });
-                console.log("Messages from path1:", snapshot1.size);
-            }
-
-            // Collect messages from second path
-            if (snapshot2.exists()) {
-                snapshot2.forEach((childSnapshot) => {
-                    const message = childSnapshot.val();
-                    message.key = childSnapshot.key;
-                    allMessages.push(message);
-                });
-                console.log("Messages from path2:", snapshot2.size);
-            }
-
-            console.log("Total messages collected:", allMessages.length);
-
-            const mergedByKey = new Map();
-            allMessages.forEach((msg) => {
-                const k = msg.key;
-                if (!mergedByKey.has(k)) {
-                    mergedByKey.set(k, { ...msg });
-                    return;
-                }
-                const cur = mergedByKey.get(k);
-                cur.deletedFor = mergeFirebaseUidLists(
-                    cur.deletedFor,
-                    msg.deletedFor
-                );
-                cur.clearedFor = mergeFirebaseUidLists(
-                    cur.clearedFor,
-                    msg.clearedFor
-                );
-            });
-            const mergedMessages = [...mergedByKey.values()];
-
-            // Sort messages by timestamp and display them
-            mergedMessages.sort((a, b) => a.timestamp - b.timestamp);
-
-            mergedMessages.forEach((message) => {
-                if (
-                    (message.senderId === fromUserId &&
-                        message.recipientId === toUserId) ||
-                    (message.senderId === toUserId &&
-                        message.recipientId === fromUserId)
-                ) {
-                    console.log("Displaying existing message:", message);
-                    displayedMessages.add(message.key);
-                    displayMessage(message);
-                }
-            });
-
-            // Scroll to bottom after loading messages
-            const chatBox = document.getElementById("chat-box");
-            if (chatBox) {
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
-        }).catch((error) => {
-            console.error("Error loading existing messages:", error);
-        });
+        // Existing messages are loaded by onChildAdded above (fires for all existing children first).
     }
 
     function markMessageAsSeen(chatRoomId, messageId) {
@@ -4252,7 +4181,10 @@ initializeFirebase(function (app, auth, database, storage) {
                     })
                 };
 
-                // 3. Display the message immediately
+                // 3. Register tempKey before display so Firebase listener can skip it even if DOM isn't ready
+                pendingOptimisticKeys.add(tempKey);
+
+                // 4. Display the message immediately
                 displayMessage(optimisticMessage);
 
                 // 4. Clear the input and close the reply box
