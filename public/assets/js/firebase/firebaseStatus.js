@@ -409,7 +409,8 @@ initializeFirebase(function (app, auth, database, storage) {
         updateCarousel(statuses, userName, userImage);
 
         // This is where you would hide the main view and show the story viewer view
-        document.getElementById("welcome-container").style.setProperty("display", "none", "important");
+        const _wcStatus = document.getElementById("welcome-container");
+        if (_wcStatus) _wcStatus.style.setProperty("display", "none", "important");
         document.querySelector('.user-stories-box').style.display = 'block';
 
         // Mark statuses as viewed in the background

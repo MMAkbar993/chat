@@ -649,8 +649,10 @@ function loadGroupDetails(groupId) {
                 document.getElementById("group_id").innerText = groupData.name; // Update group name
                 document.getElementById("group_image").src = groupData.image || 'assets/img/profiles/avatar-03.jpg'; // Update group name
                 document.getElementById("group-member-count").innerText = `${groupData.userIds.length} Members`; // Update member count
-                document.getElementById("welcome-container").style.setProperty("display", "none", "important"); // Hide welcome content
-                document.getElementById("middle").style.display = "block"; // Show chat content
+                const _wc = document.getElementById("welcome-container");
+                if (_wc) _wc.style.setProperty("display", "none", "important"); // Hide welcome content
+                const _mid = document.getElementById("middle");
+                if (_mid) _mid.style.display = "block"; // Show chat content
 
                 // Load chat messages or any other group-specific data here if needed
                 loadChatMessages(groupId);

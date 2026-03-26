@@ -9764,6 +9764,16 @@ initializeFirebase(function (app, auth, database, storage) {
                 guardCount++;
                 if (guardCount >= 50) clearInterval(guardInterval);
             }, 200);
+        } else {
+            // On non-chat pages, ensure the welcome container is hidden/removed
+            const welcomeEl = document.getElementById("welcome-container");
+            if (welcomeEl) welcomeEl.style.setProperty("display", "none", "important");
+            const spaContent = document.getElementById("spa-page-content");
+            if (spaContent) {
+                spaContent.style.removeProperty("display");
+                spaContent.style.removeProperty("visibility");
+                spaContent.style.removeProperty("min-height");
+            }
         }
     });
     var initialPath = (window.location.pathname || "").replace(/\/+$/, "") || "/";
