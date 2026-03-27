@@ -1919,6 +1919,23 @@ initializeFirebase(function (app, auth, database, storage) {
 
         const loggedInUserId = currentUserId;
         selectedUserId = userId; // Set the selected user ID
+        // Reset media accordion state so fresh data loads for the new contact
+        document.querySelectorAll(".media-collapse-content").forEach(colEl => {
+            delete colEl.dataset.mediaLoaded;
+            if (typeof bootstrap !== "undefined") {
+                const inst = bootstrap.Collapse.getInstance(colEl);
+                if (inst) inst.hide(); else colEl.classList.remove("show");
+            } else {
+                colEl.classList.remove("show");
+            }
+            colEl.querySelectorAll(".media-photos-grid,.media-videos-grid,.media-links-list,.media-docs-list").forEach(c => { c.innerHTML = ""; });
+            colEl.querySelectorAll(".media-empty").forEach(e => e.classList.add("d-none"));
+            colEl.querySelectorAll(".media-loading").forEach(e => e.classList.add("d-none"));
+        });
+        document.querySelectorAll(".media-chevron i").forEach(i => {
+            i.classList.remove("ti-chevron-up");
+            i.classList.add("ti-chevron-right");
+        });
         if (currentUser?.uid) {
             remove(
                 ref(
@@ -5002,25 +5019,134 @@ initializeFirebase(function (app, auth, database, storage) {
                 document.querySelector(".chat-search-btn")?.click();
             });
         }
-        [
-            "contact-media-photos",
-            "contact-media-videos",
-            "contact-media-links",
-            "contact-media-docs",
-        ].forEach((id) => {
-            const el = document.getElementById(id);
-            if (el && !el.dataset.wired) {
-                el.dataset.wired = "1";
-                el.addEventListener("click", (e) => {
-                    e.preventDefault();
-                    const oc = document.getElementById("contact-profile");
-                    if (oc && typeof bootstrap !== "undefined") {
-                        const inst = bootstrap.Offcanvas.getInstance(oc);
-                        if (inst) inst.hide();
+        const mediaAccordionMap = {
+            "contact-media-photos": { collapseId: "media-collapse-photos", type: "photos", attachmentTypes: [2] },
+            "contact-media-videos": { collapseId: "media-collapse-videos", type: "videos", attachmentTypes: [1] },
+            "contact-media-links":  { collapseId: "media-collapse-links",  type: "links",  attachmentTypes: [6] },
+            "contact-media-docs":   { collapseId: "media-collapse-docs",   type: "docs",   attachmentTypes: [5] },
+        };
+
+        async function loadMediaAccordion(collapseEl, mediaType) {
+            if (!currentUser || !selectedUserId) return;
+            const loadingEl = collapseEl.querySelector(".media-loading");
+            const emptyEl   = collapseEl.querySelector(".media-empty");
+            const gridEl    = collapseEl.querySelector(".media-photos-grid, .media-videos-grid");
+            const listEl    = collapseEl.querySelector(".media-links-list, .media-docs-list");
+
+            if (collapseEl.dataset.mediaLoaded === "1") return;
+            collapseEl.dataset.mediaLoaded = "1";
+
+            if (loadingEl) loadingEl.classList.remove("d-none");
+            if (emptyEl)   emptyEl.classList.add("d-none");
+
+            const chatRoomId1 = `${currentUser.uid}-${selectedUserId}`;
+            const chatRoomId2 = `${selectedUserId}-${currentUser.uid}`;
+            let messages = [];
+
+            for (const roomId of [chatRoomId1, chatRoomId2]) {
+                try {
+                    const snap = await get(ref(database, `data/chats/${roomId}`));
+                    if (snap.exists()) {
+                        snap.forEach(child => { messages.push(child.val()); });
+                        break;
                     }
-                    document.querySelector(".chat-search-btn")?.click();
-                });
+                } catch (e) {}
             }
+
+            if (loadingEl) loadingEl.classList.add("d-none");
+
+            const filtered = messages.filter(msg => mediaType.attachmentTypes.includes(msg.attachmentType));
+
+            if (mediaType.type === "photos" || mediaType.type === "videos") {
+                if (!filtered.length) { if (emptyEl) emptyEl.classList.remove("d-none"); return; }
+                filtered.forEach(msg => {
+                    const url = normalizeChatMediaUrl(msg.attachment && msg.attachment.url ? msg.attachment.url : msg.attachment);
+                    const col = document.createElement("div");
+                    col.className = "col-4";
+                    if (mediaType.type === "photos") {
+                        col.innerHTML = `<a href="${url}" target="_blank"><img src="${url}" class="img-fluid rounded" style="height:80px;width:100%;object-fit:cover;" alt="photo"></a>`;
+                    } else {
+                        col.innerHTML = `<video src="${url}" class="img-fluid rounded" style="height:80px;width:100%;object-fit:cover;" controls></video>`;
+                    }
+                    if (gridEl) gridEl.appendChild(col);
+                });
+
+            } else if (mediaType.type === "links") {
+                const urlRegex = /https?:\/\/[^\s]+/g;
+                const textMsgs = messages.filter(msg => msg.attachmentType === 6 && msg.body);
+                const decrypted = await Promise.all(textMsgs.map(async msg => {
+                    try { return await decryptlibsodiumMessage(msg.body); } catch(e) { return null; }
+                }));
+                let found = false;
+                decrypted.forEach(text => {
+                    if (!text) return;
+                    (text.match(urlRegex) || []).forEach(url => {
+                        found = true;
+                        const item = document.createElement("a");
+                        item.href = url; item.target = "_blank"; item.rel = "noopener noreferrer";
+                        item.className = "list-group-item list-group-item-action px-0 py-2 text-truncate border-0";
+                        item.style.fontSize = "0.82rem";
+                        item.textContent = url;
+                        if (listEl) listEl.appendChild(item);
+                    });
+                });
+                if (!found && emptyEl) emptyEl.classList.remove("d-none");
+
+            } else if (mediaType.type === "docs") {
+                if (!filtered.length) { if (emptyEl) emptyEl.classList.remove("d-none"); return; }
+                for (const msg of filtered) {
+                    let url = msg.attachment && msg.attachment.url ? msg.attachment.url : msg.attachment;
+                    if (!url) { try { url = await decryptlibsodiumMessage(msg.body); } catch(e) {} }
+                    url = normalizeChatMediaUrl(url);
+                    const name = (msg.attachment && msg.attachment.name) || (url && url.split("/").pop()) || "File";
+                    const item = document.createElement("a");
+                    item.href = url; item.target = "_blank"; item.download = name;
+                    item.className = "list-group-item list-group-item-action px-0 py-2 border-0 d-flex align-items-center gap-2";
+                    item.innerHTML = `<i class="ti ti-file text-primary"></i><span class="text-truncate" style="font-size:0.82rem;">${name}</span>`;
+                    if (listEl) listEl.appendChild(item);
+                }
+            }
+        }
+
+        Object.keys(mediaAccordionMap).forEach((id) => {
+            const triggerEl = document.getElementById(id);
+            if (!triggerEl || triggerEl.dataset.wired) return;
+            triggerEl.dataset.wired = "1";
+            const cfg = mediaAccordionMap[id];
+            const collapseEl = document.getElementById(cfg.collapseId);
+            if (!collapseEl) return;
+
+            triggerEl.addEventListener("click", (e) => {
+                e.preventDefault();
+                if (typeof bootstrap === "undefined") return;
+                let inst = bootstrap.Collapse.getInstance(collapseEl);
+                if (!inst) inst = new bootstrap.Collapse(collapseEl, { toggle: false });
+
+                const isOpen = collapseEl.classList.contains("show");
+                const chevron = triggerEl.querySelector(".media-chevron i");
+
+                // Close all other media sections first
+                Object.keys(mediaAccordionMap).forEach(otherId => {
+                    if (otherId === id) return;
+                    const otherCollapseEl = document.getElementById(mediaAccordionMap[otherId].collapseId);
+                    if (otherCollapseEl && otherCollapseEl.classList.contains("show")) {
+                        const otherInst = bootstrap.Collapse.getInstance(otherCollapseEl);
+                        if (otherInst) otherInst.hide();
+                        const otherTrigger = document.getElementById(otherId);
+                        const otherChevron = otherTrigger && otherTrigger.querySelector(".media-chevron i");
+                        if (otherChevron) { otherChevron.classList.remove("ti-chevron-up"); otherChevron.classList.add("ti-chevron-right"); }
+                    }
+                });
+
+                if (isOpen) {
+                    inst.hide();
+                    if (chevron) { chevron.classList.remove("ti-chevron-up"); chevron.classList.add("ti-chevron-right"); }
+                } else {
+                    inst.show();
+                    if (chevron) { chevron.classList.remove("ti-chevron-right"); chevron.classList.add("ti-chevron-up"); }
+                    loadMediaAccordion(collapseEl, cfg);
+                }
+            });
         });
         const favOpen = document.getElementById("contact-open-favourites");
         if (favOpen && !favOpen.dataset.wired) {

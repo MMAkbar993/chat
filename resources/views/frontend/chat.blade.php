@@ -332,22 +332,59 @@
                         <h5 class="sub-title mb-2">{{ __('Media Details') }}</h5>
                         <div class="card contact-info-card border-0">
                             <div class="card-body list-group list-group-flush profile-item p-0">
-                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-photos">
+
+                                {{-- Photos --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-photos" data-media-target="media-collapse-photos">
                                     <div class="d-flex align-items-center gap-2"><i class="ti ti-photo text-primary"></i><span>{{ __('Photos') }}</span></div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                    <span class="link-icon media-chevron"><i class="ti ti-chevron-right"></i></span>
                                 </a>
-                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-videos">
+                                <div class="collapse media-collapse-content" id="media-collapse-photos">
+                                    <div class="pb-2">
+                                        <div class="media-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                                        <div class="media-empty text-muted small text-center py-2 d-none">{{ __('No photos found.') }}</div>
+                                        <div class="row g-1 media-photos-grid"></div>
+                                    </div>
+                                </div>
+
+                                {{-- Videos --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-videos" data-media-target="media-collapse-videos">
                                     <div class="d-flex align-items-center gap-2"><i class="ti ti-video text-primary"></i><span>{{ __('Videos') }}</span></div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                    <span class="link-icon media-chevron"><i class="ti ti-chevron-right"></i></span>
                                 </a>
-                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-links">
+                                <div class="collapse media-collapse-content" id="media-collapse-videos">
+                                    <div class="pb-2">
+                                        <div class="media-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                                        <div class="media-empty text-muted small text-center py-2 d-none">{{ __('No videos found.') }}</div>
+                                        <div class="row g-1 media-videos-grid"></div>
+                                    </div>
+                                </div>
+
+                                {{-- Links --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-links" data-media-target="media-collapse-links">
                                     <div class="d-flex align-items-center gap-2"><i class="ti ti-link text-primary"></i><span>{{ __('Links') }}</span></div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                    <span class="link-icon media-chevron"><i class="ti ti-chevron-right"></i></span>
                                 </a>
-                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-docs">
+                                <div class="collapse media-collapse-content" id="media-collapse-links">
+                                    <div class="pb-2">
+                                        <div class="media-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                                        <div class="media-empty text-muted small text-center py-2 d-none">{{ __('No links found.') }}</div>
+                                        <div class="list-group list-group-flush media-links-list"></div>
+                                    </div>
+                                </div>
+
+                                {{-- Documents --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between contact-media-row" id="contact-media-docs" data-media-target="media-collapse-docs">
                                     <div class="d-flex align-items-center gap-2"><i class="ti ti-file-text text-primary"></i><span>{{ __('Documents') }}</span></div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                    <span class="link-icon media-chevron"><i class="ti ti-chevron-right"></i></span>
                                 </a>
+                                <div class="collapse media-collapse-content" id="media-collapse-docs">
+                                    <div class="pb-2">
+                                        <div class="media-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                                        <div class="media-empty text-muted small text-center py-2 d-none">{{ __('No documents found.') }}</div>
+                                        <div class="list-group list-group-flush media-docs-list"></div>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     </div>
