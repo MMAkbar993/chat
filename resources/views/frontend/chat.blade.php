@@ -217,7 +217,7 @@
         </div>
         <div class="offcanvas-body p-0">
             <div class="chat-contact-info contact-info-sidebar">
-                <div class="profile-content px-3 pb-4">
+                <div class="profile-content px-3 pb-3">
                     {{-- Identity --}}
                     <div class="contact-profile-info text-center pt-2">
                         <div class="avatar avatar-xxl online mb-3 mx-auto contact-panel-avatar-wrap">
@@ -226,7 +226,6 @@
                         </div>
                         <div class="d-flex align-items-center justify-content-center gap-1 flex-wrap">
                             <h4 class="contact-panel-name mb-0 fw-semibold" id="contact-full-name"></h4>
-                            <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">{{ __('Verified') }}</span>
                         </div>
                         <p class="contact-panel-last-seen text-muted small mb-0 mt-2" id="contact-last-seen"></p>
                     </div>
@@ -262,7 +261,6 @@
                                             <h6 class="contact-field-label mb-1">{{ __('Name') }}</h6>
                                             <p class="contact-field-value mb-0 d-flex align-items-center flex-wrap gap-1" id="contact-name">
                                                 <span id="contact-name-text"></span>
-                                                <span class="contact-kyc-badge badge verified-badge badge-xs" style="display:none;" title="{{ __('ID Verified') }}">{{ __('Verified') }}</span>
                                             </p>
                                         </div>
                                         <div class="profile-icon text-muted"><i class="ti ti-user"></i></div>
@@ -302,18 +300,14 @@
                                         </div>
                                         <div class="profile-icon text-muted"><i class="ti ti-calendar-event"></i></div>
                                     </li>
+                                    <li class="list-group-item border-0 px-0 py-3">
+                                        <div class="profile-info flex-grow-1 pe-2">
+                                            <h6 class="contact-field-label mb-1">{{ __('Bio') }}</h6>
+                                            <p class="contact-field-value mb-0" id="contact-bio">—</p>
+                                        </div>
+                                        <div class="profile-icon text-muted"><i class="ti ti-user"></i></div>
+                                    </li>
                                 </ul>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Bio --}}
-                    <div class="content-wrapper mb-3">
-                        <h5 class="sub-title mb-2">{{ __('Bio') }}</h5>
-                        <div class="card contact-info-card border-0">
-                            <div class="card-body d-flex align-items-start justify-content-between gap-2 py-3">
-                                <p class="contact-field-value mb-0 flex-grow-1" id="contact-bio">—</p>
-                                <div class="profile-icon text-muted flex-shrink-0"><i class="ti ti-user"></i></div>
                             </div>
                         </div>
                     </div>
@@ -328,7 +322,6 @@
                                     <a id="twitter-link" href="javascript:void(0);" class="contact-social-link" aria-label="Twitter"><i class="ti ti-brand-twitter"></i></a>
                                     <a id="instagram-link" href="javascript:void(0);" class="contact-social-link" aria-label="Instagram"><i class="ti ti-brand-instagram"></i></a>
                                     <a id="linkedin-link" href="javascript:void(0);" class="contact-social-link" aria-label="LinkedIn"><i class="ti ti-brand-linkedin"></i></a>
-                                    <span class="contact-social-verified badge verified-badge badge-xs ms-1" style="display:none;" title="{{ __('Verified') }}">{{ __('Verified') }}</span>
                                 </div>
                             </div>
                         </div>

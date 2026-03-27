@@ -11623,18 +11623,24 @@ Form help
   line-height: 1.2;
 }
 .contact-info-card {
-  background: #f4f5f7 !important;
+  background: #fff !important;
   border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+  overflow: hidden;
+}
+.contact-info-sidebar .contact-info-card .card-body {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
 }
 .contact-field-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #8b9199;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #141b27;
 }
 .contact-field-value {
-  color: #141b27;
-  font-weight: 500;
-  font-size: 0.9375rem;
+  color: #8b9199;
+  font-weight: 400;
+  font-size: 0.875rem;
 }
 .contact-social-link {
   color: #6338f6;
@@ -11672,12 +11678,13 @@ Form help
 }
 .darkmode .contact-info-card {
   background: #1c1c1f !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
 }
 .darkmode .contact-field-label {
-  color: #9aa0aa;
+  color: #e8eaed;
 }
 .darkmode .contact-field-value {
-  color: #f1f3f5 !important;
+  color: #9aa0aa !important;
 }
 .darkmode .contact-info-sidebar .text-muted {
   color: #9aa0aa !important;
@@ -12921,7 +12928,7 @@ Form help
 }
 
 .content-wrapper {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 .content-wrapper .sub-title {
   margin-bottom: 8px;
@@ -13121,17 +13128,17 @@ Form help
   -webkit-align-items: center;
 }
 .social-icon a {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   display: flex;
   display: -webkit-flex;
   align-items: center;
   -webkit-align-items: center;
   justify-content: center;
   -webkit-justify-content: center;
-  border-radius: 50%;
+  border-radius: 8px;
   background: #F7F8FA;
-  font-size: 16px;
+  font-size: 18px;
   margin-right: 8px;
 }
 .social-icon a:hover {
@@ -14484,6 +14491,7 @@ input.is-invalid + .toggle-passwords {
   overflow-y: auto;    /* Makes it scrollable when content overflows */
   padding: 10px;       /* Optional padding */
   box-sizing: border-box;  /* Ensure padding is included in the height calculation */
+  justify-content: flex-end; /* Push messages to the bottom */
 }
 
 audio{
