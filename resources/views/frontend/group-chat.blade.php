@@ -84,7 +84,7 @@
                 </div>
                 <!-- /Chat Search -->
             </div>
-            <div class="chat-body chat-page-group slimscroll" id="group-area">
+            <div class="chat-body chat-page-group" id="group-area">
                 <div class="messages" id="chat-messages">
                 </div>
             </div>

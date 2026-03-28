@@ -103,7 +103,7 @@
                 </div>
                 <!-- /Chat Search -->
             </div>
-            <div class="chat-body chat-page-group slimscroll" id="chat-area">
+            <div class="chat-body chat-page-group" id="chat-area">
                 <div class="messages" id="chat-box">
 
                 </div>
@@ -183,10 +183,9 @@
                                 <li><a class="dropdown-item" href="javascript:void(0);" id="attach-camera"><i class="ti ti-camera me-2"></i>{{ __('Camera') }}</a></li>
                                 <li><a class="dropdown-item" href="javascript:void(0);" id="attach-gallery"><i class="ti ti-photo me-2"></i>{{ __('Gallery') }}</a></li>
                                 <li><a class="dropdown-item" href="javascript:void(0);" id="attach-audio"><i class="ti ti-music me-2"></i>{{ __('Audio') }}</a></li>
-                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-location"><i class="ti ti-map-pin me-2"></i>{{ __('Location') }}</a></li>
-                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-contact"><i class="ti ti-user me-2"></i>{{ __('Contact') }}</a></li>
                             </ul>
                             <input type="file" class="d-none" name="files" id="files">
+                            <input type="file" class="d-none" id="files-camera" accept="image/*" capture="environment">
                         </div>
 
                         <!-- Send Button -->

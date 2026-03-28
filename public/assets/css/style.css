@@ -3842,7 +3842,7 @@ button:focus {
   display: -webkit-flex;
 }
 .main-chat-blk .chat .chat-body .messages .chats:last-child {
-  margin-bottom: 0;
+  margin-bottom: 1.5rem;
 }
 .main-chat-blk .chat .chat-body .messages .chats .chat-time {
   display: flex;
@@ -14479,19 +14479,65 @@ input.is-invalid + .toggle-passwords {
 #image-clear-button {
   border-radius: 50%;
 }
-#chat-area {
+
+/* Header + message pane column; needed when slimScroll is not used on #chat-area */
+#middle.chat > div:first-of-type {
   display: flex;
   flex-direction: column;
-  height: 100%; /* Use the full available height */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* The chat box itself should take up all available space */
-#chat-box {
-  flex-grow: 1;        /* Ensures it expands to fill the available space */
-  overflow-y: auto;    /* Makes it scrollable when content overflows */
-  padding: 10px;       /* Optional padding */
-  box-sizing: border-box;  /* Ensure padding is included in the height calculation */
-  justify-content: flex-end; /* Push messages to the bottom */
+/* Scroll the pane, not #chat-box: inner flex child often never gets a bounded height, so wheel/track do nothing */
+#chat-area,
+#group-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #B9BBBE #F0F0F0;
+}
+
+#chat-area::-webkit-scrollbar,
+#group-area::-webkit-scrollbar {
+  width: 10px;
+}
+
+#chat-area::-webkit-scrollbar-track,
+#group-area::-webkit-scrollbar-track {
+  background: #F0F0F0;
+  border-radius: 6px;
+}
+
+#chat-area::-webkit-scrollbar-thumb,
+#group-area::-webkit-scrollbar-thumb {
+  background: #B9BBBE;
+  border-radius: 6px;
+}
+
+#chat-area::-webkit-scrollbar-thumb:hover,
+#group-area::-webkit-scrollbar-thumb:hover {
+  background: #9a9ca0;
+}
+
+#chat-box,
+#chat-messages {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: min-content;
+  overflow: visible;
+  padding: 10px 10px 2rem 10px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
 }
 
 audio{

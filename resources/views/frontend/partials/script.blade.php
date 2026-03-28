@@ -458,14 +458,25 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
 (function() {
     if (typeof window.FIREBASE_DISABLED === 'undefined' || !window.FIREBASE_DISABLED) return;
     document.addEventListener('click', function(e) {
-        if (!e.target.closest('#chat-button')) return;
-        var editId = document.getElementById('edit-user-id');
-        var userId = editId && editId.value ? editId.value : '';
+        var btn = e.target.closest('#chat-button, #contact-detail-chat-btn');
+        if (!btn) return;
+        // Try the correct hidden input ID first, then fall back to legacy IDs
+        var modal = document.getElementById('contact-details');
+        var modalInput = modal ? modal.querySelector('input#contact-detail-user-id') : null;
+        var userId = (modalInput && modalInput.value) ? modalInput.value.trim() : '';
+        if (!userId) {
+            var legacyId = document.getElementById('edit-user-id');
+            userId = legacyId && legacyId.value ? legacyId.value.trim() : '';
+        }
         if (userId) {
             try { localStorage.setItem('selectedUserId', userId); } catch (err) {}
             e.preventDefault();
             e.stopPropagation();
-            window.location.href = (typeof APP_URL !== 'undefined' && APP_URL ? APP_URL : window.location.origin) + '/chat';
+            if (modal && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                var m = bootstrap.Modal.getInstance(modal);
+                if (m) m.hide();
+            }
+            window.location.href = (typeof APP_URL !== 'undefined' && APP_URL ? APP_URL : window.location.origin) + '/chat?user=' + encodeURIComponent(userId);
         }
     }, true);
 })();

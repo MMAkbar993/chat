@@ -686,8 +686,10 @@ function loadChatMessages(groupId) {
                 //     messagesContainer.innerHTML += messageHtml; // Append new message
                 // }
             }
-             // Scroll to the bottom
-             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+             const groupScrollHost =
+                 document.getElementById("group-area") ||
+                 messagesContainer;
+             groupScrollHost.scrollTop = groupScrollHost.scrollHeight;
         })
         .catch((error) => {
        
@@ -941,7 +943,9 @@ function loadGroupMessages(groupId) {
                 });
             });
     
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            const groupScrollHost =
+                document.getElementById("group-area") || messagesContainer;
+            groupScrollHost.scrollTop = groupScrollHost.scrollHeight;
         });
     });
     

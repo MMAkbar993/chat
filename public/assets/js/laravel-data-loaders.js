@@ -87,6 +87,8 @@
                     var data = window.__laravelContacts[uid];
                     if (!data) return;
                     var modal = document.getElementById('contact-details');
+                    var cdHidden = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : document.getElementById('contact-detail-user-id');
+                    if (cdHidden) cdHidden.value = uid;
                     var modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
                     if (modalInput) modalInput.value = uid;
                     var editId = document.getElementById('edit-user-id');
@@ -544,6 +546,10 @@
         if (!modal) modal = document.getElementById('contact-details');
         var editInput = modal ? modal.querySelector('input#edit-user-id') : null;
         var userId = editInput && editInput.value ? editInput.value.trim() : '';
+        if (!userId) {
+            var cdIn = modal ? modal.querySelector('input#contact-detail-user-id') : null;
+            userId = cdIn && cdIn.value ? String(cdIn.value).trim() : '';
+        }
         if (!userId) return;
         e.preventDefault();
         e.stopPropagation();
