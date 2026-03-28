@@ -1936,6 +1936,26 @@ initializeFirebase(function (app, auth, database, storage) {
             i.classList.remove("ti-chevron-up");
             i.classList.add("ti-chevron-right");
         });
+        // Reset Others accordion state for the new contact
+        document.querySelectorAll(".others-collapse-content").forEach(colEl => {
+            delete colEl.dataset.othersLoaded;
+            if (typeof bootstrap !== "undefined") {
+                const inst = bootstrap.Collapse.getInstance(colEl);
+                if (inst) inst.hide(); else colEl.classList.remove("show");
+            } else {
+                colEl.classList.remove("show");
+            }
+            const favList = document.getElementById("others-favourites-list");
+            if (favList) favList.innerHTML = "";
+            colEl.querySelectorAll(".others-empty").forEach(e => e.classList.add("d-none"));
+            colEl.querySelectorAll(".others-loading").forEach(e => e.classList.add("d-none"));
+            colEl.querySelectorAll('input[type="radio"]').forEach(r => { r.checked = false; });
+            colEl.querySelectorAll('input[type="checkbox"]').forEach(c => { c.checked = false; });
+        });
+        document.querySelectorAll(".others-chevron i").forEach(i => {
+            i.classList.remove("ti-chevron-up");
+            i.classList.add("ti-chevron-right");
+        });
         if (currentUser?.uid) {
             remove(
                 ref(
@@ -5148,22 +5168,184 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             });
         });
-        const favOpen = document.getElementById("contact-open-favourites");
-        if (favOpen && !favOpen.dataset.wired) {
-            favOpen.dataset.wired = "1";
-            favOpen.addEventListener("click", (e) => {
-                e.preventDefault();
-                const main = document.getElementById("contact-profile");
-                const fav = document.getElementById("contact-favourite");
-                if (main && typeof bootstrap !== "undefined") {
-                    const inst = bootstrap.Offcanvas.getInstance(main);
+        // ── Others accordion ──────────────────────────────────────────
+        const othersAccordionMap = {
+            "contact-open-favourites": "others-collapse-favourites",
+            "others-row-mute":         "others-collapse-mute",
+            "blockedUserDropdownBtn":  "others-collapse-block",
+            "others-row-report":       "others-collapse-report",
+            "others-row-delete":       "others-collapse-delete",
+        };
+
+        function closeAllOthers(exceptId) {
+            Object.keys(othersAccordionMap).forEach(id => {
+                if (id === exceptId) return;
+                const col = document.getElementById(othersAccordionMap[id]);
+                if (col && col.classList.contains("show")) {
+                    const inst = bootstrap.Collapse.getInstance(col);
                     if (inst) inst.hide();
+                    const tr = document.getElementById(id);
+                    const ch = tr && tr.querySelector(".others-chevron i");
+                    if (ch) { ch.classList.remove("ti-chevron-up"); ch.classList.add("ti-chevron-right"); }
                 }
-                if (fav && typeof bootstrap !== "undefined") {
-                    let favInst = bootstrap.Offcanvas.getInstance(fav);
-                    if (!favInst) favInst = new bootstrap.Offcanvas(fav);
-                    favInst.show();
+            });
+        }
+
+        Object.keys(othersAccordionMap).forEach(id => {
+            const triggerEl = document.getElementById(id);
+            if (!triggerEl || triggerEl.dataset.othersWired) return;
+            triggerEl.dataset.othersWired = "1";
+            const collapseEl = document.getElementById(othersAccordionMap[id]);
+            if (!collapseEl) return;
+
+            triggerEl.addEventListener("click", (e) => {
+                e.preventDefault();
+                if (typeof bootstrap === "undefined") return;
+                const isOpen = collapseEl.classList.contains("show");
+                const chevron = triggerEl.querySelector(".others-chevron i");
+
+                closeAllOthers(id);
+
+                let inst = bootstrap.Collapse.getInstance(collapseEl);
+                if (!inst) inst = new bootstrap.Collapse(collapseEl, { toggle: false });
+
+                if (isOpen) {
+                    inst.hide();
+                    if (chevron) { chevron.classList.remove("ti-chevron-up"); chevron.classList.add("ti-chevron-right"); }
+                } else {
+                    inst.show();
+                    if (chevron) { chevron.classList.remove("ti-chevron-right"); chevron.classList.add("ti-chevron-up"); }
+                    // Load favourites on first open
+                    if (id === "contact-open-favourites" && collapseEl.dataset.othersLoaded !== "1") {
+                        collapseEl.dataset.othersLoaded = "1";
+                        loadOthersFavourites(collapseEl);
+                    }
+                    // Update block label & button on open
+                    if (id === "blockedUserDropdownBtn") {
+                        otherblockUserId = selectedUserId;
+                        const btn = document.getElementById("others-block-confirm-btn");
+                        const desc = document.getElementById("others-block-desc");
+                        if (isUserInfoBlocked) {
+                            if (btn) btn.textContent = "Unblock";
+                            if (desc) desc.textContent = "Are you sure you want to unblock this user?";
+                        } else {
+                            if (btn) btn.textContent = "Block";
+                            if (desc) desc.textContent = "Blocked contacts will no longer be able to call you or send you messages.";
+                        }
+                    }
                 }
+            });
+        });
+
+        // Cancel buttons collapse their parent section
+        document.querySelectorAll(".others-collapse-cancel").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const col = btn.closest(".others-collapse-content");
+                if (!col) return;
+                const inst = bootstrap.Collapse.getInstance(col);
+                if (inst) inst.hide();
+                // Reset chevron for the matching trigger
+                Object.keys(othersAccordionMap).forEach(id => {
+                    if (othersAccordionMap[id] === col.id) {
+                        const ch = document.getElementById(id)?.querySelector(".others-chevron i");
+                        if (ch) { ch.classList.remove("ti-chevron-up"); ch.classList.add("ti-chevron-right"); }
+                    }
+                });
+            });
+        });
+
+        // Favourites loader
+        async function loadOthersFavourites(collapseEl) {
+            const loadingEl = collapseEl.querySelector(".others-loading");
+            const emptyEl   = collapseEl.querySelector(".others-empty");
+            const listEl    = document.getElementById("others-favourites-list");
+            if (!currentUser || !listEl) return;
+            if (loadingEl) loadingEl.classList.remove("d-none");
+            try {
+                const snap = await get(ref(database, `data/users/${currentUser.uid}/favourite_chats`));
+                if (loadingEl) loadingEl.classList.add("d-none");
+                if (!snap.exists()) { if (emptyEl) emptyEl.classList.remove("d-none"); return; }
+                const favs = snap.val();
+                let count = 0;
+                for (const key in favs) {
+                    const f = favs[key];
+                    const uid = f.userId;
+                    if (!uid) continue;
+                    const u = usersMap[uid] || {};
+                    const name = u.userName || uid;
+                    const img = resolveCallProfileImageUrl(u.profileImage || "");
+                    const item = document.createElement("div");
+                    item.className = "d-flex align-items-center gap-2 py-2 border-bottom";
+                    item.innerHTML = `<img src="${img}" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;" alt="">
+                        <span class="small fw-medium text-truncate">${name}</span>`;
+                    listEl.appendChild(item);
+                    count++;
+                }
+                if (count === 0 && emptyEl) emptyEl.classList.remove("d-none");
+            } catch(e) {
+                if (loadingEl) loadingEl.classList.add("d-none");
+                if (emptyEl) emptyEl.classList.remove("d-none");
+            }
+        }
+
+        // Block / Unblock inline confirm
+        const othersBlockBtn = document.getElementById("others-block-confirm-btn");
+        if (othersBlockBtn) {
+            othersBlockBtn.addEventListener("click", () => {
+                if (!otherblockUserId) otherblockUserId = selectedUserId;
+                if (isUserInfoBlocked) {
+                    unblockUser(otherblockUserId);
+                } else {
+                    blockedUser(otherblockUserId);
+                }
+                const col = document.getElementById("others-collapse-block");
+                const inst = col && bootstrap.Collapse.getInstance(col);
+                if (inst) inst.hide();
+                const ch = document.getElementById("blockedUserDropdownBtn")?.querySelector(".others-chevron i");
+                if (ch) { ch.classList.remove("ti-chevron-up"); ch.classList.add("ti-chevron-right"); }
+            });
+        }
+
+        // Delete Chat inline confirm
+        const othersDeleteBtn = document.getElementById("others-delete-confirm-btn");
+        if (othersDeleteBtn) {
+            othersDeleteBtn.addEventListener("click", () => {
+                if (!selectedUserId) return;
+                removeChatFromSidebarList(selectedUserId);
+                deleteChat(selectedUserId);
+                const col = document.getElementById("others-collapse-delete");
+                const inst = col && bootstrap.Collapse.getInstance(col);
+                if (inst) inst.hide();
+                const ch = document.getElementById("others-row-delete")?.querySelector(".others-chevron i");
+                if (ch) { ch.classList.remove("ti-chevron-up"); ch.classList.add("ti-chevron-right"); }
+            });
+        }
+
+        // Report inline confirm (UI only — no backend hooked)
+        const othersReportBtn = document.getElementById("others-report-confirm-btn");
+        if (othersReportBtn) {
+            othersReportBtn.addEventListener("click", () => {
+                const col = document.getElementById("others-collapse-report");
+                const inst = col && bootstrap.Collapse.getInstance(col);
+                if (inst) inst.hide();
+                const ch = document.getElementById("others-row-report")?.querySelector(".others-chevron i");
+                if (ch) { ch.classList.remove("ti-chevron-up"); ch.classList.add("ti-chevron-right"); }
+                if (typeof Toastify !== "undefined") Toastify({ text: "User reported.", duration: 2500 }).showToast();
+            });
+        }
+
+        // Mute inline confirm (UI only — no backend hooked)
+        const othersMuteBtn = document.getElementById("others-mute-confirm-btn");
+        if (othersMuteBtn) {
+            othersMuteBtn.addEventListener("click", () => {
+                const selected = document.querySelector('input[name="others_mute"]:checked');
+                const label = selected ? selected.nextElementSibling?.textContent?.trim() : null;
+                const col = document.getElementById("others-collapse-mute");
+                const inst = col && bootstrap.Collapse.getInstance(col);
+                if (inst) inst.hide();
+                const ch = document.getElementById("others-row-mute")?.querySelector(".others-chevron i");
+                if (ch) { ch.classList.remove("ti-chevron-up"); ch.classList.add("ti-chevron-right"); }
+                if (typeof Toastify !== "undefined" && label) Toastify({ text: `Muted for ${label}.`, duration: 2500 }).showToast();
             });
         }
     })();

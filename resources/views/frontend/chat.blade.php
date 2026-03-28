@@ -406,42 +406,105 @@
                         <h5 class="sub-title mb-2">{{ __('Others') }}</h5>
                         <div class="card contact-info-card border-0 mb-0">
                             <div class="card-body list-group profile-item p-0">
-                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" id="contact-open-favourites">
+
+                                {{-- Favorites --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between others-accordion-row" id="contact-open-favourites">
                                     <div class="d-flex align-items-center gap-2">
                                         <i class="ti ti-bookmark text-primary"></i>
                                         <span class="fw-medium">{{ __('Favorites') }}</span>
                                         <span class="badge bg-danger rounded-pill ms-1 d-none" id="contact-favourites-badge">0</span>
                                     </div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                    <span class="link-icon others-chevron"><i class="ti ti-chevron-right"></i></span>
                                 </a>
-                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#mute-notification">
+                                <div class="collapse others-collapse-content" id="others-collapse-favourites">
+                                    <div class="pb-2">
+                                        <div class="others-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                                        <div class="others-empty text-muted small text-center py-2 d-none">{{ __('No favourites yet.') }}</div>
+                                        <div id="others-favourites-list"></div>
+                                    </div>
+                                </div>
+
+                                {{-- Mute Notifications --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between others-accordion-row" id="others-row-mute">
                                     <div class="d-flex align-items-center gap-2">
                                         <i class="ti ti-bell-off text-warning"></i>
                                         <span class="fw-medium">{{ __('Mute Notifications') }}</span>
                                     </div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                    <span class="link-icon others-chevron"><i class="ti ti-chevron-right"></i></span>
                                 </a>
-                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" id="blockedUserDropdownBtn">
+                                <div class="collapse others-collapse-content" id="others-collapse-mute">
+                                    <div class="pb-3 pt-1">
+                                        @foreach(['30 Minutes','1 Hour','1 Day','1 Week','1 Month','1 Year','Always'] as $i => $label)
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="radio" name="others_mute" id="others-mute-{{ $i }}">
+                                            <label class="form-check-label small" for="others-mute-{{ $i }}">{{ __($label) }}</label>
+                                        </div>
+                                        @endforeach
+                                        <div class="d-flex gap-2 mt-2">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm flex-fill others-collapse-cancel">{{ __('Cancel') }}</button>
+                                            <button type="button" class="btn btn-primary btn-sm flex-fill" id="others-mute-confirm-btn">{{ __('Mute') }}</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Block Users --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between others-accordion-row" id="blockedUserDropdownBtn">
                                     <div class="d-flex align-items-center gap-2">
                                         <i class="ti ti-user-off text-info"></i>
                                         <span class="fw-medium" id="blockUserLabel">{{ __('Block Users') }}</span>
                                     </div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                    <span class="link-icon others-chevron"><i class="ti ti-chevron-right"></i></span>
                                 </a>
-                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#report-user">
+                                <div class="collapse others-collapse-content" id="others-collapse-block">
+                                    <div class="pb-3 pt-1 text-center">
+                                        <p class="text-muted small mb-3" id="others-block-desc">{{ __('Blocked contacts will no longer be able to call you or send you messages.') }}</p>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm flex-fill others-collapse-cancel">{{ __('Cancel') }}</button>
+                                            <button type="button" class="btn btn-primary btn-sm flex-fill" id="others-block-confirm-btn">{{ __('Block') }}</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Report Users --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between others-accordion-row" id="others-row-report">
                                     <div class="d-flex align-items-center gap-2">
                                         <i class="ti ti-flag text-info"></i>
                                         <span class="fw-medium">{{ __('Report Users') }}</span>
                                     </div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                    <span class="link-icon others-chevron"><i class="ti ti-chevron-right"></i></span>
                                 </a>
-                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#delete-user-chat">
+                                <div class="collapse others-collapse-content" id="others-collapse-report">
+                                    <div class="pb-3 pt-1">
+                                        <p class="text-muted small mb-3">{{ __('If you block this contact and clear the chat, messages will only be removed from this device.') }}</p>
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="others-report-check">
+                                            <label class="form-check-label small" for="others-report-check">{{ __('Report User') }}</label>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm flex-fill others-collapse-cancel">{{ __('Cancel') }}</button>
+                                            <button type="button" class="btn btn-primary btn-sm flex-fill" id="others-report-confirm-btn">{{ __('Report') }}</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Delete Chat --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between others-accordion-row" id="others-row-delete">
                                     <div class="d-flex align-items-center gap-2">
                                         <i class="ti ti-trash text-danger"></i>
                                         <span class="fw-medium text-danger">{{ __('Delete Chat') }}</span>
                                     </div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                    <span class="link-icon others-chevron"><i class="ti ti-chevron-right"></i></span>
                                 </a>
+                                <div class="collapse others-collapse-content" id="others-collapse-delete">
+                                    <div class="pb-3 pt-1 text-center">
+                                        <p class="text-muted small mb-3">{{ __('Clearing or deleting entire chats will only remove messages from this device.') }}</p>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm flex-fill others-collapse-cancel">{{ __('Cancel') }}</button>
+                                            <button type="button" class="btn btn-danger btn-sm flex-fill" id="others-delete-confirm-btn">{{ __('Delete') }}</button>
+                                        </div>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                         <div id="block-message" style="display: none;" class="notification mt-2">
