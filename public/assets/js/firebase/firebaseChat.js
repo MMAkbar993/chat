@@ -2965,6 +2965,23 @@ initializeFirebase(function (app, auth, database, storage) {
             : "";
     }
 
+    function updateReactionSummaryInMessage(messageElement, rawReactions) {
+        if (!messageElement) return;
+        const bubbleWrap = messageElement.querySelector(".message-bubble-wrap");
+        if (!bubbleWrap) return;
+        const currentSummary = bubbleWrap.querySelector(".message-reaction-summary");
+        const nextMarkup = buildReactionSummaryMarkup(rawReactions);
+        if (!nextMarkup) {
+            if (currentSummary) currentSummary.remove();
+            return;
+        }
+        if (currentSummary) {
+            currentSummary.outerHTML = nextMarkup;
+            return;
+        }
+        bubbleWrap.insertAdjacentHTML("beforeend", nextMarkup);
+    }
+
     function buildReactionPickerMarkup() {
         return `
             <div class="message-reaction-picker" aria-label="Message reactions">
@@ -4526,6 +4543,11 @@ initializeFirebase(function (app, auth, database, storage) {
                     `[data-message-key="${messageKey}"]`
                 );
                 if (existingMessageElement) {
+                    // Smooth reactions: update only the reaction row, do not remove/recreate the message.
+                    updateReactionSummaryInMessage(
+                        existingMessageElement,
+                        updatedMessage.reactions
+                    );
                     get(
                         ref(
                             database,
@@ -4544,12 +4566,32 @@ initializeFirebase(function (app, auth, database, storage) {
                                     ov.clearedFor
                                 );
                             }
-                            existingMessageElement.remove();
-                            displayMessage(updatedMessage);
+                            const viewerUid = currentUser?.uid || currentUserId;
+                            if (
+                                uidIncludedInFirebaseList(
+                                    updatedMessage.clearedFor,
+                                    viewerUid
+                                ) ||
+                                uidIncludedInFirebaseList(
+                                    updatedMessage.deletedFor,
+                                    viewerUid
+                                )
+                            ) {
+                                existingMessageElement.remove();
+                                return;
+                            }
+                            updateReactionSummaryInMessage(
+                                existingMessageElement,
+                                updatedMessage.reactions
+                            );
+                            // Keep element in place to avoid flicker/jump.
+                            return;
                         })
                         .catch(() => {
-                            existingMessageElement.remove();
-                            displayMessage(updatedMessage);
+                            updateReactionSummaryInMessage(
+                                existingMessageElement,
+                                updatedMessage.reactions
+                            );
                         });
                 }
             }
