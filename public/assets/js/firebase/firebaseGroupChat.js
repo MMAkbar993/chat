@@ -2350,9 +2350,15 @@ if (closeReplyEl) {
 
     let forwardContent = null;
     document.addEventListener("click", (e) => {
-        if (e.target.classList.contains("forward-btn")) {
-            const messageElement = e.target.closest(".chats");
+        const forwardBtn = e.target.closest(".forward-btn");
+        if (forwardBtn) {
+            // Keep group forwarding isolated to group chat area only.
+            if (!forwardBtn.closest("#group-area")) return;
+            e.preventDefault();
+            const messageElement = forwardBtn.closest(".chats");
+            if (!messageElement) return;
             const messageContentElement = messageElement.querySelector(".message-content");
+            if (!messageContentElement) return;
             const messageKey = messageElement.getAttribute("data-message-key");
     
             let forwardContent = {
@@ -2462,11 +2468,12 @@ if (closeReplyEl) {
 
             const userItem = document.createElement("div");
             userItem.classList.add("user-item");
-            const avatar = user.image || "assets/img/profiles/avatar-03.jpg"; // Default avatar
+            const avatar = user.avatarURL || user.image || "assets/img/profiles/avatar-03.jpg"; // Default avatar
+            const label = user.groupName || user.name || "Group";
             userItem.innerHTML = `
                 <input type="checkbox" class="user-checkbox" data-group-id="${user.id}">
-                <img src="${avatar}" alt="${user.name}" class="user-avatar" width="30">
-                <span>${user.name}</span>
+                <img src="${avatar}" alt="${label}" class="user-avatar" width="30">
+                <span>${label}</span>
             `;
     
             userListContainer.appendChild(userItem);
@@ -2580,6 +2587,66 @@ if (closeReplyEl) {
             .catch((error) => {
             });
     }
+
+    const groupChatEmojis = [
+        "😀", "😁", "😂", "🤣", "😃", "😄", "😅", "😊", "😍", "😘", "😎", "😢", "😭",
+        "😡", "😱", "👍", "👎", "👏", "🙏", "🔥", "❤️", "🎉"
+    ];
+
+    function ensureGroupEmojiListFilled(emojiList) {
+        if (!emojiList || emojiList.dataset.emojiFilled === "1") return;
+        groupChatEmojis.forEach((emoji) => {
+            const li = document.createElement("li");
+            const emojiElement = document.createElement("a");
+            emojiElement.href = "javascript:void(0);";
+            emojiElement.classList.add("emoji");
+            emojiElement.textContent = emoji;
+            li.appendChild(emojiElement);
+            emojiList.appendChild(li);
+        });
+        emojiList.dataset.emojiFilled = "1";
+    }
+
+    document.addEventListener("click", (e) => {
+        const emojiToggle = e.target.closest("#emoji-button");
+        if (emojiToggle) {
+            if (!emojiToggle.closest(".chat-footer")) return;
+            e.preventDefault();
+            const emojiPicker = document.getElementById("emoji-picker");
+            const emojiList = document.getElementById("emoji-list");
+            const inputField = document.getElementById("message-input");
+            if (!emojiPicker || !emojiList || !inputField) return;
+            ensureGroupEmojiListFilled(emojiList);
+            const isHidden =
+                emojiPicker.style.display === "none" ||
+                emojiPicker.style.display === "";
+            emojiPicker.style.display = isHidden ? "block" : "none";
+            return;
+        }
+
+        const emojiChoice = e.target.closest("#emoji-picker a.emoji");
+        if (emojiChoice) {
+            e.preventDefault();
+            const inputField = document.getElementById("message-input");
+            const emojiPicker = document.getElementById("emoji-picker");
+            if (!inputField || !emojiPicker) return;
+            inputField.value += emojiChoice.textContent;
+            inputField.focus();
+            inputField.selectionStart = inputField.selectionEnd =
+                inputField.value.length;
+            emojiPicker.style.display = "none";
+            return;
+        }
+
+        const pickerEl = document.getElementById("emoji-picker");
+        if (
+            pickerEl &&
+            pickerEl.style.display === "block" &&
+            !e.target.closest("#emoji-picker")
+        ) {
+            pickerEl.style.display = "none";
+        }
+    });
 
 const messageForm = document.getElementById("message-form");
 if (messageForm) {

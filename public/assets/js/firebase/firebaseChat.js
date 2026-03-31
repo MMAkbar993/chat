@@ -144,14 +144,43 @@ initializeFirebase(function (app, auth, database, storage) {
                     populateUsersMap(); // archived/pinned/etc. + usersMap merged with contacts
                     fetchUsers();
 
-                    // Restore open chat from ?user= or same-tab session only (not localStorage — it stays set after SPA nav and hides welcome incorrectly).
+                    // On hard refresh, always show welcome (do not auto-restore the last open chat).
+                    let isPageReload = false;
+                    try {
+                        const nav = performance.getEntriesByType("navigation");
+                        isPageReload = !!(
+                            nav &&
+                            nav[0] &&
+                            nav[0].type === "reload"
+                        );
+                    } catch (e) {
+                        isPageReload = false;
+                    }
+
+                    // Restore open chat from ?user= or same-tab session only when this is not a reload.
                     const urlParams = new URLSearchParams(window.location.search);
-                    let storedUserId = urlParams.get("user");
-                    if (!storedUserId) {
+                    let storedUserId = isPageReload ? null : urlParams.get("user");
+                    if (!storedUserId && !isPageReload) {
                         try {
                             storedUserId = sessionStorage.getItem(CHAT_ACTIVE_PEER_SESSION_KEY) || "";
                         } catch (e) {
                             storedUserId = "";
+                        }
+                    }
+                    if (isPageReload) {
+                        try {
+                            sessionStorage.removeItem(CHAT_ACTIVE_PEER_SESSION_KEY);
+                        } catch (e) {
+                            /* ignore */
+                        }
+                        if (typeof history !== "undefined" && history.replaceState) {
+                            const cleanUrl = new URL(window.location.href);
+                            cleanUrl.searchParams.delete("user");
+                            cleanUrl.searchParams.delete("call");
+                            history.replaceState({}, "", cleanUrl.toString());
+                        }
+                        if (document.body) {
+                            document.body.setAttribute("data-chat-panel", "welcome");
                         }
                     }
                     if (!storedUserId) {
@@ -2906,6 +2935,49 @@ initializeFirebase(function (app, auth, database, storage) {
             });
     }
 
+    const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+    function normalizeMessageReactions(raw) {
+        if (!raw || typeof raw !== "object") return {};
+        const out = {};
+        Object.entries(raw).forEach(([uid, emoji]) => {
+            const safeUid = String(uid || "").trim();
+            const safeEmoji = String(emoji || "").trim();
+            if (safeUid && safeEmoji) out[safeUid] = safeEmoji;
+        });
+        return out;
+    }
+
+    function buildReactionSummaryMarkup(rawReactions) {
+        const reactions = normalizeMessageReactions(rawReactions);
+        const counts = {};
+        Object.values(reactions).forEach((emoji) => {
+            counts[emoji] = (counts[emoji] || 0) + 1;
+        });
+        const parts = Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([emoji, count]) => {
+                return `<span class="message-reaction-chip">${emoji} ${count}</span>`;
+            });
+        return parts.length
+            ? `<div class="message-reaction-summary">${parts.join("")}</div>`
+            : "";
+    }
+
+    function buildReactionPickerMarkup() {
+        return `
+            <div class="message-reaction-picker" aria-label="Message reactions">
+                ${REACTION_EMOJIS.map(
+                    (emoji) =>
+                        `<button type="button" class="message-react-option" data-reaction="${emoji}">${emoji}</button>`
+                ).join("")}
+                <button type="button" class="message-react-more" title="More emojis">+</button>
+            </div>
+            <div class="message-reaction-picker-extended" aria-label="More reaction emojis"></div>
+        `;
+    }
+
     async function displayMessage(message) {
         const chatBox = document.getElementById("chat-box");
         // Check if chatBox element exists
@@ -3252,6 +3324,11 @@ initializeFirebase(function (app, auth, database, storage) {
                     }
                 }
 
+                const reactionsMarkup = buildReactionSummaryMarkup(
+                    message.reactions
+                );
+                const reactionPickerMarkup = buildReactionPickerMarkup();
+
                 if (message.senderId === currentUser.uid) {
                     messageElement.classList.add("chats-right"); // Align message to the right
                     messageElement.innerHTML = `
@@ -3262,6 +3339,15 @@ initializeFirebase(function (app, auth, database, storage) {
                                 </h6> 
                             </div>
                             <div class="chat-info">
+                                <div class="message-hover-actions">
+                                    <a href="#" class="message-hover-btn hover-emoji-btn" title="React">
+                                        <i class="ti ti-mood-smile"></i>
+                                    </a>
+                                    <a href="#" class="message-hover-btn forward-btn" title="Forward">
+                                        <i class="ti ti-arrow-forward-up"></i>
+                                    </a>
+                                    ${reactionPickerMarkup}
+                                </div>
                                 <div class="chat-actions">
                                     <a class="#" href="#" data-bs-toggle="dropdown">
                                         <i class="ti ti-dots-vertical"></i>
@@ -3277,14 +3363,17 @@ initializeFirebase(function (app, auth, database, storage) {
                                         <li><a class="dropdown-item pin-chat-btn" href="#"><i class="ti ti-pinned me-2"></i>Pin Chat</a></li>
                                     </ul>
                                 </div>   
-                                <div class="message-content">
-                                 ${forwardedLabel} <!-- Forwarded Label -->
-                                 ${message.replyId != "0"
-                            ? `<div class="message-reply">${replyContent}</div>`
-                            : ""
-                        } <!-- Reply Content only if it's a reply -->
-                                    ${messageBody} <!-- Default Message -->
-                                </div>   
+                                <div class="message-bubble-wrap">
+                                    <div class="message-content">
+                                     ${forwardedLabel} <!-- Forwarded Label -->
+                                     ${message.replyId != "0"
+                                ? `<div class="message-reply">${replyContent}</div>`
+                                : ""
+                            } <!-- Reply Content only if it's a reply -->
+                                        ${messageBody} <!-- Default Message -->
+                                    </div>
+                                    ${reactionsMarkup}
+                                </div>
                             </div>
                         </div>
                         <div class="chat-avatar">
@@ -3302,14 +3391,26 @@ initializeFirebase(function (app, auth, database, storage) {
                                 </h6>
                             </div>
                             <div class="chat-info">
-                                <div class="message-content">
-                                 ${forwardedLabel} <!-- Forwarded Label -->
-                                 ${message.replyId != "0"
-                            ? `<div class="message-reply">${replyContent}</div>`
-                            : ""
-                        } <!-- Reply Content only if it's a reply -->
-                                    ${messageBody} <!-- Default Message -->
-                                </div>   
+                                <div class="message-hover-actions">
+                                    <a href="#" class="message-hover-btn hover-emoji-btn" title="React">
+                                        <i class="ti ti-mood-smile"></i>
+                                    </a>
+                                    <a href="#" class="message-hover-btn forward-btn" title="Forward">
+                                        <i class="ti ti-arrow-forward-up"></i>
+                                    </a>
+                                    ${reactionPickerMarkup}
+                                </div>
+                                <div class="message-bubble-wrap">
+                                    <div class="message-content">
+                                     ${forwardedLabel} <!-- Forwarded Label -->
+                                     ${message.replyId != "0"
+                                ? `<div class="message-reply">${replyContent}</div>`
+                                : ""
+                            } <!-- Reply Content only if it's a reply -->
+                                        ${messageBody} <!-- Default Message -->
+                                    </div>
+                                    ${reactionsMarkup}
+                                </div>
                                 <div class="chat-actions">
                                     <a class="#" href="#" data-bs-toggle="dropdown">
                                         <i class="ti ti-dots-vertical"></i>
@@ -8543,6 +8644,47 @@ initializeFirebase(function (app, auth, database, storage) {
         "📶",
     ];
 
+    function closeAllReactionPickers() {
+        document
+            .querySelectorAll(".message-hover-actions.reaction-open")
+            .forEach((el) => el.classList.remove("reaction-open"));
+        document
+            .querySelectorAll(".message-hover-actions.reaction-more-open")
+            .forEach((el) => el.classList.remove("reaction-more-open"));
+    }
+
+    function ensureExtendedReactionPickerFilled(container) {
+        if (!container || container.dataset.emojiFilled === "1") return;
+        emojis.forEach((emoji) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "message-react-option";
+            btn.setAttribute("data-reaction", emoji);
+            btn.textContent = emoji;
+            container.appendChild(btn);
+        });
+        container.dataset.emojiFilled = "1";
+    }
+
+    async function setMessageReaction(messageElement, reactionEmoji) {
+        if (!currentUser?.uid || !selectedUserId || !messageElement) return;
+        const messageKey = messageElement.dataset.messageKey;
+        if (!messageKey) return;
+        const chatRoomId = getDeterministicChatRoomId(
+            currentUser.uid,
+            selectedUserId
+        );
+        const { refPri, refMir } = getChatMessageRefsBothPaths(
+            messageKey,
+            chatRoomId,
+            currentUser.uid,
+            selectedUserId
+        );
+        const payload = {};
+        payload[`reactions/${currentUser.uid}`] = reactionEmoji;
+        await Promise.all([update(refPri, payload), update(refMir, payload)]);
+    }
+
     function ensureChatEmojiListFilled(emojiList) {
         if (!emojiList || emojiList.dataset.emojiFilled === "1") return;
         emojis.forEach((emoji) => {
@@ -8589,6 +8731,54 @@ initializeFirebase(function (app, auth, database, storage) {
             if (selectedUserId && currentUser && inputField.value.trim()) {
                 pulseChatTyping(selectedUserId);
             }
+            return;
+        }
+
+        const inlineEmojiBtn = e.target.closest(".hover-emoji-btn");
+        if (inlineEmojiBtn) {
+            e.preventDefault();
+            const actionsWrap = inlineEmojiBtn.closest(".message-hover-actions");
+            if (!actionsWrap) return;
+            const willOpen = !actionsWrap.classList.contains("reaction-open");
+            closeAllReactionPickers();
+            if (willOpen) actionsWrap.classList.add("reaction-open");
+            return;
+        }
+
+        const reactionChoice = e.target.closest(".message-react-option");
+        if (reactionChoice) {
+            e.preventDefault();
+            const messageElement = reactionChoice.closest(".chats");
+            if (!messageElement) return;
+            const reactionEmoji = reactionChoice.getAttribute("data-reaction");
+            if (!reactionEmoji) return;
+            setMessageReaction(messageElement, reactionEmoji).catch((err) => {
+                console.error("Error saving reaction:", err);
+            });
+            closeAllReactionPickers();
+            return;
+        }
+
+        const reactionMoreBtn = e.target.closest(".message-react-more");
+        if (reactionMoreBtn) {
+            e.preventDefault();
+            const actionsWrap = reactionMoreBtn.closest(".message-hover-actions");
+            if (!actionsWrap) return;
+            const extendedPicker = actionsWrap.querySelector(
+                ".message-reaction-picker-extended"
+            );
+            if (!extendedPicker) return;
+            ensureExtendedReactionPickerFilled(extendedPicker);
+            actionsWrap.classList.add("reaction-open");
+            actionsWrap.classList.toggle("reaction-more-open");
+            return;
+        }
+
+        if (
+            document.querySelector(".message-hover-actions.reaction-open") &&
+            !e.target.closest(".message-hover-actions")
+        ) {
+            closeAllReactionPickers();
         }
     });
 
