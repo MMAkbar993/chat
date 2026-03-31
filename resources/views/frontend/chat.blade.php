@@ -5,6 +5,23 @@
 @endphp
 
 @section('content')
+<style>
+#chat-area { position: relative; }
+#chat-loading-spinner { display: none; }
+#chat-loading-spinner.active { display: flex !important; }
+#chat-box.chat-loading-hidden { opacity: 0; pointer-events: none; }
+#chat-box.chat-reveal {
+    opacity: 1;
+    transition: opacity .25s ease-in;
+}
+.chats.msg-fade-in {
+    animation: msgSlideIn .25s ease-out both;
+}
+@keyframes msgSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+</style>
 <!-- content -->
 <div class="content main_content">
     @includeIf('frontend.partials.sidebar')
@@ -23,7 +40,7 @@
                         </a>
                     </div>
                     <div class="avatar avatar-lg flex-shrink-0">
-                        <img src="assets/img/profiles/avatar-06.jpg" class="rounded-circle" alt="image">
+                        <img id="chat-header-avatar" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" class="rounded-circle" alt="image">
                     </div>
                                                     <div class="ms-2 overflow-hidden">
                                                         <div class="d-flex align-items-center gap-1">
@@ -104,6 +121,11 @@
                 <!-- /Chat Search -->
             </div>
             <div class="chat-body chat-page-group" id="chat-area">
+                <div id="chat-loading-spinner" style="display:none;position:absolute;inset:0;z-index:5;background:inherit;justify-content:center;align-items:center;">
+                    <div class="spinner-border text-primary" role="status" style="width:2rem;height:2rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
                 <div class="messages" id="chat-box">
 
                 </div>
@@ -183,6 +205,7 @@
                                 <li><a class="dropdown-item" href="javascript:void(0);" id="attach-camera"><i class="ti ti-camera me-2"></i>{{ __('Camera') }}</a></li>
                                 <li><a class="dropdown-item" href="javascript:void(0);" id="attach-gallery"><i class="ti ti-photo me-2"></i>{{ __('Gallery') }}</a></li>
                                 <li><a class="dropdown-item" href="javascript:void(0);" id="attach-audio"><i class="ti ti-music me-2"></i>{{ __('Audio') }}</a></li>
+                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-file"><i class="ti ti-file me-2"></i>{{ __('File') }}</a></li>
                             </ul>
                             <input type="file" class="d-none" name="files" id="files">
                             <input type="file" class="d-none" id="files-camera" accept="image/*" capture="environment">
@@ -2142,11 +2165,15 @@
     document.addEventListener('DOMContentLoaded', function() {
         var audioBtn = document.getElementById('contact-profile-audio-btn');
         var videoBtn = document.getElementById('contact-profile-video-btn');
-        if (audioBtn && document.getElementById('audio-call-btn')) {
-            audioBtn.addEventListener('click', function() { document.getElementById('audio-call-btn').click(); });
+        if (audioBtn && document.getElementById('audio-call-btn') && !audioBtn.dataset.wired) {
+            audioBtn.addEventListener('click', function() {
+                document.getElementById('audio-call-btn').click();
+            });
         }
-        if (videoBtn && document.getElementById('video-call-new-btn')) {
-            videoBtn.addEventListener('click', function() { document.getElementById('video-call-new-btn').click(); });
+        if (videoBtn && document.getElementById('video-call-new-btn') && !videoBtn.dataset.wired) {
+            videoBtn.addEventListener('click', function() {
+                document.getElementById('video-call-new-btn').click();
+            });
         }
     });
     </script>

@@ -1638,6 +1638,81 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     });
 
+    function markContactChatAsDeletedForCurrentUser(contactId) {
+        if (!currentUserId || !contactId) {
+            return Promise.resolve();
+        }
+
+        const userRef = ref(database, `data/users/${currentUserId}/delete_chats`);
+        return get(userRef).then((snapshot) => {
+            let alreadyDeleted = false;
+            if (snapshot.exists()) {
+                const rows = snapshot.val();
+                Object.keys(rows).forEach((key) => {
+                    const row = rows[key];
+                    if (row && String(row.userId) === String(contactId) && row.deleted) {
+                        alreadyDeleted = true;
+                    }
+                });
+            }
+
+            if (alreadyDeleted) {
+                return;
+            }
+
+            const newDeleteRef = push(userRef);
+            return set(newDeleteRef, {
+                userId: contactId,
+                timestamp: Date.now(),
+                deleted: true,
+            });
+        }).catch(() => {});
+    }
+
+    function clearThreadForCurrentUser(contactId) {
+        if (!currentUserId || !contactId) {
+            return Promise.resolve();
+        }
+
+        const canonicalRoomRef = ref(database, `data/chats/${currentUserId}-${contactId}`);
+        const mirrorRoomRef = ref(database, `data/chats/${contactId}-${currentUserId}`);
+
+        const applyClearForRoom = (roomRef) => {
+            return get(roomRef).then((snapshot) => {
+                if (!snapshot.exists()) {
+                    return;
+                }
+
+                const updates = {};
+                snapshot.forEach((messageSnap) => {
+                    const key = messageSnap.key;
+                    if (!key) return;
+                    const message = messageSnap.val() || {};
+
+                    const deletedFor = Array.isArray(message.deletedFor) ? message.deletedFor : [];
+                    const clearedFor = Array.isArray(message.clearedFor) ? message.clearedFor : [];
+                    const nextDeletedFor = deletedFor.includes(currentUserId) ? deletedFor : [...deletedFor, currentUserId];
+                    const nextClearedFor = clearedFor.includes(currentUserId) ? clearedFor : [...clearedFor, currentUserId];
+
+                    updates[`${key}/deletedFor`] = nextDeletedFor;
+                    updates[`${key}/clearedFor`] = nextClearedFor;
+                });
+
+                if (Object.keys(updates).length === 0) {
+                    return;
+                }
+
+                return update(roomRef, updates);
+            });
+        };
+
+        return Promise.all([
+            applyClearForRoom(canonicalRoomRef),
+            applyClearForRoom(mirrorRoomRef),
+            remove(ref(database, `data/users/${currentUserId}/marked_unread/${contactId}`)).catch(() => {}),
+        ]).then(() => {}).catch(() => {});
+    }
+
 
 
     // Reference to the delete button
@@ -1662,6 +1737,8 @@ initializeFirebase(function (app, auth, database, storage) {
         const contactRef = ref(database, `data/contacts/${currentUserId}/${contactId}`);
 
         remove(contactRef)
+            .then(() => markContactChatAsDeletedForCurrentUser(contactId))
+            .then(() => clearThreadForCurrentUser(contactId))
             .then(() => {
                 Toastify({
                     text: "Contact deleted successfully!",

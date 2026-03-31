@@ -73,6 +73,45 @@ initializeFirebase(function (app, auth, database, storage) {
     let lastPartnerStatusForHeader = "offline";
     let headerShowsTyping = false;
 
+    let mediaPanelRoomUnsub = null;
+    let mediaPanelRefreshTimer = null;
+
+    function detachMediaPanelRoomListener() {
+        if (mediaPanelRefreshTimer) {
+            clearTimeout(mediaPanelRefreshTimer);
+            mediaPanelRefreshTimer = null;
+        }
+        if (typeof mediaPanelRoomUnsub === "function") {
+            try {
+                mediaPanelRoomUnsub();
+            } catch (e) {
+                /* ignore */
+            }
+            mediaPanelRoomUnsub = null;
+        }
+    }
+
+    function attachMediaPanelRoomListener() {
+        detachMediaPanelRoomListener();
+        if (!currentUser?.uid || !selectedUserId) return;
+        const canonicalRoomId = getDeterministicChatRoomId(
+            currentUser.uid,
+            selectedUserId
+        );
+        const roomRef = ref(database, `data/chats/${canonicalRoomId}`);
+        mediaPanelRoomUnsub = onValue(roomRef, () => {
+            if (mediaPanelRefreshTimer) clearTimeout(mediaPanelRefreshTimer);
+            mediaPanelRefreshTimer = setTimeout(() => {
+                if (
+                    typeof window.__dreamchatRefreshOpenMediaAccordions ===
+                    "function"
+                ) {
+                    window.__dreamchatRefreshOpenMediaAccordions();
+                }
+            }, 400);
+        });
+    }
+
     /* Set body attribute immediately so at 1200px+ the message panel shows (CSS uses data-chat-panel) */
     if (typeof document !== "undefined" && document.body) {
         var p = (typeof location !== "undefined" && location.pathname) ? location.pathname.replace(/\/+$/, "") || "/" : "";
@@ -2056,14 +2095,20 @@ initializeFirebase(function (app, auth, database, storage) {
             ).catch(() => {});
         }
 
-        // Clear the chat box
+        // Clear the chat box and show spinner while messages load
         chatBox.innerHTML = "";
+        _chatInitialLoad = true;
+        _chatInitialMsgCount = 0;
+        if (_chatInitialLoadTimer) clearTimeout(_chatInitialLoadTimer);
+        _showChatSpinner();
 
         // Generate chatRoomId deterministically (A-B)
         const chatRoomId = getDeterministicChatRoomId(loggedInUserId, selectedUserId);
 
         // Start listening for messages with the selected user
         listenForMessages(loggedInUserId, selectedUserId, chatRoomId);
+        detachMediaPanelRoomListener();
+        attachMediaPanelRoomListener();
 
         if (chatHeaderStatusUnsub) {
             chatHeaderStatusUnsub();
@@ -2148,9 +2193,15 @@ initializeFirebase(function (app, auth, database, storage) {
 
         // Update the user's profile image
         const userImage = resolveCallProfileImageUrl(
-            usersMap[userId].profileImage || ""
+            (usersMap[userId] && usersMap[userId].profileImage)
+                ? usersMap[userId].profileImage
+                : (contactData && (contactData.profile_image || contactData.image))
+                    ? (contactData.profile_image || contactData.image)
+                    : ""
         );
-        const headerImg = document.querySelector(".chat-header img");
+        const headerImg =
+            document.getElementById("chat-header-avatar") ||
+            document.querySelector(".chat-header .avatar img");
         if (headerImg) headerImg.src = userImage;
 
         // Fetch KYC verified badge status
@@ -3054,9 +3105,50 @@ initializeFirebase(function (app, auth, database, storage) {
                         messageContent = originalMessageChat;
                 }
 
-                // If the message is a reply, look up the original message, decrypt it, and show the content
+                // If the message is a reply, prefer embedded replyContent (fast/reliable),
+                // then fall back to looking up the original message by replyId.
                 if (message.replyId !== "0") {
                     try {
+                        const renderReplyContent = (type, rawContent) => {
+                            const normalizedType = String(type || "6");
+                            const safeContent = (rawContent || "").toString().trim();
+                            switch (normalizedType) {
+                                case "6":
+                                    return `<div>${safeContent}</div>`;
+                                case "2":
+                                    return safeContent
+                                        ? `<img src="${safeContent}" class="reply-image" style="max-height: 70px; border-radius: 5px;" alt="Image">`
+                                        : `<div><i class="ti ti-photo"></i> Image</div>`;
+                                case "3":
+                                case "8":
+                                    return `<div><i class="ti ti-microphone"></i> Audio</div>`;
+                                case "1":
+                                    return `<div><i class="ti ti-video"></i> Video</div>`;
+                                case "5":
+                                    return `<div><i class="ti ti-file"></i> File</div>`;
+                                default:
+                                    return `<div>${safeContent}</div>`;
+                            }
+                        };
+
+                        // 1) Prefer the metadata already stored on the reply message
+                        if (message.replyContent) {
+                            let decodedReply = message.replyContent;
+                            try {
+                                if (!message.isOptimistic) {
+                                    decodedReply =
+                                        await decryptlibsodiumMessage(
+                                            message.replyContent
+                                        );
+                                }
+                            } catch (e) {
+                                // Keep raw value as fallback.
+                            }
+                            replyContent = renderReplyContent(
+                                message.replyType || "6",
+                                decodedReply
+                            );
+                        } else {
                         // Generate both possible chat room IDs
                         const chatRoomId1 = `${currentUser.uid}-${selectedUserId}`; // A-B
                         const chatRoomId2 = `${selectedUserId}-${currentUser.uid}`; // B-A
@@ -3125,25 +3217,10 @@ initializeFirebase(function (app, auth, database, storage) {
                             ? snapshot.val().attachmentType.toString()
                             : "6";
 
-                        switch (originalMessageType) {
-                            case "6": // Text
-                                replyContent = `<div>${sanitizedReplyContent}</div>`;
-                                break;
-                            case "2": // Image
-                                replyContent = `<img src="${sanitizedReplyContent}" class="reply-image" style="max-height: 70px; border-radius: 5px;" alt="Image">`;
-                                break;
-                            case "3": // Audio
-                            case "8": // Audio Record
-                                replyContent = `<div><i class="ti ti-microphone"></i> Audio</div>`;
-                                break;
-                            case "1": // Video
-                                replyContent = `<div><i class="ti ti-video"></i> Video</div>`;
-                                break;
-                            case "5": // File/Document
-                                replyContent = `<div><i class="ti ti-file"></i> File</div>`;
-                                break;
-                            default:
-                                replyContent = `<div>${sanitizedReplyContent}</div>`;
+                        replyContent = renderReplyContent(
+                            originalMessageType,
+                            sanitizedReplyContent
+                        );
                         }
                     } catch (error) {
                         console.error("Error processing reply message:", error);
@@ -3262,16 +3339,19 @@ initializeFirebase(function (app, auth, database, storage) {
                 );
                 if (index !== -1) {
                     chatBox.insertBefore(messageElement, allMessages[index]);
-                    console.log("Message inserted at position:", index);
                 } else {
-                    chatBox.appendChild(messageElement); // Append if it's the latest message
-                    console.log("Message appended to end");
+                    chatBox.appendChild(messageElement);
                 }
 
-                const chatScrollHost =
-                    document.getElementById("chat-area") || chatBox;
-                chatScrollHost.scrollTop = chatScrollHost.scrollHeight;
-                console.log("Message successfully added to DOM");
+                if (_chatInitialLoad) {
+                    _chatInitialMsgCount++;
+                    _bumpInitialLoadTimer();
+                } else {
+                    messageElement.classList.add("msg-fade-in");
+                    const chatScrollHost =
+                        document.getElementById("chat-area") || chatBox;
+                    chatScrollHost.scrollTop = chatScrollHost.scrollHeight;
+                }
             })
             .catch((error) => {
                 console.error("Error loading message:", error);
@@ -3279,6 +3359,26 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     let replyToMessage = null; // To store the replied message content
+
+    function getActiveReplyElements() {
+        const root =
+            document.querySelector("#middle .chat-footer .footer-form") ||
+            document.querySelector(".chat-footer .footer-form") ||
+            document;
+        const replyDiv =
+            root.querySelector("#reply-div") ||
+            document.getElementById("reply-div");
+        const replyContentElement =
+            root.querySelector("#replyContent") ||
+            document.getElementById("replyContent");
+        const replyUserElement =
+            root.querySelector("#replyUser") ||
+            document.getElementById("replyUser");
+        const closeReplyBtn =
+            root.querySelector("#closeReply") ||
+            document.getElementById("closeReply");
+        return { replyDiv, replyContentElement, replyUserElement, closeReplyBtn };
+    }
 
     // Event listener for the reply button
     document.addEventListener("click", (e) => {
@@ -3294,7 +3394,15 @@ initializeFirebase(function (app, auth, database, storage) {
             const typeParsed = parseInt(messageElement.dataset.messageType, 10);
             const attType = Number.isFinite(typeParsed) ? typeParsed : 6;
             const replyType = String(attType);
-            const replyUser = "";
+            const rawSenderLabel = (
+                messageElement.querySelector(".chat-profile-name h6")
+                    ?.textContent || ""
+            )
+                .replace(/\s+/g, " ")
+                .trim();
+            const replyUser = messageElement.classList.contains("chats-right")
+                ? "You"
+                : rawSenderLabel || "Contact";
 
             let replyContent = ""; // To hold the reply content
             let mediaUrl = null; // To hold the media URL if applicable
@@ -3343,9 +3451,8 @@ initializeFirebase(function (app, auth, database, storage) {
             }
 
             // Update the reply box content
-            const replyDiv = document.getElementById("reply-div");
-            const replyContentElement = document.getElementById("replyContent");
-            const replyUserElement = document.getElementById("replyUser");
+            const { replyDiv, replyContentElement, replyUserElement } =
+                getActiveReplyElements();
 
             if (replyDiv && replyContentElement && replyUserElement) {
                 replyDiv.style.display = "flex";
@@ -3356,6 +3463,9 @@ initializeFirebase(function (app, auth, database, storage) {
                     replyContentElement.innerHTML = replyContent;
                 } else {
                     replyContentElement.innerText = replyContent;
+                }
+                if (!replyContent || !String(replyContent).trim()) {
+                    replyContentElement.innerText = "Message";
                 }
             } else {
                 console.error(
@@ -3376,7 +3486,7 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     });
 
-    const closeReplyBtn = document.getElementById("closeReply");
+    const { closeReplyBtn } = getActiveReplyElements();
     if (closeReplyBtn) {
         closeReplyBtn.onclick = () => {
             closeReplyBox();
@@ -3386,7 +3496,8 @@ initializeFirebase(function (app, auth, database, storage) {
     // Close Reply Box
     function closeReplyBox() {
         replyToMessage = null; // Reset the replied message
-        document.getElementById("reply-div").style.display = "none";
+        const { replyDiv } = getActiveReplyElements();
+        if (replyDiv) replyDiv.style.display = "none";
     }
 
     let forwardContent = null;
@@ -4180,6 +4291,44 @@ initializeFirebase(function (app, auth, database, storage) {
     const displayedMessages = new Set(); // Keep track of displayed message keys
     const pendingOptimisticKeys = new Set(); // Track tempKeys before DOM insertion
 
+    let _chatInitialLoad = false;
+    let _chatInitialLoadTimer = null;
+    let _chatInitialMsgCount = 0;
+
+    function _showChatSpinner() {
+        const spinner = document.getElementById("chat-loading-spinner");
+        const chatBox = document.getElementById("chat-box");
+        if (spinner) spinner.classList.add("active");
+        if (chatBox) {
+            chatBox.classList.add("chat-loading-hidden");
+            chatBox.classList.remove("chat-reveal");
+        }
+    }
+
+    function _revealChatMessages() {
+        _chatInitialLoad = false;
+        const spinner = document.getElementById("chat-loading-spinner");
+        const chatBox = document.getElementById("chat-box");
+        if (spinner) spinner.classList.remove("active");
+        if (chatBox) {
+            chatBox.classList.remove("chat-loading-hidden");
+            chatBox.classList.add("chat-reveal");
+            const msgs = chatBox.querySelectorAll(".chats:not(.msg-fade-in)");
+            msgs.forEach((el, i) => {
+                el.style.animationDelay = (i * 0.03) + "s";
+                el.classList.add("msg-fade-in");
+            });
+        }
+        const chatScrollHost = document.getElementById("chat-area") || chatBox;
+        if (chatScrollHost) chatScrollHost.scrollTop = chatScrollHost.scrollHeight;
+    }
+
+    function _bumpInitialLoadTimer() {
+        if (!_chatInitialLoad) return;
+        if (_chatInitialLoadTimer) clearTimeout(_chatInitialLoadTimer);
+        _chatInitialLoadTimer = setTimeout(() => { _revealChatMessages(); }, 300);
+    }
+
     function listenForMessages(fromUserId, toUserId, chatRoomId) {
         // Remove the previous listener before adding a new one
         if (messageListener) {
@@ -4313,6 +4462,8 @@ initializeFirebase(function (app, auth, database, storage) {
             handleMessageUpdate(snapshot);
         });
 
+        _bumpInitialLoadTimer();
+
         messageListener = () => {
             listenerAdded();
             updateListener();
@@ -4392,6 +4543,7 @@ initializeFirebase(function (app, auth, database, storage) {
     const attachCameraBtn = document.getElementById("attach-camera");
     const attachGalleryBtn = document.getElementById("attach-gallery");
     const attachAudioBtn = document.getElementById("attach-audio");
+    const attachFileBtn = document.getElementById("attach-file");
     const GOOGLE_MAPS_API_KEY = "AIzaSyCAcoMewuBBAdWw5CEv6VfBcHPMl-k8uc8";
 
     function openAttachmentPicker(options) {
@@ -4422,6 +4574,15 @@ initializeFirebase(function (app, auth, database, storage) {
         attachAudioBtn.addEventListener("click", (e) => {
             e.preventDefault();
             openAttachmentPicker({ accept: "audio/*" });
+        });
+    }
+    if (attachFileBtn) {
+        attachFileBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            openAttachmentPicker({
+                accept:
+                    ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip,application/x-rar-compressed,application/x-7z-compressed",
+            });
         });
     }
 
@@ -5595,29 +5756,34 @@ initializeFirebase(function (app, auth, database, storage) {
             const gridEl    = collapseEl.querySelector(".media-photos-grid, .media-videos-grid");
             const listEl    = collapseEl.querySelector(".media-links-list, .media-docs-list");
 
-            if (collapseEl.dataset.mediaLoaded === "1") return;
-            collapseEl.dataset.mediaLoaded = "1";
-
             if (loadingEl) loadingEl.classList.remove("d-none");
             if (emptyEl)   emptyEl.classList.add("d-none");
+            if (gridEl) gridEl.innerHTML = "";
+            if (listEl) listEl.innerHTML = "";
 
-            const chatRoomId1 = `${currentUser.uid}-${selectedUserId}`;
-            const chatRoomId2 = `${selectedUserId}-${currentUser.uid}`;
+            const canonicalRoomId = getDeterministicChatRoomId(
+                currentUser.uid,
+                selectedUserId
+            );
             let messages = [];
-
-            for (const roomId of [chatRoomId1, chatRoomId2]) {
-                try {
-                    const snap = await get(ref(database, `data/chats/${roomId}`));
-                    if (snap.exists()) {
-                        snap.forEach(child => { messages.push(child.val()); });
-                        break;
-                    }
-                } catch (e) {}
+            try {
+                const snap = await get(
+                    ref(database, `data/chats/${canonicalRoomId}`)
+                );
+                if (snap.exists()) {
+                    snap.forEach((child) => {
+                        messages.push(child.val());
+                    });
+                }
+            } catch (e) {
+                /* ignore */
             }
 
             if (loadingEl) loadingEl.classList.add("d-none");
 
-            const filtered = messages.filter(msg => mediaType.attachmentTypes.includes(msg.attachmentType));
+            const filtered = messages.filter((msg) =>
+                mediaType.attachmentTypes.includes(Number(msg.attachmentType))
+            );
 
             if (mediaType.type === "photos" || mediaType.type === "videos") {
                 if (!filtered.length) { if (emptyEl) emptyEl.classList.remove("d-none"); return; }
@@ -5634,24 +5800,97 @@ initializeFirebase(function (app, auth, database, storage) {
                 });
 
             } else if (mediaType.type === "links") {
-                const urlRegex = /https?:\/\/[^\s]+/g;
-                const textMsgs = messages.filter(msg => msg.attachmentType === 6 && msg.body);
-                const decrypted = await Promise.all(textMsgs.map(async msg => {
-                    try { return await decryptlibsodiumMessage(msg.body); } catch(e) { return null; }
-                }));
+                const seenUrls = new Set();
                 let found = false;
-                decrypted.forEach(text => {
-                    if (!text) return;
-                    (text.match(urlRegex) || []).forEach(url => {
-                        found = true;
-                        const item = document.createElement("a");
-                        item.href = url; item.target = "_blank"; item.rel = "noopener noreferrer";
-                        item.className = "list-group-item list-group-item-action px-0 py-2 text-truncate border-0";
-                        item.style.fontSize = "0.82rem";
-                        item.textContent = url;
-                        if (listEl) listEl.appendChild(item);
-                    });
-                });
+
+                function trimTrailingUrlPunct(u) {
+                    return String(u || "").replace(/[)\],.;:!?]+$/g, "");
+                }
+
+                function normalizeUrl(href) {
+                    if (!href || typeof href !== "string") return null;
+                    let u = trimTrailingUrlPunct(href.trim());
+                    if (!u) return null;
+                    if (!/^https?:\/\//i.test(u) && /^www\./i.test(u)) {
+                        u = "https://" + u;
+                    }
+                    if (!/^https?:\/\//i.test(u)) return null;
+                    try {
+                        return new URL(u).href;
+                    } catch (e) {
+                        return null;
+                    }
+                }
+
+                function addLinkRow(rawHref) {
+                    const u = normalizeUrl(rawHref);
+                    if (!u || seenUrls.has(u)) return;
+                    seenUrls.add(u);
+                    found = true;
+                    const item = document.createElement("a");
+                    item.href = u;
+                    item.target = "_blank";
+                    item.rel = "noopener noreferrer";
+                    item.className =
+                        "list-group-item list-group-item-action px-0 py-2 text-truncate border-0";
+                    item.style.fontSize = "0.82rem";
+                    item.textContent = u;
+                    item.title = u;
+                    if (listEl) listEl.appendChild(item);
+                }
+
+                const extractUrlsFromText = (text) => {
+                    if (!text || typeof text !== "string") return;
+                    const reHttp = /https?:\/\/[^\s<>"']+/gi;
+                    const reWww =
+                        /\bwww\.[a-z0-9][a-z0-9.-]*\.[a-z]{2,}[^\s<>"']*/gi;
+                    let m;
+                    while ((m = reHttp.exec(text)) !== null) {
+                        addLinkRow(m[0]);
+                    }
+                    while ((m = reWww.exec(text)) !== null) {
+                        addLinkRow(m[0]);
+                    }
+                };
+
+                const textMsgs = messages.filter(
+                    (msg) => Number(msg.attachmentType) === 6 && msg.body
+                );
+                for (const msg of textMsgs) {
+                    let text = null;
+                    try {
+                        text = await decryptlibsodiumMessage(msg.body);
+                    } catch (e) {
+                        text = null;
+                    }
+                    if (!text && typeof msg.body === "string") {
+                        const b = msg.body.trim();
+                        if (/^https?:\/\//i.test(b) || /^www\./i.test(b)) {
+                            text = b;
+                        }
+                    }
+                    extractUrlsFromText(text);
+                }
+
+                const mapMsgs = messages.filter(
+                    (m) => Number(m.attachmentType) === 4 && m.attachment
+                );
+                for (const msg of mapMsgs) {
+                    const att = msg.attachment;
+                    if (att.link) addLinkRow(att.link);
+                    if (att.url && typeof att.url === "string") {
+                        const u = att.url;
+                        if (
+                            /maps\.(google|googleapis)\.|goo\.gl|g\.co\/maps/i.test(
+                                u
+                            ) ||
+                            /maps\.google\.com|google\.com\/maps/i.test(u)
+                        ) {
+                            addLinkRow(u);
+                        }
+                    }
+                }
+
                 if (!found && emptyEl) emptyEl.classList.remove("d-none");
 
             } else if (mediaType.type === "docs") {
@@ -5710,6 +5949,30 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             });
         });
+
+        function refreshOpenMediaAccordions() {
+            if (!currentUser || !selectedUserId) return;
+            Object.keys(mediaAccordionMap).forEach((id) => {
+                const cfg = mediaAccordionMap[id];
+                const collapseEl = document.getElementById(cfg.collapseId);
+                if (!collapseEl || !collapseEl.classList.contains("show")) {
+                    return;
+                }
+                collapseEl
+                    .querySelectorAll(
+                        ".media-photos-grid,.media-videos-grid,.media-links-list,.media-docs-list"
+                    )
+                    .forEach((c) => {
+                        c.innerHTML = "";
+                    });
+                collapseEl
+                    .querySelectorAll(".media-empty")
+                    .forEach((e) => e.classList.add("d-none"));
+                loadMediaAccordion(collapseEl, cfg);
+            });
+        }
+        window.__dreamchatRefreshOpenMediaAccordions = refreshOpenMediaAccordions;
+
         // ── Others accordion ──────────────────────────────────────────
         const othersAccordionMap = {
             "contact-open-favourites": "others-collapse-favourites",
@@ -7613,6 +7876,9 @@ initializeFirebase(function (app, auth, database, storage) {
 
     function resetChatShellToWelcome() {
         try {
+            detachMediaPanelRoomListener();
+        } catch (e) { /* ignore */ }
+        try {
             if (typeof messageListener === "function" && messageListener) {
                 messageListener();
             }
@@ -7621,8 +7887,12 @@ initializeFirebase(function (app, auth, database, storage) {
             messageListener = null;
         } catch (e) { /* ignore */ }
         try {
+            _chatInitialLoad = false;
+            if (_chatInitialLoadTimer) clearTimeout(_chatInitialLoadTimer);
+            const spinner = document.getElementById("chat-loading-spinner");
+            if (spinner) spinner.classList.remove("active");
             const box = document.getElementById("chat-box");
-            if (box) box.innerHTML = "";
+            if (box) { box.innerHTML = ""; box.classList.remove("chat-loading-hidden", "chat-reveal"); }
         } catch (e) { /* ignore */ }
         try {
             highlightActiveUser("");
@@ -9438,8 +9708,9 @@ initializeFirebase(function (app, auth, database, storage) {
 
         const joinAudioReset = document.getElementById('join-audio-call');
         if (joinAudioReset) {
-            joinAudioReset.classList.remove('d-none');
-            joinAudioReset.classList.add('d-flex');
+            // Keep join hidden during cleanup to avoid green+red flash while modal is closing.
+            joinAudioReset.classList.add('d-none');
+            joinAudioReset.classList.remove('d-flex');
             joinAudioReset.style.removeProperty('display');
         }
 
@@ -9606,10 +9877,18 @@ initializeFirebase(function (app, auth, database, storage) {
 
         let activeCall = null;
         let ringingCall = null;
+        let userAudioCallTotal = 0;
+        let userAudioRingingCount = 0;
+        let userAudioConnectedCount = 0;
 
         if (allCalls[currentUser.uid]) {
             for (const callId in allCalls[currentUser.uid]) {
                 const call = allCalls[currentUser.uid][callId];
+                if (call && call.video == false) {
+                    userAudioCallTotal++;
+                    if (call.duration === "Ringing") userAudioRingingCount++;
+                    if (call.duration === "00:00:00") userAudioConnectedCount++;
+                }
 
                 if (
                     call.duration === "Declined" ||
@@ -10225,7 +10504,9 @@ initializeFirebase(function (app, auth, database, storage) {
 
         const joinVideoRingBtn = document.getElementById('join-video-call');
         if (joinVideoRingBtn) {
-            joinVideoRingBtn.classList.remove('d-none');
+            // Keep join hidden during cleanup to avoid green+red flash while modal is closing.
+            joinVideoRingBtn.classList.add('d-none');
+            joinVideoRingBtn.classList.remove('d-flex');
             joinVideoRingBtn.style.removeProperty('display');
         }
         const ringStatus = document.getElementById('video-call-ring-status');
@@ -10449,7 +10730,6 @@ initializeFirebase(function (app, auth, database, storage) {
             // An accepted call takes precedence over a ringing one.
             callToProcess = acceptedCall || ringingCall;
         }
-
         if (callToProcess) {
             // A valid call (ringing or accepted) has been found.
             currentVideoCallId = callToProcess.id;

@@ -810,8 +810,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         
         var fallbackH6 = middle.querySelector('.chat-header h6');
         if (fallbackH6) fallbackH6.textContent = 'User ' + selectedId;
-        var fallbackAvatar = middle.querySelector('.chat-header .avatar img');
-        if (fallbackAvatar) fallbackAvatar.src = baseUrl + '/assets/img/profiles/avatar-06.jpg';
+        var fallbackAvatar = middle.querySelector('#chat-header-avatar, .chat-header .avatar img');
         if (chatForm) {
             chatForm.onsubmit = function(e) {
                 e.preventDefault();
@@ -835,16 +834,28 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                 return false;
             };
         }
+        var spinner = document.getElementById('chat-loading-spinner');
+        if (spinner) spinner.classList.add('active');
+        chatBox.classList.add('chat-loading-hidden');
+        chatBox.classList.remove('chat-reveal');
+
         fetch(baseUrl + '/api/chat-list', { method: 'GET', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
             .then(function(list) {
                 var other = null;
                 if (Array.isArray(list)) other = list.find(function(item) { return String(item.other_user_id) === String(selectedId); });
                 var name = other ? (other.display_name || 'User') : ('User ' + selectedId);
-                var img = (other && other.other_user && other.other_user.profile_image_link) ? other.other_user.profile_image_link : (baseUrl + '/assets/img/profiles/avatar-06.jpg');
+                var rawImg = (other && other.other_user)
+                    ? (other.other_user.profile_image_link || other.other_user.profile_image || other.other_user.image || '')
+                    : '';
+                var img = rawImg ? String(rawImg) : (baseUrl + '/assets/img/profiles/avatar-06.jpg');
+                if (img && !/^https?:\/\//i.test(img) && !img.startsWith('data:') && !img.startsWith('blob:')) {
+                    img = img.replace(/^\.?\/+/, '');
+                    img = baseUrl + '/' + img;
+                }
                 var h6 = middle.querySelector('.chat-header h6');
                 if (h6) h6.textContent = name;
-                var avatar = middle.querySelector('.chat-header .avatar img');
+                var avatar = middle.querySelector('#chat-header-avatar, .chat-header .avatar img');
                 if (avatar) avatar.src = img;
                 return fetch(baseUrl + '/api/chat-messages/' + selectedId, { method: 'GET', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
             })
@@ -852,17 +863,24 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
             .then(function(messages) {
                 if (!Array.isArray(messages)) return;
                 chatBox.innerHTML = '';
-                messages.forEach(function(m) {
+                messages.forEach(function(m, idx) {
                     var isOut = Number(m.from) === Number(currentUserId);
                     var div = document.createElement('div');
-                    div.className = isOut ? 'chats right' : 'chats';
+                    div.className = isOut ? 'chats right msg-fade-in' : 'chats msg-fade-in';
+                    div.style.animationDelay = (idx * 0.03) + 's';
                     var time = m.timestamp ? new Date(m.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
                     div.innerHTML = '<div class="chat-content"><div class="chat-profile-name"><h6>' + (isOut ? 'You' : 'Them') + '</h6><span>' + time + '</span></div><div class="chat-info"><p class="mb-0">' + (m.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p></div></div>';
                     chatBox.appendChild(div);
                 });
+                if (spinner) spinner.classList.remove('active');
+                chatBox.classList.remove('chat-loading-hidden');
+                chatBox.classList.add('chat-reveal');
                 if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
             })
             .catch(function() {
+                if (spinner) spinner.classList.remove('active');
+                chatBox.classList.remove('chat-loading-hidden');
+                chatBox.classList.add('chat-reveal');
                 if (chatBox) chatBox.innerHTML = '<p class="text-muted text-center py-3 mb-0">Could not load conversation.</p>';
             });
     }
