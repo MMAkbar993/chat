@@ -14805,7 +14805,14 @@ audio{
   position: unset !important;
   height: 80vh !important;
 }
+#group-remote-playerlist video {
+  position: unset !important;
+  height: 80vh !important;
+}
 #start-video-call-container .modal-footer {
+  padding-bottom: 0;
+}
+#video_group_new .modal-footer {
   padding-bottom: 0;
 }
 .user-video-head {

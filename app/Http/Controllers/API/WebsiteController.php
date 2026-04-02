@@ -279,24 +279,19 @@ class WebsiteController extends Controller
             }
 
             try {
-                VerifyWebsiteMetaTag::dispatchSync($userWebsite->id);
+                VerifyWebsiteMetaTag::dispatch($userWebsite->id);
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Website verify job failed', ['id' => $id, 'message' => $e->getMessage()]);
+                \Illuminate\Support\Facades\Log::warning('Website verify queue dispatch failed', ['id' => $id, 'message' => $e->getMessage()]);
                 return send_success_response(
-                    ['verified' => false],
-                    __('Verification failed. Please check the meta tag and try again.')
+                    ['verified' => false, 'queued' => false],
+                    __('Could not start verification right now. Please try again.')
                 );
             }
 
-            // Refresh the model to check if verification succeeded
-            $userWebsite->refresh();
-            $verified = $userWebsite->isVerified();
-
-            $message = $verified
-                ? __('Website verified successfully!')
-                : __('Verification failed. Make sure the meta tag is in your site\'s <head> section and try again.');
-
-            return send_success_response(['verified' => $verified], $message);
+            return send_success_response(
+                ['verified' => false, 'queued' => true],
+                __('Verification started. Please refresh in a few seconds to see the latest status.')
+            );
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('Website verify error', ['id' => $id, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return send_success_response(

@@ -5,6 +5,7 @@
     'use strict';
     var usersApi = '/admin/api/users';
     var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : null;
+    var usersState = { page: 1, perPage: 25, lastPage: 1, total: 0 };
 
     function getHeaders(method) {
         var h = { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
@@ -78,8 +79,57 @@
         });
     }
 
+    function renderPagination(meta) {
+        var host = document.querySelector('#usersTable') ? document.querySelector('#usersTable').closest('.card-body') : null;
+        if (!host) return;
+        var pager = document.getElementById('users-table-pagination');
+        if (!pager) {
+            pager = document.createElement('div');
+            pager.id = 'users-table-pagination';
+            pager.className = 'd-flex justify-content-between align-items-center p-3 border-top';
+            host.appendChild(pager);
+        }
+        pager.innerHTML = '';
+        var summary = document.createElement('div');
+        summary.className = 'small text-muted';
+        summary.textContent = 'Showing page ' + usersState.page + ' of ' + usersState.lastPage + ' (' + usersState.total + ' users)';
+        var actions = document.createElement('div');
+        actions.className = 'd-flex gap-2';
+        var prev = document.createElement('button');
+        prev.className = 'btn btn-sm btn-outline-secondary';
+        prev.textContent = 'Previous';
+        prev.disabled = usersState.page <= 1;
+        prev.addEventListener('click', function () {
+            if (usersState.page <= 1) return;
+            usersState.page -= 1;
+            fetchUsers();
+        });
+        var next = document.createElement('button');
+        next.className = 'btn btn-sm btn-outline-secondary';
+        next.textContent = 'Next';
+        next.disabled = usersState.page >= usersState.lastPage;
+        next.addEventListener('click', function () {
+            if (usersState.page >= usersState.lastPage) return;
+            usersState.page += 1;
+            fetchUsers();
+        });
+        actions.appendChild(prev);
+        actions.appendChild(next);
+        pager.appendChild(summary);
+        pager.appendChild(actions);
+    }
+
     function fetchUsers() {
-        fetch(usersApi, { method: 'GET', headers: getHeaders('GET'), credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (data) { renderUsersTable(data.data || []); }).catch(function (err) {
+        var url = usersApi + '?page=' + encodeURIComponent(usersState.page) + '&per_page=' + encodeURIComponent(usersState.perPage);
+        fetch(url, { method: 'GET', headers: getHeaders('GET'), credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (data) {
+            var meta = data.meta || {};
+            usersState.page = Number(meta.page || usersState.page || 1);
+            usersState.perPage = Number(meta.per_page || usersState.perPage);
+            usersState.lastPage = Number(meta.last_page || 1);
+            usersState.total = Number(meta.total || 0);
+            renderUsersTable(data.data || []);
+            renderPagination(meta);
+        }).catch(function () {
             if (typeof Toastify !== 'undefined') Toastify({ text: 'Failed to load users', duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'red' }).showToast();
         });
     }

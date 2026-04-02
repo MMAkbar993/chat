@@ -4743,24 +4743,35 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    // Create a container for file preview and the Clear button
-    const messagePreview = document.createElement("div");
-    messagePreview.id = "message-preview"; // A container to preview uploaded files
-    messagePreview.style.display = "flex";
-    messagePreview.style.alignItems = "center";
-    messagePreview.style.marginTop = "10px";
-
-    // Create the Clear button
-    const clearButton = document.createElement("button");
-    clearButton.id = "image-clear-button";
-    clearButton.textContent = "X";
-    clearButton.style.marginLeft = "10px";
-    clearButton.style.display = "none"; // Initially hidden
-
+    // File preview: reuse static #message-preview from the Blade footer when present (chat + group-chat).
+    let messagePreview = document.getElementById("message-preview");
+    let clearButton = document.getElementById("image-clear-button");
+    if (!messagePreview) {
+        messagePreview = document.createElement("div");
+        messagePreview.id = "message-preview";
+        messagePreview.style.display = "flex";
+        messagePreview.style.alignItems = "center";
+        messagePreview.style.marginTop = "10px";
+    } else {
+        messagePreview.style.display = "flex";
+        messagePreview.style.alignItems = "center";
+        messagePreview.style.marginTop = "10px";
+    }
+    if (!clearButton) {
+        clearButton = document.createElement("button");
+        clearButton.id = "image-clear-button";
+        clearButton.textContent = "X";
+        clearButton.style.marginLeft = "10px";
+        clearButton.style.display = "none";
+    }
     const chatFooterWrap = document.querySelector(".chat-footer-wrap");
     if (chatFooterWrap) {
-    chatFooterWrap.appendChild(messagePreview); // Add preview container to footer
-    messagePreview.appendChild(clearButton); // Add Clear button to preview container
+        if (!chatFooterWrap.contains(messagePreview)) {
+            chatFooterWrap.appendChild(messagePreview);
+        }
+        if (!messagePreview.contains(clearButton)) {
+            messagePreview.appendChild(clearButton);
+        }
     }
 
     function renderChatFilePreview(selectedFile) {
@@ -4986,6 +4997,66 @@ initializeFirebase(function (app, auth, database, storage) {
             }
 
             sendButton.disabled = true;
+
+            const groupId =
+                typeof window !== "undefined" &&
+                window.__dreamchatSelectedGroupId;
+            const onGroupPage = !!document.getElementById("group-area");
+            if (
+                onGroupPage &&
+                groupId &&
+                typeof window.__dreamchatSendGroupMessage === "function"
+            ) {
+                try {
+                    if (messageText) {
+                        const ciphertext = await encryptMessage(messageText);
+                        if (ciphertext) {
+                            await window.__dreamchatSendGroupMessage(
+                                groupId,
+                                ciphertext,
+                                6
+                            );
+                        }
+                        messageInput.value = "";
+                    }
+                    if (selectedFile) {
+                        const fileUrl = await uploadFileToFirebase(selectedFile);
+                        const fileType = selectedFile.type.split("/")[0];
+                        const attachment = {
+                            bytesCount: selectedFile.size,
+                            name: selectedFile.name,
+                            url: fileUrl,
+                        };
+                        let messageType;
+                        switch (fileType) {
+                            case "image":
+                                messageType = 2;
+                                break;
+                            case "audio":
+                                messageType = 3;
+                                break;
+                            case "video":
+                                messageType = 1;
+                                break;
+                            default:
+                                messageType = 5;
+                                break;
+                        }
+                        await window.__dreamchatSendGroupMessage(
+                            groupId,
+                            attachment,
+                            messageType
+                        );
+                        fileInput.value = "";
+                        messagePreview.innerHTML = "";
+                        clearButton.style.display = "none";
+                    }
+                } catch (err) {
+                    console.error("Group send:", err);
+                }
+                sendButton.disabled = false;
+                return;
+            }
 
             if (messageText) {
                 // 1. Generate a unique temporary key for the optimistic message
@@ -9002,6 +9073,59 @@ initializeFirebase(function (app, auth, database, storage) {
                 }).showToast();
                 return;
             }
+            const groupId =
+                typeof window !== "undefined" &&
+                window.__dreamchatSelectedGroupId;
+            const onGroupPage = !!document.getElementById("group-area");
+            if (
+                onGroupPage &&
+                groupId &&
+                typeof window.__dreamchatSendGroupMessage === "function"
+            ) {
+                const blobType = lastVoiceBlob.type || "audio/webm";
+                const ext = blobType.includes("webm")
+                    ? "webm"
+                    : blobType.includes("mp4") || blobType.includes("m4a")
+                      ? "m4a"
+                      : "webm";
+                const blobFile = new File(
+                    [lastVoiceBlob],
+                    "voice-" + Date.now() + "." + ext,
+                    { type: blobType }
+                );
+                send_voice.setAttribute("disabled", true);
+                try {
+                    const fileUrl = await uploadFileToFirebase(blobFile);
+                    const attachment = {
+                        bytesCount: blobFile.size,
+                        name: blobFile.name,
+                        url: fileUrl,
+                    };
+                    await window.__dreamchatSendGroupMessage(
+                        groupId,
+                        attachment,
+                        3
+                    );
+                    lastVoiceBlob = null;
+                    revokeVoicePreviewUrl();
+                    hideVoiceRecordModal();
+                    if (recordAudioEl) recordAudioEl.removeAttribute("src");
+                    if (startBtn) startBtn.removeAttribute("disabled");
+                    if (stopBtn) stopBtn.setAttribute("disabled", true);
+                } catch (err) {
+                    console.error("group voice send", err);
+                    Toastify({
+                        text: "Could not send voice message. Check connection and try again.",
+                        duration: 4000,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "#ff3d00",
+                        stopOnFocus: true,
+                    }).showToast();
+                    if (send_voice) send_voice.removeAttribute("disabled");
+                }
+                return;
+            }
             if (!selectedUserId) {
                 Toastify({
                     text: "Select a chat before sending a voice message.",
@@ -10116,6 +10240,7 @@ initializeFirebase(function (app, auth, database, storage) {
         if (allCalls[currentUser.uid]) {
             for (const callId in allCalls[currentUser.uid]) {
                 const call = allCalls[currentUser.uid][callId];
+                if (!call || call.type === "group") continue;
                 if (call && call.video == false) {
                     userAudioCallTotal++;
                     if (call.duration === "Ringing") userAudioRingingCount++;
@@ -10953,11 +11078,18 @@ initializeFirebase(function (app, auth, database, storage) {
         let callToProcess = null;
 
         if (userCalls) {
+            // Skip group calls — firebaseGroupChat.js owns those modals (#video_group_new, etc.).
+            const isOneToOneVideo = (c) => c && c.type !== "group" && c.video;
+
             // Priority 1: Find a call that was just accepted (duration "00:00:00" is the trigger).
-            const acceptedCall = Object.values(userCalls).find(c => c.video && c.duration === "00:00:00");
+            const acceptedCall = Object.values(userCalls).find(
+                (c) => isOneToOneVideo(c) && c.duration === "00:00:00"
+            );
 
             // Priority 2: If no call was just accepted, find a ringing call.
-            const ringingCall = Object.values(userCalls).find(c => c.video && c.duration === "Ringing");
+            const ringingCall = Object.values(userCalls).find(
+                (c) => isOneToOneVideo(c) && c.duration === "Ringing"
+            );
 
             // An accepted call takes precedence over a ringing one.
             callToProcess = acceptedCall || ringingCall;
@@ -11100,24 +11232,30 @@ initializeFirebase(function (app, auth, database, storage) {
             welcomeEl.style.setProperty("opacity", "1", "important");
         }
     }
-    window.addEventListener("spa-page-applied", function (e) {
-        [0, 50, 150, 400, 800].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
-        var guardCount = 0;
-        var guardInterval = setInterval(function () {
+    let welcomeGuardInterval = null;
+    function startWelcomeGuard(maxTicks, intervalMs) {
+        if (welcomeGuardInterval) {
+            clearInterval(welcomeGuardInterval);
+            welcomeGuardInterval = null;
+        }
+        let guardCount = 0;
+        welcomeGuardInterval = setInterval(function () {
             guardWelcomeVisible();
             guardCount++;
-            if (guardCount >= 50) clearInterval(guardInterval);
-        }, 200);
+            if (guardCount >= maxTicks) {
+                clearInterval(welcomeGuardInterval);
+                welcomeGuardInterval = null;
+            }
+        }, intervalMs);
+    }
+    window.addEventListener("spa-page-applied", function () {
+        [0, 120, 450].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
+        startWelcomeGuard(12, 250);
     });
     var initialPath = (window.location.pathname || "").replace(/\/+$/, "") || "/";
     {
-        [100, 200, 500, 800, 1200, 2000, 3000, 4000].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
-        var guardCount = 0;
-        var guardInterval = setInterval(function () {
-            guardWelcomeVisible();
-            guardCount++;
-            if (guardCount >= 50) clearInterval(guardInterval);
-        }, 200);
+        [100, 350, 900].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
+        startWelcomeGuard(12, 250);
     }
 
 });

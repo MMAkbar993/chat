@@ -191,4 +191,30 @@ class GroupChatController extends Controller
 
         return response()->json(['message' => 'Member promoted to admin']);
     }
+
+    /**
+     * Upload a group icon image using the Laravel backend.
+     * This avoids Firebase Storage CORS issues when uploading from the browser.
+     */
+    public function uploadGroupIcon(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'image' => 'required|image|max:2048',
+        ]);
+
+        $path = $request->file('image')->store('group-icons', 'public');
+        // Return a relative URL so the frontend always renders against current origin
+        // (avoids incorrect host from APP_URL).
+        $url = '/storage/' . ltrim($path, '/');
+
+        return response()->json([
+            'url' => $url,
+            'path' => $path,
+        ]);
+    }
 }

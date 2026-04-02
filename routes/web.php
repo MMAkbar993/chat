@@ -20,6 +20,7 @@ use App\Http\Controllers\GroupChatController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\ProfileSettingsController;
 use App\Http\Controllers\API\WebsiteController as ApiWebsiteController;
+use App\Http\Controllers\API\PerformanceMetricController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\InviteController;
 use Illuminate\Support\Facades\Response;
@@ -284,6 +285,8 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
    Route::get('/api/chat-messages/{userId}', [ChatController::class, 'getMessages'])->name('chat.messages');
    Route::post('/api/chat/send', [ChatController::class, 'sendMessage'])->name('chat.send');
    Route::delete('/api/chat-list', [ChatController::class, 'deleteAllChats'])->name('chat.delete-all');
+   Route::get('/api/perf-metrics', [PerformanceMetricController::class, 'info'])->name('perf.metrics.info');
+   Route::post('/api/perf-metrics', [PerformanceMetricController::class, 'store'])->name('perf.metrics.store');
 
    // Group Chat API (JSON)
    Route::prefix('api/groups')->group(function () {
@@ -295,6 +298,7 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
       Route::post('/{group}/members', [GroupChatController::class, 'addMembers'])->name('groups.add-members');
       Route::delete('/{group}/members', [GroupChatController::class, 'removeMember'])->name('groups.remove-member');
       Route::post('/{group}/promote', [GroupChatController::class, 'promoteAdmin'])->name('groups.promote');
+      Route::post('/icon-upload', [GroupChatController::class, 'uploadGroupIcon'])->name('groups.icon-upload');
    });
 });
 

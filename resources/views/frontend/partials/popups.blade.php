@@ -478,141 +478,110 @@
         </div>
     </div>
 </div>
-<!-- Video Group Call Modal -->
-<!-- Group Video Call Modal -->
-<div class="modal fade" id="video_group_new" tabindex="-1" aria-labelledby="videoGroupModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="videoGroupModalLabel">{{ __('Group Video Call')}}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-                    <i class="ti ti-x"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-md-6 d-flex ">
-                        <!-- Local Video -->
-                        <div id="local-player" class="player video-call-view br-8 overflow-hidden flex-fill">
-                            <!-- Local video stream will be shown here -->
-                        </div>
-                    </div>
-                    <div class="col-md-6 d-flex">
-                        <!-- Remote Videos -->
-                        <div id="remote-playerlist" class="player row row-gap-4 flex-fill">
-                            <!-- Remote video players will be appended here dynamically -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center border-0 pt-0">
-                <div class="call-controll-block d-flex align-items-center justify-content-center rounded-pill">
-                    <a href="javascript:void(0);" id="mute-group-btn" class="call-controll mute-bt d-flex align-items-center justify-content-center">
-                        <i class="ti ti-microphone"></i>
-                    </a>
-                    <a href="javascript:void(0);" id="leave-group-video1" data-bs-dismiss="modal" class="call-controll call-decline d-flex align-items-center justify-content-center">
-                        <i class="ti ti-phone"></i>
-                    </a>
-                    <a href="javascript:void(0);" id="video-group-btn" class="call-controll mute-video d-flex align-items-center justify-content-center">
-                        <i class="ti ti-video"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-<!-- /Video Call group -->
-
-
-<div class="modal fade" id="video-call-new-group" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header justify-content-center border-0">
-                <span
-                    class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
-                    <i class="ti ti-phone-call"></i>
-                </span>
-                <h4 class="modal-title" id="videoCallModalLabel">{{ __('Video Calling...')}}</h4>
-            </div>
-            <div class="modal-body pb-0">
-                <div class="card bg-light mb-0">
-                    <div class="card-body calling-name-group d-flex justify-content-center">
-                        <div class="d-flex flex-column align-items-center justify-content-center overflow-hidden">
-                            <span class="avatar avatar-new-group avatar-new avatar-xxl">
-                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                    alt="user">
-                            </span>
-                            <h6 class="fs-14">{{ __('Group Calling')}}</h6>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center border-0">
-                <a href="javascript:void(0);" id="join-group"
-                    class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2">
-                    <i class="ti ti-phone fs-20"></i>
-                </a>
-                <a href="javascript:void(0);" id="decline-group"
-                    class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center"
-                    data-bs-dismiss="modal" aria-label="close">
-                    <i class="ti ti-phone-off fs-20"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- Voice Call group -->
-<div class="modal voice-call fade" id="audio_group_new">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+{{-- Group active video: same layout as 1:1 #start-video-call-container (pip local + remote grid) --}}
+<div class="modal fade" id="video_group_new" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header d-flex border-0 pb-0">
-                <div class="card bg-transparent-dark flex-fill border mb-3">
-                    <div class="card-body d-flex justify-content-between p-3">
-
+                <div class="user-video-head">
+                    <div class="d-flex align-items-center">
+                        <span class="avatar avatar-video avatar-lg online me-2">
+                            <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" id="group-video-head-avatar" alt="">
+                        </span>
+                        <div class="user-name" id="group-video-head-name">{{ __('Group video call') }}</div>
+                        <span class="badge border border-primary text-primary badge-sm ms-5">
+                            <span id="group-video-call-timer" class="call-duration">00:00:00</span>
+                        </span>
                     </div>
                 </div>
             </div>
             <div class="modal-body border-0 pt-0">
-                <div class="tab-content dashboard-tab">
+                <div class="row video-group">
+                    <div id="group-remote-playerlist" class="remote-player-container"></div>
+                    <div id="group-local-player" class="mini-video-view active br-8 position-absolute">
+                        <div class="bg-soft-primary mx-auto default-profile rounded-circle align-items-center justify-content-center">
+                            <span class="avatar avatar-lg rounded-circle bg-primary">You</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-center border-0 pt-0">
+                    <div class="call-controll-block d-flex align-items-center justify-content-center rounded-pill">
+                        <a href="javascript:void(0);" id="mute-group-btn" class="call-controll mute-call-btn d-flex align-items-center justify-content-center">
+                            <i class="ti ti-microphone"></i>
+                        </a>
+                        <a href="javascript:void(0);" id="leave-group-video1" data-bs-dismiss="modal" class="call-controll call-decline d-flex align-items-center justify-content-center">
+                            <i class="ti ti-phone"></i>
+                        </a>
+                        <a href="javascript:void(0);" id="video-group-btn" class="call-controll video-call-btn d-flex align-items-center justify-content-center">
+                            <i class="ti ti-video"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-                    <div class="tab-pane fade active show" id="pills-group" role="tabpanel" aria-labelledby="pills-group-tab">
-                        <div class="row">
-                            <div class="col-md-6" id="local-user-details">
-                                <div class="card audio-crd bg-transparent-dark border border-primary pt-4">
-                                    <div class="modal-bgimg">
-                                        <span class="modal-bg1">
-                                            <img src="assets/img/bg/bg-02.png" class="img-fluid" alt="bg">
-                                        </span>
-                                        <span class="modal-bg2">
-                                            <img src="assets/img/bg/bg-03.png" class="img-fluid" alt="bg">
-                                        </span>
-                                    </div>
-                                    <div class="card-body ">
+{{-- Group incoming video ring: same compact UI as 1:1 #video-call --}}
+<div class="modal fade video-call-ring-modal" id="video-call-new-group" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-body text-center pt-4 pb-2 px-3">
+                <span class="model-icon bg-primary bg-opacity-10 text-primary d-inline-flex justify-content-center align-items-center rounded-circle mb-3" style="width:56px;height:56px;">
+                    <i class="ti ti-video fs-24"></i>
+                </span>
+                <h5 class="modal-title mb-1 group-video-ring-title">{{ __('Video call') }}</h5>
+                <p class="text-muted small mb-0 group-video-call-ring-name"></p>
+                <p class="text-muted small mb-0 mt-1 group-video-ring-status" id="group-video-ring-status"></p>
+                <div class="d-flex justify-content-center my-4">
+                    <span class="avatar avatar-xxl">
+                        <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle group-video-call-ring-avatar" alt="">
+                    </span>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-center border-0 pt-0 pb-4 gap-2 flex-nowrap">
+                <a href="javascript:void(0);" id="join-group"
+                    class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center"
+                    style="width:56px;height:56px;"
+                    title="{{ __('Answer') }}">
+                    <i class="ti ti-video fs-22"></i>
+                </a>
+                <a href="javascript:void(0);" id="decline-group"
+                    class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center"
+                    style="width:56px;height:56px;"
+                    data-bs-dismiss="modal" aria-label="{{ __('Decline') }}"
+                    title="{{ __('Decline') }}">
+                    <i class="ti ti-phone-off fs-22"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 
-                                        <div class="d-flex justify-content-center align-items-center">
-                                            <!-- This is where the local user's avatar and name will be shown -->
-                                            <span class="avatar avatar-xxxl bg-soft-primary rounded-circle p-2">
-                                                <img src="" id="local-user-avatar" class="rounded-circle" alt="local user">
-                                            </span>
-                                            <div class="d-flex audio-group-m-name align-items-end justify-content-end">
-                                                <span class="badge badge-info" id="local-user-name">{{ __('Local User')}}</span>
-                                            </div>
-                                        </div>
-
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6" id="remote-users-container">
-                                <!-- Remote users will display here -->
-                            </div>
-
+{{-- Group active audio: compact card style to match calling popup --}}
+<div class="modal fade" id="audio_group_new" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header justify-content-center border-0 pb-2">
+                <span class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
+                    <i class="ti ti-phone-call"></i>
+                </span>
+                <h4 class="modal-title mb-0">{{ __('On call') }}</h4>
+            </div>
+            <div class="modal-body pb-0">
+                <div class="card bg-light mb-0">
+                    <div class="card-body d-flex justify-content-center py-3">
+                        <div class="text-center">
+                            <span class="avatar avatar-audio avatar-xxl mb-2">
+                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" id="group-audio-head-avatar" alt="">
+                            </span>
+                            <h6 class="fs-14 mb-1" id="group-audio-head-name">{{ __('Group call') }}</h6>
+                            <p class="text-muted small mb-0" id="group-call-timer-display">00:00:00</p>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer justify-content-center border-0 pt-0">
+            <div class="modal-footer justify-content-center border-0 pb-4">
                 <div class="call-controll-block d-flex align-items-center justify-content-center rounded-pill">
                     <a href="javascript:void(0);" id="mute-audio-group-btn" class="call-controll mute-bt d-flex align-items-center justify-content-center">
                         <i class="ti ti-microphone"></i>
@@ -620,40 +589,40 @@
                     <a href="javascript:void(0);" data-bs-dismiss="modal" id="leave-group-audio" class="call-controll call-decline d-flex align-items-center justify-content-center">
                         <i class="ti ti-phone"></i>
                     </a>
-
                 </div>
             </div>
+            <div id="remote-users-container" class="d-none"></div>
         </div>
     </div>
 </div>
-<!-- /Voice Call group -->
 
-<div class="modal fade" id="audio-call-new-group">
+{{-- Group audio ring: outgoing/incoming in compact "Calling..." card style --}}
+<div class="modal fade" id="audio-call-new-group" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header justify-content-center border-0">
                 <span class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
                     <i class="ti ti-phone-call"></i>
                 </span>
-                <h4 class="modal-title">{{ __('Audio Calling...')}}</h4>
+                <h4 class="modal-title group-audio-ring-title mb-0">{{ __('Calling...') }}</h4>
             </div>
             <div class="modal-body pb-0">
                 <div class="card bg-light mb-0">
-                    <div class="card-body d-flex calling-audio-group justify-content-center">
-                        <div class="d-flex align-items-center justify-content-center flex-column overflow-hidden">
-                            <span class="avatar avatar-new-audio-group avatar-xxl">
-                                <img src="assets/img/profiles/avatar-06.jpg" class="rounded-circle" alt="user">
+                    <div class="card-body d-flex justify-content-center py-3">
+                        <div>
+                            <span class="avatar avatar-audio avatar-xxl">
+                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" alt="">
                             </span>
-                            <h6 class="fs-14 audio-name">Edward Lietz</h6>
+                            <h6 class="fs-14 audio-name text-center mt-2 mb-0">Loading...</h6>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer justify-content-center border-0">
-                <a href="javascript:void(0);" class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2" id="join-audio-group">
+            <div class="modal-footer justify-content-center border-0 pb-4">
+                <a href="javascript:void(0);" class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2 group-audio-answer-btn" id="join-audio-group" title="{{ __('Answer') }}">
                     <i class="ti ti-phone fs-20"></i>
                 </a>
-                <a href="javascript:void(0);" class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center" data-bs-dismiss="modal" aria-label="close">
+                <a href="javascript:void(0);" id="decline-audio-group" class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center" data-bs-dismiss="modal" aria-label="{{ __('Decline') }}" title="{{ __('Decline') }}">
                     <i class="ti ti-phone-off fs-20"></i>
                 </a>
             </div>

@@ -12,7 +12,6 @@
 
  <!-- FancyBox JS -->
  <script src="{{ asset('assets/plugins/fancybox/jquery.fancybox.min.js') }}"></script>
- <script src="{{ asset('assets/plugins/fancybox/jquery.fancybox.js') }}"></script>
 
  <!-- Select JS -->
  <script src="{{ asset('assets/plugins/select2/js/select2.min.js') }}"></script>
@@ -29,8 +28,6 @@
  <!-- Recorder (loaded for SPA) -->
  <script src="{{ asset('assets/js/recorder.js') }}"></script>
  <script src="{{ asset('assets/js/MediaStreamRecorder.js') }}"></script>
- <!-- Moment -->
- <script src="{{ asset('assets/plugins/moment/moment.min.js') }}"></script>
  <script src="{{ asset('assets/js/jspdf.umd.min.js') }}"></script>
 
  <!-- Dropzone JS -->
@@ -43,6 +40,7 @@
  <script src="{{ asset('assets/js/script.js') }}"></script>
 
 {{-- Bootstrap modal backdrop is on body; #spa-page-modals must not stay inside .main-wrapper or the dimmer stacks above dialogs (chat / SPA shell). --}}
+@auth
 <script>
 (function () {
     function relocateSpaPageModals() {
@@ -700,10 +698,9 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
     }, true);
 })();
 </script>
-{{-- "+ Group" button: open New Group modal when Firebase disabled (firebaseGroupChat.js may not load) --}}
+{{-- "+ Group" button: open New Group modal when #new-group exists (capture phase; avoids href navigation + stacking issues) --}}
 <script>
 (function() {
-    if (typeof window.FIREBASE_DISABLED === 'undefined' || !window.FIREBASE_DISABLED) return;
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('#group-add-btn');
         if (!btn) return;
@@ -766,16 +763,13 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
 
     function run(attempt) {
         attempt = attempt || 0;
-        console.log("[Fallback Chat] run() attempt:", attempt);
         var currentUserId = typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER ? window.LARAVEL_USER.id : null;
         var selectedId = null;
         try { selectedId = localStorage.getItem('selectedUserId'); } catch (e) {}
         var params = typeof URLSearchParams !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         var userFromUrl = params ? params.get('user') : null;
-        console.log("[Fallback Chat] LocalStorage ID:", selectedId, "URL ID:", userFromUrl);
         if (userFromUrl) selectedId = userFromUrl;
-        
-        console.log("[Fallback Chat] Using selectedId:", selectedId, "currentUserId:", currentUserId);
+
         if (!selectedId || !currentUserId) {
             if (selectedId && !currentUserId && attempt < 5) {
                 currentUserId = typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER ? window.LARAVEL_USER.id : null;
@@ -787,13 +781,10 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         var middle = document.getElementById('middle');
         var chatBox = document.getElementById('chat-box');
         var chatForm = document.getElementById('message-form');
-        console.log("[Fallback Chat] Elements found:", { welcome: !!welcome, middle: !!middle, chatBox: !!chatBox, chatForm: !!chatForm });
         if (!middle || !chatBox) {
-            console.log("[Fallback Chat] Retrying, attempt:", attempt);
-            if (attempt < 10) setTimeout(function() { run(attempt + 1); }, 150);
+            if (attempt < 6) setTimeout(function() { run(attempt + 1); }, 200);
             return;
         }
-        console.log("[Fallback Chat] Modifying DOM styles");
         if (welcome) welcome.style.setProperty('display', 'none', 'important');
         middle.style.setProperty('display', 'flex', 'important');
         middle.classList.add('show', 'show-chatbar');
@@ -863,15 +854,17 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
             .then(function(messages) {
                 if (!Array.isArray(messages)) return;
                 chatBox.innerHTML = '';
+                var frag = document.createDocumentFragment();
                 messages.forEach(function(m, idx) {
                     var isOut = Number(m.from) === Number(currentUserId);
                     var div = document.createElement('div');
                     div.className = isOut ? 'chats right msg-fade-in' : 'chats msg-fade-in';
-                    div.style.animationDelay = (idx * 0.03) + 's';
+                    div.style.animationDelay = (Math.min(idx, 25) * 0.02) + 's';
                     var time = m.timestamp ? new Date(m.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
                     div.innerHTML = '<div class="chat-content"><div class="chat-profile-name"><h6>' + (isOut ? 'You' : 'Them') + '</h6><span>' + time + '</span></div><div class="chat-info"><p class="mb-0">' + (m.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p></div></div>';
-                    chatBox.appendChild(div);
+                    frag.appendChild(div);
                 });
+                chatBox.appendChild(frag);
                 if (spinner) spinner.classList.remove('active');
                 chatBox.classList.remove('chat-loading-hidden');
                 chatBox.classList.add('chat-reveal');
@@ -892,7 +885,6 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tryRun);
     else tryRun();
     setTimeout(tryRun, 300);
-    setTimeout(tryRun, 800);
     if (isChatPage() && typeof URLSearchParams !== 'undefined') {
         var params = new URLSearchParams(window.location.search);
         if (params.get('user')) setTimeout(tryRun, 1200);
@@ -914,6 +906,62 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
 <script type="module" src="{{ asset('assets/js/firebase/firebaseCalls.js') }}"></script>
 @endif
 @endif
+<script>
+(function () {
+    if (!window.performance) return;
+    var endpoint = '{{ route("perf.metrics.store") }}';
+    var sentMarks = {};
+
+    function sendMetric(type, duration, meta) {
+        if (!endpoint) return;
+        var body = JSON.stringify({
+            type: type,
+            path: window.location.pathname || '',
+            duration_ms: Number(duration || 0),
+            meta: meta || {}
+        });
+        try {
+            if (navigator.sendBeacon) {
+                var blob = new Blob([body], { type: 'application/json' });
+                navigator.sendBeacon(endpoint, blob);
+                return;
+            }
+        } catch (e) {}
+        fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: body
+        }).catch(function () {});
+    }
+
+    window.addEventListener('load', function () {
+        setTimeout(function () {
+            var nav = performance.getEntriesByType('navigation');
+            if (!nav || !nav.length) return;
+            var n = nav[0];
+            sendMetric('page_load', n.duration, {
+                dom_content_loaded_ms: n.domContentLoadedEventEnd,
+                transfer_size: n.transferSize || 0
+            });
+        }, 0);
+    });
+
+    window.addEventListener('spa-page-applied', function (e) {
+        var key = (e && e.detail && e.detail.pathname) ? e.detail.pathname : (window.location.pathname || '');
+        if (sentMarks[key]) return;
+        sentMarks[key] = true;
+        if (window.performance && performance.now) {
+            sendMetric('spa_navigation', performance.now(), { pathname: key });
+        }
+    });
+})();
+</script>
+@endauth
 <!-- SPA Navigation -->
 <script src="{{ asset('assets/js/spa-navigation.js') }}"></script>
 

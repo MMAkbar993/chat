@@ -35,7 +35,7 @@ onAuthStateChanged(auth, (user) => {
         currentUserId = user.uid; // Set the current user ID
 
         // Fetch groups or other data
-        fetchGroups(currentUserId);
+        fetchGroups();
         fetchGroupUsers(currentUserId);
     } else {
         // window.location.href = "/login";
@@ -50,6 +50,7 @@ if (groupAddBtn) {
         const newGroupEl = document.getElementById('new-group');
         if (newGroupEl && typeof bootstrap !== 'undefined') {
             e.preventDefault();
+            e.stopPropagation();
             const modal = bootstrap.Modal.getOrCreateInstance(newGroupEl);
             modal.show();
         }
@@ -76,6 +77,188 @@ function normalizeChatMediaUrl(url) {
     return url;
 }
 
+/** Root-relative fallbacks break on /group-chat (browser resolves assets under /group-chat/...). Same logic as firebaseChat.js */
+function resolveGroupProfileImageUrl(raw) {
+    const origin =
+        typeof window !== "undefined" && window.location && window.location.origin
+            ? window.location.origin
+            : "";
+    const defaultUrl = origin
+        ? origin + "/assets/img/profiles/avatar-03.jpg"
+        : "/assets/img/profiles/avatar-03.jpg";
+    if (raw == null || !String(raw).trim()) return defaultUrl;
+    const s = String(raw).trim();
+    if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:"))
+        return s;
+    if (s.startsWith("//"))
+        return (window.location && window.location.protocol
+            ? window.location.protocol
+            : "https:") + s;
+    const path = s.replace(/^\.?\/+/, "");
+    return origin ? origin + "/" + path : defaultUrl;
+}
+
+function pickGroupAvatarRaw(groupData) {
+    if (!groupData || typeof groupData !== "object") return "";
+    const candidate =
+        groupData.image ||
+        groupData.avatarURL ||
+        groupData.profile_image ||
+        groupData.avatar ||
+        "";
+    if (candidate && typeof candidate === "object") {
+        return (
+            candidate.url ||
+            candidate.path ||
+            candidate.src ||
+            ""
+        );
+    }
+    return String(candidate || "").trim();
+}
+
+function withCacheBuster(url, version) {
+    if (!url || !version) return url;
+    try {
+        const abs = new URL(url, window.location.origin);
+        abs.searchParams.set("v", String(version));
+        return abs.toString();
+    } catch (e) {
+        return url;
+    }
+}
+
+function rawAvatarFromUserAndContact(userData, contactData) {
+    if (contactData && contactData.profile_image)
+        return String(contactData.profile_image).trim();
+    if (!userData || typeof userData !== "object") return "";
+    return (
+        (userData.profile_image && String(userData.profile_image).trim()) ||
+        (userData.image && String(userData.image).trim()) ||
+        (userData.profileImage && String(userData.profileImage).trim()) ||
+        (userData.photoURL && String(userData.photoURL).trim()) ||
+        (userData.avatar && String(userData.avatar).trim()) ||
+        (contactData && contactData.image && String(contactData.image).trim()) ||
+        ""
+    );
+}
+
+/** Name for group info sidebar — contacts may exist but lack names; users may use user_name / mobile only */
+function buildGroupParticipantDisplayName(contactData, userData) {
+    if (contactData && typeof contactData === "object" && contactData.firstName) {
+        const n = `${contactData.firstName} ${contactData.lastName || ""}`.trim();
+        if (n) return n;
+    }
+    if (contactData && contactData.mobile_number) {
+        return String(contactData.mobile_number).trim();
+    }
+    if (userData && typeof userData === "object") {
+        const fromParts = [userData.firstName, userData.lastName].filter(Boolean).join(" ").trim();
+        if (fromParts) return fromParts;
+        if (userData.mobile_number) return String(userData.mobile_number).trim();
+        if (userData.userName) return String(userData.userName).trim();
+        if (userData.user_name) return String(userData.user_name).trim();
+        if (userData.username) return String(userData.username).trim();
+        if (userData.displayName) return String(userData.displayName).trim();
+        if (userData.email) return String(userData.email).trim();
+    }
+    return "Unknown User";
+}
+
+/**
+ * RTDB often only has online/osType; Laravel session has the real profile for the logged-in user.
+ */
+function mergeLaravelProfileIfSelf(memberId, userData) {
+    if (!memberId || !currentUserId || memberId !== currentUserId) {
+        return userData ? { ...userData } : {};
+    }
+    const lu =
+        typeof window !== "undefined" &&
+        window.LARAVEL_USER &&
+        typeof window.LARAVEL_USER === "object"
+            ? window.LARAVEL_USER
+            : null;
+    if (!lu) return userData ? { ...userData } : {};
+    const base = { ...(userData || {}) };
+    const empty = (v) => v == null || String(v).trim() === "";
+    const fill = (key, val) => {
+        if (val == null || String(val).trim() === "") return;
+        if (empty(base[key])) base[key] = val;
+    };
+    fill("firstName", lu.firstName);
+    fill("lastName", lu.lastName);
+    fill("userName", lu.username || lu.user_name);
+    fill("user_name", lu.user_name || lu.username);
+    fill("username", lu.username || lu.user_name);
+    fill("mobile_number", lu.mobile_number);
+    fill("email", lu.email);
+    fill("profile_image", lu.profile_image || lu.image);
+    fill("image", lu.image || lu.profile_image);
+    if (empty(base.firstName) && empty(base.lastName) && lu.full_name) {
+        const parts = String(lu.full_name).trim().split(/\s+/);
+        if (parts.length) {
+            fill("firstName", parts[0]);
+            if (parts.length > 1) fill("lastName", parts.slice(1).join(" "));
+        }
+    }
+    return base;
+}
+
+/** Resolve names/avatars from MySQL when RTDB has no profile (matches firebase_uid). */
+async function enrichGroupMembersWithLaravelBatch(members) {
+    const uids = [
+        ...new Set(
+            members
+                .filter((m) => m && m.memberId && m.displayName === "Unknown User")
+                .map((m) => m.memberId)
+        ),
+    ];
+    if (uids.length === 0) return members;
+    const baseUrl =
+        typeof APP_URL !== "undefined" && APP_URL
+            ? String(APP_URL).replace(/\/$/, "")
+            : typeof window !== "undefined" && window.location
+              ? window.location.origin
+              : "";
+    if (!baseUrl) return members;
+    const csrfMeta =
+        typeof document !== "undefined"
+            ? document.querySelector('meta[name="csrf-token"]')
+            : null;
+    const csrf = csrfMeta ? csrfMeta.getAttribute("content") : "";
+    try {
+        const res = await fetch(baseUrl + "/api/users/contact-avatars", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                ...(csrf ? { "X-CSRF-TOKEN": csrf } : {}),
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({ firebase_uids: uids }),
+        });
+        if (!res.ok) return members;
+        const data = await res.json();
+        const nameByUid = data.name_by_uid || {};
+        const byUid = data.by_uid || {};
+        return members.map((m) => {
+            if (!m || m.memberId == null || m.displayName !== "Unknown User") return m;
+            const name = nameByUid[m.memberId];
+            const img = byUid[m.memberId];
+            if (!name && !img) return m;
+            const next = { ...m };
+            if (name) next.displayName = name;
+            if (img) {
+                next._userForAvatar = { ...(next._userForAvatar || {}), profile_image: img };
+            }
+            return next;
+        });
+    } catch (e) {
+        return members;
+    }
+}
+
 // Function to fetch users from Firebase
 function fetchGroupUsers(currentUserId) {
     const contactsRef = ref(database, `data/contacts/${currentUserId}`); // Path to logged-in user's contacts
@@ -97,12 +280,13 @@ function fetchGroupUsers(currentUserId) {
                             // Create a mapping of user IDs to user details only for the contacts
                             userIds.forEach((userId) => {
                                 if (users[userId]) {
+                                    const u = users[userId];
+                                    const contactData = contacts[userId] || null;
                                     usersMap[userId] = {
-                                        firstName : users[userId].firstName ,
-                                        lastName : users[userId].lastName, 
-                                        image:
-                                            users[userId].image ||
-                                            "assets/img/profiles/avatar-03.jpg", // Fallback profile image
+                                        ...u,
+                                        profileImage: resolveGroupProfileImageUrl(
+                                            rawAvatarFromUserAndContact(u, contactData)
+                                        ),
                                     };
                                 }
                             });
@@ -131,36 +315,39 @@ function displayGroupUsers(users, currentUser) {
 
     for (const userId in users) {
         const user = users[userId];
-        const profileImage = user.image || "assets/img/profiles/avatar-03.jpg"; // Fallback image
-
-        // Reference to the contacts node for the current user
         const contactsRef = ref(database, `data/contacts/${currentUserId}/${userId}`);
 
         onValue(contactsRef, (contactSnapshot) => {
-            let displayName = user.userName; // Default to userName
             const contactData = contactSnapshot.val();
+            let displayName =
+                user.userName ||
+                user.user_name ||
+                [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+                "";
+            const profileImage = resolveGroupProfileImageUrl(
+                rawAvatarFromUserAndContact(user, contactData || null)
+            );
 
             if (contactData && contactData.firstName) {
-                displayName = `${contactData.firstName} ${contactData.lastName}`; // If firstName exists in contacts
+                displayName = `${contactData.firstName} ${contactData.lastName || ""}`.trim();
             } else {
                 const userRef = ref(database, `data/users/${userId}`);
                 onValue(userRef, (userSnapshot) => {
                     const userData = userSnapshot.val();
-                    // if (userData && (userData.firstName || userData.lastName)) {
-                    //     // If firstName or lastName exist in users collection, use them
-                    //     displayName = `${userData.firstName || ""} ${userData.lastName || ""}`;
-                    // } else {
-                    //     // If no name exists in either collection, fallback to mobile_number
-                    //     displayName = userData.mobile_number || "No Name Available";
-                    // }
-                    displayName = userData.mobile_number || "No Name Available";
-                    // Append the user card dynamically after fetching
-                    appendUserCard(usersContainer, displayName, profileImage, user.role, userId);
+                    if (!userData) return;
+                    displayName =
+                        userData.mobile_number ||
+                        [userData.firstName, userData.lastName].filter(Boolean).join(" ").trim() ||
+                        userData.userName ||
+                        "No Name Available";
+                    const img = resolveGroupProfileImageUrl(
+                        rawAvatarFromUserAndContact(userData, contactData || null)
+                    );
+                    appendUserCard(usersContainer, displayName, img, userData.role, userId);
                 });
-                return; // Exit to prevent premature rendering
+                return;
             }
 
-            // Append the user card dynamically
             appendUserCard(usersContainer, displayName, profileImage, user.role, userId);
         });
     }
@@ -193,7 +380,7 @@ function appendUserCard(container, displayName, profileImage, role, userId) {
 function capitalizeFirstLetter(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
-const selectedMembers = [];
+let selectedMembers = [];
 
 // Group creation event listener
 const startGroupBtn = document.getElementById('start-group');
@@ -242,8 +429,8 @@ if (startGroupBtn) {
         return;
     }
 
-    // Collect selected member IDs
-   
+    // Collect selected member IDs (clear each run; same array is reused elsewhere)
+    selectedMembers.length = 0;
     document.querySelectorAll('#users-list input[type="checkbox"]:checked').forEach((checkbox) => {
         selectedMembers.push(checkbox.value); // Push member ID
     });
@@ -273,49 +460,101 @@ if (startGroupBtn) {
         date: Date.now(),
         createdAt: Date.now() // Add timestamp
     };
+    const resetStartGroupButton = () => {
+        startGroupButton.disabled = false;
+        startGroupButton.textContent = "Start Group";
+    };
+
     // Handle avatar upload
     const fileInputGroup = document.getElementById('avatar-upload');
     if (fileInputGroup && fileInputGroup.files.length > 0) {
         const file = fileInputGroup.files[0];
-        const avatarPath = `avatars/${newGroupKey}/${file.name}`; // Construct avatar file path
-        const avatarStorageRef = storageRef(storage, avatarPath);
 
-        // Upload avatar to Firebase Storage
-        uploadBytes(avatarStorageRef, file).then((snapshot) => {
-            getDownloadURL(avatarStorageRef).then((downloadURL) => {
-                groupData.image = downloadURL;
-                groupData.image = downloadURL;
-
-                // Save group data including avatar URL to Firebase
-                set(ref(database, 'data/groups/' + 'group_' + newGroupKey), groupData)
-                    .then(() => {
-                        document.getElementById("group-form").reset();
-                        document.getElementById("add-members-form").reset(); // Clear the form
-                        $("#add-group").modal("hide");
-                        $("#new-group").modal("hide");
-                        Swal.fire({
-                            title: "",
-                            width: 400,
-                            text: "Group created successfully!",
-                            icon: "success",
-                        });
-                        window.location.href = '/group-chat';
-                    })
-                    .catch((error) => {
-                        startGroupButton.disabled = false; // Re-enable the button on error
-                        startGroupButton.textContent = "Start Group"; // Reset the button text
-                    });
-            }).catch((error) => {
-                startGroupButton.disabled = false; // Re-enable the button on error
-                startGroupButton.textContent = "Start Group"; // Reset the button text
+        if (!auth || !auth.currentUser) {
+            resetStartGroupButton();
+            Swal.fire({
+                icon: "error",
+                width: 400,
+                text: "You must be signed in with Firebase to upload a group icon. Create the group without an icon, or sign in again.",
             });
-        }).catch((error) => {
-            startGroupButton.disabled = false; // Re-enable the button on error
-            startGroupButton.textContent = "Start Group"; // Reset the button text
-        });
-    } else {
-     
+            return;
+        }
 
+        // Upload icon via Laravel backend to avoid Firebase Storage CORS issues
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')
+            ? document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            : null;
+        const iconFormData = new FormData();
+        iconFormData.append('image', file);
+
+        fetch('/api/groups/icon-upload', {
+            method: 'POST',
+            headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
+            body: iconFormData,
+        })
+            .then(async (res) => {
+                if (!res.ok) {
+                    const text = await res.text().catch(() => '');
+                    throw new Error(`Icon upload failed (${res.status}) ${text}`.slice(0, 250));
+                }
+                return res.json();
+            })
+            .then((payload) => {
+                const downloadURL = payload && payload.url ? payload.url : '';
+                groupData.image = downloadURL;
+                groupData.avatarURL = downloadURL;
+                groupData.profile_image = downloadURL;
+
+                return set(ref(database, "data/groups/group_" + newGroupKey), groupData);
+            })
+            .then(() => {
+                const gf = document.getElementById("group-form");
+                const amf = document.getElementById("add-members-form");
+                if (gf) gf.reset();
+                if (amf) amf.reset();
+                $("#add-group").modal("hide");
+                $("#new-group").modal("hide");
+                Swal.fire({
+                    title: "",
+                    width: 400,
+                    text: "Group created successfully!",
+                    icon: "success",
+                });
+                window.location.href = "/group-chat";
+            })
+            .catch(async (error) => {
+                const errMsg = error && error.message ? String(error.message).slice(0, 300) : "Unknown error";
+                const errCode = error && error.code ? String(error.code) : "";
+                // Fallback: still create the group without an icon.
+                // This makes "Create group with image" behave like "without image" when Storage upload is blocked.
+                resetStartGroupButton();
+                // Avoid showing an error popup on fallback (group creation should still succeed).
+                // The root cause is Firebase Storage upload/CORS rules; we log it via debug logs already.
+                if (typeof console !== "undefined") {
+                    console.warn("Group icon upload failed; creating group without icon.");
+                }
+
+                try {
+                    await set(ref(database, "data/groups/group_" + newGroupKey), groupData);
+
+                    // Hide modals / reset UI like the success path.
+                    const gf = document.getElementById("group-form");
+                    const amf = document.getElementById("add-members-form");
+                    if (gf) gf.reset();
+                    if (amf) amf.reset();
+                    $("#add-group").modal("hide");
+                    $("#new-group").modal("hide");
+
+                    window.location.href = "/group-chat";
+                } catch (fallbackErr) {
+                    Swal.fire({
+                        icon: "error",
+                        width: 420,
+                        text: "Failed to create group after icon upload failure.",
+                    });
+                }
+            });
+    } else {
         // Save group data without avatar
         set(ref(database, 'data/groups/group_' + newGroupKey), groupData)
             .then(() => {
@@ -332,8 +571,7 @@ if (startGroupBtn) {
                         $('#new-group').modal('hide');
             })
             .catch((error) => {
-                startGroupButton.disabled = false; // Re-enable the button on error
-                startGroupButton.textContent = "Start Group"; // Reset the button text
+                resetStartGroupButton();
             });
     }
 });
@@ -413,15 +651,28 @@ function closePopup() {
         });
 }
 
-// Fetch groups from Firebase
-const groupsRef = ref(database, "data/groups/");
-onValue(groupsRef, (snapshot) => {
-    const groups = snapshot.val();
-    displayGroups(groups, currentUserId);
-});
-
 let selectedGroupId = null; // Declare a variable to hold the selected group ID globally
 let previousMessagesRef = null; // Store previous messages reference for detaching listeners
+
+function closeGroupInfoOffcanvas() {
+    const el = document.getElementById("contact-profile");
+    if (!el) return;
+    try {
+        if (typeof bootstrap !== "undefined" && bootstrap.Offcanvas) {
+            const inst = bootstrap.Offcanvas.getInstance(el);
+            if (inst) {
+                inst.hide();
+                return;
+            }
+        }
+    } catch (e) {
+        /* ignore */
+    }
+    el.classList.remove("show");
+}
+if (typeof window !== "undefined") {
+    window.closeGroupInfoOffcanvas = closeGroupInfoOffcanvas;
+}
 
 // Function to display groups and set click event listeners
 function displayGroups(groups, currentUserId) {
@@ -496,7 +747,12 @@ function displayGroups(groups, currentUserId) {
 
         // Now display the filtered and sorted groups
         filteredGroups.forEach(group => {
-            const AvatarURL = group.image || "assets/img/profiles/avatar-03.jpg"; // Fallback image
+            const AvatarURL = resolveGroupProfileImageUrl(
+                withCacheBuster(
+                    pickGroupAvatarRaw(group),
+                    group.updatedAt || group.date || Date.now()
+                )
+            );
             const formattedTime = formatedTimestamp(group.latestMessageTimestamp);
 
             // Create the HTML for each group
@@ -527,7 +783,14 @@ function displayGroups(groups, currentUserId) {
         // Add click event to each group to load messages and set selected group ID
         document.querySelectorAll(".chat-list").forEach((group) => {
             group.addEventListener("click", () => {
-                selectedGroupId = group.getAttribute("data-group-id"); // Set the global selected group ID
+                const newGroupId = group.getAttribute("data-group-id");
+                if (selectedGroupId && newGroupId && selectedGroupId !== newGroupId) {
+                    closeGroupInfoOffcanvas();
+                }
+                selectedGroupId = newGroupId; // Set the global selected group ID
+                if (typeof window !== "undefined") {
+                    window.__dreamchatSelectedGroupId = selectedGroupId;
+                }
                 loadGroupMessages(selectedGroupId); // Call function to load messages for the clicked group
                 loadGroupDetails(selectedGroupId); // Pass the selected group ID
             });
@@ -647,12 +910,20 @@ function loadGroupDetails(groupId) {
                 // Update group name and member count
                 document.getElementById("group-name").innerText = groupData.name; // Update group name
                 document.getElementById("group_id").innerText = groupData.name; // Update group name
-                document.getElementById("group_image").src = groupData.image || 'assets/img/profiles/avatar-03.jpg'; // Update group name
+                document.getElementById("group_image").src = resolveGroupProfileImageUrl(
+                    withCacheBuster(
+                        pickGroupAvatarRaw(groupData),
+                        groupData.updatedAt || groupData.date || Date.now()
+                    )
+                );
                 document.getElementById("group-member-count").innerText = `${groupData.userIds.length} Members`; // Update member count
                 const _wc = document.getElementById("welcome-container");
                 if (_wc) _wc.style.setProperty("display", "none", "important"); // Hide welcome content
                 const _mid = document.getElementById("middle");
-                if (_mid) _mid.style.display = "block"; // Show chat content
+                if (_mid) {
+                    _mid.style.setProperty("display", "flex", "important");
+                    _mid.classList.add("message-panel-visible");
+                }
 
                 // Load chat messages or any other group-specific data here if needed
                 loadChatMessages(groupId);
@@ -736,28 +1007,26 @@ function loadGroupMessages(groupId) {
 
                 // Initialize default sender details
                 let senderName = "Unknown";
-                let senderImage = "assets/img/profiles/avatar-03.jpg";
+                let senderImage = resolveGroupProfileImageUrl("");
     
-                // Fetch contact details first
-                const contactRef = ref(database, `data/users/${loggedInUserId}/contacts/${messageData.senderId}`);
+                // Fetch contact details (same path as chat/contacts: data/contacts/{me}/{peer})
+                const contactRef = ref(database, `data/contacts/${loggedInUserId}/${messageData.senderId}`);
                 get(contactRef).then(async (contactSnapshot) => {
                     if (contactSnapshot.exists()) {
                         const contactData = contactSnapshot.val();
                         senderName = contactData.firstName || contactData.lastName 
                             ? `${contactData.firstName || ""} ${contactData.lastName || ""}`.trim()
                             : senderName;
-                        senderImage =
-                            (contactData.profile_image && String(contactData.profile_image).trim()) ||
-                            contactData.image ||
-                            senderImage;
+                        senderImage = resolveGroupProfileImageUrl(
+                            rawAvatarFromUserAndContact(contactData, contactData)
+                        );
                     } else if (users[messageData.senderId]) {
                         // Fallback to users collection if contact data isn't available
                         const userData = users[messageData.senderId];
                         senderName = `${userData.mobile_number}`;
-                        senderImage =
-                            (userData.profile_image && String(userData.profile_image).trim()) ||
-                            userData.image ||
-                            senderImage;
+                        senderImage = resolveGroupProfileImageUrl(
+                            rawAvatarFromUserAndContact(userData, null)
+                        );
                     }
                     if (
                         messageData.senderId === loggedInUserId &&
@@ -767,7 +1036,9 @@ function loadGroupMessages(groupId) {
                         const lu =
                             window.LARAVEL_USER.profile_image ||
                             window.LARAVEL_USER.image;
-                        if (lu && String(lu).trim()) senderImage = String(lu).trim();
+                        if (lu && String(lu).trim()) {
+                            senderImage = resolveGroupProfileImageUrl(String(lu).trim());
+                        }
                     }
     
                     const forwardedLabel = messageData.isForward
@@ -952,166 +1223,38 @@ function loadGroupMessages(groupId) {
 }
 
 
-// Group fetching function
-function fetchGroups(currentUserId) {
+// Single listener on data/groups (was registered twice: here + a top-level onValue), which raced async
+// displayGroups() and duplicated rows. fetchGroups() must only attach once; after sends, refresh via get().
+let groupsListenerAttached = false;
+
+function fetchGroups() {
+    if (groupsListenerAttached) return;
+    groupsListenerAttached = true;
     const groupsRef = ref(database, "data/groups/");
-    onValue(
-        groupsRef,
-        (snapshot) => {
-            const groups = snapshot.val();
-
-            if (groups) {
-                displayGroups(groups, currentUserId); // Display groups
-            } 
-        },
-        (error) => {
-           
+    onValue(groupsRef, (snapshot) => {
+        const groups = snapshot.val();
+        if (groups && currentUserId) {
+            displayGroups(groups, currentUserId);
         }
-    );
+    });
 }
 
-const sendMessageButton = document.getElementById("send-message");
-const fileInputGroup = document.getElementById("files-new");
-const messageInputGroup = document.getElementById("message-input");// Make sure to add this div in HTML if not already present
-const messagePreview = document.createElement("div");
-    messagePreview.id = "message-preview-container"; // A container to preview uploaded files
-    messagePreview.style.display = "flex";
-    messagePreview.style.alignItems = "center";
-    messagePreview.style.marginTop = "10px";
-  // Create the Clear button
-  const clearButton = document.createElement("button");
-  clearButton.id = "image-clear-button";
-  clearButton.textContent = "X";
-  clearButton.style.marginLeft = "10px";
-  clearButton.style.display = "none"; // Initially hidden
-
-const groupChatFooterWrap = document.querySelector('.chat-footer-wrap');
-if (groupChatFooterWrap) {
-groupChatFooterWrap.appendChild(messagePreview);
-messagePreview.appendChild(clearButton);
+function refreshGroupsList() {
+    if (!currentUserId) return;
+    const groupsRef = ref(database, "data/groups/");
+    get(groupsRef)
+        .then((snapshot) => {
+            const groups = snapshot.val();
+            if (groups) {
+                displayGroups(groups, currentUserId);
+            }
+        })
+        .catch(() => {});
 }
+
 const secretKey = "89def69f0bdddc995078037539dc6ef4f0bdbdd3fa04ef2d11eea30779d72ac6"; // Replace with your actual secret key
 
-// Function to send message
-if (sendMessageButton) {
-    sendMessageButton.onclick = async function (e) {
-        e.preventDefault(); // Prevent page reload
-        
-        const messageText = messageInputGroup?.value;
-        const selectedFile = fileInputGroup?.files[0];
-        sendMessageButton.disabled = true;
-        if (messageText || selectedFile) {
-            if (messageText) {
-                let type = 6;
-
-                // Check if the message contains emojis
-                if (containsEmoji(messageText)) {
-                    type = 6; // Mark message type as emoji if applicable
-                }
-
-                // Encrypt text message
-                encryptMessage(messageText).then(ciphertext => {
-                    if (ciphertext) {
-                        sendGroupMessage(selectedGroupId, ciphertext, type);
-                        // Use ciphertext here, e.g., send to server or display
-                    } else {
-                        console.error('Failed to retrieve encrypted text.');
-                    }
-                });
-              
-            }
-            if (selectedFile) {
-                // Upload file to Firebase Storage (image, document, audio, etc.)
-                const fileUrl = await uploadFileToFirebase(selectedFile);
-                
-                // Encrypt file URL
-                //const encryptedFileUrl = await encryptMessage(fileUrl);
-                const fileType = selectedFile.type.split('/')[0]; // Get type (e.g., 'image', 'audio', 'video', 'application')
-
-                let attachment = {
-                    bytesCount : selectedFile.size,
-                    name : selectedFile.name,
-                    url : fileUrl
-                }
-
-                // Determine the message type based on file type
-                let messageType;
-                switch (fileType) {
-                    case 'image':
-                        messageType = 2;
-                        break;
-                    case 'audio':
-                        messageType = 3;
-                        break;
-                    case 'video':
-                        messageType = 1;
-                        break;
-                    default:
-                        messageType = 5; // For documents or other files
-                        break;
-                }
-                
-                sendGroupMessage(selectedGroupId, attachment, messageType);
-            }
-
-            // Clear input fields after sending
-            if (messageInputGroup) messageInputGroup.value = "";
-            if (fileInputGroup) fileInputGroup.value = "";
-            messagePreview.innerHTML = ""; // Clear file preview
-            clearButton.style.display = "none";
-        } 
-        sendMessageButton.disabled = false;
-    };
-}
-
-// Show a file preview when a file is selected
-if (fileInputGroup) {
-fileInputGroup.onchange = function () {
-    const selectedFile = fileInputGroup.files[0];
-
-    if (selectedFile) {
-        const fileType = selectedFile.type.split('/')[0]; // Get type (e.g., 'image', 'audio', 'video', 'application')
-        let filePreview;
-
-        // Display different previews based on file type
-        if (fileType === 2) {
-            filePreview = `<img src="${URL.createObjectURL(selectedFile)}" alt="Image Preview" class="preview-image">`;
-        } else if (fileType === 3) {
-            filePreview = `<audio controls>
-                               <source src="${URL.createObjectURL(selectedFile)}" type="${selectedFile.type}">
-                             
-                           </audio>`;
-        } else if (fileType === 1) {
-            filePreview = `<video width="200" controls>
-                               <source src="${URL.createObjectURL(selectedFile)}" type="${selectedFile.type}">
-                              
-                           </video>`;
-        } else {
-            filePreview = `<p>File Selected: ${selectedFile.name}</p>`; // For other file types like documents
-        }
-
-        messagePreview.innerHTML = filePreview;
-        messagePreview.appendChild(clearButton); // Add Clear button to the preview
-        clearButton.style.display = "inline-block";
-        messageInputGroup.focus();
-    }
-};
-}
-    // Clear the file selection and preview when Clear button is clicked
-    if (fileInputGroup) clearButton.onclick = function () {
-        if (fileInputGroup) fileInputGroup.value = ""; // Reset the file input
-        messagePreview.innerHTML = ""; // Clear the preview content
-        clearButton.style.display = "none"; // Hide Clear button
-    };
-// Emoji insertion into message input
-document.querySelectorAll('.emoj-group-list-foot a').forEach(function (emojiBtn) {
-    emojiBtn.onclick = function () {
-        const emoji = emojiBtn.querySelector('img').alt; // Get emoji alt text
-        messageInputGroup.value += emoji; // Insert emoji into the text input
-        messageInputGroup.focus(); // Focus the input field
-        messageInputGroup.selectionStart = messageInputGroup.selectionEnd = messageInput.value.length; // Move cursor to the end
-    };
-});
+// Group composer: send, attachments, preview, and emoji are handled by firebaseChat.js (same IDs as 1:1 chat).
 
 // Function to upload file to Firebase Storage and get URL
 async function uploadFileToFirebase(file) {
@@ -1251,7 +1394,7 @@ async function initiateGroupCall(isVideoCall) {
         const newCallId = push(ref(database, 'data/calls')).key;
         const channelName = newCallId;
         const groupNameForCall = groupData.groupName || "Group Call";
-        const groupImageForCall = groupData.image || 'assets/img/profiles/avatar-19.jpg';
+        const groupImageForCall = resolveGroupProfileImageUrl(pickGroupAvatarRaw(groupData));
 
         const baseCallData = {
             callerImg: groupImageForCall, callerName: groupNameForCall, currentMills: Date.now(),
@@ -1279,12 +1422,10 @@ async function initiateGroupCall(isVideoCall) {
         });
 
         await Promise.all(promises);
-        await update(ref(database, `data/calls/${callerId}/${newCallId}`), { duration: "00:00:00" });
-        
+        // Keep caller in ringing state; do not auto-answer.
+        // Caller switches to active only after any participant answers.
         currentCallId = newCallId;
-        const activeCallDataForCaller = { ...callerCallData, duration: "00:00:00" };
-        enterActiveCall(activeCallDataForCaller, currentUser);
-        console.log(`Group ${callTypeForNotif} call initiated. Caller (${callerId}) joined instantly.`);
+        console.log(`Group ${callTypeForNotif} call initiated in ringing state.`);
 
     } catch (error) {
         console.error(`Failed to initiate group ${isVideoCall ? 'video' : 'audio'} call:`, error);
@@ -1310,6 +1451,34 @@ const callRefNew = ref(database, `data/calls/${currentUser.uid}/${currentCallId}
 // 1. Update the data in the database
 await update(callRefNew, { duration: "00:00:00" });
 console.log("Data updated successfully in the DB.");
+
+// 1.5 If this is the first participant answer, move caller OUT record to active.
+// This prevents auto-pick at call start and starts only when someone answers.
+try {
+    const allCallsSnap = await get(ref(database, 'data/calls'));
+    if (allCallsSnap.exists()) {
+        const allCallsData = allCallsSnap.val() || {};
+        const promoteCallerPromises = [];
+        for (const uid in allCallsData) {
+            const callEntry = allCallsData[uid] && allCallsData[uid][currentCallId];
+            if (
+                callEntry &&
+                callEntry.type === 'group' &&
+                callEntry.inOrOut === 'OUT' &&
+                callEntry.duration === 'Ringing'
+            ) {
+                promoteCallerPromises.push(
+                    update(ref(database, `data/calls/${uid}/${currentCallId}`), { duration: "00:00:00" })
+                );
+            }
+        }
+        if (promoteCallerPromises.length) {
+            await Promise.all(promoteCallerPromises);
+        }
+    }
+} catch (err) {
+    console.warn('Failed to promote caller to active after participant answer:', err);
+}
 
 // 2. Now, FETCH the data from that reference
 const snapshot = await get(callRefNew); // <-- Use get() to perform the read
@@ -1435,6 +1604,8 @@ onValue(ref(database, 'data/calls'), (snapshot) => {
         updateCallUI(myCall, allCalls, currentUser);
         
         if (isRinging) {
+            // 1:1 / legacy call UI must not stack on top of group modals
+            $('#start-video-call-container, #video-call, #video_group, #voice-attend-new, #audio-call-modal').modal('hide');
             // Show incoming call modal
             if (myCall.video) {
                 $('#audio-call-new-group, #audio_group_new, #video_group_new').modal('hide');
@@ -1478,6 +1649,7 @@ function enterActiveCall(callData, currentUser) {
         startCallTimer();
     }
     // Show the correct active call modal
+    $('#start-video-call-container, #video-call, #video_group, #voice-attend-new, #audio-call-modal').modal('hide');
     if (callData.video) {
         $('#audio-call-new-group, #video-call-new-group, #audio_group_new').modal('hide');
         $('#video_group_new').modal('show');
@@ -1492,11 +1664,23 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
     const groupImage = myCallData.callerImg;
 
     if (myCallData.video) {
-        // Update Incoming VIDEO Call Modal
-        $('#video-call-new-group .fs-14').text(groupName);
-        $('#video-call-new-group .avatar-new-group img').attr('src', groupImage);
-        // Update Active VIDEO Call Modal Title
-        $('#video_group_new #videoGroupModalLabel').text(groupName);
+        $('#video-call-new-group .group-video-call-ring-name').text(groupName);
+        $('#video-call-new-group .group-video-call-ring-avatar').attr('src', groupImage).attr('alt', groupName);
+        const ringTitle = $('#video-call-new-group .group-video-ring-title');
+        if (ringTitle.length) {
+            ringTitle.text(
+                myCallData.inOrOut === 'IN'
+                    ? 'Incoming video call'
+                    : `Calling ${groupName}…`
+            );
+        }
+        const ringStatus = document.getElementById('group-video-ring-status');
+        if (ringStatus) {
+            ringStatus.textContent =
+                myCallData.duration === 'Ringing' ? 'Ringing…' : '';
+        }
+        $('#video_group_new #group-video-head-name').text(groupName);
+        $('#video_group_new #group-video-head-avatar').attr('src', groupImage).attr('alt', groupName);
         
         // You would also update the remote video users here in a similar way to audio
         // For example, by iterating through 'allCalls' and finding active video participants.
@@ -1504,9 +1688,22 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
     } else {
         // --- AUDIO CALL UI LOGIC ---
 
-        // Update Incoming AUDIO Call Modal
         $('#audio-call-new-group .audio-name').text(groupName);
-        $('#audio-call-new-group .avatar-new-audio-group img').attr('src', groupImage);
+        $('#audio-call-new-group .avatar-audio img').attr('src', groupImage).attr('alt', groupName);
+        const audioRingTitle = $('#audio-call-new-group .group-audio-ring-title');
+        const audioRingAnswerBtn = $('#audio-call-new-group .group-audio-answer-btn');
+        if (audioRingTitle.length) {
+            audioRingTitle.text(myCallData.inOrOut === 'IN' ? 'Incoming audio call' : 'Calling...');
+        }
+        if (audioRingAnswerBtn.length) {
+            if (myCallData.inOrOut === 'IN') {
+                audioRingAnswerBtn.removeClass('d-none');
+            } else {
+                audioRingAnswerBtn.addClass('d-none');
+            }
+        }
+        $('#group-audio-head-name').text(groupName);
+        $('#group-audio-head-avatar').attr('src', groupImage).attr('alt', groupName);
 
         // Update Active AUDIO Call Modal
         const userSnap = await get(child(usersRef, currentUser.uid));
@@ -1528,9 +1725,7 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
                 "";
             $('#local-user-avatar').attr(
                 'src',
-                laravelSelf ||
-                    firebaseSelf ||
-                    'assets/img/profiles/avatar-03.jpg'
+                resolveGroupProfileImageUrl(laravelSelf || firebaseSelf || "")
             );
             $('#local-user-name').text(`${userData.firstName} ${userData.lastName}`.trim() || 'You');
         }
@@ -1572,10 +1767,9 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
                 if (snap.exists()) {
                     const userData = snap.val();
                     const userName = `${userData.firstName} ${userData.lastName}`.trim() || 'Guest';
-                    const userImage =
-                        (userData.profile_image && String(userData.profile_image).trim()) ||
-                        userData.image ||
-                        'assets/img/profiles/avatar-03.jpg';
+                    const userImage = resolveGroupProfileImageUrl(
+                        rawAvatarFromUserAndContact(userData, null)
+                    );
                     const userHtml = `
                         <div class="col-12 mb-3">
                             <div class="card audio-crd bg-transparent-dark border h-100 pt-4">
@@ -1602,6 +1796,19 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
     }
 }
 
+function getGroupVideoRemoteListEl() {
+    return (
+        document.getElementById("group-remote-playerlist") ||
+        document.getElementById("remote-playerlist")
+    );
+}
+
+function getGroupVideoLocalPlayTarget() {
+    return document.getElementById("group-local-player")
+        ? "group-local-player"
+        : "local-player";
+}
+
 async function joinAgoraChannel(channelName, uid, isVideo) {
     try {
         // Handle publishing
@@ -1617,9 +1824,9 @@ async function joinAgoraChannel(channelName, uid, isVideo) {
         await audioClient.join(APP_ID, channelName, null, uid);
         await audioClient.publish(tracksToPublish);
 
-        // Play local video if it exists
+        // Play local video if it exists (same pip target pattern as 1:1 chat)
         if (localVideoTrack) {
-            localVideoTrack.play('local-player');
+            localVideoTrack.play(getGroupVideoLocalPlayTarget());
         }
         
         // Alternative approach: Use user-joined event instead of user-published for group calls
@@ -1647,21 +1854,8 @@ async function joinAgoraChannel(channelName, uid, isVideo) {
                 // Handle audio
                 if (user.audioTrack) {
                     console.log(`Playing audio for group user ${user.uid}`);
-                    user.audioTrack.play().catch(error => {
+                    user.audioTrack.play().catch((error) => {
                         console.error(`Audio playback failed for user ${user.uid}:`, error);
-                        
-                        // Create play button for user interaction
-                        const playButton = document.createElement('button');
-                        playButton.textContent = `Click to play audio from user ${user.uid}`;
-                        playButton.style.position = 'fixed';
-                        playButton.style.top = '100px';
-                        playButton.style.right = '10px';
-                        playButton.style.zIndex = '9999';
-                        playButton.onclick = () => {
-                            user.audioTrack.play().catch(e => console.error("Still failed to play:", e));
-                            playButton.remove();
-                        };
-                        document.body.appendChild(playButton);
                     });
                 }
                 
@@ -1673,7 +1867,8 @@ async function joinAgoraChannel(channelName, uid, isVideo) {
                         remotePlayerContainer = document.createElement('div');
                         remotePlayerContainer.id = `player-container-${user.uid}`;
                         remotePlayerContainer.className = 'col-6 player-wrapper mb-3';
-                        document.getElementById('remote-playerlist').append(remotePlayerContainer);
+                        const listEl = getGroupVideoRemoteListEl();
+                        if (listEl) listEl.append(remotePlayerContainer);
                     }
                     user.videoTrack.play(remotePlayerContainer);
                 }
@@ -1695,7 +1890,8 @@ async function joinAgoraChannel(channelName, uid, isVideo) {
                     remotePlayerContainer = document.createElement('div');
                     remotePlayerContainer.id = `player-container-${user.uid}`;
                     remotePlayerContainer.className = 'col-6 player-wrapper mb-3'; // Bootstrap class for 2-column layout
-                    document.getElementById('remote-playerlist').append(remotePlayerContainer);
+                    const listEl = getGroupVideoRemoteListEl();
+                    if (listEl) listEl.append(remotePlayerContainer);
                 }
                 user.videoTrack.play(remotePlayerContainer);
             }
@@ -1756,52 +1952,6 @@ async function joinAgoraChannel(channelName, uid, isVideo) {
         // Store interval ID for cleanup
         if (!window.agoraIntervals) window.agoraIntervals = {};
         window.agoraIntervals[`group_${channelName}`] = groupManualSubscriptionInterval;
-        
-        // Manual trigger function for group calls
-        window.manualSubscribeToGroupUsers = async () => {
-            try {
-                console.log("Manual group subscription triggered");
-                const remoteUsers = audioClient.remoteUsers;
-                console.log("Available group remote users:", remoteUsers);
-                
-                for (const remoteUser of remoteUsers) {
-                    console.log(`Processing group user ${remoteUser.uid}:`, {
-                        hasAudio: remoteUser.hasAudio,
-                        hasVideo: remoteUser.hasVideo,
-                        audioTrack: !!remoteUser.audioTrack,
-                        videoTrack: !!remoteUser.videoTrack,
-                        uid: remoteUser.uid
-                    });
-                    
-                    if (remoteUser.hasAudio && !remoteUser.audioTrack) {
-                        console.log(`Subscribing to audio for group user ${remoteUser.uid}`);
-                        await audioClient.subscribe(remoteUser, "audio");
-                    }
-                    
-                    if (isVideo && remoteUser.hasVideo && !remoteUser.videoTrack) {
-                        console.log(`Subscribing to video for group user ${remoteUser.uid}`);
-                        await audioClient.subscribe(remoteUser, "video");
-                    }
-                    
-                    // Handle display after subscription
-                    if (remoteUser.audioTrack || remoteUser.videoTrack) {
-                        handleGroupUserDisplay(remoteUser, isVideo);
-                    }
-                }
-            } catch (error) {
-                console.error("Manual group subscription error:", error);
-            }
-        };
-        
-        // Add button to trigger manual group subscription
-        const groupManualButton = document.createElement('button');
-        groupManualButton.textContent = 'Manual Subscribe to Group Users';
-        groupManualButton.style.position = 'fixed';
-        groupManualButton.style.top = '150px';
-        groupManualButton.style.right = '10px';
-        groupManualButton.style.zIndex = '9999';
-        groupManualButton.onclick = window.manualSubscribeToGroupUsers;
-        document.body.appendChild(groupManualButton);
 
     } catch (error) { console.error("Agora Join Error:", error); }
 }
@@ -1825,7 +1975,8 @@ function handleGroupUserDisplay(remoteUser, isVideo) {
             remotePlayerContainer = document.createElement('div');
             remotePlayerContainer.id = `player-container-${remoteUser.uid}`;
             remotePlayerContainer.className = 'col-6 player-wrapper mb-3';
-            document.getElementById('remote-playerlist').append(remotePlayerContainer);
+            const listEl = getGroupVideoRemoteListEl();
+            if (listEl) listEl.append(remotePlayerContainer);
         }
         remoteUser.videoTrack.play(remotePlayerContainer);
     }
@@ -1872,15 +2023,10 @@ function cleanUpLocalState() {
     if (window.agoraGroupUsers) {
         window.agoraGroupUsers = {};
     }
-    
-    // Remove manual group subscription button
-    const groupManualButton = document.querySelector('button[onclick="window.manualSubscribeToGroupUsers"]');
-    if (groupManualButton) {
-        groupManualButton.remove();
-    }
-    
-    // Hide all possible call modals
+
+    // Hide all possible call modals (group + any 1:1 UI that may have opened)
     $('#audio-call-new-group, #audio_group_new, #video-call-new-group, #video_group_new').modal('hide');
+    $('#start-video-call-container, #video-call, #video_group, #voice-attend-new, #audio-call-modal').modal('hide');
     currentCallId = null;
     const currentUser = auth.currentUser;
     if (currentUser) {
@@ -1894,23 +2040,40 @@ function cleanUpLocalState() {
 // (Other helper functions like startCallTimer, stopCallTimer, sendCallNotification are unchanged)
 function startCallTimer() {
     let seconds = 0;
-    const timerDisplay = document.getElementById('call-timer-display'); // Note: Make sure this ID is present in both active call modals
-    if (!timerDisplay) return;
+    const timerEls = [
+        document.getElementById('group-call-timer-display'),
+        document.getElementById('group-video-call-timer'),
+        document.getElementById('call-timer-display'),
+    ].filter(Boolean);
+    if (!timerEls.length) return;
     if (callTimerInterval) clearInterval(callTimerInterval);
-    timerDisplay.textContent = "00:00:00";
+    const tick = `${formatCallTick(seconds)}`;
+    timerEls.forEach((el) => {
+        el.textContent = tick;
+    });
     callTimerInterval = setInterval(() => {
         seconds++;
-        const format = (val) => `0${Math.floor(val)}`.slice(-2);
-        const hours = seconds / 3600;
-        const minutes = (seconds % 3600) / 60;
-        timerDisplay.textContent = `${format(hours)}:${format(minutes)}:${format(seconds % 60)}`;
+        const text = formatCallTick(seconds);
+        timerEls.forEach((el) => {
+            el.textContent = text;
+        });
     }, 1000);
+}
+
+function formatCallTick(seconds) {
+    const format = (val) => `0${Math.floor(val)}`.slice(-2);
+    const hours = seconds / 3600;
+    const minutes = (seconds % 3600) / 60;
+    return `${format(hours)}:${format(minutes)}:${format(seconds % 60)}`;
 }
 
 function stopCallTimer() {
     clearInterval(callTimerInterval);
-    const timerDisplay = document.getElementById('call-timer-display');
-    return timerDisplay ? timerDisplay.textContent : "00:00:00";
+    const el =
+        document.getElementById('group-call-timer-display') ||
+        document.getElementById('group-video-call-timer') ||
+        document.getElementById('call-timer-display');
+    return el ? el.textContent : "00:00:00";
 }
 
 async function sendCallNotification(toId, fromId, title, channelName, callerName, callerId) {
@@ -2043,22 +2206,24 @@ async function sendGroupMessage(groupId, messageText, messageType = 'text', file
             document.getElementById("message-input").value = "";
             replyToMessage = null;
         } else {
-            // Assuming these are the input fields for the group chat
-            const messageInputGroup = document.getElementById("group-message-input"); // Please verify this ID
-            const fileInputGroup = document.getElementById("group-files-input"); // Please verify this ID
-            const messagePreview = document.getElementById("group-message-preview"); // Please verify this ID
-
-            if(messageInputGroup) messageInputGroup.value = "";
-            if(fileInputGroup) fileInputGroup.value = "";
-            if(messagePreview) messagePreview.innerHTML = "";
+            const messageInputGroup = document.getElementById("message-input");
+            const fileInputGroup = document.getElementById("files");
+            const messagePreviewEl = document.getElementById("message-preview");
+            if (messageInputGroup) messageInputGroup.value = "";
+            if (fileInputGroup) fileInputGroup.value = "";
+            if (messagePreviewEl) messagePreviewEl.innerHTML = "";
         }
         
         highlightActiveGroup(groupId);
-        fetchGroups(currentUserId); // Refresh group list to show latest message
+        refreshGroupsList(); // Re-render list (latest message); do not re-attach onValue
 
     } catch (error) {
         console.error("Error sending group message:", error);
     }
+}
+
+if (typeof window !== "undefined") {
+    window.__dreamchatSendGroupMessage = sendGroupMessage;
 }
 
 let pendingGroupDelete = { messageKey: "", groupId: "" };
@@ -2344,8 +2509,12 @@ if (closeReplyEl) {
  
     // Close Reply Box
     function closeReplyBox() {
-        document.getElementById("reply-div").style.display = "none";
+        const rd = document.getElementById("reply-div");
+        if (rd) rd.style.display = "none";
         replyToMessage = null; // Reset the replied message
+    }
+    if (typeof window !== "undefined") {
+        window.closeReplyBox = closeReplyBox;
     }
 
     let forwardContent = null;
@@ -2468,7 +2637,9 @@ if (closeReplyEl) {
 
             const userItem = document.createElement("div");
             userItem.classList.add("user-item");
-            const avatar = user.avatarURL || user.image || "assets/img/profiles/avatar-03.jpg"; // Default avatar
+            const avatar = resolveGroupProfileImageUrl(
+                user.avatarURL || user.image || ""
+            );
             const label = user.groupName || user.name || "Group";
             userItem.innerHTML = `
                 <input type="checkbox" class="user-checkbox" data-group-id="${user.id}">
@@ -2747,12 +2918,12 @@ function getUserDetails(userId) {
                 return snapshot.val(); // Return user data if exists
             } else {
                 // Return a default user object
-                return { user_name: 'Unknown User', image: 'assets/img/profiles/avatar-03.jpg', status: 'No Status', role: 'Member' };
+                return { user_name: 'Unknown User', image: resolveGroupProfileImageUrl(""), status: 'No Status', role: 'Member' };
             }
         })
         .catch((error) => {
             // Return a default user object in case of error
-            return { user_name: 'Unknown User', image: 'assets/img/profiles/avatar-03.jpg', status: 'No Status', role: 'Member' };
+            return { user_name: 'Unknown User', image: resolveGroupProfileImageUrl(""), status: 'No Status', role: 'Member' };
         });
 }
 
@@ -2772,7 +2943,7 @@ async function fetchGroupInfo(selectedGroupId) {
                 document.getElementById(
                     "group-participants"
                 ).innerText = `Group - ${
-                    groupData.userIds.length || 0
+                    (groupData.userIds && groupData.userIds.length) || 0
                 } Participants`;
                 document.getElementById("group-info-about").innerText =
                     groupData.status || "No Description";
@@ -2796,56 +2967,56 @@ async function fetchGroupInfo(selectedGroupId) {
                 // document.getElementById("group-date").innerText = `Group created on ${groupData.date}` || 'No data available';
 
                 const avatarElement = document.getElementById("group-avatar");
-                avatarElement.src =
-                    groupData.image || "assets/img/profiles/avatar-03.jpg";
+                avatarElement.src = resolveGroupProfileImageUrl(
+                    withCacheBuster(
+                        pickGroupAvatarRaw(groupData),
+                        groupData.updatedAt || groupData.date || Date.now()
+                    )
+                );
 
                 const membersContainer =
                     document.getElementById("members-container");
                 membersContainer.innerHTML = ""; // Clear previous members
 
-                // Create an array of promises for fetching user details
-                const memberPromises = groupData.userIds.map(
-                    async (memberId) => {
-                        const contactsRef = ref(
-                            database,
-                            `data/contacts/${currentUserId}/${memberId}`
+                const userIds = groupData.userIds || [];
+                const memberPromises = userIds.map(async (memberId) => {
+                    let contactData = null;
+                    let userData = null;
+                    try {
+                        const contactSnap = await get(
+                            ref(database, `data/contacts/${currentUserId}/${memberId}`)
                         );
-
-                        return new Promise((resolve) => {
-                            onValue(contactsRef, (contactSnapshot) => {
-                                const contactData = contactSnapshot.val();
-                                if (contactData) {
-                                    resolve({
-                                        ...contactData,
-                                        displayName: contactData?.firstName
-                                            ? `${contactData.firstName} ${contactData.lastName}`.trim()
-                                            : contactData?.mobile_number,
-                                        memberId,
-                                    });
-                                } else {
-                                    const userRef = ref(
-                                        database,
-                                        `data/users/${memberId}`
-                                    );
-                                    onValue(userRef, (userSnapshot) => {
-                                        const userData = userSnapshot.val();
-                                        resolve({
-                                            ...userData,
-                                            displayName: userData?.firstName
-                                                ? `${userData.firstName} ${userData.lastName}`.trim()
-                                                : userData?.userName ||
-                                                  "Unknown User",
-                                            memberId,
-                                        });
-                                    });
-                                }
-                            });
-                        });
+                        contactData = contactSnap.exists() ? contactSnap.val() : null;
+                    } catch (e) {
+                        /* ignore */
                     }
-                );
+                    try {
+                        const userSnap = await get(ref(database, `data/users/${memberId}`));
+                        userData = userSnap.exists() ? userSnap.val() : null;
+                    } catch (e) {
+                        /* ignore */
+                    }
+                    const userMerged = mergeLaravelProfileIfSelf(memberId, userData);
+                    const displayName = buildGroupParticipantDisplayName(
+                        contactData,
+                        userMerged
+                    );
+                    return {
+                        ...userMerged,
+                        memberId,
+                        displayName,
+                        status:
+                            (userData && userData.status) ||
+                            (userData && userData.userStatus) ||
+                            "",
+                        _contactForAvatar: contactData,
+                        _userForAvatar: userMerged,
+                    };
+                });
 
-                // Await for all user details to be fetched
-                const membersDetails = await Promise.all(memberPromises);
+                // Await for all user details to be fetched; fill from Laravel when RTDB has no names
+                let membersDetails = await Promise.all(memberPromises);
+                membersDetails = await enrichGroupMembersWithLaravelBatch(membersDetails);
 
                 // Process the user details
                 membersDetails.forEach((user) => {
@@ -2864,14 +3035,17 @@ async function fetchGroupInfo(selectedGroupId) {
                             : "badge badge-primary-transparent";
                         const roleText = isAdmin ? "Admin" : "Member";
 
+                        const uForPic = user._userForAvatar || user;
+                        const cForPic = user._contactForAvatar || null;
+                        const avatarRaw = rawAvatarFromUserAndContact(uForPic, cForPic);
+
                         memberElement.innerHTML = `
                             <div class="card-body">
                                 <div class="d-flex align-items-center justify-content-between">
                                     <div class="d-flex align-items-center overflow-hidden">
                                         <span class="${avatarClass}">
                                             <img src="${
-                                                user.image ||
-                                                "assets/img/profiles/avatar-03.jpg"
+                                                resolveGroupProfileImageUrl(avatarRaw)
                                             }" alt="img" class="rounded-circle">
                                         </span>
                                         <div class="ms-2 overflow-hidden">
@@ -2976,13 +3150,14 @@ async function exitGroup(groupId, userId) {
 
     // Add event listener to confirm exit button
     const confirmExitEl = document.getElementById('confirm-exit');
-    if (confirmExitEl) confirmExitEl.addEventListener('click', function () {
+    if (confirmExitEl) confirmExitEl.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
         // Retrieve groupId and userId from the button's data attributes
         const groupId = this.getAttribute('data-group-id');
         const userId = this.getAttribute('data-user-id');
         exitGroup(selectedGroupId, currentUserId);
-        // Optionally close the modal after confirming
-        $('#group-logout').modal('hide');
+        forceCloseBootstrapModal("group-logout");
     });
 
 
@@ -2990,6 +3165,8 @@ async function exitGroup(groupId, userId) {
 const deleteGroupBtnEl = document.getElementById('deleteGroupBtn');
 if (deleteGroupBtnEl) deleteGroupBtnEl.addEventListener('click', function (event) {
     event.preventDefault(); // Prevent the default form submission
+    event.stopPropagation(); // Avoid duplicate execution via delegated handler
+    forceCloseBootstrapModal("delete-group");
     deleteGroupChat(); // Call the deleteGroupChat function
 });
 
@@ -2998,13 +3175,13 @@ function deleteGroupChat() {
     const currentUser = auth.currentUser; // Get the currently logged-in user
 
     if (!currentUser) {
+        forceCloseBootstrapModal("delete-group");
         return;
     }
 
-    const currentUserId = currentUserId; // Get the current user's UID
-
     // Ensure selectedGroupId is set from the previous context
     if (!selectedGroupId) {
+        forceCloseBootstrapModal("delete-group");
         return;
     }
 
@@ -3015,12 +3192,15 @@ function deleteGroupChat() {
     remove(groupRef)
         .then(() => {
             closeGroupModal(); // Close modal after deletion
+            forceCloseBootstrapModal("delete-group");
 
             // Hide the chat section
             const chatSection = document.getElementById('middle');
             if (chatSection) {
                 chatSection.style.display = 'none'; // Hide the chat section
             }
+            selectedGroupId = null;
+            if (typeof window !== 'undefined') window.__dreamchatSelectedGroupId = null;
 
             // Show the welcome container
             const welcomeContainer = document.getElementById('welcome-container');
@@ -3032,6 +3212,7 @@ function deleteGroupChat() {
         })
         .catch((error) => {
             alert("An error occurred while trying to delete the group.");
+            forceCloseBootstrapModal("delete-group");
         });
 }
 
@@ -3042,6 +3223,54 @@ function closeGroupModal() {
         blockModal.hide(); // Hide the modal
     }
 }
+
+function forceCloseBootstrapModal(modalId) {
+    const el = document.getElementById(modalId);
+    try {
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+            document.activeElement.blur();
+        }
+        if (el) {
+            const instance = bootstrap.Modal.getOrCreateInstance(el);
+            if (instance) instance.hide();
+        }
+    } catch (e) {
+        // Ignore modal hide errors; we'll still remove backdrop.
+    }
+
+    // If a JS error occurs mid-flow, Bootstrap sometimes leaves the backdrop/body state behind.
+    document.body.classList.remove("modal-open");
+    if (!document.querySelector(".modal.show") && !document.querySelector(".offcanvas.show")) {
+        document.body.style.removeProperty("overflow");
+        document.body.style.removeProperty("padding-right");
+    }
+    document
+        .querySelectorAll(".modal-backdrop, .offcanvas-backdrop")
+        .forEach((b) => b.parentNode && b.parentNode.removeChild(b));
+}
+
+function normalizeOverlayState() {
+    const hasOpenModal = !!document.querySelector(".modal.show");
+    const hasOpenOffcanvas = !!document.querySelector(".offcanvas.show");
+    if (!hasOpenModal && !hasOpenOffcanvas) {
+        document.body.classList.remove("modal-open");
+        document.body.style.removeProperty("overflow");
+        document.body.style.removeProperty("padding-right");
+        document
+            .querySelectorAll(".modal-backdrop, .offcanvas-backdrop")
+            .forEach((b) => b.parentNode && b.parentNode.removeChild(b));
+    }
+}
+
+["clear-group-chat", "delete-group", "group-logout"].forEach((modalId) => {
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) return;
+    modalEl.addEventListener("hidden.bs.modal", normalizeOverlayState);
+    modalEl.addEventListener("hide.bs.modal", () => {
+        // Delay one tick so Bootstrap can finish state transition first.
+        setTimeout(normalizeOverlayState, 0);
+    });
+});
 
 const closeGroupBtnEl = document.getElementById('close-group-btn');
 if (closeGroupBtnEl) closeGroupBtnEl.addEventListener('click', function (event) {
@@ -3054,17 +3283,47 @@ if (closeGroupBtnEl) closeGroupBtnEl.addEventListener('click', function (event) 
     if (chatSection) {
         chatSection.style.display = 'none'; // Hide the chat section
         welcomeContainer.style.display = 'block';
-    } 
+    }
+    selectedGroupId = null;
+    if (typeof window !== 'undefined') window.__dreamchatSelectedGroupId = null;
 });
 
 const clearGroupBtnEl = document.getElementById('clear-group-btn');
 if (clearGroupBtnEl) clearGroupBtnEl.addEventListener('click', function (event) {
     event.preventDefault(); // Prevent the default form submission
+    event.stopPropagation(); // Avoid duplicate execution via delegated handler
+    forceCloseBootstrapModal("clear-group-chat");
     clearGroupMessages(selectedGroupId);
+});
+
+// Delegated handlers ensure buttons keep working after SPA DOM swaps.
+document.addEventListener("click", function (event) {
+    if (event.defaultPrevented) return;
+
+    const deleteBtn = event.target.closest("#deleteGroupBtn");
+    if (deleteBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        forceCloseBootstrapModal("delete-group");
+        deleteGroupChat();
+        return;
+    }
+    const clearBtn = event.target.closest("#clear-group-btn");
+    if (clearBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        forceCloseBootstrapModal("clear-group-chat");
+        clearGroupMessages(selectedGroupId);
+    }
 });
 
 
 function clearGroupMessages(selectedGroupId) {
+    if (!selectedGroupId) {
+        forceCloseBootstrapModal("clear-group-chat");
+        return;
+    }
+
     const messagesRef = ref(database, `data/chats/${selectedGroupId}`);
 
     get(messagesRef)
@@ -3101,9 +3360,12 @@ function clearGroupMessages(selectedGroupId) {
                 const modalInstance = bootstrap.Modal.getInstance(modal);
                 modalInstance?.hide();
             }
+            forceCloseBootstrapModal("clear-group-chat");
         })
         .catch((error) => {
             console.error("Error clearing chat:", error);
+            // Ensure UI isn't left in a black/blocked state if the async call fails.
+            forceCloseBootstrapModal("clear-group-chat");
         });
 }
 
@@ -3126,92 +3388,9 @@ function highlightActiveGroup(userId) {
 // Emoji picker: handled by firebaseChat.js (document delegation) so SPA-injected chat footers work
 // and we avoid double toggle when both firebaseChat.js and this module load on the same page.
 
- //Recorder
+// Voice messages: #record_audio + MediaRecorder in firebaseChat.js; group sends via __dreamchatSendGroupMessage.
 
- let recorder;
- let context;
- let audio = document.querySelector("group_audio");
- let startBtn = document.getElementById("startRecordingGroup");
- let stopBtn = document.getElementById("stopRecordingGroup");
- let send_voice = document.getElementById("send_voice_group");
- window.URL = window.URL || window.webkitURL;
-
- /**
-  * Detecte the correct AudioContext for the browser
-  * */
- window.AudioContext = window.AudioContext || window.webkitAudioContext;
- navigator.getUserMedia =
-     navigator.getUserMedia ||
-     navigator.webkitGetUserMedia ||
-     navigator.mozGetUserMedia ||
-     navigator.msGetUserMedia;
-
- let onFail = function (e) {
-     alert("Error " + e);
-     console.log("Rejected!", e);
- };
-
- let onSuccess = function (s) {
-     let tracks = s.getTracks();
-     startBtn.setAttribute("disabled", true);
-     send_voice.setAttribute("disabled", true);
-     stopBtn.removeAttribute("disabled");
-     context = new AudioContext();
-     let mediaStreamSource = context.createMediaStreamSource(s);
-     recorder = new Recorder(mediaStreamSource);
-     recorder.record();
-
-     stopBtn.addEventListener("click", () => {
-         stopBtn.setAttribute("disabled", true);
-         startBtn.removeAttribute("disabled");
-         send_voice.removeAttribute("disabled");
-         recorder.stop();
-         tracks.forEach((track) => track.stop());
-         recorder.exportWAV(function (s) {
-             audio.src = window.URL.createObjectURL(s);
-             const blobFile = new File([s], "file" + Date.now() + ".wav", {
-                 type: "audio/wav",
-             });
-         });
-     });
-
-     send_voice.addEventListener("click", () => {
-         stopBtn.setAttribute("disabled", true);
-         startBtn.setAttribute("disabled", true);
-         tracks.forEach((track) => track.stop());
-
-         recorder.exportWAV(function (s) {
-             const blobFile = new File([s], "file" + Date.now() + ".wav", {
-                 type: "audio/wav",
-             });
-             voiceupload(blobFile, "");
-             $("#record_audio_group").modal("hide");
-             audio.removeAttribute("src");
-         });
-     });
- };
-
- if (startBtn) startBtn.addEventListener("click", () => {
-     navigator.mediaDevices
-         .getUserMedia({ audio: true })
-         .then(onSuccess)
-         .catch(onFail);
- });
-
- async function voiceupload(files) {
-     var fd = new FormData();
-     fd.append("file", files);
-     var atttype = 3;
-     const fileUrl = await uploadFileToFirebase(files);
-   //  const encryptedFileUrl = await encryptMessage(fileUrl);
-     let attachment = {
-        bytesCount : files.size,
-        name : files.name,
-        url : fileUrl
-    }
-     sendGroupMessage(selectedGroupId, attachment, atttype);
- }
- async function fetchContactsNotInGroup(groupId, currentUserId) {
+async function fetchContactsNotInGroup(groupId, currentUserId) {
     const contactsContainer = document.getElementById('contact-list-container');
     contactsContainer.innerHTML = `<div class="spinner-border" role="status">
         <span class="visually-hidden">Loading...</span>
@@ -3248,21 +3427,24 @@ function highlightActiveGroup(userId) {
 
         // Render the contacts as checkboxes
         contactsContainer.innerHTML = nonMemberContacts
-            .map(
-                ([contactId, contactInfo]) => `
+            .map(([contactId, contactInfo]) => {
+                const imgSrc = resolveGroupProfileImageUrl(
+                    rawAvatarFromUserAndContact(contactInfo, contactInfo)
+                );
+                return `
                 <div class="list-group-item d-flex align-items-center">
                     <input type="checkbox" id="contact-${contactId}" class="form-check-input me-3"
                         onchange="toggleMemberSelection('${contactId}')">
                     <label for="contact-${contactId}" class="d-flex align-items-center">
-                        <img src="${contactInfo.image || 'assets/img/profiles/avatar-03.jpg'}" alt="${contactInfo.firstName || contactInfo.mobile_number || contactInfo.email}" class="rounded-circle me-3" width="40">
+                        <img src="${imgSrc}" alt="${contactInfo.firstName || contactInfo.mobile_number || contactInfo.email}" class="rounded-circle me-3" width="40">
                         <div>
                             <h6 class="mb-0">${contactInfo.firstName || contactInfo.mobile_number || contactInfo.email}</h6>
                             <small>${contactInfo.email || 'No email'}</small>
                         </div>
                     </label>
                 </div>
-            `
-            )
+            `;
+            })
             .join('');
     } catch (error) {
         console.error('Error fetching contacts:', error);
@@ -3481,14 +3663,15 @@ if (groupRemoveTrigger) groupRemoveTrigger.addEventListener('click', () => {
 
 async function checkAdminAccess(groupId, currentUserId) {
     try {
-        // Reference the admin status in Firebase for the group
-        const adminRef = ref(database, `data/groups/${groupId}/admin`);
-
-        // Fetch the admin status
-        const snapshot = await get(adminRef);
-        const isAdmin = snapshot.val() === currentUserId;
+        const groupRef = ref(database, `data/groups/${groupId}`);
+        const snapshot = await get(groupRef);
+        const groupData = snapshot.exists() ? snapshot.val() : null;
+        const isAdmin = !!groupData && (
+            groupData.admin === currentUserId || groupData.createdBy === currentUserId
+        );
         const addGroupBtn = document.getElementById("add-group-new");
         const removeGroupBtn = document.getElementById("remove-group-new");
+        const groupIconEditWrap = document.getElementById("group-icon-edit-wrap");
 
         if (addGroupBtn) {
             addGroupBtn.style.display = isAdmin ? "block" : "none";
@@ -3497,10 +3680,134 @@ async function checkAdminAccess(groupId, currentUserId) {
         if (removeGroupBtn) {
             removeGroupBtn.style.display = isAdmin ? "block" : "none";
         }
+
+        if (groupIconEditWrap) {
+            groupIconEditWrap.classList.toggle("d-none", !isAdmin);
+        }
        
     } catch (error) {
         console.error("Error checking admin status:", error);
     }
+}
+
+const groupIconUploadEl = document.getElementById("group-icon-upload");
+if (groupIconUploadEl) {
+    groupIconUploadEl.addEventListener("change", async function (e) {
+        const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+        if (!file) return;
+
+        const activeGroupId = selectedGroupId || (typeof window !== "undefined" ? window.__dreamchatSelectedGroupId : null);
+        if (!activeGroupId || !currentUserId) {
+            this.value = "";
+            return;
+        }
+
+        if (!String(file.type || "").startsWith("image/")) {
+            Toastify({
+                text: "Please choose a valid image file.",
+                duration: 2500,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#ef4444",
+            }).showToast();
+            this.value = "";
+            return;
+        }
+
+        try {
+            const groupRef = ref(database, `data/groups/${activeGroupId}`);
+            const groupSnap = await get(groupRef);
+            if (!groupSnap.exists()) {
+                this.value = "";
+                return;
+            }
+
+            const groupData = groupSnap.val() || {};
+            const isAdmin =
+                groupData.admin === currentUserId ||
+                groupData.createdBy === currentUserId;
+            if (!isAdmin) {
+                Toastify({
+                    text: "Only group admin can change the icon.",
+                    duration: 2500,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ef4444",
+                }).showToast();
+                this.value = "";
+                return;
+            }
+
+            // Upload icon via Laravel backend to avoid Firebase Storage CORS issues
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')
+                ? document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                : null;
+            const iconFormData = new FormData();
+            iconFormData.append('image', file);
+
+            const res = await fetch('/api/groups/icon-upload', {
+                method: 'POST',
+                headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
+                body: iconFormData,
+            });
+            if (!res.ok) {
+                const txt = await res.text().catch(() => '');
+                throw new Error(`Icon upload failed (${res.status}) ${String(txt).slice(0, 120)}`);
+            }
+            const payload = await res.json();
+            const downloadURL = payload && payload.url ? payload.url : '';
+
+            const nowTs = Date.now();
+            await update(groupRef, {
+                image: downloadURL,
+                avatarURL: downloadURL,
+                profile_image: downloadURL,
+                updatedAt: nowTs,
+            });
+
+            const persistedSnap = await get(groupRef);
+            const persistedData = persistedSnap.exists() ? persistedSnap.val() : {};
+            const finalAvatar = resolveGroupProfileImageUrl(
+                withCacheBuster(
+                    pickGroupAvatarRaw(persistedData),
+                    persistedData.updatedAt || nowTs
+                )
+            );
+
+            const offcanvasAvatar = document.getElementById("group-avatar");
+            if (offcanvasAvatar) offcanvasAvatar.src = finalAvatar;
+            const headerAvatar = document.getElementById("group_image");
+            if (headerAvatar) headerAvatar.src = finalAvatar;
+            const activeSidebarAvatar = document.querySelector(`.chat-list.active .avatar img`);
+            if (activeSidebarAvatar) {
+                activeSidebarAvatar.src = finalAvatar;
+            }
+
+            // Force-refresh all UI binding points that render group icon
+            loadGroupDetails(activeGroupId);
+            fetchGroupInfo(activeGroupId);
+            refreshGroupsList();
+
+            Toastify({
+                text: "Group icon updated successfully.",
+                duration: 2500,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#22c55e",
+            }).showToast();
+        } catch (error) {
+            console.error("Failed to update group icon:", error);
+            Toastify({
+                text: "Failed to update group icon. Please try again.",
+                duration: 2500,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#ef4444",
+            }).showToast();
+        } finally {
+            this.value = "";
+        }
+    });
 }
 
 

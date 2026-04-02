@@ -23,7 +23,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'ensure2fa' => \App\Http\Middleware\Ensure2fa::class,
             'ensureOnboarded' => \App\Http\Middleware\EnsureOnboarded::class,
             'ensureAdmin' => \App\Http\Middleware\EnsureAdmin::class,
+            'trackPerformance' => \App\Http\Middleware\TrackRequestPerformance::class,
         ]);
+        $middleware->appendToGroup('web', \App\Http\Middleware\TrackRequestPerformance::class);
+        $middleware->appendToGroup('api', \App\Http\Middleware\TrackRequestPerformance::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->render(function (AuthenticationException $e, Request $request) {

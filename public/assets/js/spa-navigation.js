@@ -19,6 +19,7 @@
     var isNavigating = false;
     var loadedModules = {};
     var prefetchCache = {};
+    var lastPluginInitAt = 0;
 
     function getPathname(url) {
         try {
@@ -55,6 +56,10 @@
 
 
     function reinitPlugins() {
+        var now = Date.now();
+        if (now - lastPluginInitAt < 150) return;
+        lastPluginInitAt = now;
+
         if ($.fn.slimScroll) {
             var $scrolls = $('#spa-page-content .slimscroll');
             if ($scrolls.length > 0) {
@@ -72,7 +77,7 @@
             }
         }
 
-        $('[data-bs-toggle="tooltip"]').each(function () {
+        $('#spa-page-content [data-bs-toggle="tooltip"]').each(function () {
             var existing = bootstrap.Tooltip.getInstance(this);
             if (!existing) {
                 new bootstrap.Tooltip(this);
@@ -153,7 +158,7 @@
         var scripts = container.querySelectorAll('script:not([type="module"])');
         for (var i = 0; i < scripts.length; i++) {
             var oldScript = scripts[i];
-            if (oldScript.src) continue;
+            if (oldScript.src || oldScript.getAttribute('data-spa-exec') === 'false') continue;
             try {
                 var fn = new Function(oldScript.textContent);
                 fn();
@@ -263,6 +268,7 @@
     }
 
     function applyPageContent(html, url, pushState) {
+        var applyStart = (window.performance && performance.now) ? performance.now() : Date.now();
         var parser = new DOMParser();
         var doc = parser.parseFromString(html, 'text/html');
 
@@ -292,7 +298,8 @@
         $(window).trigger('resize');
         try {
             var pathname = getPathname(url || window.location.href);
-            window.dispatchEvent(new CustomEvent('spa-page-applied', { detail: { pathname: pathname } }));
+            var applyDuration = ((window.performance && performance.now) ? performance.now() : Date.now()) - applyStart;
+            window.dispatchEvent(new CustomEvent('spa-page-applied', { detail: { pathname: pathname, duration_ms: applyDuration } }));
         } catch (e) {}
         isNavigating = false;
     }

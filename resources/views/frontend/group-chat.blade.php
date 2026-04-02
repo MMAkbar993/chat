@@ -1,5 +1,9 @@
 @extends('frontend.layout')
 
+@php
+    try { $callsProvider = config('calls.provider', 'meet'); } catch (\Throwable $e) { $callsProvider = 'meet'; }
+@endphp
+
 @section('content')
 
 <!-- content -->
@@ -39,7 +43,7 @@
                                 <i class="ti ti-search"></i>
                             </a>
                         </li>
-                        @if(config('calls.provider') === 'meet')
+                        @if($callsProvider === 'meet')
                         <li data-bs-toggle="tooltip" data-bs-placement="bottom" title="Start Google Meet">
                             <a href="https://meet.google.com/new" target="_blank" class="btn" id="google-meet-btn-group">
                                 <img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon">
@@ -91,53 +95,66 @@
         </div>
         <div class="chat-footer">
             <form class="footer-form" id="message-form">
+                <div class="chats reply-chat reply-div" id="reply-div">
+                    <div class="chat-content">
+                        <div class="chat-profile-name">
+                            <h6 id="replyUser">
+                                <i class="ti ti-circle-filled fs-7 mx-2"></i>
+                                <span class="chat-time" id="replytime"></span>
+                                <span class="msg-read success"><i class="ti ti-checks"></i></span>
+                            </h6>
+                        </div>
+                        <div class="chat-info">
+                            <div class="message-content" id="replyContent"></div>
+                        </div>
+                    </div>
+                    <a href="#" class="close-replay" id="closeReply"><i class="ti ti-x"></i></a>
+                </div>
+
                 <div class="chat-footer-wrap d-inline">
-                    <div id="message-preview-container" class="message-preview-container"></div>
+                    <div id="message-preview" class="message-preview"></div>
                     <div class="chat-footer-content d-flex align-items-center">
                         <div class="form-item">
-                            <a href="javascript:;" class="action-circle" data-bs-toggle="modal" data-bs-target="#record_audio_group"><i class="ti ti-microphone"></i></a>
+                            <a href="#" class="action-circle" data-bs-toggle="modal" data-bs-target="#record_audio"><i class="ti ti-microphone"></i></a>
                         </div>
                         <div class="form-wrap">
-                            <div class="chats reply-chat reply-div" id="reply-div">
-                                <!-- <div class="chat-avatar">
-                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
-                            </div> -->
-                                <div class="chat-content">
-                                    <div class="chat-profile-name">
-                                        <h6 id="replyUser"><i class="ti ti-circle-filled fs-7 mx-2"></i><span class="chat-time"
-                                                id="replytime"></span><span class="msg-read success"><i
-                                                    class="ti ti-checks"></i></span></h6>
-                                    </div>
-                                    <div class="chat-info">
-                                        <div class="message-content">
-                                            <div class="message-reply reply-content" id="replyContent">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                </div>
-                                <a href="#" class="close-replay" id="closeReply">
-                                    <i class="ti ti-x"></i>
-                                </a>
-                            </div>
-
-                            <input type="text" id="message-input" class="form-control" placeholder="{{ __('Type Your Message')}}">
+                            <input type="text" id="message-input" class="form-control" placeholder="{{ __('Type Your Message') }}">
                         </div>
                         <div class="form-item emoj-action-foot">
                             <a href="javascript:void(0);" id="emoji-button" class="action-circle">
                                 <i class="ti ti-mood-smile"></i>
                             </a>
                         </div>
+                        <div class="form-item emoj-action-foot d-none">
+                            <a href="javascript:void(0);" id="location-button" class="action-circle">
+                                <i class="ti ti-location"></i>
+                            </a>
+                        </div>
+                        @if($callsProvider === 'meet')
+                        <div class="form-item emoj-action-foot">
+                            <a href="javascript:void(0);" id="send-meet-link-btn" class="action-circle" title="Send Google Meet link">
+                                <img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon">
+                            </a>
+                        </div>
+                        @endif
                         <div id="emoji-picker" style="display: none;">
                             <ul id="emoji-list"></ul>
                         </div>
-                        <div class="form-item position-relative d-flex align-items-center justify-content-center">
-                            <a href="#" class="action-circle file-action position-absolute"><i class="ti ti-folder"></i></a>
-                            <input type="file" class="open-file position-relative" name="files" id="files-new">
+                        <div class="form-item dropdown">
+                            <a href="javascript:void(0);" class="action-circle" data-bs-toggle="dropdown" aria-expanded="false" title="{{ __('Attachments') }}">
+                                <i class="ti ti-plus"></i>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end p-2">
+                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-camera"><i class="ti ti-camera me-2"></i>{{ __('Camera') }}</a></li>
+                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-gallery"><i class="ti ti-photo me-2"></i>{{ __('Gallery') }}</a></li>
+                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-audio"><i class="ti ti-music me-2"></i>{{ __('Audio') }}</a></li>
+                                <li><a class="dropdown-item" href="javascript:void(0);" id="attach-file"><i class="ti ti-file me-2"></i>{{ __('File') }}</a></li>
+                            </ul>
+                            <input type="file" class="d-none" name="files" id="files">
+                            <input type="file" class="d-none" id="files-camera" accept="image/*" capture="environment">
                         </div>
-
-                        <div class="form-btn">
-                            <button class="btn btn-primary" id="send-message" type="submit">
+                        <div>
+                            <button class="btn btn-primary" id="send-button" type="submit">
                                 <i class="ti ti-send"></i>
                             </button>
                         </div>
@@ -160,6 +177,12 @@
                     <div class="contact-profile-info">
                         <div class="avatar avatar-xxl online mb-2">
                             <img id="group-avatar" src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="img">
+                        </div>
+                        <div id="group-icon-edit-wrap" class="mb-2 d-none">
+                            <label for="group-icon-upload" class="btn btn-sm btn-outline-primary">
+                                <i class="ti ti-camera me-1"></i>{{ __('Change Icon') }}
+                            </label>
+                            <input type="file" id="group-icon-upload" class="d-none" accept="image/*">
                         </div>
                         <h6 id="group-name"></h6>
                         <p id="group-participants">Group - 40 Participants</p>
@@ -538,7 +561,7 @@
 <!-- /Report User -->
 
 <!-- Delete Chat -->
-<div class="modal fade" id="delete-group">
+<div class="modal fade" id="delete-group" data-bs-backdrop="false">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
@@ -560,7 +583,7 @@
                             <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel')}}</a>
                         </div>
                         <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100" id="deleteGroupBtn">{{ __('Delete')}}</button>
+                            <button type="button" class="btn btn-primary w-100" id="deleteGroupBtn">{{ __('Delete')}}</button>
                         </div>
                     </div>
                 </form>
@@ -572,200 +595,9 @@
 
 
 
-<!-- Voice Call attend -->
-<div class="modal voice-call fade" id="voice_attend">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header d-flex border-0 pb-0">
-                <div class="card bg-transparent-dark flex-fill border mb-3">
-                    <div class="card-body d-flex justify-content-between p-3">
-                        <div class="d-flex align-items-center">
-                            <span class="avatar avatar-lg online me-2">
-                                <img src="assets/img/profiles/avatar-06.jpg" class="rounded-circle" alt="user">
-                            </span>
-                            <div>
-                                <h6>Edward Lietz</h6>
-                                <span>+22-555-345-11</span>
-                            </div>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <span class="badge border border-primary  text-primary badge-sm me-2">
-                                <i class="ti ti-point-filled"></i>
-                                01:15:25
-                            </span>
-                            <a href="" class="user-add bg-primary rounded d-flex justify-content-center align-items-center text-white" data-bs-toggle="modal" data-bs-target="#voice_group">
-                                <i class="ti ti-user-plus"></i>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-body border-0 pt-0">
-                <div class="card audio-crd bg-transparent-dark border">
-                    <div class="modal-bgimg">
-                        <span class="modal-bg1">
-                            <img src="assets/img/bg/bg-02.png" class="img-fluid" alt="bg">
-                        </span>
-                        <span class="modal-bg2">
-                            <img src="assets/img/bg/bg-03.png" class="img-fluid" alt="bg">
-                        </span>
-                    </div>
-                    <div class="card-body p-3">
-                        <div class="d-flex justify-content-center align-items-center pt-5">
-                            <span class="avatar avatar-xxxl bg-soft-primary rounded-circle p-2">
-                                <img src="assets/img/profiles/avatar-06.jpg" class="rounded-circle" alt="user">
-                            </span>
-
-                        </div>
-                        <div class="d-flex align-items-end justify-content-end">
-                            <span class="call-span border border-2 border-primary d-flex justify-content-center align-items-center rounded">
-                                <span class="avatar avatar-xl bg-soft-primary rounded-circle p-2">
-                                    <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="user">
-                                </span>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center border-0 pt-0">
-                <div class="call-controll-block d-flex align-items-center justify-content-center rounded-pill">
-                    <a href="javascript:void(0);" class="call-controll mute-bt d-flex align-items-center justify-content-center">
-                        <i class="ti ti-microphone"></i>
-                    </a>
-                    <a href="javascript:void(0);" class="call-controll d-flex align-items-center justify-content-center">
-                        <i class="ti ti-volume"></i>
-                    </a>
-                    <a href="javascript:void(0);" data-bs-dismiss="modal" class="call-controll call-decline d-flex align-items-center justify-content-center">
-                        <i class="ti ti-phone"></i>
-                    </a>
-                    <a href="javascript:void(0);" class="call-controll d-flex align-items-center justify-content-center">
-                        <i class="ti ti-maximize"></i>
-                    </a>
-                    <a href="javascript:void(0);" class="call-controll d-flex align-items-center justify-content-center">
-                        <i class="ti ti-dots"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Voice Call attend -->
-
-
-
-
-<div class="modal fade" id="start-video-call">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header d-flex border-0 pb-0">
-                <div class="card bg-transparent-dark flex-fill border">
-                    <div class="card-body d-flex justify-content-between">
-                        <div class="d-flex align-items-center">
-                            <span class="avatar avatar-lg online me-2">
-                                <img src="assets/img/profiles/avatar-05.jpg" class="rounded-circle" alt="user">
-                            </span>
-                            <div>
-                                <h6>Federico Wells</h6>
-                                <span>+22-555-345-11</span>
-                            </div>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <span class="badge border border-primary  text-primary badge-sm me-2">
-                                <i class="ti ti-point-filled"></i>
-                                01:15:25
-                            </span>
-                            <a href="javascript:void(0);" class="user-add bg-primary rounded d-flex justify-content-center align-items-center text-white" data-bs-toggle="modal" data-bs-target="#video_group">
-                                <i class="ti ti-user-plus"></i>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-body border-0 pt-0">
-                <div class="video-call-view br-8 overflow-hidden position-relative">
-                    <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
-                    <div class="mini-video-view active br-8 overflow-hidden position-absolute">
-                        <img src="assets/img/video/user-image.jpg" alt="">
-                        <div class="bg-soft-primary mx-auto default-profile rounded-circle align-items-center justify-content-center">
-                            <span class="avatar  avatar-lg rounded-circle bg-primary ">RG</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center border-0 pt-0">
-                <div class="call-controll-block d-flex align-items-center justify-content-center rounded-pill">
-                    <a href="javascript:void(0);" class="call-controll mute-bt d-flex align-items-center justify-content-center">
-                        <i class="ti ti-microphone"></i>
-                    </a>
-                    <a href="javascript:void(0);" class="call-controll d-flex align-items-center justify-content-center">
-                        <i class="ti ti-volume"></i>
-                    </a>
-                    <a href="javascript:void(0);" class="call-controll mute-video d-flex align-items-center justify-content-center">
-                        <i class="ti ti-video"></i>
-                    </a>
-                    <a href="javascript:void(0);" data-bs-dismiss="modal" class="call-controll call-decline d-flex align-items-center justify-content-center">
-                        <i class="ti ti-phone"></i>
-                    </a>
-                    <a href="javascript:void(0);" class="call-controll d-flex align-items-center justify-content-center">
-                        <i class="ti ti-mood-smile"></i>
-                    </a>
-                    <a href="javascript:void(0);" class="call-controll d-flex align-items-center justify-content-center">
-                        <i class="ti ti-maximize"></i>
-                    </a>
-                    <a href="javascript:void(0);" class="call-controll d-flex align-items-center justify-content-center">
-                        <i class="ti ti-dots"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!--Group Video Call -->
-<div class="modal fade" id="group_video">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header justify-content-center border-0">
-                <span class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
-                    <i class="ti ti-video"></i>
-                </span>
-                <h4 class="modal-title">Video Calling...</h4>
-            </div>
-            <div class="modal-body pb-0">
-                <div class="card bg-light mb-0">
-                    <div class="card-body d-flex justify-content-center">
-                        <div>
-                            <div class="d-flex justify-content-center avatar-group mb-2">
-                                <a href="#" class=" ">
-                                    <img src="assets/img/profiles/avatar-06.jpg" class="rounded-circle" alt="user">
-                                </a>
-                                <a href="#" class="">
-                                    <img src="assets/img/profiles/avatar-01.jpg" class="rounded-circle" alt="user">
-                                </a>
-                                <a href="#" class="">
-                                    <img src="assets/img/profiles/avatar-05.jpg" class="rounded-circle" alt="user">
-                                </a>
-                                <a href="#" class="">
-                                    <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="user">
-                                </a>
-                            </div>
-                            <h6 class="fs-14">Edward Lietz, Aariyan Jose, Federico Wells, +1</h6>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center border-0">
-                <a href="" class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2" data-bs-toggle="modal" data-bs-target="#video_group"><span>
-                        <i class="ti ti-phone fs-20"></i>
-                    </span></a>
-                <a href="" class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center"><span>
-                        <i class="ti ti-phone-off fs-20"></i>
-                    </span></a>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Group Video Call -->
+{{-- Group call UI is shared with 1:1 chat via frontend.partials.popups:
+     active/incoming video (#video_group_new, #video-call-new-group)
+     and active/incoming audio (#audio_group_new, #audio-call-new-group). --}}
 
 
 
@@ -1123,64 +955,6 @@
 </div>
 <!-- /Add Contact -->
 
-<!-- New Group Modal -->
-<div class="modal fade" id="new-group">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">{{ __('New Group')}}</h4>
-                <button type="button" class="btn-close" id="group-add-cancle-btn" data-bs-dismiss="modal" aria-label="Close">
-                    <i class="ti ti-x"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="group-form">
-                    <div class="d-flex justify-content-center align-items-center">
-                        <label for="avatar-upload" class="set-pro avatar avatar-xxl rounded-circle mb-3 p-1">
-                            <img id="avatar-preview"
-                                src="assets/img/profiles/avatar-03.jpg"
-                                class="rounded-circle" alt="user">
-                            <span class="add avatar avatar-sm d-flex justify-content-center align-items-center">
-                                <i class="ti ti-plus rounded-circle d-flex justify-content-center align-items-center"></i>
-                            </span>
-                        </label>
-                        <input type="file" id="avatar-upload" style="display: none;" accept="image/*">
-                    </div>
-                    <div class="row">
-                        <div class="col-lg-12">
-                            <label class="form-label">{{ __('Group Name')}}</label>
-                            <div class="input-icon mb-3 position-relative">
-                                <input type="text" id="group-names" class="form-control" placeholder="{{ __('Group Name')}}">
-                                <span class="icon-addon">
-                                    <i class="ti ti-users-group"></i>
-                                </span>
-                            </div>
-                        </div>
-                        <div class="col-lg-12">
-                            <label class="form-label">{{ __('About')}}</label>
-                            <div class="input-icon mb-3 position-relative">
-                                <input type="text" id="group-about" class="form-control" placeholder="{{ __('About')}}">
-                                <span class="icon-addon">
-                                    <i class="ti ti-info-octagon"></i>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" id="cancle-btn-group" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel')}}</a>
-                        </div>
-                        <div class="col-6">
-                            <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#add-group">{{ __('Next')}}</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /New Group Modal -->
-
 <!--Group Voice Call -->
 <div class="modal fade" id="group_voice">
     <div class="modal-dialog modal-dialog-centered">
@@ -1226,43 +1000,6 @@
     </div>
 </div>
 <!-- /Group Voice Call -->
-
-<!-- Add Group Modal -->
-<div class="modal fade" id="add-group">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">{{ __('Add Members')}}</h4>
-                <button type="button" class="btn-close" id="canlce-btn-search" data-bs-dismiss="modal" aria-label="Close">
-                    <i class="ti ti-x"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form onsubmit="return false" id="add-members-form">
-                    <div class="search-wrap contact-search mb-3">
-                        <div class="input-group">
-                            <input type="text" id="groupcontactSearchInput" class="form-control" placeholder="{{ __('Search')}}">
-                            <a href="javascript:void(0);" class="input-group-text"><i class="ti ti-search"></i></a>
-                        </div>
-                    </div>
-                    <h6 class="mb-3 fw-medium fs-16">{{ __('Contacts')}}</h6>
-                    <div class="contact-scroll contact-select mb-3" id="users-list"></div>
-                    <div id="noGroupMatchesModalMessage" style="display: none;">{{ __('No matches found.')}}</div> <!-- User list will be displayed here -->
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#new-group">{{ __('Previous')}}</a>
-                        </div>
-                        <div class="col-6">
-                            <button type="button" class="btn btn-primary w-100" id="start-group">{{ __('Start Group')}}</button>
-                        </div>
-                    </div>
-
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Add Group Modal -->
 
 <!-- Contact Detail -->
 <div class="modal fade" id="contact-details">
@@ -1411,7 +1148,7 @@
 <!-- /Contact Detail -->
 
 <!-- Logout -->
-<div class="modal fade" id="group-logout">
+<div class="modal fade" id="group-logout" data-bs-backdrop="false">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
@@ -1492,7 +1229,7 @@
 </div>
 <!-- /Report Group -->
 
-<div class="modal fade" id="clear-group-chat">
+<div class="modal fade" id="clear-group-chat" data-bs-backdrop="false">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
@@ -1514,7 +1251,7 @@
                             <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel')}}</a>
                         </div>
                         <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100" id="clear-group-btn">{{ __('Delete')}}</button>
+                            <button type="button" class="btn btn-primary w-100" id="clear-group-btn">{{ __('Delete')}}</button>
                         </div>
                     </div>
                 </form>
@@ -1528,6 +1265,102 @@
 <!-- /Content -->
 
 <div id="spa-page-modals">
+{{-- New / Add Group modals: must live here (not inside #spa-page-content) so Bootstrap’s body backdrop stacks below the dialog --}}
+<!-- New Group Modal -->
+<div class="modal fade" id="new-group">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">{{ __('New Group')}}</h4>
+                <button type="button" class="btn-close" id="group-add-cancle-btn" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="group-form">
+                    <div class="d-flex justify-content-center align-items-center">
+                        <label for="avatar-upload" class="set-pro avatar avatar-xxl rounded-circle mb-3 p-1">
+                            <img id="avatar-preview"
+                                src="assets/img/profiles/avatar-03.jpg"
+                                class="rounded-circle" alt="user">
+                            <span class="add avatar avatar-sm d-flex justify-content-center align-items-center">
+                                <i class="ti ti-plus rounded-circle d-flex justify-content-center align-items-center"></i>
+                            </span>
+                        </label>
+                        <input type="file" id="avatar-upload" style="display: none;" accept="image/*">
+                    </div>
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <label class="form-label">{{ __('Group Name')}}</label>
+                            <div class="input-icon mb-3 position-relative">
+                                <input type="text" id="group-names" class="form-control" placeholder="{{ __('Group Name')}}">
+                                <span class="icon-addon">
+                                    <i class="ti ti-users-group"></i>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-lg-12">
+                            <label class="form-label">{{ __('About')}}</label>
+                            <div class="input-icon mb-3 position-relative">
+                                <input type="text" id="group-about" class="form-control" placeholder="{{ __('About')}}">
+                                <span class="icon-addon">
+                                    <i class="ti ti-info-octagon"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <a href="#" class="btn btn-outline-primary w-100" id="cancle-btn-group" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel')}}</a>
+                        </div>
+                        <div class="col-6">
+                            <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#add-group">{{ __('Next')}}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- /New Group Modal -->
+
+<!-- Add Group Modal -->
+<div class="modal fade" id="add-group">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">{{ __('Add Members')}}</h4>
+                <button type="button" class="btn-close" id="canlce-btn-search" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="return false" id="add-members-form">
+                    <div class="search-wrap contact-search mb-3">
+                        <div class="input-group">
+                            <input type="text" id="groupcontactSearchInput" class="form-control" placeholder="{{ __('Search')}}">
+                            <a href="javascript:void(0);" class="input-group-text"><i class="ti ti-search"></i></a>
+                        </div>
+                    </div>
+                    <h6 class="mb-3 fw-medium fs-16">{{ __('Contacts')}}</h6>
+                    <div class="contact-scroll contact-select mb-3" id="users-list"></div>
+                    <div id="noGroupMatchesModalMessage" style="display: none;">{{ __('No matches found.')}}</div> <!-- User list will be displayed here -->
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <a href="#" class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#new-group">{{ __('Previous')}}</a>
+                        </div>
+                        <div class="col-6">
+                            <button type="button" class="btn btn-primary w-100" id="start-group">{{ __('Start Group')}}</button>
+                        </div>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- /Add Group Modal -->
+
 <div class="modal fade" id="forward-modal" tabindex="-1" aria-labelledby="forwardModalLabel"
     aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -1549,13 +1382,7 @@
                 <button type="button" class="btn btn-primary" id="send-forward">Send</button>
             </div>
         </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal"
-                aria-label="Close">Cancel</button>
-            <button type="button" class="btn btn-primary" id="send-forward">Send</button>
-        </div>
     </div>
-</div>
 </div>
 <div class="modal fade" id="message-delete">
     <div class="modal-dialog modal-dialog-centered">
@@ -1596,14 +1423,12 @@
     </div>
 </div>
 
-<!--Voice Modal-->
-<div class="modal fade" id="record_audio_group">
+{{-- Voice message recording: same UI/flow as 1:1 chat (firebaseChat.js). Group audio/video call modals live in frontend.partials.popups. --}}
+<div class="modal fade" id="record_audio">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
-                    Voice Message
-                </h5>
+                <h5 class="modal-title">{{ __('Voice Message') }}</h5>
                 <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
                     <i class="fas fa-times close_icon"></i>
                 </button>
@@ -1611,197 +1436,36 @@
             <div class="modal-body">
                 <div class="form-group">
                     <div class="center-align">
-                        <audio controls id="group_audio"></audio>
+                        <p id="voice-record-timer" class="text-center mb-2 fw-semibold text-muted" aria-live="polite">0:00</p>
+                        <audio controls id="audio" preload="metadata"></audio>
                         <br>
-                        <button type="button" class="btn btn-warning btn-sm" id="startRecordingGroup">Start</button>
-                        <button type="button" class="btn btn-dark btn-sm" id="stopRecordingGroup" disabled>Stop</button>
-
-                        <button type="button" class="btn btn-info btn-sm" id="send_voice_group" disabled>Send</button>
+                        <button type="button" class="btn btn-warning btn-sm" id="startRecording">{{ __('Start') }}</button>
+                        <button type="button" class="btn btn-dark btn-sm" id="stopRecording" disabled>{{ __('Stop') }}</button>
+                        <button type="button" class="btn btn-info btn-sm" id="send_voice" disabled>{{ __('Send') }}</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-<!-- /Voice Modal-->
-
-<!-- Voice Call group -->
-
-<div class="modal fade" id="audio-call-new-group">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header justify-content-center border-0">
-                <span class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
-                    <i class="ti ti-phone-call"></i>
-                </span>
-                <h4 class="modal-title">{{ __('Audio Calling...')}}</h4>
-            </div>
-            <div class="modal-body pb-0">
-                <div class="card bg-light mb-0">
-                    <div class="card-body d-flex calling-audio-group justify-content-center">
-                        <div class="d-flex align-items-center justify-content-center flex-column overflow-hidden">
-                            <span class="avatar avatar-new-audio-group avatar-xxl">
-                                <img src="assets/img/profiles/avatar-06.jpg" class="rounded-circle" alt="user">
-                            </span>
-                            <h6 class="fs-14 audio-name">Edward Lietz</h6>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center border-0">
-                <a href="javascript:void(0);" class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2" id="join-audio-group">
-                    <i class="ti ti-phone fs-20"></i>
-                </a>
-                <a href="javascript:void(0);" class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center" data-bs-dismiss="modal" aria-label="close" id="decline-audio-group">
-                    <i class="ti ti-phone-off fs-20"></i>
-                </a>
-            </div>
-        </div>
-    </div>
 </div>
 
-<div class="modal voice-call fade" id="audio_group_new">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <div class="modal-header d-flex border-0 pb-0">
-                <div class="card bg-transparent-dark flex-fill border mb-3">
-                    <div class="card-body d-flex justify-content-between p-3">
-
-                    </div>
-                </div>
-            </div>
-            <div class="modal-body border-0 pt-0">
-                <div class="tab-content dashboard-tab">
-
-                    <div class="tab-pane fade active show" id="pills-group" role="tabpanel" aria-labelledby="pills-group-tab">
-                        <div class="row">
-                            <div class="col-md-6" id="local-user-details">
-                                <div class="card audio-crd bg-transparent-dark border border-primary pt-4">
-                                    <div class="modal-bgimg">
-                                        <span class="modal-bg1">
-                                            <img src="assets/img/bg/bg-02.png" class="img-fluid" alt="bg">
-                                        </span>
-                                        <span class="modal-bg2">
-                                            <img src="assets/img/bg/bg-03.png" class="img-fluid" alt="bg">
-                                        </span>
-                                    </div>
-                                    <div class="card-body ">
-
-                                        <div class="d-flex justify-content-center align-items-center">
-                                            <!-- This is where the local user's avatar and name will be shown -->
-                                            <span class="avatar avatar-xxxl bg-soft-primary rounded-circle p-2">
-                                                <img src="" id="local-user-avatar" class="rounded-circle" alt="local user">
-                                            </span>
-                                            <div class="d-flex audio-group-m-name align-items-end justify-content-end">
-                                                <span class="badge badge-info" id="local-user-name">{{ __('Local User')}}</span>
-                                            </div>
-                                        </div>
-
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6" id="remote-users-container">
-                                <!-- Remote users will display here -->
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center border-0 pt-0">
-                <div class="call-controll-block d-flex align-items-center justify-content-center rounded-pill">
-                    <a href="javascript:void(0);" id="mute-audio-group-btn" class="call-controll mute-bt d-flex align-items-center justify-content-center">
-                        <i class="ti ti-microphone"></i>
-                    </a>
-                    <a href="javascript:void(0);" data-bs-dismiss="modal" id="leave-group-audio" class="call-controll call-decline d-flex align-items-center justify-content-center">
-                        <i class="ti ti-phone"></i>
-                    </a>
-
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Voice Call group -->
-
-<div class="modal fade" id="video-call-new-group" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header justify-content-center border-0">
-                <span
-                    class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
-                    <i class="ti ti-phone-call"></i>
-                </span>
-                <h4 class="modal-title" id="videoCallModalLabel">{{ __('Video Calling...')}}</h4>
-            </div>
-            <div class="modal-body pb-0">
-                <div class="card bg-light mb-0">
-                    <div class="card-body calling-name-group d-flex justify-content-center">
-                        <div class="d-flex flex-column align-items-center justify-content-center overflow-hidden">
-                            <span class="avatar avatar-new-group avatar-new avatar-xxl">
-                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                    alt="user">
-                            </span>
-                            <h6 class="fs-14">{{ __('Group Calling')}}</h6>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center border-0">
-                <a href="javascript:void(0);" id="join-group"
-                    class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2">
-                    <i class="ti ti-phone fs-20"></i>
-                </a>
-                <a href="javascript:void(0);" id="decline-group"
-                    class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center"
-                    data-bs-dismiss="modal" aria-label="close">
-                    <i class="ti ti-phone-off fs-20"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="video_group_new" tabindex="-1" aria-labelledby="videoGroupModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="videoGroupModalLabel">{{ __('Group Video Call')}}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-                    <i class="ti ti-x"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-md-6 d-flex ">
-                        <!-- Local Video -->
-                        <div id="local-player" class="player video-call-view br-8 overflow-hidden flex-fill">
-                            <!-- Local video stream will be shown here -->
-                        </div>
-                    </div>
-                    <div class="col-md-6 d-flex">
-                        <!-- Remote Videos -->
-                        <div id="remote-playerlist" class="player row row-gap-4 flex-fill">
-                            <!-- Remote video players will be appended here dynamically -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center border-0 pt-0">
-                <div class="call-controll-block d-flex align-items-center justify-content-center rounded-pill">
-                    <a href="javascript:void(0);" id="mute-group-btn" class="call-controll mute-bt d-flex align-items-center justify-content-center">
-                        <i class="ti ti-microphone"></i>
-                    </a>
-                    <a href="javascript:void(0);" id="leave-group-video1" data-bs-dismiss="modal" class="call-controll call-decline d-flex align-items-center justify-content-center">
-                        <i class="ti ti-phone"></i>
-                    </a>
-                    <a href="javascript:void(0);" id="video-group-btn" class="call-controll mute-video d-flex align-items-center justify-content-center">
-                        <i class="ti ti-video"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
+@if($callsProvider === 'meet')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var meetBtn = document.getElementById('send-meet-link-btn');
+    if (meetBtn) {
+        meetBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var msgInput = document.getElementById('message-input');
+            if (msgInput) {
+                msgInput.value = 'https://meet.google.com/new';
+                msgInput.focus();
+                msgInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        });
+    }
+});
+</script>
+@endif
 @endsection

@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class ChatController extends Controller
 {
@@ -57,20 +58,32 @@ class ChatController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $chats = Chat::where('sender_id', $userId)
-            ->orWhere('receiver_id', $userId)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $limit = min(max((int) $request->query('limit', 40), 1), 100);
 
-        $seen = [];
+        $lastIds = Chat::query()
+            ->selectRaw('MAX(id) as id')
+            ->where(function ($q) use ($userId) {
+                $q->where('sender_id', $userId)->orWhere('receiver_id', $userId);
+            })
+            ->groupBy(DB::raw('LEAST(sender_id, receiver_id), GREATEST(sender_id, receiver_id)'))
+            ->orderByRaw('MAX(created_at) DESC')
+            ->limit($limit)
+            ->pluck('id');
+
+        if ($lastIds->isEmpty()) {
+            return response()->json([]);
+        }
+
+        $chats = Chat::whereIn('id', $lastIds)->orderBy('created_at', 'desc')->get();
+        $otherIds = $chats->map(function ($m) use ($userId) {
+            return (int) $m->sender_id === (int) $userId ? (int) $m->receiver_id : (int) $m->sender_id;
+        })->unique()->values();
+        $usersById = User::whereIn('id', $otherIds)->get()->keyBy('id');
+
         $list = [];
         foreach ($chats as $m) {
             $otherId = (int) $m->sender_id === (int) $userId ? $m->receiver_id : $m->sender_id;
-            if (isset($seen[$otherId])) {
-                continue;
-            }
-            $seen[$otherId] = true;
-            $other = User::find($otherId);
+            $other = $usersById->get((int) $otherId);
             $name = $other ? trim(($other->first_name ?? '') . ' ' . ($other->last_name ?? '')) : ('User ' . $otherId);
             if ($name === '' && $other) {
                 $name = $other->user_name ?? $other->email ?? ('User ' . $otherId);
@@ -99,12 +112,26 @@ class ChatController extends Controller
     {
         $fromUserId = Auth::id();
         $toUserId = (int) $userId;
+        $limit = min(max((int) $request->query('limit', 80), 1), 200);
+        $beforeId = (int) $request->query('before_id', 0);
 
-        $messages = Chat::where(function ($q) use ($fromUserId, $toUserId) {
+        $messagesQuery = Chat::where(function ($q) use ($fromUserId, $toUserId) {
             $q->where('sender_id', $fromUserId)->where('receiver_id', $toUserId);
         })->orWhere(function ($q) use ($fromUserId, $toUserId) {
             $q->where('sender_id', $toUserId)->where('receiver_id', $fromUserId);
-        })->orderBy('created_at')->get()->map(function ($chat) {
+        });
+
+        if ($beforeId > 0) {
+            $messagesQuery->where('id', '<', $beforeId);
+        }
+
+        $messages = $messagesQuery
+            ->orderBy('id', 'desc')
+            ->limit($limit)
+            ->get()
+            ->reverse()
+            ->values()
+            ->map(function ($chat) {
             return [
                 'id' => $chat->id,
                 'from' => $chat->sender_id,

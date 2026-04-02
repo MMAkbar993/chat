@@ -7,6 +7,9 @@
 
     var baseUrl = typeof APP_URL !== 'undefined' && APP_URL ? APP_URL : (window.location.origin || '');
     if (baseUrl && baseUrl.slice(-1) === '/') baseUrl = baseUrl.slice(0, -1);
+    var runDebounceTimer = null;
+    var lastRunPath = '';
+    var publicProfileCache = {};
 
     function getPathname(url) {
         if (!url) return '';
@@ -105,78 +108,63 @@
                     var emailEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="email"]');
                     if (emailEl) emailEl.textContent = data.email || '—';
                     var contactUsername = data.userName || data.user_name || '';
+                    var setField = function (field, value, asLink) {
+                        var el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
+                        if (!el) return;
+                        if (asLink && value && (value.indexOf('http') === 0 || value.indexOf('www') === 0)) {
+                            var href = value.indexOf('http') === 0 ? value : 'https://' + value;
+                            el.innerHTML = '<a href="' + escapeAttr(href) + '" target="_blank" rel="noopener">' + escapeHtml(value) + '</a>';
+                        } else {
+                            el.textContent = value || '—';
+                        }
+                    };
+                    var applyPublicProfile = function (pub) {
+                        if (!pub) return;
+                        if (pub.display_name && nameEl) nameEl.textContent = pub.display_name;
+                        var now = new Date();
+                        var localTime = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
+                        setField('local_time', localTime);
+                        setField('dob', pub.dob);
+                        setField('bio', pub.bio);
+                        setField('location', pub.location);
+                        setField('join_date', pub.join_date);
+                        if (pub.websites && pub.websites.length > 0) {
+                            setField('website', pub.websites[0].url, true);
+                        } else {
+                            setField('website', '');
+                        }
+                        var socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
+                        if (pub.social_links) {
+                            socialKeys.forEach(function (k) {
+                                setField(k, pub.social_links[k], true);
+                            });
+                        }
+                    };
+                    var cachedProfileKey = data.email ? ('email:' + data.email.toLowerCase()) : (contactUsername ? ('username:' + contactUsername.toLowerCase()) : '');
                     if (data.email) {
-                        fetch(baseUrl + '/api/public-profile-by-email?email=' + encodeURIComponent(data.email))
-                            .then(function (r) { return r.json(); })
-                            .then(function (pub) {
-                                if (!pub) return;
-                                if (pub.display_name && nameEl) nameEl.textContent = pub.display_name;
-                                var setField = function (field, value, asLink) {
-                                    var el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
-                                    if (!el) return;
-                                    if (asLink && value && (value.indexOf('http') === 0 || value.indexOf('www') === 0)) {
-                                        var href = value.indexOf('http') === 0 ? value : 'https://' + value;
-                                        el.innerHTML = '<a href="' + escapeAttr(href) + '" target="_blank" rel="noopener">' + escapeHtml(value) + '</a>';
-                                    } else {
-                                        el.textContent = value || '—';
-                                    }
-                                };
-                                var now = new Date();
-                                var localTime = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
-                                setField('local_time', localTime);
-                                setField('dob', pub.dob);
-                                setField('bio', pub.bio);
-                                setField('location', pub.location);
-                                setField('join_date', pub.join_date);
-                                if (pub.websites && pub.websites.length > 0) {
-                                    setField('website', pub.websites[0].url, true);
-                                } else {
-                                    setField('website', '');
-                                }
-                                var socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
-                                if (pub.social_links) {
-                                    socialKeys.forEach(function (k) {
-                                        setField(k, pub.social_links[k], true);
-                                    });
-                                }
-                            })
-                            .catch(function () {});
+                        if (cachedProfileKey && publicProfileCache[cachedProfileKey]) {
+                            applyPublicProfile(publicProfileCache[cachedProfileKey]);
+                        } else {
+                            fetch(baseUrl + '/api/public-profile-by-email?email=' + encodeURIComponent(data.email))
+                                .then(function (r) { return r.json(); })
+                                .then(function (pub) {
+                                    if (cachedProfileKey) publicProfileCache[cachedProfileKey] = pub;
+                                    applyPublicProfile(pub);
+                                })
+                                .catch(function () {});
+                        }
                     } else if (contactUsername) {
-                        fetch(baseUrl + '/api/public-profile-by-username?username=' + encodeURIComponent(contactUsername))
-                            .then(function (r) { return r.json(); })
-                            .then(function (pub) {
-                                if (!pub) return;
-                                if (pub.display_name && nameEl) nameEl.textContent = pub.display_name;
-                                var setField = function (field, value, asLink) {
-                                    var el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
-                                    if (!el) return;
-                                    if (asLink && value && (value.indexOf('http') === 0 || value.indexOf('www') === 0)) {
-                                        var href = value.indexOf('http') === 0 ? value : 'https://' + value;
-                                        el.innerHTML = '<a href="' + escapeAttr(href) + '" target="_blank" rel="noopener">' + escapeHtml(value) + '</a>';
-                                    } else {
-                                        el.textContent = value || '—';
-                                    }
-                                };
-                                var now = new Date();
-                                var localTime = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
-                                setField('local_time', localTime);
-                                setField('dob', pub.dob);
-                                setField('bio', pub.bio);
-                                setField('location', pub.location);
-                                setField('join_date', pub.join_date);
-                                if (pub.websites && pub.websites.length > 0) {
-                                    setField('website', pub.websites[0].url, true);
-                                } else {
-                                    setField('website', '');
-                                }
-                                var socialKeys = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'];
-                                if (pub.social_links) {
-                                    socialKeys.forEach(function (k) {
-                                        setField(k, pub.social_links[k], true);
-                                    });
-                                }
-                            })
-                            .catch(function () {});
+                        if (cachedProfileKey && publicProfileCache[cachedProfileKey]) {
+                            applyPublicProfile(publicProfileCache[cachedProfileKey]);
+                        } else {
+                            fetch(baseUrl + '/api/public-profile-by-username?username=' + encodeURIComponent(contactUsername))
+                                .then(function (r) { return r.json(); })
+                                .then(function (pub) {
+                                    if (cachedProfileKey) publicProfileCache[cachedProfileKey] = pub;
+                                    applyPublicProfile(pub);
+                                })
+                                .catch(function () {});
+                        }
                     } else {
                         ['local_time', 'dob', 'website', 'bio', 'location', 'join_date', 'facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'].forEach(function (field) {
                             var el = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="' + field + '"]');
@@ -488,7 +476,11 @@
                 var gid = el.getAttribute('data-group-id');
                 el.querySelector('.chat-user-list').addEventListener('click', function (e) {
                     e.preventDefault();
+                    if (typeof selectedGroupId !== 'undefined' && selectedGroupId && gid && selectedGroupId !== gid) {
+                        if (typeof window.closeGroupInfoOffcanvas === 'function') window.closeGroupInfoOffcanvas();
+                    }
                     if (typeof selectedGroupId !== 'undefined') selectedGroupId = gid;
+                    if (typeof window !== 'undefined') window.__dreamchatSelectedGroupId = gid;
                     try {
                         if (typeof localStorage !== 'undefined') localStorage.setItem('selectedGroupId', gid);
                     } catch (err) {}
@@ -520,10 +512,15 @@
 
     function runForPathname(pathname) {
         if (!pathname) pathname = getPathname(window.location.href);
+        if (runDebounceTimer) clearTimeout(runDebounceTimer);
+        runDebounceTimer = setTimeout(function () {
+            if (pathname === lastRunPath) return;
+            lastRunPath = pathname;
         // Run all loaders so sidebar tabs have data when user switches
-        loadContacts();
-        loadChatList();
-        loadGroups();
+            loadContacts();
+            loadChatList();
+            loadGroups();
+        }, 120);
     }
 
     if (document.readyState === 'loading') {

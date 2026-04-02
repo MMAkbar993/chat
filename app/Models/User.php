@@ -44,16 +44,20 @@ class User extends Authenticatable implements JWTSubject
         if (empty($this->profile_image)) {
             return '';
         }
+        static $resolved = [];
+        if (array_key_exists($this->profile_image, $resolved)) {
+            return $resolved[$this->profile_image];
+        }
         $path = 'image/profile/' . $this->profile_image;
         $oldPath = 'public/image/profile/' . $this->profile_image;
         $disk = Storage::disk('public');
         if ($disk->exists($path)) {
-            return request()->getSchemeAndHttpHost() . '/storage/' . $path;
+            return $resolved[$this->profile_image] = request()->getSchemeAndHttpHost() . '/storage/' . $path;
         }
         if ($disk->exists($oldPath)) {
-            return request()->getSchemeAndHttpHost() . '/storage/' . $oldPath;
+            return $resolved[$this->profile_image] = request()->getSchemeAndHttpHost() . '/storage/' . $oldPath;
         }
-        return '';
+        return $resolved[$this->profile_image] = '';
     }
 
 

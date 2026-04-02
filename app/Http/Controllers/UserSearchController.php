@@ -121,47 +121,8 @@ class UserSearchController extends Controller
                 'social_links' => [],
             ]);
         }
-        $details = $user->get_user_details;
-        $verifiedPlatforms = $user->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
-        $websites = $user->websites->filter(fn ($w) => $w->isVerified())->map(fn ($w) => [
-            'url' => $w->getDisplayUrl(),
-        ])->values()->all();
 
-        $platformToDetail = [
-            'facebook' => optional($details)->facebook,
-            'x' => optional($details)->twitter,
-            'twitter' => optional($details)->twitter,
-            'instagram' => optional($details)->instagram,
-            'linkedin' => optional($details)->linkedin,
-            'youtube' => optional($details)->youtube,
-            'kick' => optional($details)->kick,
-            'twitch' => optional($details)->twitch,
-        ];
-        $socialLinks = [];
-        foreach (['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'] as $key) {
-            $url = $platformToDetail[$key] ?? null;
-            if (empty($url)) {
-                $oauthKey = $key === 'twitter' ? 'x' : $key;
-                $acc = $user->socialAccounts()->where('platform', $oauthKey)->where('oauth_verified', true)->first();
-                $url = $acc && $acc->profile_url ? $acc->profile_url : ($acc ? ('https://' . ($key === 'twitter' ? 'x.com' : $key . '.com')) : null);
-            }
-            $socialLinks[$key] = $url ?: '';
-        }
-
-        return response()->json([
-            'profile_loaded' => true,
-            'display_name' => $user->public_display_name,
-            'primary_role' => $user->primary_role ? trim((string) $user->primary_role) : '',
-            'bio' => $details->user_about ?? '',
-            'location' => $user->country ?? $details->location ?? '',
-            'websites' => $websites,
-            'join_date' => $user->created_at?->format('F j, Y'),
-            'dob' => $user->dob ? \Carbon\Carbon::parse($user->dob)->format('d F Y') : null,
-            'kyc_verified' => $user->isKycVerified(),
-            'social_verified' => count($verifiedPlatforms) > 0,
-            'social_platforms' => $verifiedPlatforms,
-            'social_links' => $socialLinks,
-        ]);
+        return response()->json($this->buildPublicProfilePayload($user));
     }
 
     /**
@@ -198,49 +159,7 @@ class UserSearchController extends Controller
                 'social_links' => [],
             ]);
         }
-
-        $details = $user->get_user_details;
-        $verifiedPlatforms = $user->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
-        $websites = $user->websites->filter(fn ($w) => $w->isVerified())->map(fn ($w) => [
-            'url' => $w->getDisplayUrl(),
-        ])->values()->all();
-
-        $platformToDetail = [
-            'facebook' => optional($details)->facebook,
-            'x' => optional($details)->twitter,
-            'twitter' => optional($details)->twitter,
-            'instagram' => optional($details)->instagram,
-            'linkedin' => optional($details)->linkedin,
-            'youtube' => optional($details)->youtube,
-            'kick' => optional($details)->kick,
-            'twitch' => optional($details)->twitch,
-        ];
-
-        $socialLinks = [];
-        foreach (['facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'kick', 'twitch'] as $key) {
-            $url = $platformToDetail[$key] ?? null;
-            if (empty($url)) {
-                $oauthKey = $key === 'twitter' ? 'x' : $key;
-                $acc = $user->socialAccounts()->where('platform', $oauthKey)->where('oauth_verified', true)->first();
-                $url = $acc && $acc->profile_url ? $acc->profile_url : ($acc ? ('https://' . ($key === 'twitter' ? 'x.com' : $key . '.com')) : null);
-            }
-            $socialLinks[$key] = $url ?: '';
-        }
-
-        return response()->json([
-            'profile_loaded' => true,
-            'display_name' => $user->public_display_name,
-            'primary_role' => $user->primary_role ? trim((string) $user->primary_role) : '',
-            'bio' => $details->user_about ?? '',
-            'location' => $user->country ?? $details->location ?? '',
-            'websites' => $websites,
-            'join_date' => $user->created_at?->format('F j, Y'),
-            'dob' => $user->dob ? \Carbon\Carbon::parse($user->dob)->format('d F Y') : null,
-            'kyc_verified' => $user->isKycVerified(),
-            'social_verified' => count($verifiedPlatforms) > 0,
-            'social_platforms' => $verifiedPlatforms,
-            'social_links' => $socialLinks,
-        ]);
+        return response()->json($this->buildPublicProfilePayload($user));
     }
 
     /**
@@ -276,16 +195,32 @@ class UserSearchController extends Controller
                 'social_links' => [],
             ]);
         }
+        return response()->json($this->buildPublicProfilePayload($user));
+    }
 
+    private function buildPublicProfilePayload(User $user): array
+    {
         $details = $user->get_user_details;
-        $verifiedPlatforms = $user->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
+        $socialAccounts = $user->socialAccounts ?? collect();
+        $verifiedPlatforms = $socialAccounts
+            ->where('oauth_verified', true)
+            ->pluck('platform')
+            ->filter()
+            ->values()
+            ->all();
+
+        $verifiedByPlatform = $socialAccounts
+            ->where('oauth_verified', true)
+            ->keyBy(function ($account) {
+                return strtolower((string) $account->platform);
+            });
+
         $websites = $user->websites->filter(fn ($w) => $w->isVerified())->map(fn ($w) => [
             'url' => $w->getDisplayUrl(),
         ])->values()->all();
 
         $platformToDetail = [
             'facebook' => optional($details)->facebook,
-            'x' => optional($details)->twitter,
             'twitter' => optional($details)->twitter,
             'instagram' => optional($details)->instagram,
             'linkedin' => optional($details)->linkedin,
@@ -299,13 +234,13 @@ class UserSearchController extends Controller
             $url = $platformToDetail[$key] ?? null;
             if (empty($url)) {
                 $oauthKey = $key === 'twitter' ? 'x' : $key;
-                $acc = $user->socialAccounts()->where('platform', $oauthKey)->where('oauth_verified', true)->first();
+                $acc = $verifiedByPlatform->get($oauthKey);
                 $url = $acc && $acc->profile_url ? $acc->profile_url : ($acc ? ('https://' . ($key === 'twitter' ? 'x.com' : $key . '.com')) : null);
             }
             $socialLinks[$key] = $url ?: '';
         }
 
-        return response()->json([
+        return [
             'profile_loaded' => true,
             'display_name' => $user->public_display_name,
             'primary_role' => $user->primary_role ? trim((string) $user->primary_role) : '',
@@ -318,7 +253,7 @@ class UserSearchController extends Controller
             'social_verified' => count($verifiedPlatforms) > 0,
             'social_platforms' => $verifiedPlatforms,
             'social_links' => $socialLinks,
-        ]);
+        ];
     }
 
     /**
@@ -410,23 +345,30 @@ class UserSearchController extends Controller
             });
         }
 
-        foreach ($usernames as $un) {
-            $un = trim($un);
-            if ($un === '') {
-                continue;
-            }
-            $user = User::whereRaw('LOWER(user_name) = ?', [mb_strtolower($un)])->first(['user_name', 'profile_image', 'primary_role', 'first_name', 'last_name', 'full_name']);
-            if ($user && $user->user_name) {
-                $key = mb_strtolower($user->user_name);
-                $byUsername[$key] = $user->profile_image_link;
-                $dn = $displayNameFromUser($user);
-                if ($dn !== '') {
-                    $nameByUsername[$key] = $dn;
-                }
-                $role = $user->primary_role ? trim((string) $user->primary_role) : '';
-                if ($role !== '') {
-                    $roleByUsername[$key] = $role;
-                }
+        if (count($usernames) > 0) {
+            $normalizedUsernames = array_values(array_unique(array_filter(array_map(static function ($un) {
+                return mb_strtolower(trim((string) $un));
+            }, $usernames))));
+
+            if (count($normalizedUsernames) > 0) {
+                User::whereIn('user_name', $normalizedUsernames)
+                    ->orWhereRaw('LOWER(user_name) in (' . implode(',', array_fill(0, count($normalizedUsernames), '?')) . ')', $normalizedUsernames)
+                    ->get(['user_name', 'profile_image', 'primary_role', 'first_name', 'last_name', 'full_name'])
+                    ->each(function ($user) use (&$byUsername, &$nameByUsername, &$roleByUsername, $displayNameFromUser) {
+                        if (! $user->user_name) {
+                            return;
+                        }
+                        $key = mb_strtolower($user->user_name);
+                        $byUsername[$key] = $user->profile_image_link;
+                        $dn = $displayNameFromUser($user);
+                        if ($dn !== '') {
+                            $nameByUsername[$key] = $dn;
+                        }
+                        $role = $user->primary_role ? trim((string) $user->primary_role) : '';
+                        if ($role !== '') {
+                            $roleByUsername[$key] = $role;
+                        }
+                    });
             }
         }
 

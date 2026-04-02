@@ -61,14 +61,24 @@ class AdminController extends Controller
      */
     public function usersData(Request $request)
     {
+        $page = max((int) $request->query('page', 1), 1);
+        $perPage = min(max((int) $request->query('per_page', 25), 5), 100);
+        $offset = ($page - 1) * $perPage;
+        $hasBlockedColumn = Schema::hasColumn('users', 'is_blocked');
+
         $query = User::where('user_type', '!=', 1)
             ->orderByRaw('COALESCE(last_name, first_name) ASC');
 
-        $users = $query->get()->map(function ($user, $index) {
-            $isBlocked = Schema::hasColumn('users', 'is_blocked') ? (bool) ($user->is_blocked ?? false) : false;
+        $total = (clone $query)->count();
+        $users = $query
+            ->skip($offset)
+            ->take($perPage)
+            ->get()
+            ->map(function ($user, $index) use ($offset, $hasBlockedColumn) {
+            $isBlocked = $hasBlockedColumn ? (bool) ($user->is_blocked ?? false) : false;
             return [
                 'id' => $user->id,
-                'sno' => $index + 1,
+                'sno' => $offset + $index + 1,
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
                 'name' => trim($user->first_name . ' ' . $user->last_name) ?: $user->full_name ?? '-',
@@ -82,7 +92,15 @@ class AdminController extends Controller
             ];
         });
 
-        return response()->json(['data' => $users]);
+        return response()->json([
+            'data' => $users,
+            'meta' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'last_page' => (int) ceil(max($total, 1) / $perPage),
+            ],
+        ]);
     }
 
     /**
