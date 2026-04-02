@@ -827,7 +827,6 @@ function formatedTimestamp(timestamp) {
 }
 
 function getLatestMessageForGroup(groupId) {
-    highlightActiveGroup(groupId);
     const messagesRef = ref(database, `data/chats/${groupId}`);
 
     // Query to get the last message

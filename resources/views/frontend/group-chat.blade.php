@@ -28,9 +28,9 @@
                         <img src="assets/img/profiles/avatar-03.jpg" id="group_image" class="rounded-circle" alt="image">
                     </div>
                     <div class="ms-2 overflow-hidden">
-                        <h6 id="group-name">The Dream Team</h6>
+                        <h6 id="group-name">{{ __('Select a group') }}</h6>
                         <input type="hidden" id="group_id" value="">
-                        <p id="group-member-count" class="last-seen text-truncate">0 Member
+                        <p id="group-member-count" class="last-seen text-truncate">—
                             <!-- <span class="text-success">24 Online</span> -->
                         </p>
                     </div>

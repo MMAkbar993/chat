@@ -187,6 +187,16 @@ initializeFirebase(function (app, auth, database, storage) {
                         storedUserId = null;
                     }
 
+                    const routePath =
+                        (window.location.pathname || "").replace(/\/+$/, "") || "/";
+                    const isOneOnOneChatRoute =
+                        routePath === "/chat" || routePath === "/index";
+                    // Restoring a 1:1 peer must not run on /group-chat: #middle is the group shell there
+                    // (shows placeholder header and hides welcome).
+                    if (storedUserId && !isOneOnOneChatRoute) {
+                        storedUserId = null;
+                    }
+
                     if (storedUserId) {
                         const callAction = urlParams.get('call');
                         function showChatPanelIfPresent() {
@@ -241,7 +251,12 @@ initializeFirebase(function (app, auth, database, storage) {
                     const userIdEl = document.getElementById("user-id");
                     if (userIdEl) userIdEl.innerText = `Logged in as: ${user.id}`;
 
-                    if (!storedUserId && (window.location.pathname === "/chat" || window.location.pathname === "/index")) {
+                    if (
+                        !storedUserId &&
+                        (routePath === "/chat" ||
+                            routePath === "/index" ||
+                            routePath === "/group-chat")
+                    ) {
                         setTimeout(ensureChatPageVisible, 50);
                         setTimeout(ensureChatPageVisible, 400);
                         setTimeout(ensureChatPageVisible, 1000);
@@ -11170,8 +11185,18 @@ initializeFirebase(function (app, auth, database, storage) {
         let welcomeEl = document.getElementById("welcome-container");
         const middleEl = document.getElementById("middle");
         const spaContent = document.getElementById("spa-page-content");
-        const urlPeer = new URLSearchParams(window.location.search || "").get("user");
-        const hasSelectedUser = !!(urlPeer || selectedUserId);
+        const searchParams = new URLSearchParams(window.location.search || "");
+        const urlPeer = searchParams.get("user");
+        const urlGroup = searchParams.get("group");
+        let hasSelectedUser;
+        if (path === "/group-chat") {
+            hasSelectedUser = !!(
+                (urlGroup && String(urlGroup).trim()) ||
+                (typeof window !== "undefined" && window.__dreamchatSelectedGroupId)
+            );
+        } else {
+            hasSelectedUser = !!(urlPeer || selectedUserId);
+        }
         if (spaContent) {
             spaContent.style.setProperty("display", "flex", "important");
             spaContent.style.setProperty("visibility", "visible", "important");
@@ -11221,8 +11246,20 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function guardWelcomeVisible() {
-        const gUrl = new URLSearchParams(window.location.search || "").get("user");
-        if (gUrl || selectedUserId) return;
+        const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
+        const params = new URLSearchParams(window.location.search || "");
+        const gUrl = params.get("user");
+        const gGroup = params.get("group");
+        if (path === "/group-chat") {
+            if (
+                (gGroup && String(gGroup).trim()) ||
+                (typeof window !== "undefined" && window.__dreamchatSelectedGroupId)
+            ) {
+                return;
+            }
+        } else if (gUrl || selectedUserId) {
+            return;
+        }
         const welcomeEl = document.getElementById("welcome-container");
         if (!welcomeEl) return;
         const computed = window.getComputedStyle(welcomeEl);
