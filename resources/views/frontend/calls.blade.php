@@ -8,40 +8,6 @@
 
         <div id="spa-page-content">
             @includeIf('frontend.partials.chat-content')
-            @if(config('calls.provider') === 'meet')
-            <div class="card border-0 shadow-sm mx-3 mt-3" id="google-meet-cta">
-                <div class="card-body text-center py-4">
-                    <div class="mb-3">
-                        <span class="avatar avatar-lg bg-primary-transparent rounded-circle">
-                            <img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" style="width: 24px; height: 24px;">
-                        </span>
-                    </div>
-                    <h5 class="mb-2">{{ __('Video & Voice Calls') }}</h5>
-                    <p class="text-muted mb-3">{{ __('Start a meeting with Google Meet. Share the link with your contacts to invite them.') }}</p>
-                    <a href="https://meet.google.com/new" target="_blank" class="btn btn-primary me-2">
-                        <img src="{{ asset('assets/img/icons/google-meet.svg') }}" alt="Google Meet" class="google-meet-icon me-1">{{ __('Start Google Meet') }}
-                    </a>
-                    <button type="button" class="btn btn-outline-primary" id="copy-meet-link-btn">
-                        <i class="ti ti-copy me-1"></i>{{ __('Copy Meet Link') }}
-                    </button>
-                </div>
-            </div>
-            <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                var copyBtn = document.getElementById('copy-meet-link-btn');
-                if (copyBtn) {
-                    copyBtn.addEventListener('click', function() {
-                        navigator.clipboard.writeText('https://meet.google.com/new').then(function() {
-                            copyBtn.innerHTML = '<i class="ti ti-check me-1"></i>{{ __("Copied!") }}';
-                            setTimeout(function() {
-                                copyBtn.innerHTML = '<i class="ti ti-copy me-1"></i>{{ __("Copy Meet Link") }}';
-                            }, 2000);
-                        });
-                    });
-                }
-            });
-            </script>
-            @endif
         </div>
 
     </div>

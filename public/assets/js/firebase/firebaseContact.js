@@ -214,10 +214,20 @@ initializeFirebase(function (app, auth, database, storage) {
                                 userData.photoURL ||
                                 userData.avatar ||
                                 "";
-                            const prLocal =
+                            const prKey =
                                 (contact.primary_role && String(contact.primary_role).trim()) ||
                                 (userData.primary_role && String(userData.primary_role).trim()) ||
                                 "";
+                            const prCustom =
+                                (contact.other_role_text && String(contact.other_role_text).trim()) ||
+                                (userData.other_role_text && String(userData.other_role_text).trim()) ||
+                                "";
+                            const PRmap = typeof PRIMARY_ROLES !== "undefined" ? PRIMARY_ROLES : {};
+                            let prLocal = "";
+                            if (prKey) {
+                                if (prKey === "other") prLocal = prCustom || PRmap.other || prKey;
+                                else prLocal = PRmap[prKey] || prKey;
+                            }
                             return {
                                 uid: userId,
                                 firstName: contact.firstName || userData.firstName || "",
@@ -399,17 +409,27 @@ initializeFirebase(function (app, auth, database, storage) {
         if (typeof value === "string" && value.trim() === "") return;
         setContactDetailRow(field, value, asLink);
     }
+    function primaryRoleDisplayFromSources(pub, contactData, userData) {
+        if (pub && pub.primary_role_label != null && String(pub.primary_role_label).trim() !== "") {
+            return String(pub.primary_role_label).trim();
+        }
+        let key = "";
+        if (pub && pub.primary_role) key = String(pub.primary_role).trim();
+        if (!key && contactData && contactData.primary_role) key = String(contactData.primary_role).trim();
+        if (!key && userData && userData.primary_role) key = String(userData.primary_role).trim();
+        let custom = "";
+        if (pub && pub.other_role_text) custom = String(pub.other_role_text).trim();
+        if (!custom && contactData && contactData.other_role_text) custom = String(contactData.other_role_text).trim();
+        if (!custom && userData && userData.other_role_text) custom = String(userData.other_role_text).trim();
+        const PR = typeof PRIMARY_ROLES !== "undefined" ? PRIMARY_ROLES : {};
+        if (!key) return "";
+        if (key === "other") return custom || PR.other || "Other";
+        return PR[key] || key;
+    }
     function setContactDetailRoleSubtitle(contactData, userData, pub) {
         const el = document.getElementById("contact-detail-title");
         if (!el) return;
-        let r = "";
-        if (pub && pub.primary_role != null && String(pub.primary_role).trim()) {
-            r = String(pub.primary_role).trim();
-        } else if (contactData && contactData.primary_role && String(contactData.primary_role).trim()) {
-            r = String(contactData.primary_role).trim();
-        } else if (userData && userData.primary_role && String(userData.primary_role).trim()) {
-            r = String(userData.primary_role).trim();
-        }
+        const r = primaryRoleDisplayFromSources(pub || {}, contactData, userData);
         if (r) {
             el.textContent = r;
             el.style.display = "";
@@ -548,7 +568,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     if (pub.display_name && h6El) h6El.textContent = pub.display_name;
                     const subEl = document.getElementById("contact-detail-title");
                     if (subEl) {
-                        const r = pub.primary_role && String(pub.primary_role).trim() ? String(pub.primary_role).trim() : "";
+                        const r = primaryRoleDisplayFromSources(pub, null, null);
                         if (r) {
                             subEl.textContent = r;
                             subEl.style.display = "";
@@ -883,6 +903,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 get(loggedInUserContactsRef).then((contactSnapshot) => {
                     if (contactSnapshot.exists()) {
                         // Contact already exists
+                        closeAddContactModalAndClearSearch();
                         Swal.fire({
                             title: "",
                             width: 400,
@@ -1183,6 +1204,24 @@ initializeFirebase(function (app, auth, database, storage) {
         return { firstName: s.substring(0, idx).trim(), lastName: s.substring(idx + 1).trim() };
     }
 
+    /** Dismiss Add Contact search modal and reset its fields (used on success and duplicate-contact paths). */
+    function closeAddContactModalAndClearSearch() {
+        const inputEl = document.getElementById("add-contact-username-search");
+        const resultsEl = document.getElementById("add-contact-search-results");
+        if (inputEl) inputEl.value = "";
+        if (resultsEl) {
+            resultsEl.style.display = "none";
+            resultsEl.innerHTML = "";
+        }
+        const addContactModal = document.getElementById("add-contact");
+        if (addContactModal && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+            const inst =
+                bootstrap.Modal.getInstance(addContactModal) ||
+                bootstrap.Modal.getOrCreateInstance(addContactModal);
+            inst.hide();
+        }
+    }
+
     /** Add a contact when we have no Firebase UID (pending contact). They appear in the list; chat works once they sign in. */
     function addPendingContact(email, username, displayName, profileImageUrl, primaryRole) {
         const loggedInUserId = getCurrentFirebaseUid();
@@ -1209,6 +1248,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     return (e && cEmail === e) || (u && cUser === u);
                 });
                 if (already) {
+                    closeAddContactModalAndClearSearch();
                     Swal.fire({ text: "Contact already in your list!", icon: "info", width: 400 });
                     return;
                 }
@@ -1229,12 +1269,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 pendingPayload.primary_role = String(primaryRole).trim();
             }
             set(contactRef, pendingPayload).then(() => {
-                const inputEl = document.getElementById("add-contact-username-search");
-                const resultsEl = document.getElementById("add-contact-search-results");
-                if (inputEl) inputEl.value = "";
-                if (resultsEl) { resultsEl.style.display = "none"; resultsEl.innerHTML = ""; }
-                const addContactModal = document.getElementById("add-contact");
-                if (addContactModal) bootstrap.Modal.getOrCreateInstance(addContactModal).hide();
+                closeAddContactModalAndClearSearch();
                 displayUsers();
                 Swal.fire({ text: "Contact added! They will appear in your list; you can chat once they sign in to the app.", icon: "success", width: 420 });
             }).catch(err => Swal.fire({ text: err.message || "Failed to add", icon: "error", width: 400 }));
@@ -1251,6 +1286,7 @@ initializeFirebase(function (app, auth, database, storage) {
         const contactRef = ref(database, `data/contacts/${loggedInUserId}/${firebaseUid}`);
         get(contactRef).then(snap => {
             if (snap.exists()) {
+                closeAddContactModalAndClearSearch();
                 Swal.fire({ text: "Contact already in your list!", icon: "info", width: 400 });
                 return;
             }
@@ -1277,12 +1313,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 const pr = primaryRoleFromLaravel && String(primaryRoleFromLaravel).trim() ? String(primaryRoleFromLaravel).trim() : "";
                 if (pr) contactPayload.primary_role = pr;
                 set(contactRef, contactPayload).then(() => {
-                    const inputEl = document.getElementById("add-contact-username-search");
-                    const resultsEl = document.getElementById("add-contact-search-results");
-                    if (inputEl) inputEl.value = "";
-                    if (resultsEl) { resultsEl.style.display = "none"; resultsEl.innerHTML = ""; }
-                    const addContactModal = document.getElementById("add-contact");
-                    if (addContactModal) bootstrap.Modal.getOrCreateInstance(addContactModal).hide();
+                    closeAddContactModalAndClearSearch();
                     displayUsers();
                     Swal.fire({ text: "Contact added!", icon: "success", width: 400 });
                 }).catch(err => Swal.fire({ text: err.message || "Failed to add", icon: "error", width: 400 }));

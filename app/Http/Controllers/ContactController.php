@@ -99,6 +99,8 @@ class ContactController extends Controller
                     'mobile_number' => $uc->mobile_number ?: ($c ? $c->mobile_number : ''),
                     'image' => $img,
                     'primary_role' => $c ? ($c->primary_role ?? '') : '',
+                    'primary_role_label' => $c ? $c->primaryRoleDisplayLabel() : '',
+                    'other_role_text' => $c ? ($c->other_role_text ?? '') : '',
                 ];
             });
 

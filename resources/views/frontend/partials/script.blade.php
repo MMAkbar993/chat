@@ -122,16 +122,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                 'image' => $profileImg,
                 'created_at' => $u->created_at?->format('Y-m-d H:i:s'),
                 'primary_role' => $u->primary_role ?? '',
-                'primary_role_label' => (function () use ($u) {
-                    $key = $u->primary_role ?? '';
-                    if ($key === '') return '';
-                    $roles = config('registration.primary_roles', []);
-                    $label = $roles[$key] ?? $key;
-                    if ($key === 'other' && $u->other_role_text) {
-                        $label .= ' (' . $u->other_role_text . ')';
-                    }
-                    return $label;
-                })(),
+                'primary_role_label' => $u->primaryRoleDisplayLabel(),
                 'other_role_text' => $u->other_role_text ?? '',
                 'about' => $ud ? ($ud->user_about ?? '') : '',
                 'facebook' => $ud ? ($ud->facebook ?? '') : '',
@@ -254,6 +245,13 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         var el = document.getElementById(id);
         if (el && value !== undefined && value !== null) el.value = value;
     }
+    /** Show custom role text field when Settings "Primary role" is Other (no page refresh). */
+    window.syncOtherRoleFieldVisibility = function syncOtherRoleFieldVisibility() {
+        var sel = document.getElementById('primary_role');
+        var wrap = document.getElementById('other_role_wrapper');
+        if (!wrap) return;
+        wrap.style.display = (sel && sel.value === 'other') ? 'block' : 'none';
+    };
     window.applyLaravelProfile = function applyLaravelProfile(forceApply) {
         if (typeof window.LARAVEL_USER === 'undefined' || !window.LARAVEL_USER) return;
         var u = window.LARAVEL_USER;
@@ -270,11 +268,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         var pr = document.getElementById('primary_role');
         if (pr && u.primary_role) pr.value = u.primary_role;
         setInputValue('other_role_text', u.other_role_text);
-        var orw = document.getElementById('other_role_wrapper');
-        if (orw) {
-            if (u.primary_role === 'other') orw.style.display = 'block';
-            else if (!forceApply && window.FIREBASE_DISABLED) orw.style.display = 'none';
-        }
+        if (typeof window.syncOtherRoleFieldVisibility === 'function') window.syncOtherRoleFieldVisibility();
         setInputValue('edit-kick', u.kick_link || u.kick);
         setInputValue('edit-twitch', u.twitch_link || u.twitch);
         setInputValue('edit-instagram', u.instagram_link || u.instagram);
@@ -424,6 +418,14 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                 reader.readAsDataURL(file);
             });
         }
+        var primaryRoleSel = document.getElementById('primary_role');
+        if (primaryRoleSel && !primaryRoleSel.dataset.otherRoleBound) {
+            primaryRoleSel.dataset.otherRoleBound = '1';
+            primaryRoleSel.addEventListener('change', function() {
+                if (typeof window.syncOtherRoleFieldVisibility === 'function') window.syncOtherRoleFieldVisibility();
+            });
+        }
+        if (typeof window.syncOtherRoleFieldVisibility === 'function') window.syncOtherRoleFieldVisibility();
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', bindWhenReady);

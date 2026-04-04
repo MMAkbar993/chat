@@ -941,9 +941,11 @@ function displayUserDetails(user) {
     if (roleEl) {
         var roleLabel = '';
         if (user.primary_role && typeof PRIMARY_ROLES !== 'undefined') {
-            roleLabel = PRIMARY_ROLES[user.primary_role] || user.primary_role;
-            if (user.primary_role === 'other' && user.other_role_text) {
-                roleLabel += ' (' + user.other_role_text + ')';
+            if (user.primary_role === 'other') {
+                const c = user.other_role_text && String(user.other_role_text).trim();
+                roleLabel = c || PRIMARY_ROLES.other || user.primary_role;
+            } else {
+                roleLabel = PRIMARY_ROLES[user.primary_role] || user.primary_role;
             }
         }
         roleEl.innerText = roleLabel || 'Not set';

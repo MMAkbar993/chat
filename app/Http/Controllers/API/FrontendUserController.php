@@ -353,14 +353,7 @@ class FrontendUserController extends Controller
 
             $user->load(['get_user_details', 'websites']);
 
-            $roleLabel = '';
-            if ($user->primary_role) {
-                $roles = config('registration.primary_roles', []);
-                $roleLabel = $roles[$user->primary_role] ?? $user->primary_role;
-                if ($user->primary_role === 'other' && $user->other_role_text) {
-                    $roleLabel .= ' (' . $user->other_role_text . ')';
-                }
-            }
+            $roleLabel = $user->primaryRoleDisplayLabel();
 
             $details = $user->get_user_details;
 

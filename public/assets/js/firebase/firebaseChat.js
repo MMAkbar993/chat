@@ -1541,6 +1541,10 @@ initializeFirebase(function (app, auth, database, storage) {
         dropdownToggle.href = "#";
         dropdownToggle.classList.add("text-muted", "dropdown-toggle");
         dropdownToggle.setAttribute("data-bs-toggle", "dropdown");
+        dropdownToggle.setAttribute(
+            "data-bs-popper-config",
+            JSON.stringify({ strategy: "fixed" })
+        );
         dropdownToggle.setAttribute("aria-expanded", "false");
         dropdownToggle.innerHTML = `<i class="ti ti-dots-vertical"></i>`;
         chatDropdown.appendChild(dropdownToggle);
@@ -7494,7 +7498,7 @@ initializeFirebase(function (app, auth, database, storage) {
             const chatDropdown = document.createElement("div");
             chatDropdown.classList.add("chat-dropdown");
             chatDropdown.innerHTML = `
-            <a href="#"  data-bs-toggle="dropdown" aria-expanded="false">
+            <a href="#" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">
                 <i class="ti ti-dots-vertical"></i>
             </a>
             <ul class="dropdown-menu dropdown-menu-end p-3">
@@ -7710,7 +7714,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     const chatDropdown = document.createElement("div");
                     chatDropdown.classList.add("chat-dropdown");
                     chatDropdown.innerHTML = `
-                    <a href="#" data-bs-toggle="dropdown" aria-expanded="false">
+                    <a href="#" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">
                         <i class="ti ti-dots-vertical"></i>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end p-3">
@@ -7871,7 +7875,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     </div>
                 </a>
                 <div class="chat-dropdown dropdown">
-                    <a href="#" class="dropdown-toggle text-muted" data-bs-toggle="dropdown" aria-expanded="false">
+                    <a href="#" class="dropdown-toggle text-muted" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">
                         <i class="ti ti-dots-vertical"></i>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end p-3">
@@ -8046,7 +8050,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     const chatDropdown = document.createElement("div");
                     chatDropdown.classList.add("chat-dropdown");
                     chatDropdown.innerHTML = `
-                            <a href="#"  data-bs-toggle="dropdown" aria-expanded="false">
+                            <a href="#" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">
                                 <i class="ti ti-dots-vertical"></i>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end p-3">
@@ -8910,6 +8914,16 @@ initializeFirebase(function (app, auth, database, storage) {
             !e.target.closest(".message-hover-actions")
         ) {
             closeAllReactionPickers();
+        }
+
+        const composerEmojiPicker = document.getElementById("emoji-picker");
+        if (
+            composerEmojiPicker &&
+            composerEmojiPicker.style.display === "block" &&
+            !e.target.closest("#emoji-picker") &&
+            !e.target.closest("#emoji-button")
+        ) {
+            composerEmojiPicker.style.display = "none";
         }
     });
 

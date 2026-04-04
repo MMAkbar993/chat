@@ -410,7 +410,14 @@ function fetchLaravelContactsForGroupPicker() {
                     String(c.email || "").trim() ||
                     "Contact";
                 const img = resolveGroupProfileImageUrl(c.image || "");
-                const role = String(c.primary_role || "").trim();
+                let role = String(c.primary_role_label || "").trim();
+                if (!role) {
+                    const k = String(c.primary_role || "").trim();
+                    const custom = String(c.other_role_text || "").trim();
+                    const PR = typeof PRIMARY_ROLES !== "undefined" ? PRIMARY_ROLES : {};
+                    if (k === "other") role = custom || PR.other || k;
+                    else if (k) role = PR[k] || k;
+                }
                 appendUserCard(usersContainer, name, img, role, fb);
             });
         })
@@ -836,6 +843,26 @@ function closePopup() {
 
 let selectedGroupId = null; // Declare a variable to hold the selected group ID globally
 let previousMessagesRef = null; // Store previous messages reference for detaching listeners
+/** Bumps on each fetchGroupInfo call so in-flight async work does not paint stale group data */
+let groupInfoRenderGeneration = 0;
+
+function resetGroupInfoPanelPlaceholders() {
+    const nameEl = document.getElementById("group-profile-name");
+    if (nameEl) nameEl.textContent = "";
+    const countEl = document.getElementById("group-profile-participant-count");
+    if (countEl) countEl.textContent = "—";
+    const aboutEl = document.getElementById("group-info-about");
+    if (aboutEl) aboutEl.textContent = "—";
+    const dateEl = document.getElementById("group-date");
+    if (dateEl) dateEl.textContent = "";
+    const membersEl = document.getElementById("members-container");
+    if (membersEl) membersEl.innerHTML = "";
+    const avatarEl = document.getElementById("group-avatar");
+    if (avatarEl) {
+        avatarEl.src = "assets/img/profiles/avatar-03.jpg";
+        avatarEl.alt = "img";
+    }
+}
 
 function finalizeGroupCreateUI(fullGroupId) {
     if (!fullGroupId) return;
@@ -2965,65 +2992,8 @@ if (closeReplyEl) {
             });
     }
 
-    const groupChatEmojis = [
-        "😀", "😁", "😂", "🤣", "😃", "😄", "😅", "😊", "😍", "😘", "😎", "😢", "😭",
-        "😡", "😱", "👍", "👎", "👏", "🙏", "🔥", "❤️", "🎉"
-    ];
-
-    function ensureGroupEmojiListFilled(emojiList) {
-        if (!emojiList || emojiList.dataset.emojiFilled === "1") return;
-        groupChatEmojis.forEach((emoji) => {
-            const li = document.createElement("li");
-            const emojiElement = document.createElement("a");
-            emojiElement.href = "javascript:void(0);";
-            emojiElement.classList.add("emoji");
-            emojiElement.textContent = emoji;
-            li.appendChild(emojiElement);
-            emojiList.appendChild(li);
-        });
-        emojiList.dataset.emojiFilled = "1";
-    }
-
-    document.addEventListener("click", (e) => {
-        const emojiToggle = e.target.closest("#emoji-button");
-        if (emojiToggle) {
-            if (!emojiToggle.closest(".chat-footer")) return;
-            e.preventDefault();
-            const emojiPicker = document.getElementById("emoji-picker");
-            const emojiList = document.getElementById("emoji-list");
-            const inputField = document.getElementById("message-input");
-            if (!emojiPicker || !emojiList || !inputField) return;
-            ensureGroupEmojiListFilled(emojiList);
-            const isHidden =
-                emojiPicker.style.display === "none" ||
-                emojiPicker.style.display === "";
-            emojiPicker.style.display = isHidden ? "block" : "none";
-            return;
-        }
-
-        const emojiChoice = e.target.closest("#emoji-picker a.emoji");
-        if (emojiChoice) {
-            e.preventDefault();
-            const inputField = document.getElementById("message-input");
-            const emojiPicker = document.getElementById("emoji-picker");
-            if (!inputField || !emojiPicker) return;
-            inputField.value += emojiChoice.textContent;
-            inputField.focus();
-            inputField.selectionStart = inputField.selectionEnd =
-                inputField.value.length;
-            emojiPicker.style.display = "none";
-            return;
-        }
-
-        const pickerEl = document.getElementById("emoji-picker");
-        if (
-            pickerEl &&
-            pickerEl.style.display === "block" &&
-            !e.target.closest("#emoji-picker")
-        ) {
-            pickerEl.style.display = "none";
-        }
-    });
+    // Emoji picker: delegated handlers live only in firebaseChat.js (this file also loads on every page;
+    // a second listener here toggled the picker open then immediately closed it).
 
 const messageForm = document.getElementById("message-form");
 if (messageForm) {
@@ -3086,119 +3056,143 @@ function getUserDetails(userId) {
         });
 }
 
-// Function to fetch and display group info
-async function fetchGroupInfo(selectedGroupId) {
-    const groupRef = ref(database, `data/groups/${selectedGroupId}`);
+// Function to fetch and display group info (one-shot get + generation guard — avoids stacked onValue listeners and stale async paints)
+async function fetchGroupInfo(groupId) {
+    if (!groupId) return;
 
+    const fetchTargetId = groupId;
+    const renderGen = ++groupInfoRenderGeneration;
+    const groupRef = ref(database, `data/groups/${fetchTargetId}`);
+
+    let snapshot;
     try {
-        // Use 'onValue' to fetch the group data from the database
-        onValue(groupRef, async (snapshot) => { // Make this callback async
-            if (snapshot.exists()) {
-                const groupData = snapshot.val();
+        snapshot = await get(groupRef);
+    } catch (error) {
+        return;
+    }
 
-                // Update the DOM with the fetched data
-                document.getElementById("group-name").textContent =
-                    groupData.name || "No Name";
-                document.getElementById(
-                    "group-participants"
-                ).innerText = `Group - ${
-                    (groupData.userIds && groupData.userIds.length) || 0
-                } Participants`;
-                document.getElementById("group-info-about").innerText =
-                    groupData.status || "No Description";
-                const groupDateElement = document.getElementById("group-date");
-                const timestamp = groupData.date;
+    if (renderGen !== groupInfoRenderGeneration || fetchTargetId !== selectedGroupId) {
+        return;
+    }
 
-                // Check if the timestamp is valid
-                if (timestamp) {
-                    const date = new Date(Number(timestamp)); // Convert the timestamp to a Date object
-                    const formattedDate = date.toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                    }); // Format the date
+    const nameEl = document.getElementById("group-profile-name");
+    const countEl = document.getElementById("group-profile-participant-count");
+    const aboutEl = document.getElementById("group-info-about");
+    const groupDateElement = document.getElementById("group-date");
+    const avatarElement = document.getElementById("group-avatar");
+    const membersContainer = document.getElementById("members-container");
 
-                    groupDateElement.innerText = `Group created on ${formattedDate}`;
-                } else {
-                    groupDateElement.innerText = "No data available";
-                }
+    if (!snapshot.exists()) {
+        if (nameEl) nameEl.textContent = "No Name";
+        if (countEl) countEl.textContent = "Group - 0 Participants";
+        if (aboutEl) aboutEl.textContent = "No Description";
+        if (groupDateElement) groupDateElement.textContent = "No data available";
+        if (membersContainer) membersContainer.innerHTML = "";
+        return;
+    }
 
-                // document.getElementById("group-date").innerText = `Group created on ${groupData.date}` || 'No data available';
+    const groupData = snapshot.val();
 
-                const avatarElement = document.getElementById("group-avatar");
-                avatarElement.src = resolveGroupProfileImageUrl(
-                    withCacheBuster(
-                        pickGroupAvatarRaw(groupData),
-                        groupData.updatedAt || groupData.date || Date.now()
-                    )
-                );
+    if (nameEl) nameEl.textContent = groupData.name || "No Name";
+    if (countEl) {
+        countEl.textContent = `Group - ${
+            (groupData.userIds && groupData.userIds.length) || 0
+        } Participants`;
+    }
+    if (aboutEl) aboutEl.textContent = groupData.status || "No Description";
 
-                const membersContainer =
-                    document.getElementById("members-container");
-                membersContainer.innerHTML = ""; // Clear previous members
+    const timestamp = groupData.date;
+    if (groupDateElement) {
+        if (timestamp) {
+            const date = new Date(Number(timestamp));
+            const formattedDate = date.toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+            });
+            groupDateElement.textContent = `Group created on ${formattedDate}`;
+        } else {
+            groupDateElement.textContent = "No data available";
+        }
+    }
 
-                const userIds = groupData.userIds || [];
-                const memberPromises = userIds.map(async (memberId) => {
-                    let contactData = null;
-                    let userData = null;
-                    try {
-                        const contactSnap = await get(
-                            ref(database, `data/contacts/${currentUserId}/${memberId}`)
-                        );
-                        contactData = contactSnap.exists() ? contactSnap.val() : null;
-                    } catch (e) {
-                        /* ignore */
-                    }
-                    try {
-                        const userSnap = await get(ref(database, `data/users/${memberId}`));
-                        userData = userSnap.exists() ? userSnap.val() : null;
-                    } catch (e) {
-                        /* ignore */
-                    }
-                    const userMerged = mergeLaravelProfileIfSelf(memberId, userData);
-                    const displayName = buildGroupParticipantDisplayName(
-                        contactData,
-                        userMerged
-                    );
-                    return {
-                        ...userMerged,
-                        memberId,
-                        displayName,
-                        status:
-                            (userData && userData.status) ||
-                            (userData && userData.userStatus) ||
-                            "",
-                        _contactForAvatar: contactData,
-                        _userForAvatar: userMerged,
-                    };
-                });
+    if (avatarElement) {
+        avatarElement.src = resolveGroupProfileImageUrl(
+            withCacheBuster(
+                pickGroupAvatarRaw(groupData),
+                groupData.updatedAt || groupData.date || Date.now()
+            )
+        );
+    }
 
-                // Await for all user details to be fetched; fill from Laravel when RTDB has no names
-                let membersDetails = await Promise.all(memberPromises);
-                membersDetails = await enrichGroupMembersWithLaravelBatch(membersDetails);
+    if (membersContainer) membersContainer.innerHTML = "";
 
-                // Process the user details
-                membersDetails.forEach((user) => {
-                    if (user) {
-                        const memberElement = document.createElement("div");
-                        memberElement.className = "card mb-3";
+    const userIds = groupData.userIds || [];
+    const memberPromises = userIds.map(async (memberId) => {
+        let contactData = null;
+        let userData = null;
+        try {
+            const contactSnap = await get(
+                ref(database, `data/contacts/${currentUserId}/${memberId}`)
+            );
+            contactData = contactSnap.exists() ? contactSnap.val() : null;
+        } catch (e) {
+            /* ignore */
+        }
+        try {
+            const userSnap = await get(ref(database, `data/users/${memberId}`));
+            userData = userSnap.exists() ? userSnap.val() : null;
+        } catch (e) {
+            /* ignore */
+        }
+        const userMerged = mergeLaravelProfileIfSelf(memberId, userData);
+        const displayName = buildGroupParticipantDisplayName(
+            contactData,
+            userMerged
+        );
+        return {
+            ...userMerged,
+            memberId,
+            displayName,
+            status:
+                (userData && userData.status) ||
+                (userData && userData.userStatus) ||
+            "",
+            _contactForAvatar: contactData,
+            _userForAvatar: userMerged,
+        };
+    });
 
-                        const isAdmin = groupData.createdBy === user.memberId; // Check if the user is the creator (admin)
+    let membersDetails = await Promise.all(memberPromises);
+    membersDetails = await enrichGroupMembersWithLaravelBatch(membersDetails);
 
-                        const avatarClass =
-                            user.status === "online"
-                                ? "avatar avatar-lg online flex-shrink-0"
-                                : "avatar avatar-lg flex-shrink-0";
-                        const roleClass = isAdmin
-                            ? "badge badge-danger"
-                            : "badge badge-primary-transparent";
-                        const roleText = isAdmin ? "Admin" : "Member";
+    if (renderGen !== groupInfoRenderGeneration || fetchTargetId !== selectedGroupId) {
+        return;
+    }
 
-                        const uForPic = user._userForAvatar || user;
-                        const cForPic = user._contactForAvatar || null;
-                        const avatarRaw = rawAvatarFromUserAndContact(uForPic, cForPic);
+    if (!membersContainer) return;
 
-                        memberElement.innerHTML = `
+    membersDetails.forEach((user) => {
+        if (!user) return;
+        const memberElement = document.createElement("div");
+        memberElement.className = "card mb-3";
+
+        const isAdmin = groupData.createdBy === user.memberId;
+
+        const avatarClass =
+            user.status === "online"
+                ? "avatar avatar-lg online flex-shrink-0"
+                : "avatar avatar-lg flex-shrink-0";
+        const roleClass = isAdmin
+            ? "badge badge-danger"
+            : "badge badge-primary-transparent";
+        const roleText = isAdmin ? "Admin" : "Member";
+
+        const uForPic = user._userForAvatar || user;
+        const cForPic = user._contactForAvatar || null;
+        const avatarRaw = rawAvatarFromUserAndContact(uForPic, cForPic);
+
+        memberElement.innerHTML = `
                             <div class="card-body">
                                 <div class="d-flex align-items-center justify-content-between">
                                     <div class="d-flex align-items-center overflow-hidden">
@@ -3220,26 +3214,23 @@ async function fetchGroupInfo(selectedGroupId) {
                             </div>
                         `;
 
-                        membersContainer.appendChild(memberElement);
-                    }
-                });
-            }
-        }, (error) => {
-           
-        });
-    } catch (error) {
-       
-    }
+        membersContainer.appendChild(memberElement);
+    });
 }
 
-const groupcontactInfoButton = document.getElementById("groupcontactInfoButton");
-if (groupcontactInfoButton) groupcontactInfoButton.addEventListener("click", function () {
-    // Set this to the selected group's ID
-    fetchGroupInfo(selectedGroupId);
-    // Assuming you already have the groupId and currentUserId
-const groupId = selectedGroupId;  // Replace with actual groupId
-checkAdminAccess(groupId, currentUserId);
-});
+const contactProfileOffcanvas = document.getElementById("contact-profile");
+if (contactProfileOffcanvas) {
+    contactProfileOffcanvas.addEventListener("show.bs.offcanvas", function () {
+        resetGroupInfoPanelPlaceholders();
+        const groupId =
+            selectedGroupId ||
+            (typeof window !== "undefined" ? window.__dreamchatSelectedGroupId : null);
+        fetchGroupInfo(groupId);
+        if (groupId && currentUserId) {
+            checkAdminAccess(groupId, currentUserId);
+        }
+    });
+}
 
 const groupLogoutEl = document.getElementById("group-logout");
 if (groupLogoutEl) groupLogoutEl.addEventListener("click", async function () {

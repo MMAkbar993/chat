@@ -74,8 +74,12 @@ initializeFirebase(function (app, auth, database, storage) {
         if (roleEl) {
             let roleLabel = (u.primary_role_label != null && u.primary_role_label !== '') ? u.primary_role_label : '';
             if (!roleLabel && u.primary_role && typeof PRIMARY_ROLES !== 'undefined') {
-                roleLabel = PRIMARY_ROLES[u.primary_role] || u.primary_role;
-                if (u.primary_role === 'other' && u.other_role_text) roleLabel += ' (' + u.other_role_text + ')';
+                if (u.primary_role === 'other') {
+                    const c = u.other_role_text && String(u.other_role_text).trim();
+                    roleLabel = c || PRIMARY_ROLES.other || u.primary_role;
+                } else {
+                    roleLabel = PRIMARY_ROLES[u.primary_role] || u.primary_role;
+                }
             }
             roleEl.innerText = roleLabel || '—';
         }

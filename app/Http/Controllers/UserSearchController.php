@@ -244,6 +244,8 @@ class UserSearchController extends Controller
             'profile_loaded' => true,
             'display_name' => $user->public_display_name,
             'primary_role' => $user->primary_role ? trim((string) $user->primary_role) : '',
+            'primary_role_label' => $user->primaryRoleDisplayLabel(),
+            'other_role_text' => $user->other_role_text ?? '',
             'bio' => $details->user_about ?? '',
             'location' => $user->country ?? $details->location ?? '',
             'websites' => $websites,
@@ -307,7 +309,7 @@ class UserSearchController extends Controller
 
         if ($hasFb && count($firebaseUids) > 0) {
             User::whereIn('firebase_uid', $firebaseUids)
-                ->get(['firebase_uid', 'profile_image', 'primary_role', 'first_name', 'last_name', 'full_name', 'user_name'])
+                ->get(['firebase_uid', 'profile_image', 'primary_role', 'other_role_text', 'first_name', 'last_name', 'full_name', 'user_name'])
                 ->each(function ($u) use (&$byUid, &$nameByUid, &$roleByUid, $displayNameFromUser) {
                     if (! empty($u->firebase_uid)) {
                         $byUid[$u->firebase_uid] = $u->profile_image_link;
@@ -315,9 +317,9 @@ class UserSearchController extends Controller
                         if ($dn !== '') {
                             $nameByUid[$u->firebase_uid] = $dn;
                         }
-                        $role = $u->primary_role ? trim((string) $u->primary_role) : '';
-                        if ($role !== '') {
-                            $roleByUid[$u->firebase_uid] = $role;
+                        $roleLabel = $u->primaryRoleDisplayLabel();
+                        if ($roleLabel !== '') {
+                            $roleByUid[$u->firebase_uid] = $roleLabel;
                         }
                     }
                 });
@@ -332,15 +334,15 @@ class UserSearchController extends Controller
                         $q->orWhereRaw('LOWER(email) = ?', [$le]);
                     }
                 }
-            })->get(['email', 'profile_image', 'primary_role', 'first_name', 'last_name', 'full_name', 'user_name'])->each(function ($u) use (&$byEmail, &$nameByEmail, &$roleByEmail, $displayNameFromUser) {
+            })->get(['email', 'profile_image', 'primary_role', 'other_role_text', 'first_name', 'last_name', 'full_name', 'user_name'])->each(function ($u) use (&$byEmail, &$nameByEmail, &$roleByEmail, $displayNameFromUser) {
                 $byEmail[mb_strtolower($u->email)] = $u->profile_image_link;
                 $dn = $displayNameFromUser($u);
                 if ($dn !== '') {
                     $nameByEmail[mb_strtolower($u->email)] = $dn;
                 }
-                $role = $u->primary_role ? trim((string) $u->primary_role) : '';
-                if ($role !== '') {
-                    $roleByEmail[mb_strtolower($u->email)] = $role;
+                $roleLabel = $u->primaryRoleDisplayLabel();
+                if ($roleLabel !== '') {
+                    $roleByEmail[mb_strtolower($u->email)] = $roleLabel;
                 }
             });
         }
@@ -353,7 +355,7 @@ class UserSearchController extends Controller
             if (count($normalizedUsernames) > 0) {
                 User::whereIn('user_name', $normalizedUsernames)
                     ->orWhereRaw('LOWER(user_name) in (' . implode(',', array_fill(0, count($normalizedUsernames), '?')) . ')', $normalizedUsernames)
-                    ->get(['user_name', 'profile_image', 'primary_role', 'first_name', 'last_name', 'full_name'])
+                    ->get(['user_name', 'profile_image', 'primary_role', 'other_role_text', 'first_name', 'last_name', 'full_name'])
                     ->each(function ($user) use (&$byUsername, &$nameByUsername, &$roleByUsername, $displayNameFromUser) {
                         if (! $user->user_name) {
                             return;
@@ -364,9 +366,9 @@ class UserSearchController extends Controller
                         if ($dn !== '') {
                             $nameByUsername[$key] = $dn;
                         }
-                        $role = $user->primary_role ? trim((string) $user->primary_role) : '';
-                        if ($role !== '') {
-                            $roleByUsername[$key] = $role;
+                        $roleLabel = $user->primaryRoleDisplayLabel();
+                        if ($roleLabel !== '') {
+                            $roleByUsername[$key] = $roleLabel;
                         }
                     });
             }

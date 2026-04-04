@@ -161,7 +161,7 @@
                                         </div>
                                         <div class="dropdowns dropdown">
                                             <a href="#" class="text-default fs-16 dropdown-toggle" data-bs-toggle="dropdown"
-                                                aria-expanded="false"><i class="ti ti-filter"></i></a>
+                                                data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false"><i class="ti ti-filter"></i></a>
                                             <ul class="dropdown-menu dropdown-menu-end chat-filter-dropdown py-2" id="innerTab"
                                                 role="tablist">
                                                 <li role="presentation">
@@ -201,7 +201,7 @@
 
                                                     </a>
                                                     <div class="chat-dropdown dropdown">
-                                                        <a class="text-muted dropdown-toggle" href="#" data-bs-toggle="dropdown" aria-expanded="false">
+                                                        <a class="text-muted dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">
                                                             <i class="ti ti-dots-vertical"></i>
                                                         </a>
                                                         <ul class="dropdown-menu dropdown-menu-end p-3">

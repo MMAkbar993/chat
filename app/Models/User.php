@@ -105,6 +105,26 @@ class User extends Authenticatable implements JWTSubject
         return $this->full_name ?? trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? '')) ?: $this->user_name ?? 'User';
     }
 
+    /**
+     * Role shown on profiles and public APIs. When primary_role is "other", show custom text only (e.g. "CEO"), not "Other (CEO)".
+     */
+    public function primaryRoleDisplayLabel(): string
+    {
+        $key = $this->primary_role;
+        if ($key === null || $key === '') {
+            return '';
+        }
+        $key = trim((string) $key);
+        $roles = config('registration.primary_roles', []);
+        if ($key === 'other') {
+            $custom = trim((string) ($this->other_role_text ?? ''));
+
+            return $custom !== '' ? $custom : (string) __($roles['other'] ?? 'Other');
+        }
+
+        return (string) __($roles[$key] ?? $key);
+    }
+
     public function isSubscriptionActive(): bool
     {
         return $this->subscription_status === 'active';

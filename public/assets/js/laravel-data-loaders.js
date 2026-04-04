@@ -100,7 +100,17 @@
                     var displayName = (data.firstName || '') + ' ' + (data.lastName || '').trim() || data.userName || data.email || 'Contact';
                     if (nameEl) nameEl.textContent = displayName;
                     var titleEl = document.getElementById('contact-detail-title');
-                    if (titleEl) titleEl.textContent = data.primary_role || data.userName || '';
+                    var formatRoleLine = function (key, custom) {
+                        var k = (key && String(key).trim()) || '';
+                        var c = (custom && String(custom).trim()) || '';
+                        var PR = typeof PRIMARY_ROLES !== 'undefined' ? PRIMARY_ROLES : {};
+                        if (!k) return '';
+                        if (k === 'other') return c || PR.other || k;
+                        return PR[k] || k;
+                    };
+                    if (titleEl) {
+                        titleEl.textContent = data.primary_role_label || formatRoleLine(data.primary_role, data.other_role_text) || data.userName || '';
+                    }
                     var avatar = document.getElementById('contact-detail-avatar') || document.querySelector('#contact-details .avatar img');
                     if (avatar) avatar.src = data.image || (baseUrl + '/assets/img/profiles/avatar-03.jpg');
                     var phoneEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="phone"]');
@@ -121,6 +131,7 @@
                     var applyPublicProfile = function (pub) {
                         if (!pub) return;
                         if (pub.display_name && nameEl) nameEl.textContent = pub.display_name;
+                        if (pub.primary_role_label && titleEl) titleEl.textContent = pub.primary_role_label;
                         var now = new Date();
                         var localTime = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
                         setField('local_time', localTime);

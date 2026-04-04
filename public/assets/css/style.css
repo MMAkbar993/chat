@@ -11528,6 +11528,7 @@ Form help
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  z-index: 1060;
 }
 #chat-menu .chat-filter-dropdown .dropdown-item {
   padding: 0.5rem 0.75rem;
@@ -14750,8 +14751,8 @@ audio{
   transform-origin: 50% -27px;
   animation-delay: -0.75s;
 }
-.chat-users-wrap .dropdown-menu.show {
-  transform: translate3d(0px, 10px, 0px) !important;
+#chat-menu .chat-users-wrap .chat-dropdown .dropdown-menu {
+  z-index: 1060;
 }
 .chat-user-msg p {
   display: flex;

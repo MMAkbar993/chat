@@ -40,6 +40,13 @@
                             </h3>
                         </div>
 
+                        @if($user->primaryRoleDisplayLabel() !== '')
+                            <div class="mb-4">
+                                <h6 class="text-muted text-uppercase small mb-2">{{ __('Role') }}</h6>
+                                <p class="mb-0"><i class="ti ti-briefcase me-1"></i>{{ $user->primaryRoleDisplayLabel() }}</p>
+                            </div>
+                        @endif
+
                         {{-- Bio --}}
                         @if($details && $details->user_about)
                             <div class="mb-4">

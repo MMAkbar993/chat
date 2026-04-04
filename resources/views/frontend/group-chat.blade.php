@@ -184,8 +184,8 @@
                             </label>
                             <input type="file" id="group-icon-upload" class="d-none" accept="image/*">
                         </div>
-                        <h6 id="group-name"></h6>
-                        <p id="group-participants">Group - 40 Participants</p>
+                        <h6 id="group-profile-name"></h6>
+                        <p id="group-profile-participant-count" class="text-muted">—</p>
                     </div>
                     <div class="content-wrapper">
                         <h5 class="sub-title">{{ __('Profile Info')}}</h5>
@@ -194,7 +194,7 @@
                                 <div class="d-flex profile-info-content justify-content-between align-items-center border-bottom pb-3 mb-3">
                                     <div>
                                         <h6 class="fs-14">{{ __('Group Description')}}</h6>
-                                        <p class="fs-16" id="group-info-about">Innovate. Create. Inspire.</p>
+                                        <p class="fs-16" id="group-info-about">—</p>
                                     </div>
                                 </div>
                                 <p class="fs-12" id="group-date">Group created by </p>
@@ -203,7 +203,7 @@
                     </div>
                     <div class="content-wrapper other-info">
                         <div class="d-flex align-items-center justify-content-between">
-                            <h5 class="sub-title" id="group-participants">{{ __('Group Participants')}}</h5>
+                            <h5 class="sub-title">{{ __('Group Participants')}}</h5>
                         </div>
                         <div class="card">
                             <div class="card-body">
