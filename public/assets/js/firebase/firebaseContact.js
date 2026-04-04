@@ -29,6 +29,33 @@ initializeFirebase(function (app, auth, database, storage) {
 
 
     let currentUserId = null; // Define the current user here
+    /** Incremented on each contact-detail open/fetch so stale async (e.g. public profile API) cannot paint the wrong person */
+    let contactDetailFetchGeneration = 0;
+
+    function getContactDetailsModalEl() {
+        const inStack = document.querySelector("#spa-page-modals #contact-details");
+        if (inStack) return inStack;
+        return document.getElementById("contact-details");
+    }
+
+    function hideContactDetailsModalAndCleanupBackdrop() {
+        const el = getContactDetailsModalEl();
+        if (el && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+            const inst = bootstrap.Modal.getInstance(el);
+            if (inst) inst.hide();
+        }
+        try {
+            if (!document.querySelector(".modal.show")) {
+                document.querySelectorAll(".modal-backdrop").forEach(function (b) {
+                    b.remove();
+                });
+                document.body.classList.remove("modal-open");
+                document.body.style.removeProperty("padding-right");
+            }
+        } catch (e) {
+            /* ignore */
+        }
+    }
 
     // Monitor the user's authentication state (chat session)
     onAuthStateChanged(auth, (user) => {
@@ -332,7 +359,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         item.addEventListener('click', function () {
                             const row = this.closest('.chat-list');
                             const userId = this.getAttribute('data-user-id') || (row ? row.getAttribute('data-user-id') : null);
-                            const modal = document.getElementById('contact-details');
+                            const modal = getContactDetailsModalEl();
                             const modalInput = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : null;
                             if (modalInput) modalInput.value = userId || '';
                             fetchUserData(userId);
@@ -371,7 +398,10 @@ initializeFirebase(function (app, auth, database, storage) {
         return s !== "" && s !== "—";
     }
     function updateContactSocialCardVisibility() {
-        const card = document.getElementById("contact-details-social-card");
+        const modal = getContactDetailsModalEl();
+        const card = modal
+            ? modal.querySelector("#contact-details-social-card")
+            : document.getElementById("contact-details-social-card");
         if (!card) return;
         const keys = ["facebook", "twitter", "instagram", "linkedin", "youtube", "kick", "twitch"];
         let any = false;
@@ -382,7 +412,7 @@ initializeFirebase(function (app, auth, database, storage) {
         card.style.display = any ? "" : "none";
     }
     function setContactDetailRow(field, value, asLink) {
-        const modal = document.getElementById("contact-details");
+        const modal = getContactDetailsModalEl();
         if (!modal) return;
         const row = modal.querySelector('[data-contact-row="' + field + '"]');
         const el = modal.querySelector('.fw-medium.fs-14.mb-2[data-field="' + field + '"]');
@@ -446,200 +476,257 @@ initializeFirebase(function (app, auth, database, storage) {
             return;
         }
 
+        const gen = ++contactDetailFetchGeneration;
+        const detailModal = getContactDetailsModalEl();
         const contactRef = ref(database, `data/contacts/${currentUserId}/${uid}`); // Reference to the contact data
 
         // Fetch contact data from Firebase
-        get(contactRef).then(async snapshot => {
-            if (snapshot.exists()) {
-                const userRef = ref(database, `data/users/${uid}`); // Correct Firebase reference
-                const snapshot = await get(userRef); // Fetch user details
-                let userData = {};
-                if (snapshot.exists()) {
-                    userData = snapshot.val(); // Get user details
-                }
-                const snapshotContact = await get(contactRef);
-                const contactData = snapshotContact.val();
-                // Update modal content with fetched data (set both modal input and legacy id for compatibility)
-                const modalInput = document.getElementById('contact-details')?.querySelector('input[id="contact-detail-user-id"]');
-                if (modalInput) modalInput.value = uid;
-                const legacyEl = document.getElementById("edit-contact-user-id");
-                if (legacyEl) legacyEl.value = uid;
-                // Name: contact first, then userData fallback; then mobile/email/userName
-                const firstName = (contactData.firstName || userData.firstName || "").trim();
-                const lastName = (contactData.lastName || userData.lastName || "").trim();
-                const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
-                const displayName = fullName || contactData.mobile_number || contactData.email || userData.userName || userData.mobile_number || userData.email || "—";
-                const nameEl = document.getElementById("contact-detail-name") || document.querySelector("#contact-details .modal-body h6");
-                if (nameEl) nameEl.textContent = displayName;
-                const contactDetailNameEl = document.getElementById("contact-detail-name");
-                if (contactDetailNameEl) contactDetailNameEl.textContent = displayName;
-                setContactDetailRoleSubtitle(contactData, userData, null);
-                // Profile image: contact + Firebase, then Laravel for older contacts without stored photo
-                var avatarImgEl = document.querySelector('#contact-details .avatar img');
-                var rawAvatar = (contactData && contactData.profile_image) || (userData && (userData.profile_image || userData.image || userData.profileImage || userData.photoURL || userData.avatar)) || '';
-                if (!rawAvatar) {
-                    const fbUids = uid && String(uid).indexOf('pending_') !== 0 ? [uid] : [];
-                    const emailList = [];
-                    const unList = [];
-                    if (contactData && contactData.email && String(contactData.email).trim()) emailList.push(String(contactData.email).trim().toLowerCase());
-                    if (userData && userData.email && String(userData.email).trim()) {
-                        const em = String(userData.email).trim().toLowerCase();
-                        if (emailList.indexOf(em) < 0) emailList.push(em);
-                    }
-                    if (contactData && contactData.user_name && String(contactData.user_name).trim()) unList.push(String(contactData.user_name).trim());
-                    if (userData && (userData.userName || userData.username)) {
-                        const un = String(userData.userName || userData.username).trim();
-                        if (un && unList.indexOf(un) < 0) unList.push(un);
-                    }
-                    const laravelMap = await fetchLaravelContactAvatars({
-                        firebase_uids: fbUids,
-                        emails: emailList,
-                        usernames: unList,
-                    });
-                    if (laravelMap) {
-                        const bu = laravelMap.by_uid || {};
-                        const be = laravelMap.by_email || {};
-                        const buser = laravelMap.by_username || {};
-                        if (fbUids.length && bu[uid]) rawAvatar = bu[uid];
-                        if (!rawAvatar && emailList.length) {
-                            for (let i = 0; i < emailList.length && !rawAvatar; i++) {
-                                if (be[emailList[i]]) rawAvatar = be[emailList[i]];
-                            }
-                        }
-                        if (!rawAvatar && unList.length) {
-                            for (let j = 0; j < unList.length && !rawAvatar; j++) {
-                                const k = String(unList[j]).toLowerCase();
-                                if (buser[k]) rawAvatar = buser[k];
-                            }
-                        }
-                    }
-                }
-                var chosenAvatar = resolveProfileImageUrl(rawAvatar);
-                if (avatarImgEl) avatarImgEl.src = chosenAvatar;
-                const phoneVal = contactData.mobile_number || userData.mobile_number || "N/A";
-                const emailVal = contactData.email || userData.email || "N/A";
-                const phoneEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="phone"]');
-                if (phoneEl) phoneEl.textContent = phoneVal;
-                const emailEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="email"]');
-                if (emailEl) emailEl.textContent = emailVal;
-
-                const now = new Date();
-                const localTimeStr = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ' ' + (now.getHours() >= 12 ? 'PM' : 'AM');
-                setContactDetailRow("local_time", localTimeStr);
-
-                const defaultDob = contactData?.dob || userData?.dob || '';
-                const defaultBio =
-                    contactData?.about || contactData?.bio || userData?.about || userData?.bio || userData?.user_about || '';
-                const defaultLocation =
-                    contactData?.location || contactData?.country || userData?.country || userData?.location || '';
-                const defaultJoin =
-                    userData?.join_date || userData?.created_at || userData?.timestamp || contactData?.join_date || contactData?.created_at || '';
-                const defaultWebsite =
-                    (userData?.websites && userData.websites[0] && userData.websites[0].url ? userData.websites[0].url : '') ||
-                    userData?.website_url || userData?.website_link ||
-                    contactData?.website_url || contactData?.website_link || '';
-
-                setContactDetailRowIfPresent("dob", defaultDob);
-                setContactDetailRowIfPresent("bio", defaultBio);
-                setContactDetailRowIfPresent("location", defaultLocation);
-                setContactDetailRowIfPresent("join_date", defaultJoin);
-                setContactDetailRowIfPresent("website", defaultWebsite, true);
-
-                const getDefaultSocial = function (k) {
-                    return (
-                        contactData?.[k + '_link'] ||
-                        contactData?.[k] ||
-                        userData?.[k + '_link'] ||
-                        userData?.[k] ||
-                        userData?.social_links?.[k] ||
-                        (userData?.social_links && userData.social_links[k]) ||
-                        ''
-                    );
-                };
-
-                ["facebook", "twitter", "instagram", "linkedin", "youtube", "kick", "twitch"].forEach(function (k) {
-                    setContactDetailRowIfPresent(k, getDefaultSocial(k), true);
-                });
-                updateContactSocialCardVisibility();
-
-                function applyPubProfileToModal(pub) {
-                    if (!pub || pub.profile_loaded !== true) return;
-                    const h6El = document.getElementById("contact-detail-name");
-                    if (pub.display_name && h6El) h6El.textContent = pub.display_name;
-                    const subEl = document.getElementById("contact-detail-title");
-                    if (subEl) {
-                        const r = primaryRoleDisplayFromSources(pub, null, null);
-                        if (r) {
-                            subEl.textContent = r;
-                            subEl.style.display = "";
-                        } else {
-                            subEl.textContent = "";
-                            subEl.style.display = "none";
-                        }
-                    }
-                    setContactDetailRowIfPresent("dob", pub.dob);
-                    setContactDetailRowIfPresent("bio", pub.bio);
-                    setContactDetailRowIfPresent("location", pub.location);
-                    setContactDetailRowIfPresent("join_date", pub.join_date);
-
-                    const socialKeys = ["facebook", "twitter", "instagram", "linkedin", "youtube", "kick", "twitch"];
-                    if (pub.websites && pub.websites.length > 0 && pub.websites[0].url) {
-                        setContactDetailRow("website", pub.websites[0].url, true);
-                    } else {
-                        setContactDetailRow("website", "");
-                    }
-                    if (pub.social_links) {
-                        socialKeys.forEach(function (k) {
-                            const v = pub.social_links[k];
-                            if (v && String(v).trim()) setContactDetailRow(k, v, true);
-                            else setContactDetailRow(k, "");
-                        });
-                    }
-                    updateContactSocialCardVisibility();
-                }
-
-                const contactEmail = (contactData && contactData.email) || (userData && userData.email);
-                const contactUsername =
-                    (contactData && (contactData.userName || contactData.username || contactData.user_name)) ||
-                    (userData && (userData.userName || userData.username || userData.user_name)) ||
-                    (contactData && contactData.mobile_number) ||
-                    (userData && userData.mobile_number);
-
-                // API enrichment (only overwrite when values are present)
-                if (contactEmail && String(contactEmail).trim() !== "") {
-                    fetch("/api/public-profile-by-email?email=" + encodeURIComponent(contactEmail))
-                        .then(function (r) { return r.json(); })
-                        .then(function (pub) {
-                            if (!pub) return;
-                            applyPubProfileToModal(pub);
-                        })
-                        .catch(function () {});
-                } else if (contactUsername && String(contactUsername).trim() !== "") {
-                    fetch("/api/public-profile-by-username?username=" + encodeURIComponent(contactUsername))
-                        .then(function (r) { return r.json(); })
-                        .then(function (pub) {
-                            if (!pub) return;
-                            applyPubProfileToModal(pub);
-                        })
-                        .catch(function () {});
-                } else {
-                    fetch("/api/public-profile-by-firebase-uid?uid=" + encodeURIComponent(uid))
-                        .then(function (r) { return r.json(); })
-                        .then(function (pub) {
-                            if (!pub) return;
-                            applyPubProfileToModal(pub);
-                        })
-                        .catch(function () {});
-                }
-
-            } else {
-                // If no data exists for this user, handle gracefully
+        get(contactRef).then(async contactEntrySnap => {
+            if (gen !== contactDetailFetchGeneration) return;
+            if (!contactEntrySnap.exists()) {
+                hideContactDetailsModalAndCleanupBackdrop();
                 Swal.fire({
                     title: "",
                     width: 400,
                     text: "Contact details not found.",
                     icon: "error",
                 });
+                return;
+            }
+
+            const userRef = ref(database, `data/users/${uid}`);
+            const userSnap = await get(userRef);
+            if (gen !== contactDetailFetchGeneration) return;
+            let userData = {};
+            if (userSnap.exists()) {
+                userData = userSnap.val();
+            }
+            const snapshotContact = await get(contactRef);
+            if (gen !== contactDetailFetchGeneration) return;
+            const contactData = snapshotContact.val();
+
+            // Update modal content with fetched data (set both modal input and legacy id for compatibility)
+            const modalInput = detailModal?.querySelector('input[id="contact-detail-user-id"]');
+            if (modalInput) modalInput.value = uid;
+            const legacyEl = document.getElementById("edit-contact-user-id");
+            if (legacyEl) legacyEl.value = uid;
+            // Name: contact first, then userData fallback; then mobile/email/userName
+            const firstName = (contactData.firstName || userData.firstName || "").trim();
+            const lastName = (contactData.lastName || userData.lastName || "").trim();
+            const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+            const displayName = fullName || contactData.mobile_number || contactData.email || userData.userName || userData.mobile_number || userData.email || "—";
+            const nameEl =
+                (detailModal && detailModal.querySelector("#contact-detail-name")) ||
+                document.getElementById("contact-detail-name") ||
+                document.querySelector("#contact-details .modal-body h6");
+            if (nameEl) nameEl.textContent = displayName;
+            const contactDetailNameEl = document.getElementById("contact-detail-name");
+            if (contactDetailNameEl) contactDetailNameEl.textContent = displayName;
+            setContactDetailRoleSubtitle(contactData, userData, null);
+            // Profile image: contact + Firebase, then Laravel for older contacts without stored photo
+            var avatarImgEl =
+                (detailModal && detailModal.querySelector(".avatar img")) ||
+                document.querySelector("#contact-details .avatar img");
+            var rawAvatar =
+                (contactData && contactData.profile_image) ||
+                (userData &&
+                    (userData.profile_image ||
+                        userData.image ||
+                        userData.profileImage ||
+                        userData.photoURL ||
+                        userData.avatar)) ||
+                "";
+            if (!rawAvatar) {
+                const fbUids = uid && String(uid).indexOf("pending_") !== 0 ? [uid] : [];
+                const emailList = [];
+                const unList = [];
+                if (contactData && contactData.email && String(contactData.email).trim())
+                    emailList.push(String(contactData.email).trim().toLowerCase());
+                if (userData && userData.email && String(userData.email).trim()) {
+                    const em = String(userData.email).trim().toLowerCase();
+                    if (emailList.indexOf(em) < 0) emailList.push(em);
+                }
+                if (contactData && contactData.user_name && String(contactData.user_name).trim())
+                    unList.push(String(contactData.user_name).trim());
+                if (userData && (userData.userName || userData.username)) {
+                    const un = String(userData.userName || userData.username).trim();
+                    if (un && unList.indexOf(un) < 0) unList.push(un);
+                }
+                const laravelMap = await fetchLaravelContactAvatars({
+                    firebase_uids: fbUids,
+                    emails: emailList,
+                    usernames: unList,
+                });
+                if (laravelMap) {
+                    const bu = laravelMap.by_uid || {};
+                    const be = laravelMap.by_email || {};
+                    const buser = laravelMap.by_username || {};
+                    if (fbUids.length && bu[uid]) rawAvatar = bu[uid];
+                    if (!rawAvatar && emailList.length) {
+                        for (let i = 0; i < emailList.length && !rawAvatar; i++) {
+                            if (be[emailList[i]]) rawAvatar = be[emailList[i]];
+                        }
+                    }
+                    if (!rawAvatar && unList.length) {
+                        for (let j = 0; j < unList.length && !rawAvatar; j++) {
+                            const k = String(unList[j]).toLowerCase();
+                            if (buser[k]) rawAvatar = buser[k];
+                        }
+                    }
+                }
+            }
+            if (gen !== contactDetailFetchGeneration) return;
+            var chosenAvatar = resolveProfileImageUrl(rawAvatar);
+            if (avatarImgEl) avatarImgEl.src = chosenAvatar;
+            const phoneVal = contactData.mobile_number || userData.mobile_number || "N/A";
+            const emailVal = contactData.email || userData.email || "N/A";
+            const phoneEl = detailModal?.querySelector('.fw-medium.fs-14.mb-2[data-field="phone"]');
+            if (phoneEl) phoneEl.textContent = phoneVal;
+            const emailEl = detailModal?.querySelector('.fw-medium.fs-14.mb-2[data-field="email"]');
+            if (emailEl) emailEl.textContent = emailVal;
+
+            const now = new Date();
+            const localTimeStr =
+                now.getHours() +
+                ":" +
+                (now.getMinutes() < 10 ? "0" : "") +
+                now.getMinutes() +
+                " " +
+                (now.getHours() >= 12 ? "PM" : "AM");
+            setContactDetailRow("local_time", localTimeStr);
+
+            const defaultDob = contactData?.dob || userData?.dob || "";
+            const defaultBio =
+                contactData?.about ||
+                contactData?.bio ||
+                userData?.about ||
+                userData?.bio ||
+                userData?.user_about ||
+                "";
+            const defaultLocation =
+                contactData?.location ||
+                contactData?.country ||
+                userData?.country ||
+                userData?.location ||
+                "";
+            const defaultJoin =
+                userData?.join_date ||
+                userData?.created_at ||
+                userData?.timestamp ||
+                contactData?.join_date ||
+                contactData?.created_at ||
+                "";
+            const defaultWebsite =
+                (userData?.websites && userData.websites[0] && userData.websites[0].url
+                    ? userData.websites[0].url
+                    : "") ||
+                userData?.website_url ||
+                userData?.website_link ||
+                contactData?.website_url ||
+                contactData?.website_link ||
+                "";
+
+            setContactDetailRowIfPresent("dob", defaultDob);
+            setContactDetailRowIfPresent("bio", defaultBio);
+            setContactDetailRowIfPresent("location", defaultLocation);
+            setContactDetailRowIfPresent("join_date", defaultJoin);
+            setContactDetailRowIfPresent("website", defaultWebsite, true);
+
+            const getDefaultSocial = function (k) {
+                return (
+                    contactData?.[k + "_link"] ||
+                    contactData?.[k] ||
+                    userData?.[k + "_link"] ||
+                    userData?.[k] ||
+                    userData?.social_links?.[k] ||
+                    (userData?.social_links && userData.social_links[k]) ||
+                    ""
+                );
+            };
+
+            ["facebook", "twitter", "instagram", "linkedin", "youtube", "kick", "twitch"].forEach(function (k) {
+                setContactDetailRowIfPresent(k, getDefaultSocial(k), true);
+            });
+            updateContactSocialCardVisibility();
+
+            function applyPubProfileToModal(pub, fetchGen, expectedUid) {
+                if (fetchGen !== contactDetailFetchGeneration) return;
+                const m = getContactDetailsModalEl();
+                const hid = m && m.querySelector("input#contact-detail-user-id");
+                if (!hid || String(hid.value) !== String(expectedUid)) return;
+                if (!pub || pub.profile_loaded !== true) return;
+                const h6El = document.getElementById("contact-detail-name");
+                if (pub.display_name && h6El) h6El.textContent = pub.display_name;
+                const subEl = document.getElementById("contact-detail-title");
+                if (subEl) {
+                    const r = primaryRoleDisplayFromSources(pub, null, null);
+                    if (r) {
+                        subEl.textContent = r;
+                        subEl.style.display = "";
+                    } else {
+                        subEl.textContent = "";
+                        subEl.style.display = "none";
+                    }
+                }
+                setContactDetailRowIfPresent("dob", pub.dob);
+                setContactDetailRowIfPresent("bio", pub.bio);
+                setContactDetailRowIfPresent("location", pub.location);
+                setContactDetailRowIfPresent("join_date", pub.join_date);
+
+                const socialKeys = ["facebook", "twitter", "instagram", "linkedin", "youtube", "kick", "twitch"];
+                if (pub.websites && pub.websites.length > 0 && pub.websites[0].url) {
+                    setContactDetailRow("website", pub.websites[0].url, true);
+                } else {
+                    setContactDetailRow("website", "");
+                }
+                if (pub.social_links) {
+                    socialKeys.forEach(function (k) {
+                        const v = pub.social_links[k];
+                        if (v && String(v).trim()) setContactDetailRow(k, v, true);
+                        else setContactDetailRow(k, "");
+                    });
+                }
+                updateContactSocialCardVisibility();
+            }
+
+            const contactEmail = (contactData && contactData.email) || (userData && userData.email);
+            const contactUsername =
+                (contactData && (contactData.userName || contactData.username || contactData.user_name)) ||
+                (userData && (userData.userName || userData.username || userData.user_name)) ||
+                (contactData && contactData.mobile_number) ||
+                (userData && userData.mobile_number);
+
+            // API enrichment (only overwrite when values are present)
+            if (contactEmail && String(contactEmail).trim() !== "") {
+                fetch("/api/public-profile-by-email?email=" + encodeURIComponent(contactEmail))
+                    .then(function (r) {
+                        return r.json();
+                    })
+                    .then(function (pub) {
+                        if (!pub) return;
+                        applyPubProfileToModal(pub, gen, uid);
+                    })
+                    .catch(function () {});
+            } else if (contactUsername && String(contactUsername).trim() !== "") {
+                fetch("/api/public-profile-by-username?username=" + encodeURIComponent(contactUsername))
+                    .then(function (r) {
+                        return r.json();
+                    })
+                    .then(function (pub) {
+                        if (!pub) return;
+                        applyPubProfileToModal(pub, gen, uid);
+                    })
+                    .catch(function () {});
+            } else {
+                fetch("/api/public-profile-by-firebase-uid?uid=" + encodeURIComponent(uid))
+                    .then(function (r) {
+                        return r.json();
+                    })
+                    .then(function (pub) {
+                        if (!pub) return;
+                        applyPubProfileToModal(pub, gen, uid);
+                    })
+                    .catch(function () {});
             }
         }).catch(error => {
             // Handle errors
@@ -686,12 +773,12 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function handleVoiceCallClick() {
-        const modal = document.getElementById('contact-details');
+        const modal = getContactDetailsModalEl();
         const modalInput = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : null;
         const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById('edit-contact-user-id')?.value || '').trim();
         if (!currentUserId || !userId) return;
 
-        const modalEl = document.getElementById('contact-details');
+        const modalEl = getContactDetailsModalEl();
         if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             const m = bootstrap.Modal.getInstance(modalEl);
             if (m) m.hide();
@@ -707,12 +794,12 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function handleVideoCallClick() {
-        const modal = document.getElementById('contact-details');
+        const modal = getContactDetailsModalEl();
         const modalInput = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : null;
         const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById('edit-contact-user-id')?.value || '').trim();
         if (!currentUserId || !userId) return;
 
-        const modalEl = document.getElementById('contact-details');
+        const modalEl = getContactDetailsModalEl();
         if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             const m = bootstrap.Modal.getInstance(modalEl);
             if (m) m.hide();
@@ -728,7 +815,7 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function handleChatButtonClick() {
-        const modal = document.getElementById("contact-details");
+        const modal = getContactDetailsModalEl();
         const modalInput = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : null;
         const userId = (modalInput && modalInput.value) ? modalInput.value.trim() : (document.getElementById("edit-contact-user-id")?.value || '').trim();
         if (!userId) {
@@ -752,7 +839,7 @@ initializeFirebase(function (app, auth, database, storage) {
             }).showToast();
             return;
         }
-        const modalEl = document.getElementById('contact-details');
+        const modalEl = getContactDetailsModalEl();
         if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             const m = bootstrap.Modal.getInstance(modalEl);
             if (m) m.hide();
@@ -1360,7 +1447,7 @@ initializeFirebase(function (app, auth, database, storage) {
         blockContactUserDropdownBtn.addEventListener("click", function (event) {
             const userId = document.getElementById("contact-detail-user-id")?.value || "";
             otherUserId = userId; // Replace with actual user ID logic
-            const EditpopupElement = document.getElementById('contact-details');  // The contact details modal ID
+            const EditpopupElement = getContactDetailsModalEl();
             if (EditpopupElement) {
                 const editpopup = bootstrap.Modal.getInstance(EditpopupElement);  // Get the existing modal instance
                 if (editpopup) {

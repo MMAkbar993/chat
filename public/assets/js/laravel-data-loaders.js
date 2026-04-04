@@ -10,6 +10,13 @@
     var runDebounceTimer = null;
     var lastRunPath = '';
     var publicProfileCache = {};
+    var contactDetailOpenGeneration = 0;
+
+    function getContactDetailsModalEl() {
+        var inStack = document.querySelector('#spa-page-modals #contact-details');
+        if (inStack) return inStack;
+        return document.getElementById('contact-details');
+    }
 
     function getPathname(url) {
         if (!url) return '';
@@ -89,14 +96,15 @@
                     var uid = this.getAttribute('data-user-id');
                     var data = window.__laravelContacts[uid];
                     if (!data) return;
-                    var modal = document.getElementById('contact-details');
+                    var openGen = ++contactDetailOpenGeneration;
+                    var modal = getContactDetailsModalEl();
                     var cdHidden = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : document.getElementById('contact-detail-user-id');
                     if (cdHidden) cdHidden.value = uid;
                     var modalInput = modal ? modal.querySelector('input[id="edit-user-id"]') : null;
                     if (modalInput) modalInput.value = uid;
                     var editId = document.getElementById('edit-user-id');
                     if (editId) editId.value = uid;
-                    var nameEl = document.getElementById('contact-detail-name') || document.querySelector('#contact-details h6');
+                    var nameEl = (modal && modal.querySelector('#contact-detail-name')) || document.getElementById('contact-detail-name') || document.querySelector('#contact-details h6');
                     var displayName = (data.firstName || '') + ' ' + (data.lastName || '').trim() || data.userName || data.email || 'Contact';
                     if (nameEl) nameEl.textContent = displayName;
                     var titleEl = document.getElementById('contact-detail-title');
@@ -111,7 +119,7 @@
                     if (titleEl) {
                         titleEl.textContent = data.primary_role_label || formatRoleLine(data.primary_role, data.other_role_text) || data.userName || '';
                     }
-                    var avatar = document.getElementById('contact-detail-avatar') || document.querySelector('#contact-details .avatar img');
+                    var avatar = (modal && modal.querySelector('#contact-detail-avatar')) || document.getElementById('contact-detail-avatar') || document.querySelector('#contact-details .avatar img');
                     if (avatar) avatar.src = data.image || (baseUrl + '/assets/img/profiles/avatar-03.jpg');
                     var phoneEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="phone"]');
                     if (phoneEl) phoneEl.textContent = data.mobile_number || '—';
@@ -129,6 +137,10 @@
                         }
                     };
                     var applyPublicProfile = function (pub) {
+                        if (openGen !== contactDetailOpenGeneration) return;
+                        var m = getContactDetailsModalEl();
+                        var hid = m && m.querySelector('input#contact-detail-user-id');
+                        if (!hid || String(hid.value) !== String(uid)) return;
                         if (!pub) return;
                         if (pub.display_name && nameEl) nameEl.textContent = pub.display_name;
                         if (pub.primary_role_label && titleEl) titleEl.textContent = pub.primary_role_label;
@@ -187,7 +199,7 @@
                     var videoBtn = document.getElementById('contact-detail-video-btn');
                     var currentUserId = (typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER && window.LARAVEL_USER.id) ? String(window.LARAVEL_USER.id) : '';
                     function closeContactDetailModal() {
-                        var modalEl = document.getElementById('contact-details');
+                        var modalEl = getContactDetailsModalEl();
                         if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
                             var m = bootstrap.Modal.getInstance(modalEl);
                             if (m) m.hide();

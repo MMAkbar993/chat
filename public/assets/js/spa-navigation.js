@@ -274,6 +274,9 @@
 
         var newPageContent = doc.getElementById('spa-page-content');
         var currentPageContent = document.getElementById('spa-page-content');
+        if (currentPageContent) {
+            currentPageContent.classList.remove('contact-profile-dock-open');
+        }
         if (newPageContent && currentPageContent) {
             currentPageContent.innerHTML = newPageContent.innerHTML;
             executeInlineScripts(currentPageContent);

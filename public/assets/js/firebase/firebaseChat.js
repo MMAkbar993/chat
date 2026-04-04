@@ -6390,10 +6390,12 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     })();
 
-    (function bindContactProfileDockLayout() {
+    /** Desktop dock: toggles `contact-profile-dock-open` on #spa-page-content. Re-run after SPA replaces innerHTML (new #contact-profile node). */
+    function rebindContactProfileDockLayout() {
         const spa = document.getElementById("spa-page-content");
         const panel = document.getElementById("contact-profile");
-        if (!spa || !panel || panel.dataset.contactDockBound === "1") return;
+        if (!spa || !panel) return;
+        if (panel.dataset.contactDockBound === "1") return;
         panel.dataset.contactDockBound = "1";
         const setDockOpen = function (open) {
             spa.classList.toggle("contact-profile-dock-open", !!open);
@@ -6407,7 +6409,8 @@ initializeFirebase(function (app, auth, database, storage) {
         if (panel.classList.contains("show")) {
             setDockOpen(true);
         }
-    })();
+    }
+    rebindContactProfileDockLayout();
 
     function getUserInfo(userId) {
         const userRef = ref(database, "data/users/" + userId); // Create a reference to the user node
@@ -7188,13 +7191,8 @@ initializeFirebase(function (app, auth, database, storage) {
     // Update the label based on the blocked status
     const blockUserLabel = document.getElementById("blockUserLabel");
     if (blockUserLabel) {
-        if (isUserInfoBlocked) {
-            blockUserLabel.innerHTML =
-                '<i class="ti ti-user-check me-2 text-info"></i> Unblock User';
-        } else {
-            blockUserLabel.innerHTML =
-                '<i class="ti ti-user-off me-2 text-info"></i> Block Users';
-        }
+        /* Label only: row icon lives in chat.blade.php next to this span (avoid duplicate icons). */
+        blockUserLabel.textContent = isUserInfoBlocked ? "Unblock User" : "Block Users";
     }
 
     // Event listener for dropdown button to open the correct modal
@@ -7236,9 +7234,7 @@ initializeFirebase(function (app, auth, database, storage) {
         update(blockedUserRef, blockedUserData)
             .then(() => {
                 const el = document.getElementById("blockUserLabel");
-                if (el)
-                    el.innerHTML =
-                        '<i class="ti ti-user-check me-2 text-info"></i> Unblock User';
+                if (el) el.textContent = "Unblock User";
                 isUserInfoBlocked = true;
                 localStorage.setItem("isUserInfoBlocked", "true");
                 // Close the block modal explicitly
@@ -7266,9 +7262,7 @@ initializeFirebase(function (app, auth, database, storage) {
         remove(blockedUserRef)
             .then(() => {
                 const el = document.getElementById("blockUserLabel");
-                if (el)
-                    el.innerHTML =
-                        '<i class="ti ti-user-off me-2 text-info"></i> Block Users';
+                if (el) el.textContent = "Block Users";
                 isUserInfoBlocked = false;
                 localStorage.setItem("isUserInfoBlocked", "false");
                 // Close the unblock modal explicitly
@@ -11303,6 +11297,7 @@ initializeFirebase(function (app, auth, database, storage) {
         }, intervalMs);
     }
     window.addEventListener("spa-page-applied", function () {
+        rebindContactProfileDockLayout();
         [0, 120, 450].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
         startWelcomeGuard(12, 250);
     });

@@ -11944,9 +11944,10 @@ Form help
     width: auto;
     min-width: 0;
     min-height: 0;
+    order: 1;
   }
 
-  #spa-page-content.contact-profile-dock-open #contact-profile.chat-offcanvas.offcanvas.show {
+  #spa-page-content.contact-profile-dock-open > #contact-profile.chat-offcanvas.offcanvas.show {
     position: relative !important;
     top: auto !important;
     right: auto !important;
@@ -11964,10 +11965,11 @@ Form help
     display: flex !important;
     flex-direction: column;
     border-left: 1px solid #e8e8e9;
+    order: 2;
   }
 
   @media (max-width: 1399.98px) {
-    #spa-page-content.contact-profile-dock-open #contact-profile.chat-offcanvas.offcanvas.show {
+    #spa-page-content.contact-profile-dock-open > #contact-profile.chat-offcanvas.offcanvas.show {
       flex: 0 0 330px;
       width: 330px;
       max-width: 330px;
