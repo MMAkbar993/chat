@@ -286,7 +286,9 @@ Route::middleware(['auth', 'ensure2fa'])->group(function () {
    Route::post('/api/chat/send', [ChatController::class, 'sendMessage'])->name('chat.send');
    Route::delete('/api/chat-list', [ChatController::class, 'deleteAllChats'])->name('chat.delete-all');
    Route::get('/api/perf-metrics', [PerformanceMetricController::class, 'info'])->name('perf.metrics.info');
-   Route::post('/api/perf-metrics', [PerformanceMetricController::class, 'store'])->name('perf.metrics.store');
+   Route::post('/api/perf-metrics', [PerformanceMetricController::class, 'store'])
+      ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class])
+      ->name('perf.metrics.store');
 
    // Group Chat API (JSON)
    Route::prefix('api/groups')->group(function () {

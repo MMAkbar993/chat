@@ -4378,6 +4378,9 @@ initializeFirebase(function (app, auth, database, storage) {
         // Attach a listener for real-time messages
         onChildAdded(messageRef, (snapshot) => {
             const message = snapshot.val();
+            if (!message || !currentUser?.uid) {
+                return;
+            }
             const isMessageForCurrentUser =
                 message.recipientId === currentUser.uid;
 

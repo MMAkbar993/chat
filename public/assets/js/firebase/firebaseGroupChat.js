@@ -29,6 +29,23 @@ initializeFirebase(function (app, auth, database,storage) {
 
 let currentUserId = null; // Define the current user here
 let displayGroupUsersGeneration = 0; // Ignore stale async renders when fetchGroupUsers runs concurrently
+let laravelGroupPickerGeneration = 0;
+
+function dreamchatWebBase() {
+    if (typeof APP_URL !== "undefined" && APP_URL) {
+        return String(APP_URL).replace(/\/$/, "");
+    }
+    return typeof window !== "undefined" && window.location ? window.location.origin : "";
+}
+
+function refetchGroupPickerIfModalOpen() {
+    const addModal = document.getElementById("add-group");
+    if (!addModal || !addModal.classList.contains("show")) return;
+    const ul = document.getElementById("users-list");
+    if (ul && currentUserId && ul.querySelectorAll(".contact-user").length === 0) {
+        fetchGroupUsers(currentUserId);
+    }
+}
 
 // Monitor the user's authentication state
 onAuthStateChanged(auth, (user) => {
@@ -38,25 +55,12 @@ onAuthStateChanged(auth, (user) => {
         // Fetch groups or other data
         fetchGroups();
         fetchGroupUsers(currentUserId);
+        refetchGroupPickerIfModalOpen();
     } else {
         // window.location.href = "/login";
     
     }
 });
-
-// "+ Group" button: open New Group modal instead of navigating (fixes button on group-chat page)
-const groupAddBtn = document.getElementById('group-add-btn');
-if (groupAddBtn) {
-    groupAddBtn.addEventListener('click', function (e) {
-        const newGroupEl = document.getElementById('new-group');
-        if (newGroupEl && typeof bootstrap !== 'undefined') {
-            e.preventDefault();
-            e.stopPropagation();
-            const modal = bootstrap.Modal.getOrCreateInstance(newGroupEl);
-            modal.show();
-        }
-    });
-}
 
 let usersMap = {};
 
@@ -260,55 +264,6 @@ async function enrichGroupMembersWithLaravelBatch(members) {
     }
 }
 
-// Function to fetch users from Firebase
-function fetchGroupUsers(currentUserId) {
-    const contactsRef = ref(database, `data/contacts/${currentUserId}`); // Path to logged-in user's contacts
-    
-    get(contactsRef)
-        .then((snapshot) => {
-            if (snapshot.exists()) {
-                const contacts = snapshot.val(); // Get all contacts
-                const userIds = Object.keys(contacts); // Extract user IDs of the contacts
-
-                if (userIds.length > 0) {
-                    const usersRef = ref(database, "data/users"); // Path to your users data
-
-                    get(usersRef).then((userSnapshot) => {
-                        if (userSnapshot.exists()) {
-                            const users = userSnapshot.val();
-                            const usersMap = {};
-
-                            // Create a mapping of user IDs to user details only for the contacts
-                            userIds.forEach((userId) => {
-                                if (users[userId]) {
-                                    const u = users[userId];
-                                    const contactData = contacts[userId] || null;
-                                    usersMap[userId] = {
-                                        ...u,
-                                        profileImage: resolveGroupProfileImageUrl(
-                                            rawAvatarFromUserAndContact(u, contactData)
-                                        ),
-                                    };
-                                }
-                            });
-
-                            displayGroupUsers(usersMap); // Call function to display users
-                        } 
-                    }).catch((error) => {
-                        if (error == 'Error: Error: Client is offline.') {
-                            // window.location.href = "/login";
-                        }
-                    });
-                } 
-            } 
-        })
-        .catch((error) => {
-            if (error == 'Error: Error: Client is offline.') {
-                // window.location.href = "/login";
-            }
-        });
-}
-
 // Function to display users in the HTML list (one-shot reads — avoids stacking onValue listeners on each open / refetch)
 function displayGroupUsers(users, currentUser) {
     const renderGen = ++displayGroupUsersGeneration;
@@ -411,14 +366,135 @@ function appendUserCard(container, displayName, profileImage, role, userId) {
 
 // Helper function to capitalize first letter
 function capitalizeFirstLetter(string) {
+    if (!string || typeof string !== "string") return "";
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
+
+/** Laravel /contacts when RTDB data/contacts is empty (e.g. contacts only in MySQL). Checkbox values must be Firebase UIDs. */
+function fetchLaravelContactsForGroupPicker() {
+    const usersContainer = document.getElementById("users-list");
+    if (!usersContainer) return Promise.resolve();
+    const base = dreamchatWebBase();
+    if (!base) return Promise.resolve();
+    const gen = ++laravelGroupPickerGeneration;
+    return fetch(base + "/contacts", {
+        method: "GET",
+        headers: {
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+        },
+        credentials: "same-origin",
+    })
+        .then((r) => r.json())
+        .then((contacts) => {
+            if (gen !== laravelGroupPickerGeneration) return;
+            if (!Array.isArray(contacts)) return;
+            const withFb = contacts.filter((c) => c && String(c.firebase_uid || c.firebaseUid || "").trim());
+            if (withFb.length === 0) {
+                if (!usersContainer.querySelector(".contact-user")) {
+                    usersContainer.innerHTML =
+                        '<p class="text-muted text-center py-3">No contacts yet, or contacts are not linked to chat. Add contacts from the Contacts page.</p>';
+                }
+                return;
+            }
+            usersContainer.innerHTML = "";
+            usersContainer.classList.remove("d-none");
+            displayGroupUsersGeneration++;
+            withFb.forEach((c) => {
+                const fb = String(c.firebase_uid || c.firebaseUid || "").trim();
+                const first = (c.firstName || "").trim();
+                const last = (c.lastName || "").trim();
+                const name =
+                    `${first} ${last}`.trim() ||
+                    String(c.userName || "").trim() ||
+                    String(c.email || "").trim() ||
+                    "Contact";
+                const img = resolveGroupProfileImageUrl(c.image || "");
+                const role = String(c.primary_role || "").trim();
+                appendUserCard(usersContainer, name, img, role, fb);
+            });
+        })
+        .catch(() => {
+            /* ignore */
+        });
+}
+
+function fetchGroupUsers(uid) {
+    const firebaseUid = uid || currentUserId;
+    if (!firebaseUid) return;
+    const contactsRef = ref(database, `data/contacts/${firebaseUid}`);
+
+    get(contactsRef)
+        .then((snapshot) => {
+            if (!snapshot.exists()) {
+                fetchLaravelContactsForGroupPicker();
+                return;
+            }
+            const contacts = snapshot.val();
+            const userIds = Object.keys(contacts || {});
+            if (userIds.length === 0) {
+                fetchLaravelContactsForGroupPicker();
+                return;
+            }
+            const usersRef = ref(database, "data/users");
+            get(usersRef)
+                .then((userSnapshot) => {
+                    if (!userSnapshot.exists()) {
+                        fetchLaravelContactsForGroupPicker();
+                        return;
+                    }
+                    const users = userSnapshot.val();
+                    const usersMap = {};
+                    userIds.forEach((userId) => {
+                        if (users[userId]) {
+                            const u = users[userId];
+                            const contactData = contacts[userId] || null;
+                            usersMap[userId] = {
+                                ...u,
+                                profileImage: resolveGroupProfileImageUrl(
+                                    rawAvatarFromUserAndContact(u, contactData)
+                                ),
+                            };
+                        }
+                    });
+                    if (Object.keys(usersMap).length === 0) {
+                        fetchLaravelContactsForGroupPicker();
+                        return;
+                    }
+                    displayGroupUsers(usersMap);
+                })
+                .catch(() => {
+                    fetchLaravelContactsForGroupPicker();
+                });
+        })
+        .catch(() => {
+            fetchLaravelContactsForGroupPicker();
+        });
+}
+
 let selectedMembers = [];
 
-// Group creation event listener
-const startGroupBtn = document.getElementById('start-group');
-if (startGroupBtn) {
-    startGroupBtn.addEventListener('click', function (e) {
+function bindDreamchatGroupCreateUi() {
+    const newGroupRoot = document.getElementById("new-group");
+    if (!newGroupRoot || newGroupRoot.dataset.dreamchatGroupBind === "1") return;
+    newGroupRoot.dataset.dreamchatGroupBind = "1";
+
+    const groupAddBtn = document.getElementById("group-add-btn");
+    if (groupAddBtn) {
+        groupAddBtn.addEventListener("click", function (e) {
+            const newGroupEl = document.getElementById("new-group");
+            if (newGroupEl && typeof bootstrap !== "undefined") {
+                e.preventDefault();
+                e.stopPropagation();
+                const modal = bootstrap.Modal.getOrCreateInstance(newGroupEl);
+                modal.show();
+            }
+        });
+    }
+
+    const startGroupBtn = document.getElementById("start-group");
+    if (startGroupBtn) {
+        startGroupBtn.addEventListener("click", function (e) {
     e.preventDefault(); // Prevent default button behavior
 
     // Disable the button to prevent multiple clicks
@@ -520,7 +596,7 @@ if (startGroupBtn) {
         const iconFormData = new FormData();
         iconFormData.append('image', file);
 
-        fetch('/api/groups/icon-upload', {
+        fetch(dreamchatWebBase() + '/api/groups/icon-upload', {
             method: 'POST',
             headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
             body: iconFormData,
@@ -542,19 +618,13 @@ if (startGroupBtn) {
             })
             .then(() => {
                 resetStartGroupButton();
-                const gf = document.getElementById("group-form");
-                const amf = document.getElementById("add-members-form");
-                if (gf) gf.reset();
-                if (amf) amf.reset();
-                $("#add-group").modal("hide");
-                $("#new-group").modal("hide");
+                finalizeGroupCreateUI("group_" + newGroupKey);
                 Swal.fire({
                     title: "",
                     width: 400,
                     text: "Group created successfully!",
                     icon: "success",
                 });
-                window.location.href = "/group-chat";
             })
             .catch(async (error) => {
                 const errMsg = error && error.message ? String(error.message).slice(0, 300) : "Unknown error";
@@ -571,16 +641,8 @@ if (startGroupBtn) {
                 try {
                     await set(ref(database, "data/groups/group_" + newGroupKey), groupData);
 
-                    // Hide modals / reset UI like the success path.
                     resetStartGroupButton();
-                    const gf = document.getElementById("group-form");
-                    const amf = document.getElementById("add-members-form");
-                    if (gf) gf.reset();
-                    if (amf) amf.reset();
-                    $("#add-group").modal("hide");
-                    $("#new-group").modal("hide");
-
-                    window.location.href = "/group-chat";
+                    finalizeGroupCreateUI("group_" + newGroupKey);
                 } catch (fallbackErr) {
                     Swal.fire({
                         icon: "error",
@@ -594,127 +656,177 @@ if (startGroupBtn) {
         set(ref(database, 'data/groups/group_' + newGroupKey), groupData)
             .then(() => {
                 resetStartGroupButton();
+                finalizeGroupCreateUI("group_" + newGroupKey);
                 Swal.fire({
                     title: "",
                     width: 400,
                     text: "Group created successfully!",
                     icon: "success",
                 });
-                        window.location.href = '/group-chat';
-               
-                        closePopup(); // Call a function to close the popup
-                        $('#add-group').modal('hide'); // Close the "Add Group" modal
-                        $('#new-group').modal('hide');
             })
             .catch((error) => {
                 resetStartGroupButton();
             });
     }
-});
-}
+        });
+    }
 
-const cancleGroupBtn = document.querySelector('#cancle-btn-group');
-if (cancleGroupBtn) {
-    cancleGroupBtn.addEventListener('click', function () {
-         document.getElementById("group-names").value = '';
-         document.getElementById("group-about").value = '';
-         document.getElementById('group-type').checked = false;
-         document.getElementById("groupcontactSearchInput").value = '';
-         document.querySelectorAll('.contact-user .form-check-input').forEach(checkbox => {
+    const cancleGroupBtn = document.querySelector('#cancle-btn-group');
+    if (cancleGroupBtn) {
+        cancleGroupBtn.addEventListener('click', function () {
+             document.getElementById("group-names").value = '';
+             document.getElementById("group-about").value = '';
+             document.getElementById("groupcontactSearchInput").value = '';
+             document.querySelectorAll('.contact-user .form-check-input').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+
+            const searchInput = document.getElementById("groupcontactSearchInput");
+            if (searchInput) searchInput.dispatchEvent(new Event("input")); // Trigger the input event to refresh the contact list
+            
+        });
+    }
+    const groupAddCancleBtn = document.querySelector('#group-add-cancle-btn');
+    if (groupAddCancleBtn) groupAddCancleBtn.addEventListener('click', function () {
+        document.getElementById("group-names").value = '';
+        document.getElementById("group-about").value = '';
+        document.getElementById("groupcontactSearchInput").value = '';
+        document.querySelectorAll('.contact-user .form-check-input').forEach(checkbox => {
             checkbox.checked = false;
         });
-
-        searchbtn =  document.getElementById("groupcontactSearchInput").value;
-        searchbtn.dispatchEvent(new Event("input")); // Trigger the input event to refresh the contact list
         
+       
+    });
+
+    const canlceBtnSearch = document.querySelector('#canlce-btn-search');
+    if (canlceBtnSearch) canlceBtnSearch.addEventListener('click', function () {
+        document.getElementById("group-names").value = '';
+        document.getElementById("group-about").value = '';
+        document.getElementById("groupcontactSearchInput").value = '';
+        document.querySelectorAll('.contact-user .form-check-input').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+       
+    });
+
+    const avatarUpload = document.getElementById('avatar-upload');
+    if (avatarUpload) avatarUpload.addEventListener('change', function (event) {
+        const file = event.target.files[0]; // Get the selected file
+        const preview = document.getElementById('avatar-preview'); // Get the image preview element
+        if (!preview) return;
+
+        // Check if a file is selected
+        if (file) {
+            const reader = new FileReader(); // Create a FileReader object
+
+            reader.onload = function (e) {
+                preview.src = e.target.result; // Set the src of the preview to the file's result
+                preview.style.display = 'block'; // Show the preview
+                preview.style.objectFit = 'cover';
+                preview.classList.add('position-relative');
+                preview.style.zIndex = '5';
+            };
+
+            reader.readAsDataURL(file); // Read the file as a Data URL
+        } else {
+            preview.style.display = 'none'; // Hide the preview if no file is selected
+        }
+    });
+
+    const addGroupModal = document.getElementById('add-group');
+    if (addGroupModal) {
+        addGroupModal.addEventListener('shown.bs.modal', function () {
+            const ul = document.getElementById('users-list');
+            if (ul) ul.classList.remove("d-none");
+            if (ul && ul.querySelectorAll(".contact-user").length === 0) {
+                if (currentUserId) fetchGroupUsers(currentUserId);
+            }
+        });
+    }
+
+    if (newGroupRoot) {
+        newGroupRoot.addEventListener("shown.bs.modal", function () {
+            const fileIn = document.getElementById("avatar-upload");
+            if (fileIn) fileIn.value = "";
+            const prev = document.getElementById("avatar-preview");
+            if (prev) {
+                const def = prev.getAttribute("data-default-avatar");
+                if (def) prev.src = def;
+                prev.style.objectFit = "";
+                prev.style.zIndex = "";
+            }
+            const ul = document.getElementById("users-list");
+            if (ul && ul.querySelectorAll(".contact-user").length === 0) {
+                if (currentUserId) fetchGroupUsers(currentUserId);
+            }
+        });
+    }
+
+    const groupcontactSearchInputEl = document.getElementById("groupcontactSearchInput");
+    if (groupcontactSearchInputEl) {
+        groupcontactSearchInputEl.addEventListener("input", function () {
+            const searchValue = this.value.toLowerCase(); // Get the search value in lowercase
+            const groupDivs = document.querySelectorAll("#users-list .contact-user"); // Select all contact elements
+            const usersList = document.getElementById("users-list");
+            let anyVisible = false; // Track if any contact is visible
+
+            groupDivs.forEach((groupDiv) => {
+                const groupNameElement = groupDiv.querySelector("h6"); // Get the contact name in an <h6> tag
+                const groupName = groupNameElement ? groupNameElement.textContent.toLowerCase() : ""; // Get the contact name in lowercase
+
+                // Check if the contact name includes the search value
+                if (groupName.includes(searchValue)) {
+                   
+                    groupDiv.style.display = ""; // Show the contact
+                    const groupFlexElements = groupDiv.querySelectorAll('.d-flex.align-items-center');
+                    groupFlexElements.forEach((groupFlex) => {
+                        groupFlex.style.display = "";
+                    });
+                    anyVisible = true; // Mark as visible
+                } else {
+                    groupDiv.style.display = "none"; // Hide the contact
+
+                    // Apply display: none to all .d-flex.align-items-center elements inside the current groupDiv
+                    const groupFlexElements = groupDiv.querySelectorAll('.d-flex.align-items-center');
+                    groupFlexElements.forEach((groupFlex) => {
+                        groupFlex.setAttribute("style", "display: none !important;");
+                    });
+                }
+            });
+
+            // Show or hide the no matches message
+            const noMatchesMessage = document.getElementById("noGroupMatchesModalMessage");
+            if (noMatchesMessage) {
+                noMatchesMessage.style.display = anyVisible ? "none" : "block"; // Show if no contacts are visible
+            }
+            if (usersList) {
+                if (!anyVisible && searchValue.trim() !== "") {
+                    usersList.classList.add("d-none"); // Hide users-list if no matches are found
+                } else {
+                    usersList.classList.remove("d-none"); // Show users-list if matches are found
+                }
+            }
+        });
+    }
+}
+
+bindDreamchatGroupCreateUi();
+if (typeof window !== "undefined") {
+    window.addEventListener("spa-page-applied", function (e) {
+        const path = e && e.detail && e.detail.pathname ? e.detail.pathname : "";
+        if (path === "/group-chat" || document.getElementById("new-group")) {
+            bindDreamchatGroupCreateUi();
+        }
     });
 }
-const groupAddCancleBtn = document.querySelector('#group-add-cancle-btn');
-if (groupAddCancleBtn) groupAddCancleBtn.addEventListener('click', function () {
-    document.getElementById("group-names").value = '';
-    document.getElementById("group-about").value = '';
-    document.getElementById('group-type').checked = false;
-    document.getElementById("groupcontactSearchInput").value = '';
-    document.querySelectorAll('.contact-user .form-check-input').forEach(checkbox => {
-        checkbox.checked = false;
-    });
-    
-   
-});
-
-const canlceBtnSearch = document.querySelector('#canlce-btn-search');
-if (canlceBtnSearch) canlceBtnSearch.addEventListener('click', function () {
-    document.getElementById("group-names").value = '';
-    document.getElementById("group-about").value = '';
-    document.getElementById("groupcontactSearchInput").value = '';
-    document.getElementById('group-type').checked = false;
-    document.querySelectorAll('.contact-user .form-check-input').forEach(checkbox => {
-        checkbox.checked = false;
-    });
-   
-});
-
-const avatarUpload = document.getElementById('avatar-upload');
-if (avatarUpload) avatarUpload.addEventListener('change', function (event) {
-    const file = event.target.files[0]; // Get the selected file
-    const preview = document.getElementById('avatar-preview'); // Get the image preview element
-
-    // Check if a file is selected
-    if (file) {
-        const reader = new FileReader(); // Create a FileReader object
-
-        reader.onload = function (e) {
-            preview.src = e.target.result; // Set the src of the preview to the file's result
-            preview.style.display = 'block'; // Show the preview
-            preview.style.objectFit = 'cover';
-            preview.classList.add('position-relative');
-            preview.style.zIndex = '1';
-        };
-
-        reader.readAsDataURL(file); // Read the file as a Data URL
-    } else {
-        preview.style.display = 'none'; // Hide the preview if no file is selected
-    }
-});
-
-(function attachAddGroupModalHandlers() {
-    const addGroupModal = document.getElementById('add-group');
-    if (!addGroupModal) return;
-    addGroupModal.addEventListener('shown.bs.modal', function () {
-        const ul = document.getElementById('users-list');
-        if (ul) ul.classList.remove("d-none");
-        if (ul && currentUserId && ul.querySelectorAll(".contact-user").length === 0) {
-            fetchGroupUsers(currentUserId);
-        }
-    });
-})();
-
-(function attachNewGroupModalRefetch() {
-    const newGroupEl = document.getElementById("new-group");
-    if (!newGroupEl) return;
-    newGroupEl.addEventListener("shown.bs.modal", function () {
-        const fileIn = document.getElementById("avatar-upload");
-        if (fileIn) fileIn.value = "";
-        const prev = document.getElementById("avatar-preview");
-        if (prev) {
-            const def = prev.getAttribute("data-default-avatar");
-            if (def) prev.src = def;
-            prev.style.objectFit = "";
-            prev.style.zIndex = "";
-        }
-        const ul = document.getElementById("users-list");
-        if (ul && currentUserId && ul.querySelectorAll(".contact-user").length === 0) {
-            fetchGroupUsers(currentUserId);
-        }
-    });
-})();
 
 // Function to close the popup
 function closePopup() {
     // Logic to close the popup/modal
-    document.getElementById("group-names").value = "";
-    document.getElementById("group-about").value = "";
-    document.querySelector('input[name="group-type"]:checked').checked = false;
+    const groupNameInput = document.getElementById("group-names");
+    const groupAboutInput = document.getElementById("group-about");
+    if (groupNameInput) groupNameInput.value = "";
+    if (groupAboutInput) groupAboutInput.value = "";
     document
         .querySelectorAll('#users-list input[type="checkbox"]')
         .forEach((checkbox) => {
@@ -724,6 +836,28 @@ function closePopup() {
 
 let selectedGroupId = null; // Declare a variable to hold the selected group ID globally
 let previousMessagesRef = null; // Store previous messages reference for detaching listeners
+
+function finalizeGroupCreateUI(fullGroupId) {
+    if (!fullGroupId) return;
+    selectedGroupId = fullGroupId;
+    if (typeof window !== "undefined") {
+        window.__dreamchatSelectedGroupId = selectedGroupId;
+    }
+
+    const gf = document.getElementById("group-form");
+    const amf = document.getElementById("add-members-form");
+    if (gf) gf.reset();
+    if (amf) amf.reset();
+
+    $("#add-group").modal("hide");
+    $("#new-group").modal("hide");
+
+    // Refresh sidebar and immediately hydrate chat/header/offcanvas data.
+    refreshGroupsList();
+    loadGroupDetails(selectedGroupId);
+    loadGroupMessages(selectedGroupId);
+    fetchGroupInfo(selectedGroupId);
+}
 
 function closeGroupInfoOffcanvas() {
     const el = document.getElementById("contact-profile");
@@ -853,7 +987,8 @@ function displayGroups(groups, currentUserId) {
 
         // Add click event to each group to load messages and set selected group ID
         document.querySelectorAll(".chat-list").forEach((group) => {
-            group.addEventListener("click", () => {
+            group.addEventListener("click", (event) => {
+                if (event) event.preventDefault();
                 const newGroupId = group.getAttribute("data-group-id");
                 if (selectedGroupId && newGroupId && selectedGroupId !== newGroupId) {
                     closeGroupInfoOffcanvas();
@@ -979,7 +1114,8 @@ function loadGroupDetails(groupId) {
                
                 // Update group name and member count
                 document.getElementById("group-name").innerText = groupData.name; // Update group name
-                document.getElementById("group_id").innerText = groupData.name; // Update group name
+                const groupIdField = document.getElementById("group_id");
+                if (groupIdField) groupIdField.value = groupId;
                 document.getElementById("group_image").src = resolveGroupProfileImageUrl(
                     withCacheBuster(
                         pickGroupAvatarRaw(groupData),
@@ -2932,53 +3068,6 @@ if (groupSearchInput) {
 
 });
 }
-
-const groupcontactSearchInput = document.getElementById("groupcontactSearchInput");
-if (groupcontactSearchInput) groupcontactSearchInput.addEventListener("input", function () {
-    const searchValue = this.value.toLowerCase(); // Get the search value in lowercase
-    const groupDivs = document.querySelectorAll("#users-list .contact-user"); // Select all contact elements
-    const usersList = document.getElementById("users-list");
-    let anyVisible = false; // Track if any contact is visible
-
-    groupDivs.forEach((groupDiv) => {
-        const groupNameElement = groupDiv.querySelector("h6"); // Get the contact name in an <h6> tag
-        const groupName = groupNameElement.textContent.toLowerCase(); // Get the contact name in lowercase
-
-        // Check if the contact name includes the search value
-        if (groupName.includes(searchValue)) {
-           
-            groupDiv.style.display = ""; // Show the contact
-            const groupFlexElements = groupDiv.querySelectorAll('.d-flex.align-items-center');
-            groupFlexElements.forEach((groupFlex) => {
-                groupFlex.style.display = "";
-            });
-            anyVisible = true; // Mark as visible
-        } else {
-            groupDiv.style.display = "none"; // Hide the contact
-
-            // Apply display: none to all .d-flex.align-items-center elements inside the current groupDiv
-            const groupFlexElements = groupDiv.querySelectorAll('.d-flex.align-items-center');
-            groupFlexElements.forEach((groupFlex) => {
-                groupFlex.setAttribute("style", "display: none !important;");
-            });
-        }
-    });
-
-    // Show or hide the no matches message
-    const noMatchesMessage = document.getElementById("noGroupMatchesModalMessage");
-    if (noMatchesMessage) {
-        noMatchesMessage.style.display = anyVisible ? "none" : "block"; // Show if no contacts are visible
-    }
-    if (usersList) {
-        if (!anyVisible) {
-            usersList.classList.add("d-none"); // Hide users-list if no matches are found
-        } else {
-            usersList.classList.remove("d-none"); // Show users-list if matches are found
-        }
-    }
-});
-
-
 
 function getUserDetails(userId) {
     const userRef = ref(database, 'data/users/' + userId); // Create a reference to the user node

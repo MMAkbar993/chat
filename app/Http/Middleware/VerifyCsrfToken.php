@@ -15,5 +15,8 @@ class VerifyCsrfToken extends Middleware
         'generate-token',
         'webhooks/stripe',
         'webhooks/didit',
+        // Frontend telemetry uses sendBeacon (no custom CSRF headers).
+        // Keep this endpoint CSRF-exempt to avoid noisy 419s in console.
+        'api/perf-metrics',
     ];
 }

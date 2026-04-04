@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\UserContact;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class ContactController extends Controller
 {
@@ -82,15 +83,22 @@ class ContactController extends Controller
             ->map(function (UserContact $uc) {
                 $c = $uc->contactUser;
                 $img = $c && $c->profile_image_link ? $c->profile_image_link : (request()->getSchemeAndHttpHost() . '/assets/img/profiles/avatar-03.jpg');
+                $firebaseUid = null;
+                if ($c && Schema::hasColumn($c->getTable(), 'firebase_uid')) {
+                    $firebaseUid = $c->firebase_uid ?: null;
+                }
+
                 return [
                     'uid' => (string) $uc->contact_user_id,
                     'user_id' => $uc->contact_user_id,
+                    'firebase_uid' => $firebaseUid ? (string) $firebaseUid : null,
                     'firstName' => $uc->first_name ?: ($c ? $c->first_name : ''),
                     'lastName' => $uc->last_name ?: ($c ? $c->last_name : ''),
                     'userName' => $c ? ($c->user_name ?? '') : '',
                     'email' => $uc->email ?: ($c ? $c->email : ''),
                     'mobile_number' => $uc->mobile_number ?: ($c ? $c->mobile_number : ''),
                     'image' => $img,
+                    'primary_role' => $c ? ($c->primary_role ?? '') : '',
                 ];
             });
 
