@@ -441,7 +441,7 @@
                                 <div class="collapse others-collapse-content" id="others-collapse-favourites">
                                     <div class="pb-2">
                                         <div class="others-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
-                                        <div class="others-empty text-muted small text-center py-2 d-none">{{ __('No favourites yet.') }}</div>
+                                        <div class="others-empty text-muted small text-center py-2 d-none">{{ __('No saved messages for this chat.') }}</div>
                                         <div id="others-favourites-list"></div>
                                     </div>
                                 </div>

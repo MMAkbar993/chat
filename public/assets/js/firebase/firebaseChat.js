@@ -2157,6 +2157,7 @@ initializeFirebase(function (app, auth, database, storage) {
         listenForMessages(loggedInUserId, selectedUserId, chatRoomId);
         detachMediaPanelRoomListener();
         attachMediaPanelRoomListener();
+        refreshContactFavouritesBadgeCount();
 
         if (chatHeaderStatusUnsub) {
             chatHeaderStatusUnsub();
@@ -2373,7 +2374,22 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
+    function messageNotificationsPreferenceOn() {
+        try {
+            if (localStorage.getItem("messageNotificationSound") === "enabled") {
+                return true;
+            }
+            if (localStorage.getItem("message_notifications") === "1") {
+                return true;
+            }
+        } catch (e) { /* ignore */ }
+        return false;
+    }
+
     function showLocalNotification(title, body) {
+        if (!messageNotificationsPreferenceOn()) {
+            return;
+        }
         if (Notification.permission === "granted") {
             const notification = new Notification(title, {
                 body: body,
@@ -3392,7 +3408,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                         <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
                                         <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
                                         <li><a class="dropdown-item copy-btn" href="#"><i class="ti ti-copy me-2"></i>Copy</a></li>
-                                        <li><a class="dropdown-item favourite-chat-btn" href="#"><i class="ti ti-heart me-2"></i>Mark as Favourite</a></li>
+                                        <li><a class="dropdown-item favourite-message-btn" href="#"><i class="ti ti-bookmark me-2"></i>Add to Favorites</a></li>
                                         <li><a class="dropdown-item delete-btn" href="#" id="delete-btn" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
                                         <li><a class="dropdown-item mark-unread-chat-btn" href="#"><i class="ti ti-check me-2"></i>Mark as Unread</a></li>
                                         <li><a class="dropdown-item archive-chat-btn" href="#"><i class="ti ti-box-align-right me-2"></i>Archive Chat</a></li>
@@ -3455,7 +3471,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                         <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
                                         <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
                                         <li><a class="dropdown-item copy-btn" href="#"><i class="ti ti-copy me-2"></i>Copy</a></li>
-                                        <li><a class="dropdown-item favourite-chat-btn" href="#"><i class="ti ti-heart me-2"></i>Mark as Favourite</a></li>
+                                        <li><a class="dropdown-item favourite-message-btn" href="#"><i class="ti ti-bookmark me-2"></i>Add to Favorites</a></li>
                                         <li><a class="dropdown-item delete-btn" href="#" id="delete-btn" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
                                         <li><a class="dropdown-item mark-unread-chat-btn" href="#"><i class="ti ti-check me-2"></i>Mark as Unread</a></li>
                                         <li><a class="dropdown-item archive-chat-btn" href="#"><i class="ti ti-box-align-right me-2"></i>Archive Chat</a></li>
@@ -4060,6 +4076,34 @@ initializeFirebase(function (app, auth, database, storage) {
     });
 
     document.addEventListener("click", (e) => {
+        const msgFav = e.target.closest(".favourite-message-btn");
+        if (msgFav) {
+            e.preventDefault();
+            const row = msgFav.closest(".chats");
+            if (!row || !selectedUserId) return;
+            const messageKey = row.dataset.messageKey;
+            if (!messageKey) return;
+            const type = row.dataset.messageType || "6";
+            const textEl = row.querySelector(".message-content-text");
+            let preview = textEl
+                ? String(textEl.textContent || "")
+                      .trim()
+                      .replace(/\s+/g, " ")
+                : "";
+            if (!preview) {
+                const map = {
+                    "1": "Video",
+                    "2": "Photo",
+                    "3": "Audio",
+                    "5": "File",
+                    "4": "Location",
+                    "8": "Audio",
+                };
+                preview = map[String(type)] || "Message";
+            }
+            favouriteMessageForPeer(selectedUserId, messageKey, preview, type);
+            return;
+        }
         const favBtn = e.target.closest(".favourite-chat-btn");
         if (!favBtn) return;
         e.preventDefault();
@@ -4324,55 +4368,60 @@ initializeFirebase(function (app, auth, database, storage) {
     );
     let isMessageNotificationSoundEnabled = false;
 
-    // Load saved state from localStorage and set the switch accordingly
-    window.addEventListener("load", function () {
-        const savedSetting = localStorage.getItem("messageNotificationSound");
-        if (savedSetting === "enabled") {
-            isMessageNotificationSoundEnabled = true;
-            messagenotificationSoundSwitch.checked = true; // Set the switch to enabled
-        } else {
-            isMessageNotificationSoundEnabled = false;
-            messagenotificationSoundSwitch.checked = false; // Set the switch to disabled
-        }
-    });
+    function readMessageNotificationSoundEnabled() {
+        return messageNotificationsPreferenceOn();
+    }
 
-    // Event listener for the sound toggle switch
-    messagenotificationSoundSwitch.addEventListener("change", function () {
-        isMessageNotificationSoundEnabled = this.checked;
-
-        // Save the current state in localStorage
-        if (isMessageNotificationSoundEnabled) {
-            localStorage.setItem("messageNotificationSound", "enabled");
-            Toastify({
-                text: "Message Notification Sound Enabled!",
-                duration: 3000,
-                gravity: "top",
-                position: "right",
-                backgroundColor: "#28a745",
-            }).showToast();
-        } else {
-            localStorage.setItem("messageNotificationSound", "disabled");
-            Toastify({
-                text: "Message Notification Sound Disabled!",
-                duration: 3000,
-                gravity: "top",
-                position: "right",
-                backgroundColor: "#dc3545",
-            }).showToast();
-        }
-    });
-
-    // Play the message sent sound (to be called from chat.js)
-    function playMessageSentSound() {
-        if (isMessageNotificationSoundEnabled) {
-            messagenotificationSound.play().catch((error) => { });
+    function syncMessageNotificationSwitchFromStorage() {
+        isMessageNotificationSoundEnabled = readMessageNotificationSoundEnabled();
+        if (messagenotificationSoundSwitch) {
+            messagenotificationSoundSwitch.checked = isMessageNotificationSoundEnabled;
         }
     }
 
-    // Play the message received sound (can be called in other scripts too)
+    window.addEventListener("load", syncMessageNotificationSwitchFromStorage);
+    window.addEventListener("storage", syncMessageNotificationSwitchFromStorage);
+
+    if (messagenotificationSoundSwitch) {
+        messagenotificationSoundSwitch.addEventListener("change", function () {
+            isMessageNotificationSoundEnabled = this.checked;
+            if (isMessageNotificationSoundEnabled) {
+                localStorage.setItem("messageNotificationSound", "enabled");
+                try {
+                    localStorage.setItem("message_notifications", "1");
+                } catch (e) { /* ignore */ }
+                Toastify({
+                    text: "Message Notification Sound Enabled!",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#28a745",
+                }).showToast();
+            } else {
+                localStorage.setItem("messageNotificationSound", "disabled");
+                try {
+                    localStorage.setItem("message_notifications", "0");
+                } catch (e) { /* ignore */ }
+                Toastify({
+                    text: "Message Notification Sound Disabled!",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#dc3545",
+                }).showToast();
+            }
+        });
+    }
+
+    function playMessageSentSound() {
+        if (readMessageNotificationSoundEnabled()) {
+            messagenotificationSound.play().catch(() => {});
+        }
+    }
+
     function playMessageReceivedSound() {
-        if (isMessageNotificationSoundEnabled) {
-            messagenotificationSound.play().catch((error) => { });
+        if (readMessageNotificationSoundEnabled()) {
+            messagenotificationSound.play().catch(() => {});
         }
     }
 
@@ -5621,6 +5670,79 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
+    /** Saved messages for one 1:1 peer (Contact Info → Favorites). */
+    function favouriteMessageForPeer(peerUserId, messageKey, preview, attachmentType) {
+        if (!currentUser?.uid || !peerUserId || !messageKey) return;
+        const msgRef = ref(
+            database,
+            `data/users/${currentUser.uid}/favourite_messages/${peerUserId}/${messageKey}`
+        );
+        get(msgRef)
+            .then((snap) => {
+                if (snap.exists()) {
+                    Toastify({
+                        text: "Message already in Favorites",
+                        duration: 3000,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "#dc3545",
+                    }).showToast();
+                    return Promise.resolve(null);
+                }
+                return set(msgRef, {
+                    savedAt: Date.now(),
+                    preview: String(preview || "").slice(0, 500),
+                    attachmentType:
+                        attachmentType != null ? String(attachmentType) : "6",
+                });
+            })
+            .then((written) => {
+                if (written === null) return;
+                Toastify({
+                    text: "Message saved to Favorites",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#28a745",
+                }).showToast();
+                const col = document.getElementById("others-collapse-favourites");
+                if (col?.classList.contains("show")) {
+                    if (typeof window.__dreamchatLoadOthersFavourites === "function") {
+                        window.__dreamchatLoadOthersFavourites(col);
+                    }
+                } else if (col) {
+                    delete col.dataset.othersLoaded;
+                }
+                refreshContactFavouritesBadgeCount();
+            })
+            .catch(() => {});
+    }
+
+    function scrollChatToSavedMessage(messageKey) {
+        if (!messageKey) return;
+        const esc =
+            typeof CSS !== "undefined" && CSS.escape
+                ? CSS.escape(String(messageKey))
+                : String(messageKey).replace(/"/g, '\\"');
+        const el = document.querySelector(
+            `#chat-box [data-message-key="${esc}"]`
+        );
+        if (!el) {
+            Toastify({
+                text: "Message is not visible in this chat. Scroll up to load older messages.",
+                duration: 3500,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#6c757d",
+            }).showToast();
+            return;
+        }
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.remove("msg-fade-in");
+        void el.offsetWidth;
+        el.classList.add("msg-fade-in");
+    }
+
     function favouriteChat(userId) {
         const userRef = `data/users/${currentUser.uid}/favourite_chats`;
 
@@ -5904,12 +6026,21 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function refreshContactFavouritesBadgeCount() {
-        if (!currentUser?.uid) return;
-        get(ref(database, `data/users/${currentUser.uid}/favourite_chats`))
+        const badge = document.getElementById("contact-favourites-badge");
+        if (!currentUser?.uid || !selectedUserId) {
+            if (badge) {
+                badge.textContent = "";
+                badge.classList.add("d-none");
+            }
+            return;
+        }
+        get(
+            ref(
+                database,
+                `data/users/${currentUser.uid}/favourite_messages/${selectedUserId}`
+            )
+        )
             .then((s) => {
-                const badge = document.getElementById(
-                    "contact-favourites-badge"
-                );
                 if (!badge) return;
                 let n = 0;
                 if (s.exists()) {
@@ -6295,39 +6426,76 @@ initializeFirebase(function (app, auth, database, storage) {
             });
         });
 
-        // Favourites loader
+        // Favourites: saved messages for the open 1:1 chat only (peer = selectedUserId)
         async function loadOthersFavourites(collapseEl) {
             const loadingEl = collapseEl.querySelector(".others-loading");
             const emptyEl   = collapseEl.querySelector(".others-empty");
             const listEl    = document.getElementById("others-favourites-list");
             if (!currentUser || !listEl) return;
-            if (loadingEl) loadingEl.classList.remove("d-none");
-            try {
-                const snap = await get(ref(database, `data/users/${currentUser.uid}/favourite_chats`));
+            listEl.innerHTML = "";
+            if (!selectedUserId) {
                 if (loadingEl) loadingEl.classList.add("d-none");
-                if (!snap.exists()) { if (emptyEl) emptyEl.classList.remove("d-none"); return; }
-                const favs = snap.val();
-                let count = 0;
-                for (const key in favs) {
-                    const f = favs[key];
-                    const uid = f.userId;
-                    if (!uid) continue;
-                    const u = usersMap[uid] || {};
-                    const name = u.userName || uid;
-                    const img = resolveCallProfileImageUrl(u.profileImage || "");
-                    const item = document.createElement("div");
-                    item.className = "d-flex align-items-center gap-2 py-2 border-bottom";
-                    item.innerHTML = `<img src="${img}" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;" alt="">
-                        <span class="small fw-medium text-truncate">${name}</span>`;
-                    listEl.appendChild(item);
-                    count++;
+                if (emptyEl) emptyEl.classList.remove("d-none");
+                return;
+            }
+            if (loadingEl) loadingEl.classList.remove("d-none");
+            if (emptyEl) emptyEl.classList.add("d-none");
+            try {
+                const snap = await get(
+                    ref(
+                        database,
+                        `data/users/${currentUser.uid}/favourite_messages/${selectedUserId}`
+                    )
+                );
+                if (loadingEl) loadingEl.classList.add("d-none");
+                if (!snap.exists()) {
+                    if (emptyEl) emptyEl.classList.remove("d-none");
+                    return;
                 }
-                if (count === 0 && emptyEl) emptyEl.classList.remove("d-none");
-            } catch(e) {
+                const favs = snap.val();
+                const rows = [];
+                for (const messageKey in favs) {
+                    const f = favs[messageKey];
+                    if (!f || typeof f !== "object") continue;
+                    rows.push({
+                        messageKey,
+                        preview: (f.preview && String(f.preview).trim()) || "Message",
+                        savedAt: Number(f.savedAt) || 0,
+                    });
+                }
+                rows.sort((a, b) => b.savedAt - a.savedAt);
+                if (rows.length === 0) {
+                    if (emptyEl) emptyEl.classList.remove("d-none");
+                    return;
+                }
+                rows.forEach(({ messageKey, preview, savedAt }) => {
+                    const btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className =
+                        "list-group-item list-group-item-action border-0 px-0 py-2 text-start w-100 others-favourite-msg-btn";
+                    btn.dataset.messageKey = messageKey;
+                    const title = document.createElement("div");
+                    title.className = "small fw-medium text-truncate";
+                    title.textContent = preview;
+                    btn.appendChild(title);
+                    if (savedAt) {
+                        const sub = document.createElement("div");
+                        sub.className = "text-muted";
+                        sub.style.fontSize = "0.75rem";
+                        sub.textContent = new Date(savedAt).toLocaleString();
+                        btn.appendChild(sub);
+                    }
+                    btn.addEventListener("click", () => {
+                        scrollChatToSavedMessage(messageKey);
+                    });
+                    listEl.appendChild(btn);
+                });
+            } catch (e) {
                 if (loadingEl) loadingEl.classList.add("d-none");
                 if (emptyEl) emptyEl.classList.remove("d-none");
             }
         }
+        window.__dreamchatLoadOthersFavourites = loadOthersFavourites;
 
         // Block / Unblock inline confirm
         const othersBlockBtn = document.getElementById("others-block-confirm-btn");
@@ -8185,6 +8353,9 @@ initializeFirebase(function (app, auth, database, storage) {
     requestNotificationPermission();
 
     function showDesktopNotification(senderName, messageText) {
+        if (!messageNotificationsPreferenceOn()) {
+            return;
+        }
         const notificationTitle = `New message from ${senderName}`;
         const notificationBody = messageText;
 

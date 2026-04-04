@@ -1639,12 +1639,49 @@
                                                                                 backupSwitch.addEventListener('change', function() { saveChatPref('chat_backup_enabled', this.checked); if (typeof showToast === 'function') showToast(this.checked ? '{{ __("Chat backup enabled.") }}' : '{{ __("Chat backup disabled.") }}'); });
                                                                             }
                                                                             if (msgNotifSwitch) {
-                                                                                msgNotifSwitch.checked = loadChatPref('message_notifications');
-                                                                                msgNotifSwitch.addEventListener('change', function() { saveChatPref('message_notifications', this.checked); });
+                                                                                (function syncMsgNotifFromStorage() {
+                                                                                    try {
+                                                                                        var on = localStorage.getItem('messageNotificationSound') === 'enabled'
+                                                                                            || localStorage.getItem('message_notifications') === '1';
+                                                                                        msgNotifSwitch.checked = !!on;
+                                                                                    } catch (e) { msgNotifSwitch.checked = false; }
+                                                                                })();
+                                                                                msgNotifSwitch.addEventListener('change', function() {
+                                                                                    try {
+                                                                                        if (this.checked) {
+                                                                                            localStorage.setItem('messageNotificationSound', 'enabled');
+                                                                                            localStorage.setItem('message_notifications', '1');
+                                                                                        } else {
+                                                                                            localStorage.setItem('messageNotificationSound', 'disabled');
+                                                                                            localStorage.setItem('message_notifications', '0');
+                                                                                        }
+                                                                                    } catch (e) {}
+                                                                                    if (typeof showToast === 'function') {
+                                                                                        showToast(this.checked ? '{{ __("Message notifications on.") }}' : '{{ __("Message notifications off.") }}');
+                                                                                    }
+                                                                                });
                                                                             }
                                                                             if (notifSoundSwitch) {
-                                                                                notifSoundSwitch.checked = loadChatPref('notification_sound');
-                                                                                notifSoundSwitch.addEventListener('change', function() { saveChatPref('notification_sound', this.checked); });
+                                                                                (function syncRingFromStorage() {
+                                                                                    try {
+                                                                                        var on = localStorage.getItem('notification_sound') === '1'
+                                                                                            || localStorage.getItem('NotificationSound') === 'enabled';
+                                                                                        notifSoundSwitch.checked = !!on;
+                                                                                    } catch (e) { notifSoundSwitch.checked = false; }
+                                                                                })();
+                                                                                notifSoundSwitch.addEventListener('change', function() {
+                                                                                    try {
+                                                                                        if (this.checked) {
+                                                                                            localStorage.setItem('notification_sound', '1');
+                                                                                            localStorage.removeItem('NotificationSound');
+                                                                                        } else {
+                                                                                            localStorage.setItem('notification_sound', '0');
+                                                                                        }
+                                                                                    } catch (e) {}
+                                                                                    if (typeof showToast === 'function') {
+                                                                                        showToast(this.checked ? '{{ __("Notification sound on.") }}' : '{{ __("Notification sound off.") }}');
+                                                                                    }
+                                                                                });
                                                                             }
                                                                         })();
                                                                     });
