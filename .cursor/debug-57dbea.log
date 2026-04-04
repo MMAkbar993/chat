@@ -12,3 +12,5 @@
 {"sessionId":"57dbea","location":"firebaseGroupChat.js:fetchGroupUsers","message":"data/users snapshot","data":{"usersExists":true,"userIdsRequested":2},"timestamp":1775280529571,"hypothesisId":"H3"}
 {"sessionId":"57dbea","location":"firebaseGroupChat.js:fetchGroupUsers","message":"usersMap built","data":{"mapSize":2,"missingInUsersNode":0},"timestamp":1775280529573,"hypothesisId":"H3"}
 {"sessionId":"57dbea","location":"firebaseGroupChat.js:displayGroupUsers","message":"container and map","data":{"hasContainer":true,"userMapKeys":2},"timestamp":1775280529574,"hypothesisId":"H4"}
+{"sessionId":"57dbea","location":"firebaseGroupChat.js:avatar change","message":"FileReader onload","data":{"hasPreview":true,"resultPrefix":"data:image/png;bas"},"timestamp":1775281625503,"hypothesisId":"H6"}
+{"sessionId":"57dbea","location":"firebaseGroupChat.js:onAuthStateChanged","message":"auth state","data":{"hasUser":false,"uidLen":0,"path":"/group-chat"},"timestamp":1775281632192,"hypothesisId":"H1"}

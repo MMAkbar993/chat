@@ -28,6 +28,7 @@ import {
 initializeFirebase(function (app, auth, database,storage) {
 
 let currentUserId = null; // Define the current user here
+let displayGroupUsersGeneration = 0; // Ignore stale async renders when fetchGroupUsers runs concurrently
 
 // Monitor the user's authentication state
 onAuthStateChanged(auth, (user) => {
@@ -308,34 +309,54 @@ function fetchGroupUsers(currentUserId) {
         });
 }
 
-// Function to display users in the HTML list
+// Function to display users in the HTML list (one-shot reads — avoids stacking onValue listeners on each open / refetch)
 function displayGroupUsers(users, currentUser) {
+    const renderGen = ++displayGroupUsersGeneration;
     const usersContainer = document.getElementById("users-list"); // The div where you want to list users
+    if (!usersContainer) return;
+    usersContainer.classList.remove("d-none");
     usersContainer.innerHTML = ""; // Clear existing content
 
-    for (const userId in users) {
-        const user = users[userId];
-        const contactsRef = ref(database, `data/contacts/${currentUserId}/${userId}`);
+    const userIds = users && typeof users === "object" ? Object.keys(users) : [];
+    if (userIds.length === 0) return;
 
-        onValue(contactsRef, (contactSnapshot) => {
-            const contactData = contactSnapshot.val();
-            let displayName =
-                user.userName ||
-                user.user_name ||
-                [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
-                "";
-            const profileImage = resolveGroupProfileImageUrl(
-                rawAvatarFromUserAndContact(user, contactData || null)
-            );
+    Promise.all(
+        userIds.map((userId) => {
+            const user = users[userId];
+            const contactsRef = ref(database, `data/contacts/${currentUserId}/${userId}`);
+            return get(contactsRef).then((contactSnapshot) => {
+                const contactData = contactSnapshot.exists() ? contactSnapshot.val() : null;
+                let displayName =
+                    user.userName ||
+                    user.user_name ||
+                    [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+                    "";
+                const profileImage = resolveGroupProfileImageUrl(
+                    rawAvatarFromUserAndContact(user, contactData || null)
+                );
 
-            if (contactData && contactData.firstName) {
-                displayName = `${contactData.firstName} ${contactData.lastName || ""}`.trim();
-            } else {
+                if (contactData && contactData.firstName) {
+                    displayName = `${contactData.firstName} ${contactData.lastName || ""}`.trim();
+                    return {
+                        userId,
+                        displayName,
+                        img: profileImage,
+                        role: user.role,
+                    };
+                }
+
                 const userRef = ref(database, `data/users/${userId}`);
-                onValue(userRef, (userSnapshot) => {
-                    const userData = userSnapshot.val();
-                    if (!userData) return;
-                    displayName =
+                return get(userRef).then((userSnapshot) => {
+                    const userData = userSnapshot.exists() ? userSnapshot.val() : null;
+                    if (!userData) {
+                        return {
+                            userId,
+                            displayName: displayName || "No Name Available",
+                            img: profileImage,
+                            role: user.role,
+                        };
+                    }
+                    const dn =
                         userData.mobile_number ||
                         [userData.firstName, userData.lastName].filter(Boolean).join(" ").trim() ||
                         userData.userName ||
@@ -343,14 +364,26 @@ function displayGroupUsers(users, currentUser) {
                     const img = resolveGroupProfileImageUrl(
                         rawAvatarFromUserAndContact(userData, contactData || null)
                     );
-                    appendUserCard(usersContainer, displayName, img, userData.role, userId);
+                    return {
+                        userId,
+                        displayName: dn,
+                        img,
+                        role: userData.role != null ? userData.role : user.role,
+                    };
                 });
-                return;
-            }
-
-            appendUserCard(usersContainer, displayName, profileImage, user.role, userId);
+            });
+        })
+    )
+        .then((rows) => {
+            if (renderGen !== displayGroupUsersGeneration) return;
+            rows.forEach((r) => {
+                if (!r) return;
+                appendUserCard(usersContainer, r.displayName, r.img, r.role, r.userId);
+            });
+        })
+        .catch(() => {
+            /* ignore */
         });
-    }
 }
 
 // Helper function to append user card
@@ -508,6 +541,7 @@ if (startGroupBtn) {
                 return set(ref(database, "data/groups/group_" + newGroupKey), groupData);
             })
             .then(() => {
+                resetStartGroupButton();
                 const gf = document.getElementById("group-form");
                 const amf = document.getElementById("add-members-form");
                 if (gf) gf.reset();
@@ -538,6 +572,7 @@ if (startGroupBtn) {
                     await set(ref(database, "data/groups/group_" + newGroupKey), groupData);
 
                     // Hide modals / reset UI like the success path.
+                    resetStartGroupButton();
                     const gf = document.getElementById("group-form");
                     const amf = document.getElementById("add-members-form");
                     if (gf) gf.reset();
@@ -558,6 +593,7 @@ if (startGroupBtn) {
         // Save group data without avatar
         set(ref(database, 'data/groups/group_' + newGroupKey), groupData)
             .then(() => {
+                resetStartGroupButton();
                 Swal.fire({
                     title: "",
                     width: 400,
@@ -630,6 +666,9 @@ if (avatarUpload) avatarUpload.addEventListener('change', function (event) {
         reader.onload = function (e) {
             preview.src = e.target.result; // Set the src of the preview to the file's result
             preview.style.display = 'block'; // Show the preview
+            preview.style.objectFit = 'cover';
+            preview.classList.add('position-relative');
+            preview.style.zIndex = '1';
         };
 
         reader.readAsDataURL(file); // Read the file as a Data URL
@@ -637,6 +676,38 @@ if (avatarUpload) avatarUpload.addEventListener('change', function (event) {
         preview.style.display = 'none'; // Hide the preview if no file is selected
     }
 });
+
+(function attachAddGroupModalHandlers() {
+    const addGroupModal = document.getElementById('add-group');
+    if (!addGroupModal) return;
+    addGroupModal.addEventListener('shown.bs.modal', function () {
+        const ul = document.getElementById('users-list');
+        if (ul) ul.classList.remove("d-none");
+        if (ul && currentUserId && ul.querySelectorAll(".contact-user").length === 0) {
+            fetchGroupUsers(currentUserId);
+        }
+    });
+})();
+
+(function attachNewGroupModalRefetch() {
+    const newGroupEl = document.getElementById("new-group");
+    if (!newGroupEl) return;
+    newGroupEl.addEventListener("shown.bs.modal", function () {
+        const fileIn = document.getElementById("avatar-upload");
+        if (fileIn) fileIn.value = "";
+        const prev = document.getElementById("avatar-preview");
+        if (prev) {
+            const def = prev.getAttribute("data-default-avatar");
+            if (def) prev.src = def;
+            prev.style.objectFit = "";
+            prev.style.zIndex = "";
+        }
+        const ul = document.getElementById("users-list");
+        if (ul && currentUserId && ul.querySelectorAll(".contact-user").length === 0) {
+            fetchGroupUsers(currentUserId);
+        }
+    });
+})();
 
 // Function to close the popup
 function closePopup() {

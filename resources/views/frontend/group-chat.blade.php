@@ -1281,7 +1281,8 @@
                     <div class="d-flex justify-content-center align-items-center">
                         <label for="avatar-upload" class="set-pro avatar avatar-xxl rounded-circle mb-3 p-1">
                             <img id="avatar-preview"
-                                src="assets/img/profiles/avatar-03.jpg"
+                                src="{{ asset('assets/img/profiles/avatar-03.jpg') }}"
+                                data-default-avatar="{{ asset('assets/img/profiles/avatar-03.jpg') }}"
                                 class="rounded-circle" alt="user">
                             <span class="add avatar avatar-sm d-flex justify-content-center align-items-center">
                                 <i class="ti ti-plus rounded-circle d-flex justify-content-center align-items-center"></i>
