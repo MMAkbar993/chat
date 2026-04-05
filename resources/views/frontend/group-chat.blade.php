@@ -5,6 +5,79 @@
 @endphp
 
 @section('content')
+<style>
+/* Sidebar group three-dot dropdown */
+#group-list .chat-list {
+    position: relative;
+}
+#group-list .chat-list .chat-drop {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 2;
+}
+#group-list .chat-list:hover .chat-drop {
+    opacity: 1;
+}
+#group-list .chat-list .chat-drop .group-sidebar-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    color: #6c757d;
+    text-decoration: none;
+}
+#group-list .chat-list .chat-drop .group-sidebar-dots:hover {
+    background: rgba(0,0,0,0.08);
+    color: #333;
+}
+.group-sidebar-dropdown {
+    min-width: 200px;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
+}
+.group-sidebar-dropdown .dropdown-item {
+    padding: 8px 16px;
+    font-size: 14px;
+    border-radius: 4px;
+}
+.group-sidebar-dropdown .dropdown-item:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+}
+/* Right-click context menu */
+#group-context-menu {
+    min-width: 200px;
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+#group-context-menu .dropdown-item {
+    padding: 8px 16px;
+    font-size: 14px;
+    border-radius: 4px;
+}
+#group-context-menu .dropdown-item:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+}
+.group-archived {
+    opacity: 0.6;
+}
+.group-archived:hover {
+    opacity: 1;
+}
+.edited-label {
+    display: block;
+    margin-bottom: 2px;
+}
+.unread-badge {
+    font-size: 10px !important;
+    line-height: 1;
+}
+</style>
 
 <!-- content -->
 <div class="content main_content">
@@ -71,8 +144,12 @@
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end p-3">
                                 <li><a href="#" class="dropdown-item" id="close-group-btn"><i class="ti ti-x me-2"></i>{{ __('Close Group')}}</a></li>
+                                <li><a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#mute-notification"><i class="ti ti-bell-off me-2"></i>{{ __('Mute Notification')}}</a></li>
+                                <li><a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#msg-disapper"><i class="ti ti-clock me-2"></i>{{ __('Disappearing Message')}}</a></li>
                                 <li><a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#clear-group-chat"><i class="ti ti-clear-all me-2"></i>{{ __('Clear Message')}}</a></li>
                                 <li><a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#delete-group"><i class="ti ti-trash me-2"></i>{{ __('Delete Group')}}</a></li>
+                                <li><a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#report-group"><i class="ti ti-flag me-2"></i>{{ __('Report')}}</a></li>
+                                <li><a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#block-user"><i class="ti ti-ban me-2"></i>{{ __('Block')}}</a></li>
                             </ul>
                         </li>
                     </ul>
@@ -166,17 +243,19 @@
     <!-- /Chat -->
 
     <!-- Group Info -->
-    <div class="chat-offcanvas offcanvas offcanvas-end" data-bs-scroll="true" data-bs-backdrop="false" tabindex="-1" id="contact-profile">
-        <div class="offcanvas-header">
-            <h4 class="offcanvas-title">{{ __('Group Info')}}</h4>
+    <div class="chat-offcanvas offcanvas offcanvas-end contact-profile-offcanvas" data-bs-scroll="true" data-bs-backdrop="false" tabindex="-1" id="contact-profile">
+        <div class="offcanvas-header border-0 pb-0">
+            <h4 class="offcanvas-title fw-semibold mb-0">{{ __('Group Info')}}</h4>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"><i class="ti ti-x"></i></button>
         </div>
-        <div class="offcanvas-body">
-            <div class="chat-contact-info">
-                <div class="profile-content">
-                    <div class="contact-profile-info">
-                        <div class="avatar avatar-xxl online mb-2">
-                            <img id="group-avatar" src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="img">
+        <div class="offcanvas-body p-0">
+            <div class="chat-contact-info contact-info-sidebar">
+                <div class="profile-content px-3 pb-3">
+
+                    {{-- Identity --}}
+                    <div class="contact-profile-info text-center pt-2">
+                        <div class="avatar avatar-xxl online mb-3 mx-auto">
+                            <img id="group-avatar" src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" alt="img">
                         </div>
                         <div id="group-icon-edit-wrap" class="mb-2 d-none">
                             <label for="group-icon-upload" class="btn btn-sm btn-outline-primary">
@@ -184,49 +263,281 @@
                             </label>
                             <input type="file" id="group-icon-upload" class="d-none" accept="image/*">
                         </div>
-                        <h6 id="group-profile-name"></h6>
-                        <p id="group-profile-participant-count" class="text-muted">—</p>
+                        <h4 class="fw-semibold mb-0" id="group-profile-name"></h4>
+                        <p id="group-profile-participant-count" class="text-muted small mb-0 mt-1">—</p>
                     </div>
-                    <div class="content-wrapper">
-                        <h5 class="sub-title">{{ __('Profile Info')}}</h5>
-                        <div class="card">
+
+                    {{-- Quick actions: Audio, Video, Chat, Search --}}
+                    <div class="contact-action-grid mb-4">
+                        <a href="javascript:void(0);" class="contact-action-tile" id="group-profile-audio-btn" title="{{ __('Audio') }}">
+                            <i class="ti ti-phone"></i>
+                            <span>{{ __('Audio') }}</span>
+                        </a>
+                        <a href="javascript:void(0);" class="contact-action-tile" id="group-profile-video-btn" title="{{ __('Video') }}">
+                            <i class="ti ti-video"></i>
+                            <span>{{ __('Video') }}</span>
+                        </a>
+                        <a href="javascript:void(0);" class="contact-action-tile" id="group-profile-chat-btn" title="{{ __('Chat') }}">
+                            <i class="ti ti-message"></i>
+                            <span>{{ __('Chat') }}</span>
+                        </a>
+                        <a href="javascript:void(0);" class="contact-action-tile" id="group-profile-search-btn" title="{{ __('Search') }}">
+                            <i class="ti ti-search"></i>
+                            <span>{{ __('Search') }}</span>
+                        </a>
+                    </div>
+
+                    {{-- Profile Info --}}
+                    <div class="content-wrapper mb-3">
+                        <h5 class="sub-title mb-2">{{ __('Profile Info')}}</h5>
+                        <div class="card contact-info-card border-0">
                             <div class="card-body">
                                 <div class="d-flex profile-info-content justify-content-between align-items-center border-bottom pb-3 mb-3">
                                     <div>
                                         <h6 class="fs-14">{{ __('Group Description')}}</h6>
-                                        <p class="fs-16" id="group-info-about">—</p>
+                                        <p class="fs-16 mb-0" id="group-info-about">—</p>
+                                    </div>
+                                    <div class="profile-icon text-muted"><i class="ti ti-pencil"></i></div>
+                                </div>
+                                <p class="fs-12 mb-0" id="group-date">Group created by </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Social Profiles --}}
+                    <div class="content-wrapper mb-3">
+                        <h5 class="sub-title mb-2">{{ __('Social Profiles') }}</h5>
+                        <div class="card contact-info-card border-0">
+                            <div class="card-body py-3">
+                                <div class="social-icon d-flex align-items-center flex-wrap gap-3 justify-content-start">
+                                    <a href="javascript:void(0);" class="contact-social-link" aria-label="Facebook"><i class="ti ti-brand-facebook"></i></a>
+                                    <a href="javascript:void(0);" class="contact-social-link" aria-label="Twitter"><i class="ti ti-brand-twitter"></i></a>
+                                    <a href="javascript:void(0);" class="contact-social-link" aria-label="Instagram"><i class="ti ti-brand-instagram"></i></a>
+                                    <a href="javascript:void(0);" class="contact-social-link" aria-label="LinkedIn"><i class="ti ti-brand-linkedin"></i></a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Media Details --}}
+                    <div class="content-wrapper mb-3">
+                        <h5 class="sub-title mb-2">{{ __('Media Details') }}</h5>
+                        <div class="card contact-info-card border-0">
+                            <div class="card-body list-group list-group-flush profile-item p-0">
+
+                                {{-- Photos --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between group-media-row" data-media-target="group-media-collapse-photos">
+                                    <div class="d-flex align-items-center gap-2"><i class="ti ti-photo text-primary"></i><span>{{ __('Photos') }}</span></div>
+                                    <span class="link-icon media-chevron"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <div class="collapse" id="group-media-collapse-photos">
+                                    <div class="pb-2">
+                                        <div class="media-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                                        <div class="media-empty text-muted small text-center py-2 d-none">{{ __('No photos found.') }}</div>
+                                        <div class="row g-1 media-photos-grid"></div>
                                     </div>
                                 </div>
-                                <p class="fs-12" id="group-date">Group created by </p>
+
+                                {{-- Videos --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between group-media-row" data-media-target="group-media-collapse-videos">
+                                    <div class="d-flex align-items-center gap-2"><i class="ti ti-video text-primary"></i><span>{{ __('Videos') }}</span></div>
+                                    <span class="link-icon media-chevron"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <div class="collapse" id="group-media-collapse-videos">
+                                    <div class="pb-2">
+                                        <div class="media-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                                        <div class="media-empty text-muted small text-center py-2 d-none">{{ __('No videos found.') }}</div>
+                                        <div class="row g-1 media-videos-grid"></div>
+                                    </div>
+                                </div>
+
+                                {{-- Links --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between group-media-row" data-media-target="group-media-collapse-links">
+                                    <div class="d-flex align-items-center gap-2"><i class="ti ti-link text-primary"></i><span>{{ __('Links') }}</span></div>
+                                    <span class="link-icon media-chevron"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <div class="collapse" id="group-media-collapse-links">
+                                    <div class="pb-2">
+                                        <div class="media-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                                        <div class="media-empty text-muted small text-center py-2 d-none">{{ __('No links found.') }}</div>
+                                        <div class="list-group list-group-flush media-links-list"></div>
+                                    </div>
+                                </div>
+
+                                {{-- Documents --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between group-media-row" data-media-target="group-media-collapse-docs">
+                                    <div class="d-flex align-items-center gap-2"><i class="ti ti-file-text text-primary"></i><span>{{ __('Documents') }}</span></div>
+                                    <span class="link-icon media-chevron"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <div class="collapse" id="group-media-collapse-docs">
+                                    <div class="pb-2">
+                                        <div class="media-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                                        <div class="media-empty text-muted small text-center py-2 d-none">{{ __('No documents found.') }}</div>
+                                        <div class="list-group list-group-flush media-docs-list"></div>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     </div>
-                    <div class="content-wrapper other-info">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <h5 class="sub-title">{{ __('Group Participants')}}</h5>
+
+                    {{-- Others (Favorites) --}}
+                    <div class="content-wrapper other-info mb-3">
+                        <h5 class="sub-title mb-2">{{ __('Others') }}</h5>
+                        <div class="card contact-info-card border-0 mb-0">
+                            <div class="card-body list-group profile-item p-0">
+
+                                {{-- Favorites --}}
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between group-others-row" id="group-open-favourites">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="ti ti-bookmark text-primary"></i>
+                                        <span class="fw-medium">{{ __('Favorites') }}</span>
+                                        <span class="badge bg-danger rounded-pill ms-1 d-none" id="group-favourites-badge">0</span>
+                                    </div>
+                                    <span class="link-icon group-fav-chevron"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <div class="collapse border-top border-light" id="group-collapse-favourites">
+                                    <div class="py-2">
+                                        <div class="others-loading text-center py-2 d-none"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                                        <div class="others-empty text-muted small text-center py-2 d-none">{{ __('No saved messages in this group.') }}</div>
+                                        <div id="group-favourites-list"></div>
+                                    </div>
+                                </div>
+
+                            </div>
                         </div>
-                        <div class="card">
-                            <div class="card-body">
+                    </div>
+
+                    {{-- Encryption --}}
+                    <div class="content-wrapper other-info mb-3">
+                        <div class="card contact-info-card border-0 mb-0">
+                            <div class="card-body list-group profile-item p-0">
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#group-encryption-info">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="ti ti-lock text-primary"></i>
+                                        <span class="fw-medium">{{ __('Encryption') }}</span>
+                                    </div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Group Settings: all options in Group Info (no second offcanvas) --}}
+                    <div class="content-wrapper other-info mb-3" id="group-info-settings-section">
+                        <h5 class="sub-title mb-2">{{ __('Group Settings') }}</h5>
+                        <div class="card contact-info-card border-0 mb-0">
+                            <div class="card-body list-group profile-item p-0">
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#edit-group">
+                                    <div class="profile-info flex-grow-1 pe-2">
+                                        <h6 class="fs-16 mb-1">{{ __('Edit Group Settings') }}</h6>
+                                        <p class="text-muted small mb-0">{{ __('All Participants') }}</p>
+                                    </div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+
+                                <div class="accordion accordion-flush chat-accordion list-group-item border-0 px-0 py-2" id="send-settings-group-info">
+                                    <div class="accordion-item w-100 border-0">
+                                        <h2 class="accordion-header">
+                                            <button type="button" class="accordion-button py-2 collapsed shadow-none bg-transparent" data-bs-toggle="collapse" data-bs-target="#send-privacy-group-info" aria-expanded="false" aria-controls="send-privacy-group-info">
+                                                {{ __('Send Messages') }}
+                                            </button>
+                                        </h2>
+                                        <p class="fs-14 text-muted mb-0 ps-3">{{ __('All Participants') }}</p>
+                                        <div id="send-privacy-group-info" class="accordion-collapse collapse" data-bs-parent="#send-settings-group-info">
+                                            <div class="accordion-body px-3 pt-2 pb-3">
+                                                <div class="form-check mb-3">
+                                                    <input class="form-check-input" type="radio" name="group_send_messages" id="group-send-all" checked>
+                                                    <label class="form-check-label" for="group-send-all">{{ __('All Participants') }}</label>
+                                                </div>
+                                                <div class="form-check mb-3">
+                                                    <input class="form-check-input" type="radio" name="group_send_messages" id="group-send-admins-only">
+                                                    <label class="form-check-label" for="group-send-admins-only">{{ __('Only Admins') }}</label>
+                                                </div>
+                                                <button type="button" class="btn btn-primary w-100">{{ __('Save Changes') }}</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#approve-participants">
+                                    <div class="profile-info flex-grow-1 pe-2">
+                                        <h6 class="fs-16 mb-1">{{ __('Approve New Participants') }}</h6>
+                                        <p class="text-muted small mb-0">{{ __('Off') }}</p>
+                                    </div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#edit-admin">
+                                    <div class="profile-info flex-grow-1 pe-2">
+                                        <h6 class="fs-16 mb-0">{{ __('Edit Group Admins') }}</h6>
+                                    </div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#mute-notification">
+                                    <div class="profile-info flex-grow-1 pe-2">
+                                        <h6 class="fs-16 mb-1"><i class="ti ti-bell-off me-2 text-warning"></i>{{ __('Mute Notifications') }}</h6>
+                                        <p class="text-muted small mb-0">{{ __('Mute alerts for this group') }}</p>
+                                    </div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                                <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#msg-disapper">
+                                    <div class="profile-info flex-grow-1 pe-2">
+                                        <h6 class="fs-16 mb-1"><i class="ti ti-clock me-2 text-info"></i>{{ __('Disappearing Messages') }}</h6>
+                                        <p class="text-muted small mb-0">{{ __('Timer for new messages in this group') }}</p>
+                                    </div>
+                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Group Participants --}}
+                    <div class="content-wrapper other-info mb-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <h5 class="sub-title mb-0" id="group-participants-heading">{{ __('Participants')}}</h5>
+                            <a href="javascript:void(0);" class="text-muted" id="group-participants-search-toggle"><i class="ti ti-search"></i></a>
+                        </div>
+                        <div class="mb-2 d-none" id="group-participants-search-wrap">
+                            <input type="text" class="form-control form-control-sm" id="group-participants-search" placeholder="{{ __('Search participants...') }}">
+                        </div>
+                        <div class="card contact-info-card border-0">
+                            <div class="card-body p-0">
                                 <div id="members-container">
                                 </div>
+                                <div class="text-center py-2 d-none" id="group-view-all-members">
+                                    <a href="javascript:void(0);" class="small fw-medium text-primary" id="group-view-all-link">
+                                        {{ __('View All') }} <span id="group-view-all-count"></span> &rarr;
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
+
                 </div>
-                <div class="content-wrapper other-info mb-0">
-                    <div class="card mb-0">
-                        <div class="card-body list-group profile-item">
-                            <a href="javascript:void(0);" class="list-group-item" data-bs-toggle="modal" data-bs-target="#group-logout">
-                                <div class="profile-info">
-                                    <h6><i class="ti ti-logout-2 me-2 text-danger"></i>{{ __('Exit Group')}}</h6>
+
+                {{-- Bottom actions: Exit Group & Report User --}}
+                <div class="content-wrapper other-info mb-0 px-3 pb-3">
+                    <div class="card contact-info-card border-0 mb-0">
+                        <div class="card-body list-group profile-item p-0">
+                            <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#group-logout">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="ti ti-logout-2 text-danger"></i>
+                                    <span class="fw-medium">{{ __('Exit Group')}}</span>
                                 </div>
-                                <div class="d-flex align-items-center">
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                                <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
+                            </a>
+                            <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#report-group">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="ti ti-flag text-danger"></i>
+                                    <span class="fw-medium">{{ __('Report User')}}</span>
                                 </div>
+                                <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
                             </a>
                         </div>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>
@@ -272,244 +583,23 @@
 </div>
 <!-- /Invite -->
 
-<!-- Mute -->
-<div class="modal fade" id="mute-notification">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">
-                    {{ __('Mute Notifications')}}
-                </h4>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-                    <i class="ti ti-x"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form action="{{ route('chat')}}">
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="mute" id="mute1">
-                        <label class="form-check-label" for="mute1">30 Minutes</label>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="mute" id="mute2">
-                        <label class="form-check-label" for="mute2">1 Hour</label>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="mute" id="mute3">
-                        <label class="form-check-label" for="mute3">1 Day</label>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="mute" id="mute4">
-                        <label class="form-check-label" for="mute4">1 Week</label>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="mute" id="mute5">
-                        <label class="form-check-label" for="mute5">1 Month</label>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="mute" id="mute6">
-                        <label class="form-check-label" for="mute6">1 Year</label>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="mute" id="mute7">
-                        <label class="form-check-label" for="mute7">Always</label>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel')}}</a>
-                        </div>
-                        <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100">{{ __('Mute')}}</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Mute -->
-
-<!-- Disapperaing Message -->
-<div class="modal fade" id="msg-disapper">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">Disappearing Messages</h4>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-                    <i class="ti ti-x"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form action="{{ route('group-chat')}}">
-                    <div class="block-wrap mb-3">
-                        <p class="text-gray-9">
-                            For more privacy and storage, all new messages will disappear from this chat for everyone after the selected duration, except when kept. Anyone in the chat can change this setting.
-                        </p>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="radio" name="mute" id="disappear1">
-                            <label class="form-check-label" for="disappear1">24 Hours</label>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="radio" name="mute" id="disappear2">
-                            <label class="form-check-label" for="disappear2">7 Days</label>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="radio" name="mute" id="disappear3">
-                            <label class="form-check-label" for="disappear3">90 Days</label>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="radio" name="mute" id="disappear4">
-                            <label class="form-check-label" for="disappear4">Off</label>
-                        </div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
-                        </div>
-                        <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100">Save</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Disapperaing Message -->
-
-<!-- Group Settings -->
-<div class="chat-offcanvas offcanvas offcanvas-end" data-bs-scroll="true" data-bs-backdrop="false" tabindex="-1" id="group-settings">
-    <div class="offcanvas-header">
-        <h4 class="offcanvas-title">Group Settings</h4>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="offcanvas-body">
-        <div class="chat-contact-info">
-            <div class="profile-content">
-                <div class="content-wrapper other-info">
-                    <div class="card">
-                        <div class="card-body list-group profile-item">
-                            <a href="javascript:void(0);" class="list-group-item" data-bs-toggle="modal" data-bs-target="#edit-group">
-                                <div class="profile-info">
-                                    <h6 class="fs-16">Edit Group Settings</h6>
-                                    <p>All Participants</p>
-                                </div>
-                                <div class="d-flex align-items-center">
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
-                                </div>
-                            </a>
-
-                            <div class="accordion accordion-flush chat-accordion list-group-item" id="send-settings">
-                                <div class="accordion-item w-100">
-                                    <h2 class="accordion-header">
-                                        <a href="#" class="accordion-button py-0 collapsed" data-bs-toggle="collapse" data-bs-target="#send-privacy" aria-expanded="false" aria-controls="send-privacy">
-                                            Send Messages
-                                        </a>
-                                    </h2>
-                                    <p class="fs-16 p-0 mb-0">All Participants</p>
-                                    <div id="send-privacy" class="accordion-collapse collapse" data-bs-parent="#send-settings">
-                                        <div class="accordion-body p-0 pt-3">
-                                            <div class="form-check mb-3">
-                                                <input class="form-check-input" type="radio" name="mute" id="participant" checked>
-                                                <label class="form-check-label" for="participant">All Participants</label>
-                                            </div>
-                                            <div class="form-check mb-3">
-                                                <input class="form-check-input" type="radio" name="mute" id="admin">
-                                                <label class="form-check-label" for="admin">Only Admins</label>
-                                            </div>
-                                            <a href="#" class="btn btn-primary w-100">Save Changes</a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <a href="javascript:void(0);" class="list-group-item" data-bs-toggle="modal" data-bs-target="#approve-participants">
-                                <div class="profile-info">
-                                    <h6 class="fs-16">Approve New Participants</h6>
-                                    <p>Off</p>
-                                </div>
-                                <div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
-                                </div>
-                            </a>
-                            <a href="javascript:void(0);" class="list-group-item" data-bs-toggle="modal" data-bs-target="#edit-admin">
-                                <div class="profile-info">
-                                    <h6 class="fs-16">Edit Group Admins</h6>
-                                </div>
-                                <div>
-                                    <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
-                                </div>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Group Settings -->
-
-<!-- Edit Group Settings -->
-<div class="modal fade" id="approve-participants">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">Edit Group Settings</h4>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-                    <i class="ti ti-x"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form action="{{ route('group-chat')}}">
-                    <div class="block-wrap mb-3">
-                        <p class="text-gray-9">
-                            When turned on, admins must approve anyone who wants to join this group.
-                        </p>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="radio" name="mute" id="approve1" checked>
-                            <label class="form-check-label" for="approve1">Off</label>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="radio" name="mute" id="approve2">
-                            <label class="form-check-label" for="approve2">On</label>
-                        </div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
-                        </div>
-                        <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100">Save</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Edit Group Settings -->
-
-<!-- Block User -->
+<!-- Block Group -->
 <div class="modal fade" id="block-user">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title">{{ __('Block User')}}</h4>
+                <h4 class="modal-title">{{ __('Block Group')}}</h4>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
                     <i class="ti ti-x"></i>
                 </button>
             </div>
             <div class="modal-body">
-                <form action="{{ route('chat')}}">
+                <form onsubmit="return false">
                     <div class="block-wrap text-center mb-3">
                         <span class="user-icon mb-3 mx-auto bg-transparent-info">
-                            <i class="ti ti-user-off text-info"></i>
+                            <i class="ti ti-ban text-info"></i>
                         </span>
-                        <p class="text-grya-9">{{ __('Blocked contacts will no longer be able to call you or send you messages.')}}</p>
+                        <p class="text-grya-9">{{ __('Blocking this group will remove you from the group. You will no longer receive messages from this group.')}}</p>
                     </div>
                     <div class="row g-3">
                         <div class="col-6">
@@ -524,7 +614,7 @@
         </div>
     </div>
 </div>
-<!-- /Block User -->
+<!-- /Block Group -->
 
 <!-- Report User -->
 <div class="modal fade" id="report-user">
@@ -539,7 +629,7 @@
             <div class="modal-body">
                 <form action="{{ route('chat')}}">
                     <div class="block-wrap mb-3">
-                        <p class="text-grya-9 mb-3">If you block this contact and clear the chat, messages will only be removed from this device and your devices on the newer versions of DreamsChat</p>
+                        <p class="text-grya-9 mb-3">If you block this contact and clear the chat, all messages, images, videos and documents will be permanently deleted from Connect.</p>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="mute" id="report">
                             <label class="form-check-label" for="report">Report User</label>
@@ -560,181 +650,12 @@
 </div>
 <!-- /Report User -->
 
-<!-- Delete Chat -->
-<div class="modal fade" id="delete-group" data-bs-backdrop="false">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">{{ __('Delete Chat')}}</h4>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-                    <i class="ti ti-x"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form>
-                    <div class="block-wrap text-center mb-3">
-                        <span class="user-icon mb-3 mx-auto bg-transparent-danger">
-                            <i class="ti ti-trash text-danger"></i>
-                        </span>
-                        <p class="text-grya-9">{{ __('Clearing or deleting entire chats will only remove messages from this device and your devices on the newer versions of DreamsChat.')}}</p>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel')}}</a>
-                        </div>
-                        <div class="col-6">
-                            <button type="button" class="btn btn-primary w-100" id="deleteGroupBtn">{{ __('Delete')}}</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Delete Chat -->
-
-
-
 {{-- Group call UI is shared with 1:1 chat via frontend.partials.popups:
      active/incoming video (#video_group_new, #video-call-new-group)
      and active/incoming audio (#audio_group_new, #audio-call-new-group). --}}
 
 
 
-
-<!-- Edit Group Settings -->
-<div class="modal fade" id="edit-group">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">Edit Group Settings</h4>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-                    <i class="ti ti-x"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form action="{{ route('group-chat')}}">
-                    <div class="block-wrap mb-3">
-                        <p class="text-gray-9">
-                            Choose who can change this group's subject, icon, and description. They can also edit the disappearing message timer and keep or unkeep messages.
-                        </p>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="radio" name="mute" id="edit1" checked>
-                            <label class="form-check-label" for="edit1">All Participants</label>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="radio" name="mute" id="edit2">
-                            <label class="form-check-label" for="edit2">Only Admins</label>
-                        </div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
-                        </div>
-                        <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100">Save</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Edit Group Settings -->
-
-<!-- Edit Group Admins -->
-<div class="modal fade" id="edit-admin">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">Edit Group Admins</h4>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-                    <i class="ti ti-x"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form action="{{ route('group-chat')}}">
-                    <div class="search-wrap contact-search mb-3">
-                        <div class="input-group">
-                            <input type="text" class="form-control" placeholder="{{ __('Search')}}">
-                            <a href="javascript:void(0);" class="input-group-text"><i class="ti ti-search"></i></a>
-                        </div>
-                    </div>
-                    <h6 class="mb-3 fw-medium fs-16">Contacts</h6>
-                    <div class="contact-scroll contact-select mb-3">
-                        <div class="contact-user d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center">
-                                <div class="avatar avatar-lg">
-                                    <img src="assets/img/profiles/avatar-01.jpg" class="rounded-circle" alt="image">
-                                </div>
-                                <div class="ms-2">
-                                    <h6>Aaryian Jose</h6>
-                                    <p>App Developer</p>
-                                </div>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="contact">
-                            </div>
-                        </div>
-                        <div class="contact-user d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center">
-                                <div class="avatar avatar-lg">
-                                    <img src="assets/img/profiles/avatar-02.jpg" class="rounded-circle" alt="image">
-                                </div>
-                                <div class="ms-2">
-                                    <h6>Sarika Jain</h6>
-                                    <p>UI/UX Designer</p>
-                                </div>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="contact">
-                            </div>
-                        </div>
-                        <div class="contact-user d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center">
-                                <div class="avatar avatar-lg">
-                                    <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
-                                </div>
-                                <div class="ms-2">
-                                    <h6>Clyde Smith</h6>
-                                    <p>Web Developer</p>
-                                </div>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="contact">
-                            </div>
-                        </div>
-                        <div class="contact-user d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center">
-                                <div class="avatar avatar-lg">
-                                    <img src="assets/img/profiles/avatar-04.jpg" class="rounded-circle" alt="image">
-                                </div>
-                                <div class="ms-2">
-                                    <h6>Carla Jenkins</h6>
-                                    <p>Business Analyst</p>
-                                </div>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="contact">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="close">Cancel</a>
-                        </div>
-                        <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100">Save</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- /Edit Group Admins -->
 
 <!-- New Chat -->
 <div class="modal fade" id="new-chat">
@@ -1005,18 +926,151 @@
 @includeIf('frontend.partials.contact-details-modal', ['contactDetailSimpleMenu' => true])
 <!-- /Contact Detail -->
 
-<!-- Logout -->
-<div class="modal fade" id="group-logout" data-bs-backdrop="false">
+    </div>
+</div>
+
+<!-- Group Sidebar Right-Click Context Menu -->
+<div id="group-context-menu" class="dropdown-menu p-2 shadow" style="display:none;position:fixed;z-index:9999;">
+    <a href="#" class="dropdown-item" data-ctx-action="archive"><i class="ti ti-archive me-2"></i>{{ __('Archive Group') }}</a>
+    <a href="#" class="dropdown-item" data-ctx-action="mute"><i class="ti ti-bell-off me-2"></i>{{ __('Mute Notification') }}</a>
+    <a href="#" class="dropdown-item" data-ctx-action="exit"><i class="ti ti-logout-2 me-2"></i>{{ __('Exit Group') }}</a>
+    <a href="#" class="dropdown-item" data-ctx-action="pin"><i class="ti ti-pin me-2"></i>{{ __('Pin Group') }}</a>
+    <a href="#" class="dropdown-item" data-ctx-action="unread"><i class="ti ti-mail me-2"></i>{{ __('Mark as Unread') }}</a>
+</div>
+
+<!-- /Content -->
+
+<div id="spa-page-modals">
+{{-- Modals must live here (not inside #spa-page-content): nested stacking + docked Group Info offcanvas caused double black backdrops. --}}
+
+<!-- Approve New Participants -->
+<div class="modal fade" id="approve-participants" data-bs-backdrop="true" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title">Logout</h4>
+                <h4 class="modal-title">{{ __('Approve New Participants') }}</h4>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
                     <i class="ti ti-x"></i>
                 </button>
             </div>
             <div class="modal-body">
-                <form action="{{ route('group-chat')}}">
+                <form onsubmit="return false">
+                    <div class="block-wrap mb-3">
+                        <p class="text-gray-9">
+                            {{ __('When turned on, admins must approve anyone who wants to join this group.') }}
+                        </p>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="group_approve_join" id="approve1" checked>
+                            <label class="form-check-label" for="approve1">Off</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="group_approve_join" id="approve2">
+                            <label class="form-check-label" for="approve2">On</label>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
+                        </div>
+                        <div class="col-6">
+                            <button type="submit" class="btn btn-primary w-100">Save</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Group Settings (who can edit subject / icon / description) -->
+<div class="modal fade" id="edit-group" data-bs-backdrop="true" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">{{ __('Edit Group Settings') }}</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="return false">
+                    <div class="block-wrap mb-3">
+                        <p class="text-gray-9">
+                            {{ __('Choose who can change this group\'s subject, icon, and description. They can also edit the disappearing message timer and keep or unkeep messages.') }}
+                        </p>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="group_edit_who" id="edit1" checked>
+                            <label class="form-check-label" for="edit1">All Participants</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="group_edit_who" id="edit2">
+                            <label class="form-check-label" for="edit2">Only Admins</label>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
+                        </div>
+                        <div class="col-6">
+                            <button type="submit" class="btn btn-primary w-100">Save</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Group Admins -->
+<div class="modal fade" id="edit-admin" data-bs-backdrop="true" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">{{ __('Edit Group Admins') }}</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-admin-form" action="{{ route('group-chat')}}" onsubmit="return false">
+                    <div class="search-wrap contact-search mb-3">
+                        <div class="input-group">
+                            <input type="text" id="edit-admin-search" class="form-control" placeholder="{{ __('Search')}}" autocomplete="off">
+                            <a href="javascript:void(0);" class="input-group-text"><i class="ti ti-search"></i></a>
+                        </div>
+                    </div>
+                    <h6 class="mb-3 fw-medium fs-16">{{ __('Members') }}</h6>
+                    <div id="edit-admin-members-list" class="contact-scroll contact-select mb-3"></div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="close">Cancel</a>
+                        </div>
+                        <div class="col-6">
+                            <button type="submit" class="btn btn-primary w-100" id="edit-admin-save-btn">{{ __('Save') }}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Exit Group -->
+<div class="modal fade" id="group-logout" data-bs-backdrop="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">{{ __('Exit Group') }}</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="return false">
                     <div class="block-wrap text-center mb-3">
                         <span class="user-icon mb-3 mx-auto bg-transparent-danger">
                             <i class="ti ti-logout-2 text-danger"></i>
@@ -1024,17 +1078,16 @@
                         <div class="d-flex justify-content-center align-items-center">
                             <i class="ti ti-info-square-rounded me-1 fs-16"></i>
                             <p class="text-gray-9">
-
-                                Only group admins will be notified that you left the group.
+                                {{ __('Only group admins will be notified that you left the group.') }}
                             </p>
                         </div>
                     </div>
                     <div class="row g-3">
                         <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
+                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel') }}</a>
                         </div>
                         <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100" id="confirm-exit">Exit Group</button>
+                            <button type="button" class="btn btn-primary w-100" id="confirm-exit">{{ __('Exit Group') }}</button>
                         </div>
                     </div>
                 </form>
@@ -1042,42 +1095,41 @@
         </div>
     </div>
 </div>
-<!-- /Logout -->
 
 <!-- Report Group -->
-<div class="modal fade" id="report-group">
+<div class="modal fade" id="report-group" data-bs-backdrop="true" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title">Report Wilbur Martinez</h4>
+                <h4 class="modal-title">{{ __('Report Group') }}</h4>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
                     <i class="ti ti-x"></i>
                 </button>
             </div>
             <div class="modal-body">
-                <form action="{{ route('group-chat')}}">
+                <form onsubmit="return false">
                     <div class="block-wrap text-center mb-3">
                         <span class="user-icon mb-3 mx-auto bg-transparent-danger">
                             <i class="ti ti-thumb-down text-danger"></i>
                         </span>
-                        <div class="d-flex justify-content-center align-items-center mb-3   ">
+                        <div class="d-flex justify-content-center align-items-center mb-3">
                             <p class="text-gray-9">
-                                If you block this contact and clear the chat, messages will only be removed from this device and your devices on the newer versions of DreamsChat
+                                {{ __('If you block this group and clear the chat, all messages, images, videos and documents will be permanently deleted.') }}
                             </p>
                         </div>
                         <div class="d-flex align-items-center">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="contact">
                             </div>
-                            <p class="text-gray-9">Block Contact and Clear Chat</p>
+                            <p class="text-gray-9">{{ __('Block Group and Clear Chat') }}</p>
                         </div>
                     </div>
                     <div class="row g-3">
                         <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
+                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel') }}</a>
                         </div>
                         <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100">Report</button>
+                            <button type="submit" class="btn btn-primary w-100">{{ __('Report') }}</button>
                         </div>
                     </div>
                 </form>
@@ -1085,9 +1137,8 @@
         </div>
     </div>
 </div>
-<!-- /Report Group -->
 
-<div class="modal fade" id="clear-group-chat" data-bs-backdrop="false">
+<div class="modal fade" id="clear-group-chat" data-bs-backdrop="false" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
@@ -1102,7 +1153,7 @@
                         <span class="user-icon mb-3 mx-auto bg-transparent-danger">
                             <i class="ti ti-trash text-danger"></i>
                         </span>
-                        <p class="text-grya-9">{{ __('Clearing entire  messages from this device and your devices on the newer versions of DreamsChat.')}}</p>
+                        <p class="text-grya-9">{{ __('This will permanently delete all messages from this chat.')}}</p>
                     </div>
                     <div class="row g-3">
                         <div class="col-6">
@@ -1118,12 +1169,162 @@
     </div>
 </div>
 
+<!-- Delete Group (header menu) -->
+<div class="modal fade" id="delete-group" data-bs-backdrop="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">{{ __('Delete Chat')}}</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form>
+                    <div class="block-wrap text-center mb-3">
+                        <span class="user-icon mb-3 mx-auto bg-transparent-danger">
+                            <i class="ti ti-trash text-danger"></i>
+                        </span>
+                        <p class="text-grya-9">{{ __('This will permanently delete all messages, images, videos and documents in this chat.')}}</p>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel')}}</a>
+                        </div>
+                        <div class="col-6">
+                            <button type="button" class="btn btn-primary w-100" id="deleteGroupBtn">{{ __('Delete')}}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
-<!-- /Content -->
 
-<div id="spa-page-modals">
-{{-- New / Add Group modals: must live here (not inside #spa-page-content) so Bootstrap’s body backdrop stacks below the dialog --}}
+<!-- Mute (group) -->
+<div class="modal fade" id="mute-notification" data-bs-backdrop="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">
+                    {{ __('Mute Notifications')}}
+                </h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="group-mute-notification-form" onsubmit="return false">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="mute" id="mute1">
+                        <label class="form-check-label" for="mute1">30 Minutes</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="mute" id="mute2">
+                        <label class="form-check-label" for="mute2">1 Hour</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="mute" id="mute3">
+                        <label class="form-check-label" for="mute3">1 Day</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="mute" id="mute4">
+                        <label class="form-check-label" for="mute4">1 Week</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="mute" id="mute5">
+                        <label class="form-check-label" for="mute5">1 Month</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="mute" id="mute6">
+                        <label class="form-check-label" for="mute6">1 Year</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="mute" id="mute7">
+                        <label class="form-check-label" for="mute7">Always</label>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel')}}</a>
+                        </div>
+                        <div class="col-6">
+                            <button type="button" class="btn btn-primary w-100" id="group-mute-save-btn">{{ __('Mute')}}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Group encryption info -->
+<div class="modal fade" id="group-encryption-info" tabindex="-1" aria-hidden="true" data-bs-backdrop="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">{{ __('Encryption') }}</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"><i class="ti ti-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-0">{{ __('Group text messages are encrypted before they are stored. Media and metadata may still be visible to your server or storage provider depending on your setup.') }}</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-primary w-100" data-bs-dismiss="modal">{{ __('OK') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Disappearing Messages (group) -->
+<div class="modal fade" id="msg-disapper" data-bs-backdrop="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Disappearing Messages</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="group-msg-disappear-form" onsubmit="return false">
+                    <div class="block-wrap mb-3">
+                        <p class="text-gray-9">
+                            For more privacy and storage, all new messages will disappear from this chat for everyone after the selected duration, except when kept. Anyone in the chat can change this setting.
+                        </p>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="group_disappear" id="disappear1" value="86400000">
+                            <label class="form-check-label" for="disappear1">24 Hours</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="group_disappear" id="disappear2" value="604800000">
+                            <label class="form-check-label" for="disappear2">7 Days</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="group_disappear" id="disappear3" value="7776000000">
+                            <label class="form-check-label" for="disappear3">90 Days</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="group_disappear" id="disappear4" value="0" checked>
+                            <label class="form-check-label" for="disappear4">Off</label>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
+                        </div>
+                        <div class="col-6">
+                            <button type="button" class="btn btn-primary w-100" id="group-disappear-save-btn">Save</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- New / Add Group modals --}}
 <!-- New Group Modal -->
 <div class="modal fade" id="new-group">
     <div class="modal-dialog modal-dialog-centered">
@@ -1165,6 +1366,19 @@
                                 <span class="icon-addon">
                                     <i class="ti ti-info-octagon"></i>
                                 </span>
+                            </div>
+                        </div>
+                        <div class="col-lg-12">
+                            <label class="form-label">{{ __('Group Type')}}</label>
+                            <div class="d-flex align-items-center gap-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="group-type" id="group-type-public" value="public" checked>
+                                    <label class="form-check-label" for="group-type-public">{{ __('Public')}}</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="group-type" id="group-type-private" value="private">
+                                    <label class="form-check-label" for="group-type-private">{{ __('Private')}}</label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1243,6 +1457,89 @@
         </div>
     </div>
 </div>
+<!-- Message Info Modal -->
+<div class="modal fade" id="group-message-info" data-bs-backdrop="true" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">{{ __('Message Info') }}</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"><i class="ti ti-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="card border-0 bg-light p-3">
+                        <div id="msg-info-content" class="mb-2"></div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="ti ti-user text-primary"></i>
+                            <span class="fw-medium">{{ __('Sender') }}</span>
+                        </div>
+                        <p id="msg-info-sender" class="text-muted mb-0">—</p>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="ti ti-clock text-primary"></i>
+                            <span class="fw-medium">{{ __('Sent At') }}</span>
+                        </div>
+                        <p id="msg-info-time" class="text-muted mb-0">—</p>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="ti ti-checks text-success"></i>
+                            <span class="fw-medium">{{ __('Status') }}</span>
+                        </div>
+                        <p id="msg-info-status" class="text-muted mb-0">—</p>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="ti ti-file-text text-primary"></i>
+                            <span class="fw-medium">{{ __('Type') }}</span>
+                        </div>
+                        <p id="msg-info-type" class="text-muted mb-0">—</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-primary w-100" data-bs-dismiss="modal">{{ __('Close') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Message Modal -->
+<div class="modal fade" id="group-edit-message" data-bs-backdrop="true" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">{{ __('Edit Message') }}</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"><i class="ti ti-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-msg-key" value="">
+                <input type="hidden" id="edit-msg-group-id" value="">
+                <div class="mb-3">
+                    <label class="form-label">{{ __('Message') }}</label>
+                    <textarea id="edit-msg-text" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="row g-3">
+                    <div class="col-6">
+                        <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal">{{ __('Cancel') }}</a>
+                    </div>
+                    <div class="col-6">
+                        <button type="button" class="btn btn-primary w-100" id="save-edit-msg-btn">{{ __('Save') }}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="message-delete">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

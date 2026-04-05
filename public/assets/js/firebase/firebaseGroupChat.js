@@ -64,6 +64,14 @@ onAuthStateChanged(auth, (user) => {
 
 let usersMap = {};
 
+function groupMessageVisibleForViewer(msg, viewerUid) {
+    if (!msg || !viewerUid) return false;
+    if (Array.isArray(msg.clearedFor) && msg.clearedFor.includes(viewerUid)) return false;
+    if (Array.isArray(msg.deletedFor) && msg.deletedFor.includes(viewerUid)) return false;
+    if (msg.senderId === viewerUid && msg.deletedForMe) return false;
+    return true;
+}
+
 function normalizeChatMediaUrl(url) {
     if (!url || typeof url !== "string") return url;
     if (url.startsWith("/")) return url;
@@ -512,7 +520,7 @@ function bindDreamchatGroupCreateUi() {
     // Fetching input elements by ID
     const groupNameInput = document.getElementById('group-names'); // Group name input
     const aboutInput = document.getElementById('group-about'); // About input
-   // const groupTypeInput = document.querySelector('input[name="group-type"]:checked'); // Group type input
+    const groupTypeInput = document.querySelector('input[name="group-type"]:checked');
 
     // Check if the inputs are valid
     if (!groupNameInput || !aboutInput ) {
@@ -530,7 +538,7 @@ function bindDreamchatGroupCreateUi() {
     // Fetching input values and trimming them
     const groupName = groupNameInput.value.trim(); // Group name
     const about = aboutInput.value.trim(); // About
-    //const groupType = groupTypeInput.value; // Group type
+    const groupType = groupTypeInput ? groupTypeInput.value : 'public';
 
     // Check if groupName and about are not empty
     if (!groupName || !about) {
@@ -570,11 +578,12 @@ function bindDreamchatGroupCreateUi() {
         name:groupName,
         status: about,
         about: about,
+        groupType: groupType,
         userIds:selectedMembers,
         createdBy: currentUserId,
         admin:currentUserId,
         date: Date.now(),
-        createdAt: Date.now() // Add timestamp
+        createdAt: Date.now()
     };
     const resetStartGroupButton = () => {
         startGroupButton.disabled = false;
@@ -684,12 +693,14 @@ function bindDreamchatGroupCreateUi() {
              document.getElementById("group-names").value = '';
              document.getElementById("group-about").value = '';
              document.getElementById("groupcontactSearchInput").value = '';
+             const publicRadio = document.getElementById("group-type-public");
+             if (publicRadio) publicRadio.checked = true;
              document.querySelectorAll('.contact-user .form-check-input').forEach(checkbox => {
                 checkbox.checked = false;
             });
 
             const searchInput = document.getElementById("groupcontactSearchInput");
-            if (searchInput) searchInput.dispatchEvent(new Event("input")); // Trigger the input event to refresh the contact list
+            if (searchInput) searchInput.dispatchEvent(new Event("input"));
             
         });
     }
@@ -862,6 +873,14 @@ function resetGroupInfoPanelPlaceholders() {
         avatarEl.src = "assets/img/profiles/avatar-03.jpg";
         avatarEl.alt = "img";
     }
+    const headingEl = document.getElementById("group-participants-heading");
+    if (headingEl) headingEl.textContent = "Participants";
+    const viewAllWrap = document.getElementById("group-view-all-members");
+    if (viewAllWrap) viewAllWrap.classList.add("d-none");
+    const searchWrap = document.getElementById("group-participants-search-wrap");
+    if (searchWrap) searchWrap.classList.add("d-none");
+    const searchInput = document.getElementById("group-participants-search");
+    if (searchInput) searchInput.value = "";
 }
 
 function finalizeGroupCreateUI(fullGroupId) {
@@ -980,9 +999,17 @@ function displayGroups(groups, currentUserId) {
                 )
             );
             const formattedTime = formatedTimestamp(group.latestMessageTimestamp);
+            const isPinned = group.pinnedBy && group.pinnedBy[currentUserId];
+            const isArchived = group.archivedBy && group.archivedBy[currentUserId];
+            const pinIcon = isPinned ? '<i class="ti ti-pinned-filled text-warning" style="font-size:12px;"></i>' : '';
+            const archivedClass = isArchived ? ' group-archived' : '';
+            const pinLabel = isPinned ? 'Unpin Group' : 'Pin Group';
+            const pinIconClass = isPinned ? 'ti-pinned-off' : 'ti-pin';
+            const archiveLabel = isArchived ? 'Unarchive Group' : 'Archive Group';
+            const archiveIconClass = isArchived ? 'ti-archive-off' : 'ti-archive';
 
             return `
-                <div class="chat-list" data-group-id="${group.groupId}">
+                <div class="chat-list${archivedClass}" data-group-id="${group.groupId}">
                     <a href="#" class="chat-user-list">
                         <div class="avatar avatar-lg me-2">
                              <img src="${AvatarURL}" class="rounded-circle" alt="image">
@@ -995,10 +1022,23 @@ function displayGroups(groups, currentUserId) {
                             <div class="chat-user-time">
                                 <span class="time">${formattedTime}</span>
                                 <div class="chat-pin">
+                                    ${pinIcon}
                                 </div>
                             </div>    
                         </div>
                     </a>
+                    <div class="chat-drop dropdown">
+                        <a class="group-sidebar-dots" href="#" data-bs-toggle="dropdown">
+                            <i class="ti ti-dots-vertical"></i>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end p-2 group-sidebar-dropdown">
+                            <li><a class="dropdown-item" href="#" data-sidebar-action="archive" data-gid="${group.groupId}"><i class="ti ${archiveIconClass} me-2"></i>${archiveLabel}</a></li>
+                            <li><a class="dropdown-item" href="#" data-sidebar-action="mute" data-gid="${group.groupId}"><i class="ti ti-bell-off me-2"></i>Mute Notification</a></li>
+                            <li><a class="dropdown-item" href="#" data-sidebar-action="exit" data-gid="${group.groupId}"><i class="ti ti-logout-2 me-2"></i>Exit Group</a></li>
+                            <li><a class="dropdown-item" href="#" data-sidebar-action="pin" data-gid="${group.groupId}"><i class="ti ${pinIconClass} me-2"></i>${pinLabel}</a></li>
+                            <li><a class="dropdown-item" href="#" data-sidebar-action="unread" data-gid="${group.groupId}"><i class="ti ti-mail me-2"></i>Mark as Unread</a></li>
+                        </ul>
+                    </div>
                 </div>
             `;
         });
@@ -1008,16 +1048,17 @@ function displayGroups(groups, currentUserId) {
         chatUsersWrap.querySelectorAll(".chat-list").forEach((group) => {
             group.addEventListener("click", (event) => {
                 if (event) event.preventDefault();
+                if (event.target.closest(".chat-drop")) return;
                 const newGroupId = group.getAttribute("data-group-id");
                 if (selectedGroupId && newGroupId && selectedGroupId !== newGroupId) {
                     closeGroupInfoOffcanvas();
                 }
-                selectedGroupId = newGroupId; // Set the global selected group ID
+                selectedGroupId = newGroupId;
                 if (typeof window !== "undefined") {
                     window.__dreamchatSelectedGroupId = selectedGroupId;
                 }
-                loadGroupMessages(selectedGroupId); // Call function to load messages for the clicked group
-                loadGroupDetails(selectedGroupId); // Pass the selected group ID
+                loadGroupMessages(selectedGroupId);
+                loadGroupDetails(selectedGroupId);
             });
         });
     });
@@ -1475,14 +1516,18 @@ function loadGroupMessages(groupId) {
                                     <i class="ti ti-dots-vertical"></i>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end p-3">
+                                    <li><a class="dropdown-item group-msg-info-btn" href="#"><i class="ti ti-info-circle me-2"></i>Message Info</a></li>
                                     <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
                                     <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
+                                    <li><a class="dropdown-item group-favourite-btn" href="#"><i class="ti ti-heart me-2"></i>Mark as Favourite</a></li>
+                                    ${type == 6 ? `<li><a class="dropdown-item group-edit-msg-btn" href="#"><i class="ti ti-pencil me-2"></i>Edit</a></li>` : ""}
                                     <li><a class="dropdown-item delete-btn" href="#" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
                                 </ul>
                                 </div>
                                 <div class="message-bubble-wrap">
                                 <div class="message-content">
                                 ${forwardedLabel}
+                                ${messageData.editedAt ? `<span class="edited-label text-muted" style="font-size:11px;"><i class="ti ti-pencil" style="font-size:10px;"></i> edited</span>` : ""}
                                 ${messageData.replyId != "0" ? `<div class="message-reply">${replyContent}</div>` : ""}
                                     ${messageBody}
                                 </div>
@@ -1520,6 +1565,7 @@ function loadGroupMessages(groupId) {
                             <div class="message-bubble-wrap">
                             <div class="message-content">
                                 ${forwardedLabel}
+                                ${messageData.editedAt ? `<span class="edited-label text-muted" style="font-size:11px;"><i class="ti ti-pencil" style="font-size:10px;"></i> edited</span>` : ""}
                                 ${messageData.replyId != "0" ? `<div class="message-reply">${replyContent}</div>` : ""}
                                     ${messageBody}
                                 </div>
@@ -1530,8 +1576,10 @@ function loadGroupMessages(groupId) {
                                         <i class="ti ti-dots-vertical"></i>
                                     </a>
                                     <ul class="dropdown-menu dropdown-menu-end p-3">
+                                        <li><a class="dropdown-item group-msg-info-btn" href="#"><i class="ti ti-info-circle me-2"></i>Message Info</a></li>
                                         <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
                                         <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
+                                        <li><a class="dropdown-item group-favourite-btn" href="#"><i class="ti ti-heart me-2"></i>Mark as Favourite</a></li>
                                         <li><a class="dropdown-item delete-btn" href="#" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
                                     </ul>
                                 </div>
@@ -2606,7 +2654,171 @@ document.addEventListener("click", (e) => {
                 console.error('Error fetching message details:', error);
             });
     }
+
+    const favBtn = e.target.closest(".group-favourite-btn");
+    if (favBtn) {
+        e.preventDefault();
+        const messageElement = favBtn.closest(".chats");
+        if (!messageElement || !currentUserId) return;
+        const messageKey = messageElement.getAttribute("data-message-key");
+        const gid = messageElement.getAttribute("data-group-id");
+        if (!messageKey || !gid) return;
+        const type = messageElement.getAttribute("data-type") || "6";
+        let preview = "Message";
+        const contentRoot = messageElement.querySelector(".message-content");
+        if (contentRoot) {
+            const textDiv = contentRoot.querySelector("div:not(.message-reply)");
+            if (textDiv) preview = textDiv.innerText.trim().slice(0, 500) || preview;
+        }
+        favouriteMessageForGroup(gid, messageKey, preview, type);
+    }
 });
+
+function favouriteMessageForGroup(groupId, messageKey, preview, attachmentType) {
+    if (!currentUserId || !groupId || !messageKey) return;
+    const msgRef = ref(
+        database,
+        `data/users/${currentUserId}/group_favourite_messages/${groupId}/${messageKey}`
+    );
+    get(msgRef)
+        .then((snap) => {
+            if (snap.exists()) {
+                if (typeof Toastify !== "undefined") {
+                    Toastify({
+                        text: "Message already in Favorites",
+                        duration: 2500,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "#dc3545",
+                    }).showToast();
+                }
+                return Promise.resolve(null);
+            }
+            return set(msgRef, {
+                savedAt: Date.now(),
+                preview: String(preview || "").slice(0, 500),
+                attachmentType: attachmentType != null ? String(attachmentType) : "6",
+            });
+        })
+        .then((written) => {
+            if (written === null) return;
+            if (typeof Toastify !== "undefined") {
+                Toastify({
+                    text: "Message saved to Favorites",
+                    duration: 2500,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#28a745",
+                }).showToast();
+            }
+            refreshGroupFavouritesBadgeCount();
+            const col = document.getElementById("group-collapse-favourites");
+            if (col && col.classList.contains("show")) {
+                loadGroupFavouritesList(col);
+            }
+        })
+        .catch(() => {});
+}
+
+async function refreshGroupFavouritesBadgeCount() {
+    const badge = document.getElementById("group-favourites-badge");
+    if (!badge || !currentUserId || !selectedGroupId) {
+        if (badge) badge.classList.add("d-none");
+        return;
+    }
+    try {
+        const snap = await get(
+            ref(
+                database,
+                `data/users/${currentUserId}/group_favourite_messages/${selectedGroupId}`
+            )
+        );
+        const n = snap.exists() ? Object.keys(snap.val()).length : 0;
+        badge.textContent = String(n);
+        badge.classList.toggle("d-none", n === 0);
+    } catch (e) {
+        badge.classList.add("d-none");
+    }
+}
+
+function scrollChatToSavedGroupMessage(messageKey) {
+    if (!messageKey) return;
+    const el = document.querySelector(`#group-area .chats[data-message-key="${messageKey}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const offcanvasEl = document.getElementById("contact-profile");
+    if (offcanvasEl && typeof bootstrap !== "undefined") {
+        const inst = bootstrap.Offcanvas.getInstance(offcanvasEl);
+        if (inst) inst.hide();
+    }
+    const favCol = document.getElementById("group-collapse-favourites");
+    if (favCol && typeof bootstrap !== "undefined") {
+        const c = bootstrap.Collapse.getInstance(favCol);
+        if (c) c.hide();
+    }
+}
+
+async function loadGroupFavouritesList(collapseEl) {
+    const loadingEl = collapseEl.querySelector(".others-loading");
+    const emptyEl = collapseEl.querySelector(".others-empty");
+    const listEl = document.getElementById("group-favourites-list");
+    if (!listEl || !currentUserId || !selectedGroupId) return;
+    listEl.innerHTML = "";
+    if (loadingEl) loadingEl.classList.remove("d-none");
+    if (emptyEl) emptyEl.classList.add("d-none");
+    try {
+        const snap = await get(
+            ref(
+                database,
+                `data/users/${currentUserId}/group_favourite_messages/${selectedGroupId}`
+            )
+        );
+        if (loadingEl) loadingEl.classList.add("d-none");
+        if (!snap.exists()) {
+            if (emptyEl) emptyEl.classList.remove("d-none");
+            return;
+        }
+        const favs = snap.val();
+        const rows = [];
+        for (const messageKey in favs) {
+            const f = favs[messageKey];
+            if (!f || typeof f !== "object") continue;
+            rows.push({
+                messageKey,
+                preview: (f.preview && String(f.preview).trim()) || "Message",
+                savedAt: Number(f.savedAt) || 0,
+            });
+        }
+        rows.sort((a, b) => b.savedAt - a.savedAt);
+        if (rows.length === 0) {
+            if (emptyEl) emptyEl.classList.remove("d-none");
+            return;
+        }
+        rows.forEach(({ messageKey, preview, savedAt }) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className =
+                "list-group-item list-group-item-action border-0 px-0 py-2 text-start w-100";
+            btn.dataset.messageKey = messageKey;
+            const title = document.createElement("div");
+            title.className = "small fw-medium text-truncate";
+            title.textContent = preview;
+            btn.appendChild(title);
+            if (savedAt) {
+                const sub = document.createElement("div");
+                sub.className = "text-muted";
+                sub.style.fontSize = "0.75rem";
+                sub.textContent = new Date(savedAt).toLocaleString();
+                btn.appendChild(sub);
+            }
+            btn.addEventListener("click", () => scrollChatToSavedGroupMessage(messageKey));
+            listEl.appendChild(btn);
+        });
+    } catch (e) {
+        if (loadingEl) loadingEl.classList.add("d-none");
+        if (emptyEl) emptyEl.classList.remove("d-none");
+    }
+}
 
 // Function to delete message locally (from the DOM)
 function deleteForMe(messageElement, messageKey, groupId) {
@@ -2651,11 +2863,12 @@ function deleteForMe(messageElement, messageKey, groupId) {
 
 // Function to delete message for everyone from Firebase
 function deleteForEveryone(messageKey, messageElement, groupId) {
-    
     const messageRef = ref(database, `data/chats/${groupId}/${messageKey}`);
-
-    // Remove the message from Firebase
-    remove(messageRef);
+    remove(messageRef).then(() => {
+        if (messageElement) messageElement.remove();
+    }).catch((error) => {
+        console.error("Error deleting for everyone:", error);
+    });
 }
 
 
@@ -3207,7 +3420,22 @@ async function fetchGroupInfo(groupId) {
                 month: "long",
                 day: "numeric",
             });
+            const formattedTime = date.toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+            });
+            const creatorId = groupData.createdBy;
             groupDateElement.textContent = `Group created on ${formattedDate}`;
+            if (creatorId) {
+                getUserDetails(creatorId).then((u) => {
+                    if (renderGen !== groupInfoRenderGeneration || fetchTargetId !== selectedGroupId) {
+                        return;
+                    }
+                    const merged = mergeLaravelProfileIfSelf(creatorId, u);
+                    const creatorName = buildGroupParticipantDisplayName(null, merged);
+                    groupDateElement.textContent = `Group created by ${creatorName}, on ${formattedDate} at ${formattedTime}`;
+                });
+            }
         } else {
             groupDateElement.textContent = "No data available";
         }
@@ -3269,49 +3497,311 @@ async function fetchGroupInfo(groupId) {
 
     if (!membersContainer) return;
 
-    membersDetails.forEach((user) => {
+    const maxVisibleMembers = 4;
+    const totalMembers = membersDetails.length;
+
+    membersDetails.forEach((user, index) => {
         if (!user) return;
         const memberElement = document.createElement("div");
-        memberElement.className = "card mb-3";
+        memberElement.className = "card mb-2 group-member-card";
+        if (index >= maxVisibleMembers) {
+            memberElement.classList.add("d-none");
+            memberElement.dataset.hiddenMember = "1";
+        }
 
         const isAdmin = groupData.createdBy === user.memberId;
+
+        const statusText = user.status === "online" ? "Available" :
+                           user.status === "busy" ? "Busy" :
+                           user.status === "away" ? "Away" :
+                           user.status || "Available";
 
         const avatarClass =
             user.status === "online"
                 ? "avatar avatar-lg online flex-shrink-0"
                 : "avatar avatar-lg flex-shrink-0";
-        const roleClass = isAdmin
-            ? "badge badge-danger"
-            : "badge badge-primary-transparent";
-        const roleText = isAdmin ? "Admin" : "Member";
+        const adminBadge = isAdmin
+            ? '<span class="badge badge-danger ms-2">Admin</span>'
+            : '';
 
         const uForPic = user._userForAvatar || user;
         const cForPic = user._contactForAvatar || null;
         const avatarRaw = rawAvatarFromUserAndContact(uForPic, cForPic);
 
+        const threeDotMenu = `
+            <div class="dropdown">
+                <a href="javascript:void(0);" class="text-muted" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="ti ti-dots-vertical"></i>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end p-2">
+                    <li><a class="dropdown-item small" href="javascript:void(0);" data-action="view-profile" data-uid="${user.memberId}"><i class="ti ti-user me-2"></i>View Profile</a></li>
+                    <li class="group-admin-action d-none"><a class="dropdown-item small" href="javascript:void(0);" data-action="make-admin" data-uid="${user.memberId}"><i class="ti ti-shield me-2"></i>Make Admin</a></li>
+                    <li class="group-admin-action d-none"><a class="dropdown-item small text-danger" href="javascript:void(0);" data-action="remove-member" data-uid="${user.memberId}"><i class="ti ti-user-minus me-2"></i>Remove</a></li>
+                </ul>
+            </div>`;
+
         memberElement.innerHTML = `
-                            <div class="card-body">
-                                <div class="d-flex align-items-center justify-content-between">
-                                    <div class="d-flex align-items-center overflow-hidden">
-                                        <span class="${avatarClass}">
-                                            <img src="${
-                                                resolveGroupProfileImageUrl(avatarRaw)
-                                            }" alt="img" class="rounded-circle">
-                                        </span>
-                                        <div class="ms-2 overflow-hidden">
-                                            <h6 class="text-truncate mb-1">${
-                                                user.displayName
-                                            }</h6>
-                                        </div>
-                                        <div class="d-flex align-items-center ms-2">
-                                            <span class="${roleClass} me-2">${roleText}</span>
-                                        </div>
-                                    </div>
-                                </div>
+            <div class="card-body py-2 px-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center overflow-hidden">
+                        <span class="${avatarClass}">
+                            <img src="${resolveGroupProfileImageUrl(avatarRaw)}" alt="img" class="rounded-circle">
+                        </span>
+                        <div class="ms-2 overflow-hidden">
+                            <div class="d-flex align-items-center">
+                                <h6 class="text-truncate mb-0">${user.displayName}</h6>
+                                ${adminBadge}
                             </div>
-                        `;
+                            <p class="text-muted small mb-0">${capitalizeFirstLetter(statusText)}</p>
+                        </div>
+                    </div>
+                    ${threeDotMenu}
+                </div>
+            </div>`;
 
         membersContainer.appendChild(memberElement);
+    });
+
+    const viewAllWrap = document.getElementById("group-view-all-members");
+    const viewAllCount = document.getElementById("group-view-all-count");
+    const viewAllLink = document.getElementById("group-view-all-link");
+    if (totalMembers > maxVisibleMembers && viewAllWrap) {
+        viewAllWrap.classList.remove("d-none");
+        if (viewAllCount) viewAllCount.textContent = `(${totalMembers - maxVisibleMembers} more)`;
+        if (viewAllLink) {
+            viewAllLink.onclick = function () {
+                membersContainer.querySelectorAll('[data-hidden-member="1"]').forEach(function (el) {
+                    el.classList.remove("d-none");
+                });
+                viewAllWrap.classList.add("d-none");
+            };
+        }
+    } else if (viewAllWrap) {
+        viewAllWrap.classList.add("d-none");
+    }
+
+    const headingEl = document.getElementById("group-participants-heading");
+    if (headingEl) headingEl.textContent = totalMembers + " Participants";
+
+    if (currentUserId && (groupData.admin === currentUserId || groupData.createdBy === currentUserId)) {
+        membersContainer.querySelectorAll(".group-admin-action").forEach(function (el) {
+            el.classList.remove("d-none");
+        });
+    }
+}
+
+async function populateEditAdminMembersModal() {
+    const groupId = selectedGroupId;
+    const container = document.getElementById("edit-admin-members-list");
+    if (!container) return;
+    const searchInput = document.getElementById("edit-admin-search");
+    if (searchInput) searchInput.value = "";
+
+    if (!groupId || !currentUserId) {
+        container.innerHTML =
+            '<p class="text-center text-muted mb-0 px-2">' +
+            "Select a group first." +
+            "</p>";
+        return;
+    }
+
+    container.innerHTML =
+        '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
+    try {
+        const groupRef = ref(database, `data/groups/${groupId}`);
+        const snapshot = await get(groupRef);
+        if (!snapshot.exists()) {
+            container.innerHTML =
+                '<p class="text-center text-muted mb-0 px-2">Group not found.</p>';
+            return;
+        }
+
+        const groupData = snapshot.val();
+        const userIds = groupData.userIds || [];
+        if (userIds.length === 0) {
+            container.innerHTML =
+                '<p class="text-center text-muted mb-0 px-2">No members in this group.</p>';
+            return;
+        }
+
+        const adminUid = groupData.admin || "";
+        const creatorUid = groupData.createdBy || "";
+
+        const memberPromises = userIds.map(async (memberId) => {
+            let contactData = null;
+            let userData = null;
+            try {
+                const contactSnap = await get(
+                    ref(database, `data/contacts/${currentUserId}/${memberId}`)
+                );
+                contactData = contactSnap.exists() ? contactSnap.val() : null;
+            } catch (e) {
+                /* ignore */
+            }
+            try {
+                const userSnap = await get(ref(database, `data/users/${memberId}`));
+                userData = userSnap.exists() ? userSnap.val() : null;
+            } catch (e) {
+                /* ignore */
+            }
+            const userMerged = mergeLaravelProfileIfSelf(memberId, userData);
+            const displayName = buildGroupParticipantDisplayName(
+                contactData,
+                userMerged
+            );
+            return {
+                ...userMerged,
+                memberId,
+                displayName,
+                status:
+                    (userData && userData.status) ||
+                    (userData && userData.userStatus) ||
+                    "",
+                _contactForAvatar: contactData,
+                _userForAvatar: userMerged,
+            };
+        });
+
+        let membersDetails = await Promise.all(memberPromises);
+        membersDetails = await enrichGroupMembersWithLaravelBatch(membersDetails);
+
+        if (selectedGroupId !== groupId) return;
+
+        container.innerHTML = "";
+        membersDetails.forEach((user) => {
+            if (!user) return;
+            const isAdmin =
+                user.memberId === adminUid ||
+                user.memberId === creatorUid;
+            const statusText =
+                user.status === "online"
+                    ? "Available"
+                    : user.status === "busy"
+                      ? "Busy"
+                      : user.status === "away"
+                        ? "Away"
+                        : user.status || "Member";
+
+            const uForPic = user._userForAvatar || user;
+            const cForPic = user._contactForAvatar || null;
+            const avatarRaw = rawAvatarFromUserAndContact(uForPic, cForPic);
+            const imgSrc = resolveGroupProfileImageUrl(avatarRaw);
+
+            const row = document.createElement("div");
+            row.className =
+                "contact-user d-flex align-items-center justify-content-between edit-admin-member-row";
+            row.dataset.memberId = user.memberId;
+            row.dataset.searchText =
+                `${user.displayName || ""} ${statusText}`.toLowerCase();
+
+            row.innerHTML = `
+                <div class="d-flex align-items-center min-w-0">
+                    <div class="avatar avatar-lg flex-shrink-0">
+                        <img src="${imgSrc}" class="rounded-circle" alt="">
+                    </div>
+                    <div class="ms-2 min-w-0">
+                        <h6 class="text-truncate mb-0">${user.displayName}</h6>
+                        <p class="text-muted small mb-0 text-truncate">${capitalizeFirstLetter(
+                            statusText
+                        )}</p>
+                    </div>
+                </div>
+                <div class="form-check flex-shrink-0 ms-2">
+                    <input class="form-check-input edit-admin-cb" type="checkbox" name="edit_admin_member" value="${
+                        user.memberId
+                    }" ${isAdmin ? "checked" : ""} aria-label="Group admin">
+                </div>`;
+            container.appendChild(row);
+        });
+    } catch (err) {
+        console.error("populateEditAdminMembersModal:", err);
+        container.innerHTML =
+            '<p class="text-center text-danger mb-0 px-2">Failed to load members.</p>';
+    }
+}
+
+const editAdminModalEl = document.getElementById("edit-admin");
+if (editAdminModalEl) {
+    editAdminModalEl.addEventListener("show.bs.modal", function () {
+        populateEditAdminMembersModal();
+    });
+}
+
+const editAdminForm = document.getElementById("edit-admin-form");
+if (editAdminForm) {
+    editAdminForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const gid = selectedGroupId;
+        const container = document.getElementById("edit-admin-members-list");
+        if (!gid || !container || !currentUserId) return;
+
+        const checked = [
+            ...container.querySelectorAll("input.edit-admin-cb:checked"),
+        ].map((i) => i.value);
+        if (checked.length === 0) {
+            Toastify({
+                text: "Select at least one group admin.",
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#ef4444",
+            }).showToast();
+            return;
+        }
+
+        try {
+            const groupRef = ref(database, `data/groups/${gid}`);
+            const snap = await get(groupRef);
+            if (!snap.exists()) return;
+            const gd = snap.val();
+            if (gd.admin !== currentUserId && gd.createdBy !== currentUserId) {
+                Toastify({
+                    text: "Only a group admin can change this.",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ef4444",
+                }).showToast();
+                return;
+            }
+
+            const order = gd.userIds || [];
+            const orderedPick = order.filter((id) => checked.includes(id));
+            const newAdmin = orderedPick.length ? orderedPick[0] : checked[0];
+
+            await update(groupRef, { admin: newAdmin });
+            fetchGroupInfo(gid);
+            Toastify({
+                text: "Group admin updated.",
+                duration: 2500,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#22c55e",
+            }).showToast();
+            const modal = bootstrap.Modal.getInstance(editAdminModalEl);
+            if (modal) modal.hide();
+        } catch (err) {
+            console.error("edit-admin save:", err);
+            Toastify({
+                text: "Could not save. Try again.",
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#ef4444",
+            }).showToast();
+        }
+    });
+}
+
+const editAdminSearchInput = document.getElementById("edit-admin-search");
+if (editAdminSearchInput) {
+    editAdminSearchInput.addEventListener("input", function () {
+        const q = (this.value || "").toLowerCase().trim();
+        document.querySelectorAll(".edit-admin-member-row").forEach(function (row) {
+            const t = row.dataset.searchText || "";
+            row.classList.toggle("d-none", q.length > 0 && !t.includes(q));
+        });
     });
 }
 
@@ -3326,6 +3816,7 @@ if (contactProfileOffcanvas) {
         if (groupId && currentUserId) {
             checkAdminAccess(groupId, currentUserId);
         }
+        refreshGroupFavouritesBadgeCount();
     });
 }
 
@@ -4110,11 +4601,996 @@ async function decryptlibsodiumMessage(encryptedMessage) {
             throw new Error(result.error);
         }
 
-        return result.decryptedData; // Decrypted message from Laravel
+        return result.decryptedData;
     } catch (error) {
         console.error('Decryption error:', error);
-        return null; // Handle error appropriately
+        return null;
     }
+}
+
+// --- Group Info Panel: wire up new UI elements ---
+
+const groupMediaAccordionCfg = {
+    "group-media-collapse-photos": { type: "photos", attachmentTypes: [2] },
+    "group-media-collapse-videos": { type: "videos", attachmentTypes: [1] },
+    "group-media-collapse-links": { type: "links", attachmentTypes: [6] },
+    "group-media-collapse-docs": { type: "docs", attachmentTypes: [5] },
+};
+
+async function loadGroupMediaAccordion(collapseEl, cfg) {
+    if (!collapseEl || !cfg || !currentUserId || !selectedGroupId) return;
+    const loadingEl = collapseEl.querySelector(".media-loading");
+    const emptyEl = collapseEl.querySelector(".media-empty");
+    const gridEl = collapseEl.querySelector(".media-photos-grid, .media-videos-grid");
+    const listEl = collapseEl.querySelector(".media-links-list, .media-docs-list");
+
+    if (loadingEl) loadingEl.classList.remove("d-none");
+    if (emptyEl) emptyEl.classList.add("d-none");
+    if (gridEl) gridEl.innerHTML = "";
+    if (listEl) listEl.innerHTML = "";
+
+    let messages = [];
+    try {
+        const snap = await get(ref(database, `data/chats/${selectedGroupId}`));
+        if (snap.exists()) {
+            snap.forEach((child) => {
+                messages.push(child.val());
+            });
+        }
+    } catch (e) {
+        /* ignore */
+    }
+
+    if (loadingEl) loadingEl.classList.add("d-none");
+
+    const viewerUid = currentUserId;
+    const filtered = messages.filter((msg) => {
+        if (!groupMessageVisibleForViewer(msg, viewerUid)) return false;
+        return cfg.attachmentTypes.includes(Number(msg.attachmentType));
+    });
+
+    if (cfg.type === "photos" || cfg.type === "videos") {
+        if (!filtered.length) {
+            if (emptyEl) emptyEl.classList.remove("d-none");
+            return;
+        }
+        filtered.forEach((msg) => {
+            const url = normalizeChatMediaUrl(
+                msg.attachment && msg.attachment.url ? msg.attachment.url : msg.attachment
+            );
+            if (!url) return;
+            const col = document.createElement("div");
+            col.className = "col-4";
+            if (cfg.type === "photos") {
+                col.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" class="img-fluid rounded" style="height:80px;width:100%;object-fit:cover;" alt="photo"></a>`;
+            } else {
+                col.innerHTML = `<video src="${url}" class="img-fluid rounded" style="height:80px;width:100%;object-fit:cover;" controls></video>`;
+            }
+            if (gridEl) gridEl.appendChild(col);
+        });
+        return;
+    }
+
+    if (cfg.type === "links") {
+        const seenUrls = new Set();
+        let found = false;
+
+        function trimTrailingUrlPunct(u) {
+            return String(u || "").replace(/[)\],.;:!?]+$/g, "");
+        }
+
+        function normalizeUrl(href) {
+            if (!href || typeof href !== "string") return null;
+            let u = trimTrailingUrlPunct(href.trim());
+            if (!u) return null;
+            if (!/^https?:\/\//i.test(u) && /^www\./i.test(u)) {
+                u = "https://" + u;
+            }
+            if (!/^https?:\/\//i.test(u)) return null;
+            try {
+                return new URL(u).href;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function addLinkRow(rawHref) {
+            const u = normalizeUrl(rawHref);
+            if (!u || seenUrls.has(u)) return;
+            seenUrls.add(u);
+            found = true;
+            const item = document.createElement("a");
+            item.href = u;
+            item.target = "_blank";
+            item.rel = "noopener noreferrer";
+            item.className =
+                "list-group-item list-group-item-action px-0 py-2 text-truncate border-0";
+            item.style.fontSize = "0.82rem";
+            item.textContent = u;
+            item.title = u;
+            if (listEl) listEl.appendChild(item);
+        }
+
+        const extractUrlsFromText = (text) => {
+            if (!text || typeof text !== "string") return;
+            const reHttp = /https?:\/\/[^\s<>"']+/gi;
+            const reWww = /\bwww\.[a-z0-9][a-z0-9.-]*\.[a-z]{2,}[^\s<>"']*/gi;
+            let m;
+            while ((m = reHttp.exec(text)) !== null) {
+                addLinkRow(m[0]);
+            }
+            while ((m = reWww.exec(text)) !== null) {
+                addLinkRow(m[0]);
+            }
+        };
+
+        const textMsgs = messages.filter(
+            (msg) =>
+                groupMessageVisibleForViewer(msg, viewerUid) &&
+                Number(msg.attachmentType) === 6 &&
+                msg.body
+        );
+        for (const msg of textMsgs) {
+            let text = null;
+            try {
+                text = await decryptlibsodiumMessage(msg.body);
+            } catch (e) {
+                text = null;
+            }
+            if (!text && typeof msg.body === "string") {
+                const b = msg.body.trim();
+                if (/^https?:\/\//i.test(b) || /^www\./i.test(b)) {
+                    text = b;
+                }
+            }
+            extractUrlsFromText(text);
+        }
+
+        const mapMsgs = messages.filter(
+            (m) =>
+                groupMessageVisibleForViewer(m, viewerUid) &&
+                Number(m.attachmentType) === 4 &&
+                m.attachment
+        );
+        for (const msg of mapMsgs) {
+            const att = msg.attachment;
+            if (att.link) addLinkRow(att.link);
+            if (att.url && typeof att.url === "string") {
+                const u = att.url;
+                if (
+                    /maps\.(google|googleapis)\.|goo\.gl|g\.co\/maps/i.test(u) ||
+                    /maps\.google\.com|google\.com\/maps/i.test(u)
+                ) {
+                    addLinkRow(u);
+                }
+            }
+        }
+
+        if (!found && emptyEl) emptyEl.classList.remove("d-none");
+        return;
+    }
+
+    if (cfg.type === "docs") {
+        if (!filtered.length) {
+            if (emptyEl) emptyEl.classList.remove("d-none");
+            return;
+        }
+        for (const msg of filtered) {
+            let url =
+                msg.attachment && msg.attachment.url ? msg.attachment.url : msg.attachment;
+            if (!url) {
+                try {
+                    url = await decryptlibsodiumMessage(msg.body);
+                } catch (e) {
+                    url = null;
+                }
+            }
+            url = normalizeChatMediaUrl(url);
+            if (!url) continue;
+            const name =
+                (msg.attachment && msg.attachment.name) ||
+                msg.fileName ||
+                (url && url.split("/").pop()) ||
+                "File";
+            const item = document.createElement("a");
+            item.href = url;
+            item.target = "_blank";
+            item.rel = "noopener noreferrer";
+            item.download = name;
+            item.className =
+                "list-group-item list-group-item-action px-0 py-2 border-0 d-flex align-items-center gap-2";
+            item.innerHTML = `<i class="ti ti-file text-primary"></i><span class="text-truncate" style="font-size:0.82rem;">${name}</span>`;
+            if (listEl) listEl.appendChild(item);
+        }
+    }
+}
+
+function closeOtherGroupMediaCollapses(exceptId) {
+    Object.keys(groupMediaAccordionCfg).forEach((cid) => {
+        if (cid === exceptId) return;
+        const el = document.getElementById(cid);
+        if (el && el.classList.contains("show") && typeof bootstrap !== "undefined") {
+            const inst = bootstrap.Collapse.getInstance(el);
+            if (inst) inst.hide();
+        }
+        const row = document.querySelector(`.group-media-row[data-media-target="${cid}"]`);
+        const chevron = row && row.querySelector(".media-chevron i");
+        if (chevron) {
+            chevron.classList.remove("ti-chevron-down");
+            chevron.classList.add("ti-chevron-right");
+        }
+    });
+}
+
+document.querySelectorAll(".group-media-row").forEach(function (row) {
+    if (row.dataset.groupMediaWired === "1") return;
+    row.dataset.groupMediaWired = "1";
+    row.addEventListener("click", function (e) {
+        e.preventDefault();
+        const targetId = this.dataset.mediaTarget;
+        if (!targetId || typeof bootstrap === "undefined") return;
+        const collapseEl = document.getElementById(targetId);
+        if (!collapseEl) return;
+        const cfg = groupMediaAccordionCfg[targetId];
+        if (!cfg) return;
+        const chevron = this.querySelector(".media-chevron i");
+        const isOpen = collapseEl.classList.contains("show");
+        let inst = bootstrap.Collapse.getInstance(collapseEl);
+        if (!inst) inst = new bootstrap.Collapse(collapseEl, { toggle: false });
+
+        if (isOpen) {
+            inst.hide();
+            if (chevron) {
+                chevron.classList.remove("ti-chevron-down");
+                chevron.classList.add("ti-chevron-right");
+            }
+        } else {
+            closeOtherGroupMediaCollapses(targetId);
+            inst.show();
+            if (chevron) {
+                chevron.classList.remove("ti-chevron-right");
+                chevron.classList.add("ti-chevron-down");
+            }
+            loadGroupMediaAccordion(collapseEl, cfg);
+        }
+    });
+});
+
+// Participant search toggle
+const participantSearchToggle = document.getElementById("group-participants-search-toggle");
+const participantSearchWrap = document.getElementById("group-participants-search-wrap");
+const participantSearchInput = document.getElementById("group-participants-search");
+if (participantSearchToggle && participantSearchWrap) {
+    participantSearchToggle.addEventListener("click", function () {
+        participantSearchWrap.classList.toggle("d-none");
+        if (!participantSearchWrap.classList.contains("d-none") && participantSearchInput) {
+            participantSearchInput.focus();
+        }
+    });
+}
+if (participantSearchInput) {
+    participantSearchInput.addEventListener("input", function () {
+        const query = this.value.trim().toLowerCase();
+        const cards = document.querySelectorAll("#members-container .group-member-card");
+        cards.forEach(function (card) {
+            const name = (card.querySelector("h6") || {}).textContent || "";
+            if (!query || name.toLowerCase().includes(query)) {
+                card.classList.remove("d-none");
+            } else {
+                card.classList.add("d-none");
+            }
+        });
+    });
+}
+
+const groupOpenFav = document.getElementById("group-open-favourites");
+const groupFavCollapse = document.getElementById("group-collapse-favourites");
+if (groupOpenFav && groupFavCollapse && groupOpenFav.dataset.favWired !== "1") {
+    groupOpenFav.dataset.favWired = "1";
+    groupOpenFav.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (typeof bootstrap === "undefined") return;
+        const inst = bootstrap.Collapse.getOrCreateInstance(groupFavCollapse);
+        inst.toggle();
+    });
+    groupFavCollapse.addEventListener("shown.bs.collapse", function () {
+        loadGroupFavouritesList(groupFavCollapse);
+        const ch = groupOpenFav.querySelector(".group-fav-chevron i");
+        if (ch) {
+            ch.classList.remove("ti-chevron-right");
+            ch.classList.add("ti-chevron-down");
+        }
+    });
+    groupFavCollapse.addEventListener("hidden.bs.collapse", function () {
+        const ch = groupOpenFav.querySelector(".group-fav-chevron i");
+        if (ch) {
+            ch.classList.remove("ti-chevron-down");
+            ch.classList.add("ti-chevron-right");
+        }
+    });
+}
+
+function groupMuteDurationMsForRadioId(id) {
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    const map = {
+        mute1: 30 * minute,
+        mute2: hour,
+        mute3: day,
+        mute4: 7 * day,
+        mute5: 30 * day,
+        mute6: 365 * day,
+    };
+    if (id === "mute7") return null;
+    return map[id] != null ? map[id] : null;
+}
+
+const groupMuteSaveBtn = document.getElementById("group-mute-save-btn");
+if (groupMuteSaveBtn) {
+    groupMuteSaveBtn.addEventListener("click", function () {
+        if (!currentUserId || !selectedGroupId) {
+            if (typeof Toastify !== "undefined") {
+                Toastify({ text: "Select a group first.", duration: 2500 }).showToast();
+            }
+            return;
+        }
+        const form = document.getElementById("group-mute-notification-form");
+        const selected = form ? form.querySelector('input[name="mute"]:checked') : null;
+        if (!selected) {
+            if (typeof Toastify !== "undefined") {
+                Toastify({ text: "Choose a mute duration.", duration: 2500 }).showToast();
+            }
+            return;
+        }
+        const id = selected.id;
+        const payload =
+            id === "mute7"
+                ? { always: true, updatedAt: Date.now() }
+                : { until: Date.now() + (groupMuteDurationMsForRadioId(id) || 0), updatedAt: Date.now() };
+        set(
+            ref(database, `data/users/${currentUserId}/muted_groups/${selectedGroupId}`),
+            payload
+        )
+            .then(() => {
+                if (typeof Toastify !== "undefined") {
+                    Toastify({
+                        text: "Notifications muted for this group.",
+                        duration: 2500,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "#22c55e",
+                    }).showToast();
+                }
+                const modalEl = document.getElementById("mute-notification");
+                if (modalEl && bootstrap.Modal) {
+                    const m = bootstrap.Modal.getInstance(modalEl);
+                    if (m) m.hide();
+                }
+            })
+            .catch(() => {});
+    });
+}
+
+async function syncGroupDisappearModalFromFirebase() {
+    if (!selectedGroupId) return;
+    try {
+        const snap = await get(ref(database, `data/groups/${selectedGroupId}`));
+        const ttl = snap.exists() ? Number(snap.val().disappearingTtlMs) : 0;
+        const map = { 86400000: "disappear1", 604800000: "disappear2", 7776000000: "disappear3", 0: "disappear4" };
+        const id = map[ttl] != null ? map[ttl] : "disappear4";
+        const radio = document.getElementById(id);
+        if (radio) radio.checked = true;
+    } catch (e) {
+        /* ignore */
+    }
+}
+
+const msgDisappearModal = document.getElementById("msg-disapper");
+if (msgDisappearModal) {
+    msgDisappearModal.addEventListener("show.bs.modal", function () {
+        syncGroupDisappearModalFromFirebase();
+    });
+}
+
+const groupDisappearSaveBtn = document.getElementById("group-disappear-save-btn");
+if (groupDisappearSaveBtn) {
+    groupDisappearSaveBtn.addEventListener("click", function () {
+        if (!selectedGroupId) return;
+        const form = document.getElementById("group-msg-disappear-form");
+        const selected = form ? form.querySelector('input[name="group_disappear"]:checked') : null;
+        const ttlMs = selected ? Number(selected.value) : 0;
+        const groupRef = ref(database, `data/groups/${selectedGroupId}`);
+        get(groupRef)
+            .then((snap) => {
+                if (!snap.exists()) return Promise.reject();
+                return update(groupRef, {
+                    disappearingTtlMs: ttlMs,
+                    disappearingUpdatedAt: Date.now(),
+                });
+            })
+            .then(() => {
+                if (typeof Toastify !== "undefined") {
+                    Toastify({
+                        text: "Disappearing messages setting saved.",
+                        duration: 2500,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "#22c55e",
+                    }).showToast();
+                }
+                const modalEl = document.getElementById("msg-disapper");
+                if (modalEl && bootstrap.Modal) {
+                    const m = bootstrap.Modal.getInstance(modalEl);
+                    if (m) m.hide();
+                }
+            })
+            .catch(() => {
+                if (typeof Toastify !== "undefined") {
+                    Toastify({
+                        text: "Could not save setting.",
+                        duration: 2500,
+                        backgroundColor: "#ef4444",
+                    }).showToast();
+                }
+            });
+    });
+}
+
+// Group Info panel action buttons
+const groupProfileAudioBtn = document.getElementById("group-profile-audio-btn");
+const groupProfileVideoBtn = document.getElementById("group-profile-video-btn");
+const groupProfileChatBtn = document.getElementById("group-profile-chat-btn");
+const groupProfileSearchBtn = document.getElementById("group-profile-search-btn");
+
+if (groupProfileAudioBtn) {
+    groupProfileAudioBtn.addEventListener("click", function () {
+        const headerBtn = document.getElementById("audio-new-btn-group");
+        if (headerBtn) headerBtn.click();
+    });
+}
+if (groupProfileVideoBtn) {
+    groupProfileVideoBtn.addEventListener("click", function () {
+        const headerBtn = document.getElementById("video-call-new-btn-group");
+        if (headerBtn) headerBtn.click();
+    });
+}
+if (groupProfileChatBtn) {
+    groupProfileChatBtn.addEventListener("click", function () {
+        const offcanvasEl = document.getElementById("contact-profile");
+        if (offcanvasEl && typeof bootstrap !== "undefined") {
+            const inst = bootstrap.Offcanvas.getInstance(offcanvasEl);
+            if (inst) inst.hide();
+        }
+        const msgInput = document.getElementById("message-input");
+        if (msgInput) msgInput.focus();
+    });
+}
+if (groupProfileSearchBtn) {
+    groupProfileSearchBtn.addEventListener("click", function () {
+        const offcanvasEl = document.getElementById("contact-profile");
+        if (offcanvasEl && typeof bootstrap !== "undefined") {
+            const inst = bootstrap.Offcanvas.getInstance(offcanvasEl);
+            if (inst) inst.hide();
+        }
+        const searchBtn = document.querySelector(".chat-search-btn");
+        if (searchBtn) searchBtn.click();
+    });
+}
+
+// Member three-dot menu actions
+document.addEventListener("click", function (e) {
+    const actionEl = e.target.closest("[data-action]");
+    if (!actionEl) return;
+    const action = actionEl.dataset.action;
+    const uid = actionEl.dataset.uid;
+    if (!uid) return;
+
+    if (action === "make-admin" && selectedGroupId) {
+        const groupRef = ref(database, `data/groups/${selectedGroupId}`);
+        get(groupRef).then(function (snap) {
+            if (!snap.exists()) return;
+            update(groupRef, { admin: uid }).then(function () {
+                fetchGroupInfo(selectedGroupId);
+                Toastify({ text: "Admin updated.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+            });
+        });
+    }
+    if (action === "remove-member" && selectedGroupId) {
+        const groupRef = ref(database, `data/groups/${selectedGroupId}`);
+        get(groupRef).then(function (snap) {
+            if (!snap.exists()) return;
+            const gd = snap.val();
+            const updatedMembers = (gd.userIds || []).filter(function (id) { return id !== uid; });
+            update(groupRef, { userIds: updatedMembers }).then(function () {
+                fetchGroupInfo(selectedGroupId);
+                Toastify({ text: "Member removed.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+            });
+        });
+    }
+});
+
+// =========================================================================
+//  SIDEBAR THREE-DOT DROPDOWN (Archive, Mute, Exit, Pin, Unread)
+// =========================================================================
+document.addEventListener("click", async function (e) {
+    const actionEl = e.target.closest("[data-sidebar-action]");
+    if (!actionEl) return;
+    e.preventDefault();
+    const action = actionEl.dataset.sidebarAction;
+    const gid = actionEl.dataset.gid;
+    if (!gid || !currentUserId) return;
+
+    if (action === "pin") {
+        await toggleGroupPin(gid);
+    } else if (action === "archive") {
+        await toggleGroupArchive(gid);
+    } else if (action === "mute") {
+        await toggleGroupMuteQuick(gid);
+    } else if (action === "exit") {
+        if (confirm("Are you sure you want to exit this group?")) {
+            await exitGroup(gid, currentUserId);
+            refreshGroupsList();
+            if (selectedGroupId === gid) {
+                const chatSection = document.getElementById("middle");
+                const welcomeContainer = document.getElementById("welcome-container");
+                if (chatSection) chatSection.style.display = "none";
+                if (welcomeContainer) welcomeContainer.style.display = "block";
+                selectedGroupId = null;
+                if (typeof window !== "undefined") window.__dreamchatSelectedGroupId = null;
+            }
+        }
+    } else if (action === "unread") {
+        await markGroupUnread(gid);
+    }
+});
+
+// =========================================================================
+//  SIDEBAR RIGHT-CLICK CONTEXT MENU (Archive, Mute, Exit, Pin, Unread)
+// =========================================================================
+let contextMenuGroupId = null;
+const groupCtxMenu = document.getElementById("group-context-menu");
+
+document.addEventListener("contextmenu", function (e) {
+    const chatListEl = e.target.closest("#group-list .chat-list");
+    if (!chatListEl || !groupCtxMenu) return;
+    e.preventDefault();
+    contextMenuGroupId = chatListEl.dataset.groupId;
+
+    groupCtxMenu.style.display = "block";
+    groupCtxMenu.style.left = e.clientX + "px";
+    groupCtxMenu.style.top = e.clientY + "px";
+
+    const rect = groupCtxMenu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) groupCtxMenu.style.left = (e.clientX - rect.width) + "px";
+    if (rect.bottom > window.innerHeight) groupCtxMenu.style.top = (e.clientY - rect.height) + "px";
+
+    updateContextMenuLabels(contextMenuGroupId);
+});
+
+document.addEventListener("click", function () {
+    if (groupCtxMenu) groupCtxMenu.style.display = "none";
+});
+
+async function updateContextMenuLabels(gid) {
+    if (!gid || !currentUserId || !groupCtxMenu) return;
+    try {
+        const snap = await get(ref(database, `data/groups/${gid}`));
+        if (!snap.exists()) return;
+        const gd = snap.val();
+        const isPinned = gd.pinnedBy && gd.pinnedBy[currentUserId];
+        const isArchived = gd.archivedBy && gd.archivedBy[currentUserId];
+        const pinEl = groupCtxMenu.querySelector('[data-ctx-action="pin"]');
+        const archiveEl = groupCtxMenu.querySelector('[data-ctx-action="archive"]');
+        if (pinEl) {
+            pinEl.innerHTML = isPinned
+                ? '<i class="ti ti-pinned-off me-2"></i>Unpin Group'
+                : '<i class="ti ti-pin me-2"></i>Pin Group';
+        }
+        if (archiveEl) {
+            archiveEl.innerHTML = isArchived
+                ? '<i class="ti ti-archive-off me-2"></i>Unarchive Group'
+                : '<i class="ti ti-archive me-2"></i>Archive Group';
+        }
+    } catch (e) { /* ignore */ }
+
+    try {
+        const muteSnap = await get(ref(database, `data/users/${currentUserId}/muted_groups/${gid}`));
+        const isMuted = muteSnap.exists();
+        const muteEl = groupCtxMenu.querySelector('[data-ctx-action="mute"]');
+        if (muteEl) {
+            muteEl.innerHTML = isMuted
+                ? '<i class="ti ti-bell me-2"></i>Unmute Notification'
+                : '<i class="ti ti-bell-off me-2"></i>Mute Notification';
+        }
+    } catch (e) { /* ignore */ }
+}
+
+if (groupCtxMenu) {
+    groupCtxMenu.addEventListener("click", async function (e) {
+        e.preventDefault();
+        const actionEl = e.target.closest("[data-ctx-action]");
+        if (!actionEl || !contextMenuGroupId || !currentUserId) return;
+        const action = actionEl.dataset.ctxAction;
+        const gid = contextMenuGroupId;
+        groupCtxMenu.style.display = "none";
+
+        if (action === "pin") {
+            await toggleGroupPin(gid);
+        } else if (action === "archive") {
+            await toggleGroupArchive(gid);
+        } else if (action === "mute") {
+            await toggleGroupMuteQuick(gid);
+        } else if (action === "exit") {
+            if (confirm("Are you sure you want to exit this group?")) {
+                await exitGroup(gid, currentUserId);
+                refreshGroupsList();
+                const chatSection = document.getElementById("middle");
+                const welcomeContainer = document.getElementById("welcome-container");
+                if (chatSection) chatSection.style.display = "none";
+                if (welcomeContainer) welcomeContainer.style.display = "block";
+                selectedGroupId = null;
+                if (typeof window !== "undefined") window.__dreamchatSelectedGroupId = null;
+            }
+        } else if (action === "unread") {
+            await markGroupUnread(gid);
+        }
+    });
+}
+
+async function toggleGroupPin(gid) {
+    const groupRef = ref(database, `data/groups/${gid}`);
+    try {
+        const snap = await get(groupRef);
+        if (!snap.exists()) return;
+        const gd = snap.val();
+        const pinnedBy = gd.pinnedBy || {};
+        if (pinnedBy[currentUserId]) {
+            delete pinnedBy[currentUserId];
+            await update(groupRef, { pinnedBy: pinnedBy });
+            Toastify({ text: "Group unpinned.", duration: 2000, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+        } else {
+            pinnedBy[currentUserId] = true;
+            await update(groupRef, { pinnedBy: pinnedBy });
+            Toastify({ text: "Group pinned.", duration: 2000, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+        }
+        refreshGroupsList();
+    } catch (e) { console.error("Pin error:", e); }
+}
+
+async function toggleGroupArchive(gid) {
+    const groupRef = ref(database, `data/groups/${gid}`);
+    try {
+        const snap = await get(groupRef);
+        if (!snap.exists()) return;
+        const gd = snap.val();
+        const archivedBy = gd.archivedBy || {};
+        if (archivedBy[currentUserId]) {
+            delete archivedBy[currentUserId];
+            await update(groupRef, { archivedBy: archivedBy });
+            Toastify({ text: "Group unarchived.", duration: 2000, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+        } else {
+            archivedBy[currentUserId] = true;
+            await update(groupRef, { archivedBy: archivedBy });
+            Toastify({ text: "Group archived.", duration: 2000, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+        }
+        refreshGroupsList();
+    } catch (e) { console.error("Archive error:", e); }
+}
+
+async function toggleGroupMuteQuick(gid) {
+    try {
+        const muteRef = ref(database, `data/users/${currentUserId}/muted_groups/${gid}`);
+        const snap = await get(muteRef);
+        if (snap.exists()) {
+            await remove(muteRef);
+            Toastify({ text: "Notifications unmuted.", duration: 2000, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+        } else {
+            await set(muteRef, { always: true, updatedAt: Date.now() });
+            Toastify({ text: "Notifications muted.", duration: 2000, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+        }
+        refreshGroupsList();
+    } catch (e) { console.error("Mute error:", e); }
+}
+
+async function markGroupUnread(gid) {
+    try {
+        const unreadRef = ref(database, `data/users/${currentUserId}/unread_groups/${gid}`);
+        await set(unreadRef, { marked: true, updatedAt: Date.now() });
+        const chatListEl = document.querySelector(`#group-list .chat-list[data-group-id="${gid}"]`);
+        if (chatListEl) {
+            let badge = chatListEl.querySelector(".unread-badge");
+            if (!badge) {
+                badge = document.createElement("span");
+                badge.className = "unread-badge badge bg-primary rounded-pill ms-1";
+                badge.style.fontSize = "10px";
+                badge.textContent = "●";
+                const pinDiv = chatListEl.querySelector(".chat-pin");
+                if (pinDiv) pinDiv.appendChild(badge);
+            }
+        }
+        Toastify({ text: "Marked as unread.", duration: 2000, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+    } catch (e) { console.error("Unread error:", e); }
+}
+
+// =========================================================================
+//  MESSAGE INFO
+// =========================================================================
+document.addEventListener("click", async function (e) {
+    const infoBtn = e.target.closest(".group-msg-info-btn");
+    if (!infoBtn) return;
+    e.preventDefault();
+    const msgEl = infoBtn.closest(".chats");
+    if (!msgEl) return;
+    const msgKey = msgEl.dataset.messageKey;
+    const groupId = msgEl.dataset.groupId;
+    if (!msgKey || !groupId) return;
+
+    try {
+        const snap = await get(ref(database, `data/chats/${groupId}/${msgKey}`));
+        if (!snap.exists()) return;
+        const md = snap.val();
+
+        const senderSnap = await get(ref(database, `data/users/${md.senderId}`));
+        const senderName = senderSnap.exists() ? (senderSnap.val().user_name || "Unknown") : "Unknown";
+        const sentTime = new Date(md.timestamp || md.date).toLocaleString();
+
+        const typeMap = { 6: "Text", 2: "Image", 1: "Video", 3: "Audio", 5: "File" };
+        const typeLabel = typeMap[md.attachmentType] || "Unknown";
+
+        let preview = "";
+        if (md.attachmentType === 6) {
+            try { preview = await decryptlibsodiumMessage(md.body); } catch { preview = "Encrypted message"; }
+        } else {
+            preview = typeLabel + " message";
+        }
+
+        document.getElementById("msg-info-content").textContent = preview;
+        document.getElementById("msg-info-sender").textContent = senderName;
+        document.getElementById("msg-info-time").textContent = sentTime;
+        document.getElementById("msg-info-status").textContent = md.delivered ? "Delivered" : "Sent";
+        document.getElementById("msg-info-type").textContent = typeLabel;
+
+        const modal = new bootstrap.Modal(document.getElementById("group-message-info"));
+        modal.show();
+    } catch (err) {
+        console.error("Message info error:", err);
+    }
+});
+
+// =========================================================================
+//  EDIT MESSAGE
+// =========================================================================
+document.addEventListener("click", async function (e) {
+    const editBtn = e.target.closest(".group-edit-msg-btn");
+    if (!editBtn) return;
+    e.preventDefault();
+    const msgEl = editBtn.closest(".chats");
+    if (!msgEl) return;
+    const msgKey = msgEl.dataset.messageKey;
+    const groupId = msgEl.dataset.groupId;
+    if (!msgKey || !groupId) return;
+
+    try {
+        const snap = await get(ref(database, `data/chats/${groupId}/${msgKey}`));
+        if (!snap.exists()) return;
+        const md = snap.val();
+        if (md.senderId !== currentUserId) {
+            Toastify({ text: "You can only edit your own messages.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#ef4444" }).showToast();
+            return;
+        }
+        let plainText = "";
+        if (md.attachmentType === 6) {
+            try { plainText = await decryptlibsodiumMessage(md.body); } catch { plainText = ""; }
+        }
+        document.getElementById("edit-msg-key").value = msgKey;
+        document.getElementById("edit-msg-group-id").value = groupId;
+        document.getElementById("edit-msg-text").value = plainText;
+        const modal = new bootstrap.Modal(document.getElementById("group-edit-message"));
+        modal.show();
+    } catch (err) {
+        console.error("Edit open error:", err);
+    }
+});
+
+const saveEditMsgBtn = document.getElementById("save-edit-msg-btn");
+if (saveEditMsgBtn) {
+    saveEditMsgBtn.addEventListener("click", async function () {
+        const msgKey = document.getElementById("edit-msg-key").value;
+        const groupId = document.getElementById("edit-msg-group-id").value;
+        const newText = document.getElementById("edit-msg-text").value.trim();
+        if (!msgKey || !groupId || !newText) return;
+
+        try {
+            const encrypted = await encryptMessage(newText);
+            const msgRef = ref(database, `data/chats/${groupId}/${msgKey}`);
+            await update(msgRef, {
+                body: encrypted,
+                editedAt: Date.now()
+            });
+
+            const msgEl = document.querySelector(`[data-message-key="${msgKey}"]`);
+            if (msgEl) {
+                const contentDiv = msgEl.querySelector(".message-content > div:last-child");
+                if (contentDiv) contentDiv.textContent = newText;
+                if (!msgEl.querySelector(".edited-label")) {
+                    const editedSpan = document.createElement("span");
+                    editedSpan.className = "edited-label text-muted";
+                    editedSpan.style.fontSize = "11px";
+                    editedSpan.innerHTML = '<i class="ti ti-pencil" style="font-size:10px;"></i> edited';
+                    const mc = msgEl.querySelector(".message-content");
+                    if (mc) mc.insertBefore(editedSpan, mc.firstChild);
+                }
+            }
+
+            Toastify({ text: "Message edited.", duration: 2000, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+            forceCloseBootstrapModal("group-edit-message");
+        } catch (err) {
+            console.error("Edit save error:", err);
+            Toastify({ text: "Could not edit message.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#ef4444" }).showToast();
+        }
+    });
+}
+
+// =========================================================================
+//  IMPROVED DELETE: instant DOM removal after Firebase update
+// =========================================================================
+function deleteForMeImmediate(messageElement, messageKey, groupId) {
+    const messageRef = ref(database, `data/chats/${groupId}/${messageKey}`);
+    get(messageRef).then((snapshot) => {
+        if (!snapshot.exists()) return;
+        const messageData = snapshot.val();
+        const deletedFor = messageData.deletedFor || [];
+        if (!deletedFor.includes(currentUserId)) {
+            return update(messageRef, { deletedFor: [...deletedFor, currentUserId] });
+        }
+    }).then(() => {
+        if (messageElement) messageElement.remove();
+    }).catch((error) => console.error("Error deleting message:", error));
+}
+
+function deleteForEveryoneImmediate(messageKey, messageElement, groupId) {
+    const messageRef = ref(database, `data/chats/${groupId}/${messageKey}`);
+    remove(messageRef).then(() => {
+        if (messageElement) messageElement.remove();
+    }).catch((error) => console.error("Error deleting for everyone:", error));
+}
+
+// =========================================================================
+//  IMPROVED EXIT GROUP: update UI without refresh
+// =========================================================================
+const origExitGroup = exitGroup;
+async function exitGroupWithUI(groupId, userId) {
+    await origExitGroup(groupId, userId);
+    refreshGroupsList();
+    const chatSection = document.getElementById("middle");
+    const welcomeContainer = document.getElementById("welcome-container");
+    if (chatSection) chatSection.style.display = "none";
+    if (welcomeContainer) welcomeContainer.style.display = "block";
+    selectedGroupId = null;
+    if (typeof window !== "undefined") window.__dreamchatSelectedGroupId = null;
+    forceCloseBootstrapModal("group-logout");
+}
+
+// Override confirm-exit button with improved version
+const confirmExitImproved = document.getElementById("confirm-exit");
+if (confirmExitImproved) {
+    const newBtn = confirmExitImproved.cloneNode(true);
+    confirmExitImproved.parentNode.replaceChild(newBtn, confirmExitImproved);
+    newBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        exitGroupWithUI(selectedGroupId, currentUserId);
+    });
+}
+
+// =========================================================================
+//  IMPROVED DELETE GROUP: update UI without refresh
+// =========================================================================
+function deleteGroupChatWithUI() {
+    if (!auth.currentUser || !selectedGroupId) {
+        forceCloseBootstrapModal("delete-group");
+        return;
+    }
+    const groupRef = ref(database, `data/groups/${selectedGroupId}`);
+    remove(groupRef).then(() => {
+        forceCloseBootstrapModal("delete-group");
+        const chatSection = document.getElementById("middle");
+        if (chatSection) chatSection.style.display = "none";
+        const welcomeContainer = document.getElementById("welcome-container");
+        if (welcomeContainer) welcomeContainer.style.display = "block";
+        selectedGroupId = null;
+        if (typeof window !== "undefined") window.__dreamchatSelectedGroupId = null;
+        Toastify({ text: "Group deleted.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+    }).catch(() => {
+        Toastify({ text: "Error deleting group.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#ef4444" }).showToast();
+        forceCloseBootstrapModal("delete-group");
+    });
+}
+
+// =========================================================================
+//  IMPROVED CLEAR MESSAGES: instant UI update
+// =========================================================================
+function clearGroupMessagesWithUI(gid) {
+    if (!gid) {
+        forceCloseBootstrapModal("clear-group-chat");
+        return;
+    }
+    const messagesRef = ref(database, `data/chats/${gid}`);
+    get(messagesRef).then((snapshot) => {
+        if (!snapshot.exists()) return;
+        const messages = snapshot.val();
+        const updates = {};
+        Object.keys(messages).forEach((messageId) => {
+            const message = messages[messageId];
+            const clearedFor = message.clearedFor || [];
+            if (!clearedFor.includes(currentUserId)) {
+                updates[`chats/${gid}/${messageId}/clearedFor`] = [...clearedFor, currentUserId];
+            }
+        });
+        return update(ref(database), updates);
+    }).then(() => {
+        const chatBox = document.getElementById("chat-messages");
+        if (chatBox) chatBox.innerHTML = "";
+        forceCloseBootstrapModal("clear-group-chat");
+        Toastify({ text: "Messages cleared.", duration: 2000, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+    }).catch((error) => {
+        console.error("Error clearing chat:", error);
+        forceCloseBootstrapModal("clear-group-chat");
+    });
+}
+
+// =========================================================================
+//  REPORT GROUP: Firebase-backed functionality
+// =========================================================================
+const reportGroupForm = document.querySelector("#report-group form");
+if (reportGroupForm) {
+    reportGroupForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        if (!selectedGroupId || !currentUserId) return;
+        try {
+            const reportRef = ref(database, `data/reports/groups/${selectedGroupId}/${currentUserId}`);
+            await set(reportRef, {
+                reportedBy: currentUserId,
+                groupId: selectedGroupId,
+                timestamp: Date.now(),
+                blockAndClear: reportGroupForm.querySelector('input[type="checkbox"]')?.checked || false
+            });
+            Toastify({ text: "Group reported.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+            forceCloseBootstrapModal("report-group");
+        } catch (err) {
+            console.error("Report error:", err);
+            Toastify({ text: "Could not submit report.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#ef4444" }).showToast();
+        }
+    });
+}
+
+// =========================================================================
+//  BLOCK GROUP: Firebase-backed functionality
+// =========================================================================
+const blockUserForm = document.querySelector("#block-user form");
+if (blockUserForm) {
+    blockUserForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        if (!selectedGroupId || !currentUserId) return;
+        try {
+            const blockRef = ref(database, `data/users/${currentUserId}/blocked_groups/${selectedGroupId}`);
+            await set(blockRef, { blockedAt: Date.now() });
+            await exitGroup(selectedGroupId, currentUserId);
+            Toastify({ text: "Group blocked.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+            forceCloseBootstrapModal("block-user");
+            refreshGroupsList();
+            const chatSection = document.getElementById("middle");
+            const welcomeContainer = document.getElementById("welcome-container");
+            if (chatSection) chatSection.style.display = "none";
+            if (welcomeContainer) welcomeContainer.style.display = "block";
+            selectedGroupId = null;
+            if (typeof window !== "undefined") window.__dreamchatSelectedGroupId = null;
+        } catch (err) {
+            console.error("Block error:", err);
+            Toastify({ text: "Could not block group.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#ef4444" }).showToast();
+        }
+    });
 }
 
 

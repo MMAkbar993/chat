@@ -497,7 +497,7 @@
                                 </a>
                                 <div class="collapse others-collapse-content" id="others-collapse-report">
                                     <div class="pb-3 pt-1">
-                                        <p class="text-muted small mb-3">{{ __('If you block this contact and clear the chat, messages will only be removed from this device.') }}</p>
+                                        <p class="text-muted small mb-3">{{ __('If you block this contact and clear the chat, all messages, images, videos and documents will be permanently deleted.') }}</p>
                                         <div class="form-check mb-3">
                                             <input class="form-check-input" type="checkbox" id="others-report-check">
                                             <label class="form-check-label small" for="others-report-check">{{ __('Report User') }}</label>
@@ -519,7 +519,7 @@
                                 </a>
                                 <div class="collapse others-collapse-content" id="others-collapse-delete">
                                     <div class="pb-3 pt-1 text-center">
-                                        <p class="text-muted small mb-3">{{ __('Clearing or deleting entire chats will only remove messages from this device.') }}</p>
+                                        <p class="text-muted small mb-3">{{ __('This will permanently delete all messages, images, videos and documents in this chat.') }}</p>
                                         <div class="d-flex gap-2">
                                             <button type="button" class="btn btn-outline-secondary btn-sm flex-fill others-collapse-cancel">{{ __('Cancel') }}</button>
                                             <button type="button" class="btn btn-danger btn-sm flex-fill" id="others-delete-confirm-btn">{{ __('Delete') }}</button>
@@ -683,7 +683,7 @@
     </div>
     <!-- /Mute -->
 
-    <!-- Disappearing messages (private chat — UI parity with DreamsChat) -->
+    <!-- Disappearing messages (private chat — UI parity with Connect) -->
     <div class="modal fade" id="disappearing-message-chat" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -885,7 +885,7 @@
                     <form action="{{ route('chat') }}">
                         <div class="block-wrap mb-3">
                             <p class="text-grya-9 mb-3">
-                                {{ __('If you block this contact and clear the chat, messages will only be removed from this device and your devices on the newer versions of DreamsChat') }}
+                                {{ __('If you block this contact and clear the chat, all messages, images, videos and documents will be permanently deleted from Connect.') }}
                             </p>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="mute" id="report">
@@ -925,7 +925,7 @@
                                 <i class="ti ti-trash text-danger"></i>
                             </span>
                             <p class="text-grya-9">
-                                {{ __('Clearing or deleting entire chats will only remove messages from this device and your devices on the newer versions of DreamsChat.') }}
+                                {{ __('This will permanently delete all messages, images, videos and documents in this chat.') }}
                             </p>
                         </div>
                         <div class="row g-3">
@@ -962,7 +962,7 @@
                                 <i class="ti ti-trash text-danger"></i>
                             </span>
                             <p class="text-grya-9">
-                                {{ __('Clearing entire  messages from this device and your devices on the newer versions of DreamsChat.') }}
+                                {{ __('This will permanently delete all messages from this chat.') }}
                             </p>
                         </div>
                         <div class="row g-3">

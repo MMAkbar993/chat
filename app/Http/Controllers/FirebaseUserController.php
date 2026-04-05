@@ -22,19 +22,31 @@ class FirebaseUserController extends Controller
     public function createUser(Request $request)
     {
         $data = $request->validate([
-            'email' => 'required|email|unique:users,email',
+            'email' => 'required|email',
             'password' => 'required|min:6',
             'firstName' => 'nullable|string',
             'lastName' => 'nullable|string',
         ]);
 
         try {
-            // Create a new user in Firebase Authentication
+            // Check if user already exists in Firebase Auth
+            try {
+                $existingUser = $this->auth->getUserByEmail($data['email']);
+                // User already exists in Firebase Auth, return their uid
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'User already exists',
+                    'uid' => $existingUser->uid,
+                ]);
+            } catch (\Kreait\Firebase\Exception\Auth\UserNotFound $e) {
+                // User does not exist, proceed to create
+            }
+
             $userProperties = [
                 'email' => $data['email'],
                 'emailVerified' => false,
                 'password' => $data['password'],
-                'displayName' => trim($data['firstName'] . ' ' . $data['lastName']), // Use trim to avoid leading/trailing spaces
+                'displayName' => trim($data['firstName'] . ' ' . $data['lastName']),
                 'disabled' => false,
             ];
 

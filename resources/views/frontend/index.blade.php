@@ -594,7 +594,7 @@
                                 <span class="user-icon mb-3 mx-auto bg-transparent-danger">
                                     <i class="ti ti-trash text-danger"></i>
                                 </span>
-                                <p class="text-grya-9">Clearing or deleting entire chats will only remove messages from this device and your devices on the newer versions of DreamsChat.</p>
+                                <p class="text-grya-9">This will permanently delete all messages, images, videos and documents in this chat.</p>
                             </div>
                             <div class="row g-3">       
                                 <div class="col-6">                  

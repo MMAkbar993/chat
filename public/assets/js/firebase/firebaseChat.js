@@ -30,6 +30,8 @@ import {
     ref as storageRef,
     uploadBytes,
     getDownloadURL,
+    deleteObject,
+    listAll,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-storage.js";
 import {
     getFirestore,
@@ -411,301 +413,177 @@ initializeFirebase(function (app, auth, database, storage) {
     const inviteFormChatEl = document.getElementById("inviteFormChat");
     if (inviteFormChatEl) {
         inviteFormChatEl.addEventListener("submit", function (event) {
-            event.preventDefault(); // Prevent the form from reloading the page
+            event.preventDefault();
 
             const inviteInputEl = document.getElementById("inviteInput");
             const inviteInput = inviteInputEl ? inviteInputEl.value.trim() : "";
             if (!inviteInput) {
-                if (typeof Swal !== "undefined") {
-                    Swal.fire({ title: "", text: "Please enter an email address.", icon: "warning" });
-                } else {
-                    alert("Please enter an email address.");
-                }
+                Swal.fire({ title: "", text: "Please enter an email address.", icon: "warning" });
+                return;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteInput)) {
+                Swal.fire({ title: "", text: "Please enter a valid email address.", icon: "warning" });
                 return;
             }
 
             if (!auth.currentUser || !auth.currentUser.uid) {
-                if (typeof Swal !== "undefined") {
-                    Swal.fire({ title: "", text: "Please sign in to send an invitation.", icon: "error" });
-                } else {
-                    alert("Please sign in to send an invitation.");
-                }
+                Swal.fire({ title: "", text: "Please sign in to send an invitation.", icon: "error" });
                 return;
             }
 
             const loggedInUserId = auth.currentUser.uid;
-
             const csrfMeta = document.querySelector('meta[name="csrf-token"]');
             const csrfToken = csrfMeta ? csrfMeta.getAttribute("content") : "";
-            const sendInviteButton =
-                document.getElementById("sendInviteButton");
+            const sendInviteButton = document.getElementById("sendInviteButton");
 
-            // Change button state to processing
+            function resetInviteForm() {
+                if (inviteFormChatEl) inviteFormChatEl.reset();
+                if (sendInviteButton) {
+                    sendInviteButton.textContent = "Send Invitation";
+                    sendInviteButton.disabled = false;
+                }
+            }
+
+            function closeInviteModal() {
+                const inviteModalEl = document.getElementById("invite-contact");
+                if (inviteModalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                    const inst = bootstrap.Modal.getInstance(inviteModalEl);
+                    if (inst) inst.hide();
+                } else if (typeof $ !== "undefined" && $.fn.modal) {
+                    $("#invite-contact").modal("hide");
+                }
+            }
+
             if (sendInviteButton) {
                 sendInviteButton.textContent = "Processing...";
                 sendInviteButton.disabled = true;
             }
 
             const usersRef = ref(database, "data/users");
+            const loggedInUserRef = ref(database, `data/users/${loggedInUserId}/mobile_number`);
 
-            // Reference to the logged-in user's mobile number
-            const loggedInUserRef = ref(
-                database,
-                `data/users/${loggedInUserId}/mobile_number`
-            );
-
-            // Fetch the logged-in user's mobile number
             get(loggedInUserRef)
                 .then((mobileSnapshot) => {
                     const loggedInUserMobileNumber = mobileSnapshot.val();
 
-                    get(usersRef)
-                        .then((snapshot) => {
-                            //if (snapshot.exists()) {
-                            const users = snapshot.val();
-                            let foundUser = null;
+                    return get(usersRef).then((snapshot) => {
+                        const users = snapshot.val() || {};
+                        let foundUser = null;
 
-                            // Manually search for the user by email
-                            for (const userId in users) {
-                                if (users[userId].email === inviteInput) {
-                                    foundUser = {
-                                        ...users[userId],
-                                        uid: userId,
-                                    };
-                                    break;
-                                }
+                        for (const userId in users) {
+                            if (users[userId].email === inviteInput) {
+                                foundUser = { ...users[userId], uid: userId };
+                                break;
+                            }
+                        }
+
+                        if (foundUser) {
+                            const existingUserId = foundUser.uid;
+                            if (loggedInUserId === existingUserId) {
+                                Swal.fire({ title: "", width: 400, text: "You can't add yourself to the contact list.", icon: "error" });
+                                resetInviteForm();
+                                closeInviteModal();
+                                return;
                             }
 
-                            if (foundUser) {
-                                const existingUserId = foundUser.uid;
-                                if (loggedInUserId === existingUserId) {
-                                    Swal.fire({
-                                        title: "",
-                                        width: 400,
-                                        text: "You can't add yourself to the contact list.",
-                                        icon: "error",
+                            const loggedInUserContactsRef = ref(database, `data/contacts/${loggedInUserId}/${existingUserId}`);
+
+                            return get(loggedInUserContactsRef).then((contactSnapshot) => {
+                                if (contactSnapshot.exists()) {
+                                    Swal.fire({ title: "", width: 400, text: "This contact is already in your contacts list!", icon: "info" });
+                                    resetInviteForm();
+                                    closeInviteModal();
+                                } else {
+                                    const existingUserContactsRef = ref(database, `data/contacts/${existingUserId}/${loggedInUserId}`);
+
+                                    return Promise.all([
+                                        set(loggedInUserContactsRef, {
+                                            contact_id: existingUserId,
+                                            email: foundUser.email,
+                                            mobile_number: foundUser.mobile_number || "",
+                                        }),
+                                        set(existingUserContactsRef, {
+                                            contact_id: loggedInUserId,
+                                            email: auth.currentUser.email,
+                                            mobile_number: loggedInUserMobileNumber || "",
+                                        }),
+                                    ]).then(() => {
+                                        resetInviteForm();
+                                        closeInviteModal();
+                                        Swal.fire({ title: "", width: 400, text: "User added to contacts!", icon: "success" });
                                     });
-                                    document
-                                        .getElementById("inviteFormChat")
-                                        .reset();
-                                    const inviteModalEl = document.getElementById("invite-contact");
-                                    if (inviteModalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
-                                        const inst = bootstrap.Modal.getInstance(inviteModalEl);
-                                        if (inst) inst.hide();
-                                    } else if (typeof $ !== "undefined" && $.fn.modal) {
-                                        $("#invite-contact").modal("hide");
-                                    }
-                                    sendInviteButton.textContent =
-                                        "Send Invitation";
-                                    sendInviteButton.disabled = false;
-                                    return;
                                 }
+                            });
+                        } else {
+                            const password = "temporary@123";
 
-                                // Add the user to contacts
-                                const loggedInUserContactsRef = ref(
-                                    database,
-                                    `data/contacts/${loggedInUserId}/${existingUserId}`
-                                );
+                            return fetch("/create-user", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "Accept": "application/json",
+                                    "X-CSRF-TOKEN": csrfToken,
+                                },
+                                body: JSON.stringify({
+                                    firstName: "",
+                                    lastName: "",
+                                    email: inviteInput,
+                                    password: password,
+                                }),
+                            })
+                                .then((response) => {
+                                    if (!response.ok) {
+                                        return response.json().then((err) => {
+                                            const msg = err.message || (err.errors && Object.values(err.errors).flat().join(", ")) || "Server error.";
+                                            throw new Error(msg);
+                                        });
+                                    }
+                                    return response.json();
+                                })
+                                .then((data) => {
+                                    if (data.status !== "success") {
+                                        throw new Error(data.message || "Error creating user.");
+                                    }
 
-                                // Check if the contact already exists
-                                get(loggedInUserContactsRef).then(
-                                    (contactSnapshot) => {
-                                        if (contactSnapshot.exists()) {
-                                            // Contact already exists
-                                            Swal.fire({
-                                                title: "",
-                                                width: 400,
-                                                text: "This contact is already in your contacts list!",
-                                                icon: "info",
-                                            });
-                                            if (document.getElementById("inviteFormChat")) document.getElementById("inviteFormChat").reset();
-                                            if (sendInviteButton) { sendInviteButton.textContent = "Send Invitation"; sendInviteButton.disabled = false; }
-                                        } else {
-                                            // Add the user to contacts
+                                    const newUserRef = ref(database, "data/users/" + data.uid);
+                                    return set(newUserRef, {
+                                        uid: data.uid,
+                                        firstName: "",
+                                        lastName: "",
+                                        email: inviteInput,
+                                    }).then(() => {
+                                        const loggedInUserContactsRef = ref(database, `data/contacts/${loggedInUserId}/${data.uid}`);
+                                        const newUserContactsRef = ref(database, `data/contacts/${data.uid}/${loggedInUserId}`);
+
+                                        return Promise.all([
                                             set(loggedInUserContactsRef, {
-                                                contact_id: existingUserId,
-                                                email: foundUser.email,
-                                                mobile_number:
-                                                    foundUser.mobile_number,
-                                            });
-
-                                            const existingUserContactsRef = ref(
-                                                database,
-                                                `data/contacts/${existingUserId}/${loggedInUserId}`
-                                            );
-                                            set(existingUserContactsRef, {
+                                                contact_id: data.uid,
+                                                email: inviteInput,
+                                                name: "",
+                                            }),
+                                            set(newUserContactsRef, {
                                                 contact_id: loggedInUserId,
                                                 email: auth.currentUser.email,
-                                                mobile_number:
-                                                    loggedInUserMobileNumber,
-                                            });
-
-                                            Swal.fire({
-                                                title: "",
-                                                width: 400,
-                                                text: "User added to contacts!",
-                                                icon: "success",
-                                            }).then(() => {
-                                                window.location.reload();
-                                            });
-                                        }
-                                    }
-                                );
-                            } else {
-                                const firstName = "";
-                                const lastName = "";
-                                const password = "tempoary@123";
-
-                                // Email does not exist, create the user and add to contacts
-                                fetch("/create-user", {
-                                    method: "POST",
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                        "X-CSRF-TOKEN": csrfToken, // Include the CSRF token in the request headers
-                                    },
-                                    body: JSON.stringify({
-                                        firstName: firstName,
-                                        lastName: lastName,
-                                        email: inviteInput,
-                                        password: password,
-                                    }),
-                                })
-                                    .then((response) => response.json())
-                                    .then((data) => {
-                                        if (data.status === "success") {
-                                            // Save the new user data in Firebase Realtime Database
-                                            const newUserRef = ref(
-                                                database,
-                                                "data/users/" + data.uid
-                                            );
-                                            set(newUserRef, {
-                                                uid: data.uid,
-                                                firstName: firstName,
-                                                lastName: lastName,
-                                                email: inviteInput,
-                                            })
-                                                .then(() => {
-                                                    document
-                                                        .getElementById(
-                                                            "inviteFormChat"
-                                                        )
-                                                        .reset(); // Clear the form
-                                                    const inviteModalEl = document.getElementById("invite-contact");
-                                                    if (inviteModalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
-                                                        const inst = bootstrap.Modal.getInstance(inviteModalEl);
-                                                        if (inst) inst.hide();
-                                                    } else if (typeof $ !== "undefined" && $.fn.modal) {
-                                                        $("#invite-contact").modal("hide");
-                                                    }
-                                                    Swal.fire({
-                                                        title: "",
-                                                        width: 400,
-                                                        text: "User Invited Successfully!",
-                                                        icon: "success",
-                                                    });
-
-                                                    // Add new user to the logged-in user's contact list
-                                                    const loggedInUserContactsRef =
-                                                        ref(
-                                                            database,
-                                                            "data/contacts/" +
-                                                            loggedInUserId +
-                                                            "/" +
-                                                            data.uid
-                                                        );
-                                                    set(
-                                                        loggedInUserContactsRef,
-                                                        {
-                                                            contact_id:
-                                                                data.uid,
-                                                            email: inviteInput,
-                                                            name:
-                                                                firstName +
-                                                                " " +
-                                                                lastName,
-                                                        }
-                                                    );
-
-                                                    // // Add logged-in user to the new user's contact list
-                                                    // const newUserContactsRef = ref(database, 'data/contacts/' + data.uid + '/' + loggedInUserId);
-                                                    // set(newUserContactsRef, {
-                                                    //     contact_id: loggedInUserId,
-                                                    //     email: auth.currentUser.email,
-                                                    //     name: auth.currentUser.displayName || '',
-                                                    // });
-
-                                                    // Send password reset email
-                                                    sendPasswordResetEmail(
-                                                        auth,
-                                                        inviteInput
-                                                    )
-                                                        .then(() => {
-                                                            window.location.reload();
-                                                        })
-                                                        .catch((error) => {
-                                                            Swal.fire({
-                                                                title: "",
-                                                                width: 400,
-                                                                text: error.message,
-                                                                icon: "error",
-                                                            });
-                                                        });
-                                                })
-                                                .catch((error) => {
-                                                    Swal.fire({
-                                                        title: "",
-                                                        width: 400,
-                                                        text: error.message,
-                                                        icon: "error",
-                                                    });
-                                                });
-                                        } else {
-                                            Swal.fire({
-                                                title: "",
-                                                width: 400,
-                                                text:
-                                                    "Error creating user: " +
-                                                    data.message,
-                                                icon: "error",
-                                            });
-                                        }
-                                    })
-                                    .catch((error) => {
-                                        Swal.fire({
-                                            title: "",
-                                            width: 400,
-                                            text: "Error: " + error.message,
-                                            icon: "error",
-                                        });
+                                                name: auth.currentUser.displayName || "",
+                                            }),
+                                        ]);
+                                    }).then(() => {
+                                        return sendPasswordResetEmail(auth, inviteInput).catch(() => {});
+                                    }).then(() => {
+                                        resetInviteForm();
+                                        closeInviteModal();
+                                        Swal.fire({ title: "", width: 400, text: "User invited successfully! A password reset email has been sent.", icon: "success" });
                                     });
-                            }
-                        })
-                        .catch((error) => {
-                            Swal.fire({
-                                title: "",
-                                width: 400,
-                                text: "Error fetching users: " + error.message,
-                                icon: "error",
-                            });
-                        })
-                        .finally(() => {
-                            if (sendInviteButton) {
-                                sendInviteButton.textContent = "Send Invitation";
-                                sendInviteButton.disabled = false;
-                            }
-                        });
+                                });
+                        }
+                    });
                 })
                 .catch((error) => {
-                    Swal.fire({
-                        title: "",
-                        width: 400,
-                        text: "Error fetching mobile number: " + error.message,
-                        icon: "error",
-                    });
-                    if (sendInviteButton) {
-                        sendInviteButton.textContent = "Send Invitation";
-                        sendInviteButton.disabled = false;
-                    }
+                    console.error("Invite error:", error);
+                    Swal.fire({ title: "", width: 400, text: error.message || "Something went wrong.", icon: "error" });
+                })
+                .finally(() => {
+                    resetInviteForm();
                 });
         });
     }
@@ -1581,10 +1459,10 @@ initializeFirebase(function (app, auth, database, storage) {
                     if (
                         typeof window !== "undefined" &&
                         window.confirm(
-                            "Delete this chat from your list?"
+                            "Permanently delete this chat and all its data (messages, images, videos, documents)?"
                         )
                     ) {
-                        removeChatFromSidebarList(userId);
+                        permanentlyDeleteChat(userId);
                     }
                 },
             },
@@ -5816,7 +5694,6 @@ initializeFirebase(function (app, auth, database, storage) {
                             position: "right",
                             backgroundColor: "#28a745",
                         }).showToast();
-                        window.location.reload();
                     })
                     .catch((error) => {
                         Toastify({
@@ -6003,6 +5880,179 @@ initializeFirebase(function (app, auth, database, storage) {
             } catch (e) { /* ignore */ }
         }
     }
+
+    /**
+     * Permanently delete all chat data between the current user and a peer:
+     * - Chat messages in both canonical and mirror rooms
+     * - Storage files (images, videos, documents) referenced in messages
+     * - Favourite messages for this peer
+     * - Remove peer from archive, pinned, favourite_chats, delete_chats, marked_unread lists
+     * - Remove from sidebar UI
+     */
+    function permanentlyDeleteChat(peerUserId) {
+        if (!peerUserId || !currentUser?.uid) return Promise.resolve();
+        const me = currentUser.uid;
+        const canonical = getDeterministicChatRoomId(me, peerUserId);
+        const mirror = chatMirrorRoomId(canonical, me, peerUserId);
+
+        function deleteStorageFilesFromMessages(roomId) {
+            const messagesRef = ref(database, `data/chats/${roomId}`);
+            return get(messagesRef).then((snapshot) => {
+                if (!snapshot.exists()) return;
+                const messages = snapshot.val();
+                const deletePromises = [];
+                Object.values(messages).forEach((msg) => {
+                    let url = null;
+                    if (msg.attachment && typeof msg.attachment === "object" && msg.attachment.url) {
+                        url = msg.attachment.url;
+                    } else if (msg.attachment && typeof msg.attachment === "string" && msg.attachment.includes("firebasestorage.googleapis.com")) {
+                        url = msg.attachment;
+                    }
+                    if (url && typeof url === "string" && url.includes("firebasestorage.googleapis.com")) {
+                        try {
+                            const fileRef = storageRef(storage, url);
+                            deletePromises.push(deleteObject(fileRef).catch(() => {}));
+                        } catch (e) { /* ignore invalid refs */ }
+                    }
+                });
+                return Promise.all(deletePromises);
+            }).catch(() => {});
+        }
+
+        return Promise.all([
+            deleteStorageFilesFromMessages(canonical),
+            deleteStorageFilesFromMessages(mirror),
+        ])
+        .then(() => {
+            const updates = {};
+            updates[`data/chats/${canonical}`] = null;
+            updates[`data/chats/${mirror}`] = null;
+            updates[`data/users/${me}/favourite_messages/${peerUserId}`] = null;
+            updates[`data/users/${me}/marked_unread/${peerUserId}`] = null;
+            return update(ref(database), updates);
+        })
+        .then(() => {
+            const listCleanups = [];
+
+            // Remove from archiveUserId (array of user IDs)
+            const archiveRef = ref(database, `data/users/${me}/archiveUserId`);
+            listCleanups.push(
+                get(archiveRef).then((snap) => {
+                    if (!snap.exists()) return;
+                    const arr = snap.val();
+                    if (Array.isArray(arr) && arr.includes(peerUserId)) {
+                        return set(archiveRef, arr.filter((id) => id !== peerUserId));
+                    }
+                }).catch(() => {})
+            );
+
+            // Remove from pinnedUserId (array of user IDs)
+            const pinnedRef = ref(database, `data/users/${me}/pinnedUserId`);
+            listCleanups.push(
+                get(pinnedRef).then((snap) => {
+                    if (!snap.exists()) return;
+                    const arr = snap.val();
+                    if (Array.isArray(arr) && arr.includes(peerUserId)) {
+                        return set(pinnedRef, arr.filter((id) => id !== peerUserId));
+                    }
+                }).catch(() => {})
+            );
+
+            // Remove from favourite_chats (object keyed by push-ID)
+            const favRef = ref(database, `data/users/${me}/favourite_chats`);
+            listCleanups.push(
+                get(favRef).then((snap) => {
+                    if (!snap.exists()) return;
+                    const favs = snap.val();
+                    const removeOps = [];
+                    for (const key in favs) {
+                        if (favs[key]?.userId === peerUserId) {
+                            removeOps.push(remove(ref(database, `data/users/${me}/favourite_chats/${key}`)));
+                        }
+                    }
+                    return Promise.all(removeOps);
+                }).catch(() => {})
+            );
+
+            // Remove from delete_chats (object keyed by push-ID)
+            const trashRef = ref(database, `data/users/${me}/delete_chats`);
+            listCleanups.push(
+                get(trashRef).then((snap) => {
+                    if (!snap.exists()) return;
+                    const trashData = snap.val();
+                    const removeOps = [];
+                    for (const key in trashData) {
+                        if (trashData[key]?.userId === peerUserId) {
+                            removeOps.push(remove(ref(database, `data/users/${me}/delete_chats/${key}`)));
+                        }
+                    }
+                    return Promise.all(removeOps);
+                }).catch(() => {})
+            );
+
+            return Promise.all(listCleanups);
+        })
+        .then(() => {
+            removeUserFromUI(peerUserId);
+            if (String(selectedUserId) === String(peerUserId)) {
+                // Clear all media panel content before resetting
+                document.querySelectorAll(".media-collapse-content").forEach(colEl => {
+                    delete colEl.dataset.mediaLoaded;
+                    if (typeof bootstrap !== "undefined") {
+                        const inst = bootstrap.Collapse.getInstance(colEl);
+                        if (inst) inst.hide(); else colEl.classList.remove("show");
+                    } else {
+                        colEl.classList.remove("show");
+                    }
+                    colEl.querySelectorAll(".media-photos-grid,.media-videos-grid,.media-links-list,.media-docs-list").forEach(c => { c.innerHTML = ""; });
+                    colEl.querySelectorAll(".media-empty").forEach(e => e.classList.add("d-none"));
+                    colEl.querySelectorAll(".media-loading").forEach(e => e.classList.add("d-none"));
+                });
+                document.querySelectorAll(".media-chevron i").forEach(i => {
+                    i.classList.remove("ti-chevron-up");
+                    i.classList.add("ti-chevron-right");
+                });
+                // Clear Others accordion (favourites, mute, delete, etc.)
+                document.querySelectorAll(".others-collapse-content").forEach(colEl => {
+                    delete colEl.dataset.othersLoaded;
+                    if (typeof bootstrap !== "undefined") {
+                        const inst = bootstrap.Collapse.getInstance(colEl);
+                        if (inst) inst.hide(); else colEl.classList.remove("show");
+                    } else {
+                        colEl.classList.remove("show");
+                    }
+                    const favList = document.getElementById("others-favourites-list");
+                    if (favList) favList.innerHTML = "";
+                });
+                // Close the Contact Info offcanvas panel
+                const contactProfileEl = document.getElementById("contact-profile");
+                if (contactProfileEl && typeof bootstrap !== "undefined") {
+                    const offcanvasInst = bootstrap.Offcanvas.getInstance(contactProfileEl);
+                    if (offcanvasInst) offcanvasInst.hide();
+                }
+                resetChatShellToWelcome();
+            }
+            scheduleRefreshChatFilterBadgeCounts();
+            Toastify({
+                text: "Chat permanently deleted!",
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#28a745",
+            }).showToast();
+        })
+        .catch((error) => {
+            console.error("Error permanently deleting chat:", error);
+            Toastify({
+                text: "Failed to delete chat permanently.",
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#dc3545",
+            }).showToast();
+        });
+    }
+
     function displayLastSeen(userId) {
         const userRef = ref(database, `data/users/${userId}`);
 
@@ -6148,9 +6198,12 @@ initializeFirebase(function (app, auth, database, storage) {
 
             if (loadingEl) loadingEl.classList.add("d-none");
 
-            const filtered = messages.filter((msg) =>
-                mediaType.attachmentTypes.includes(Number(msg.attachmentType))
-            );
+            const viewerUid = currentUser?.uid || currentUserId;
+            const filtered = messages.filter((msg) => {
+                if (uidIncludedInFirebaseList(msg.clearedFor, viewerUid)) return false;
+                if (uidIncludedInFirebaseList(msg.deletedFor, viewerUid)) return false;
+                return mediaType.attachmentTypes.includes(Number(msg.attachmentType));
+            });
 
             if (mediaType.type === "photos" || mediaType.type === "videos") {
                 if (!filtered.length) { if (emptyEl) emptyEl.classList.remove("d-none"); return; }
@@ -6520,7 +6573,7 @@ initializeFirebase(function (app, auth, database, storage) {
         if (othersDeleteBtn) {
             othersDeleteBtn.addEventListener("click", () => {
                 if (!selectedUserId) return;
-                removeChatFromSidebarList(selectedUserId);
+                permanentlyDeleteChat(selectedUserId);
                 const col = document.getElementById("others-collapse-delete");
                 const inst = col && bootstrap.Collapse.getInstance(col);
                 if (inst) inst.hide();
@@ -7339,9 +7392,9 @@ initializeFirebase(function (app, auth, database, storage) {
     const deleteChatBtn = document.getElementById("deleteChatBtn");
     if (deleteChatBtn) {
         deleteChatBtn.addEventListener("click", function (event) {
-            event.preventDefault(); // Prevent the default form submission
+            event.preventDefault();
             if (!selectedUserId) return;
-            removeChatFromSidebarList(selectedUserId);
+            permanentlyDeleteChat(selectedUserId);
             const modal = document.getElementById("delete-user-chat");
             if (modal && typeof bootstrap !== "undefined" && bootstrap.Modal) {
                 const modalInstance = bootstrap.Modal.getInstance(modal);
@@ -7669,6 +7722,11 @@ initializeFirebase(function (app, auth, database, storage) {
                         <i class="ti ti-box-align-right me-2"></i>Unarchive Chat
                     </a>
                 </li>
+                <li>
+                    <a class="dropdown-item permanent-delete-chat" href="#" data-user-id="${user.userId}">
+                        <i class="ti ti-trash me-2"></i>Delete
+                    </a>
+                </li>
             </ul>
         `;
 
@@ -7676,10 +7734,19 @@ initializeFirebase(function (app, auth, database, storage) {
             userElement.appendChild(userDiv);
             sidebarElement.appendChild(userElement);
 
-            // Attach event listener for this user's unarchive button
             const unarchiveButton =
                 chatDropdown.querySelector(".unarchive-chat");
             unarchiveButton.addEventListener("click", handleUnarchiveClick);
+            const archDelBtn = chatDropdown.querySelector(".permanent-delete-chat");
+            if (archDelBtn) {
+                archDelBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    const uid = e.target.closest("[data-user-id]")?.getAttribute("data-user-id");
+                    if (uid && window.confirm("Permanently delete this chat and all its data (messages, images, videos, documents)?")) {
+                        permanentlyDeleteChat(uid);
+                    }
+                });
+            }
         }
         scheduleRefreshChatFilterBadgeCounts();
     }
@@ -7730,8 +7797,6 @@ initializeFirebase(function (app, auth, database, storage) {
                 const updatedArchivedUsers = Array.isArray(archivedUsers)
                     ? archivedUsers.filter((user) => user.userId !== chatUserId)
                     : [];
-                window.location.reload();
-                // Update the UI
                 displayArchivedUsers(usersMap, updatedArchivedUsers);
             })
             .catch((error) => {
@@ -7885,6 +7950,11 @@ initializeFirebase(function (app, auth, database, storage) {
                                 <i class="ti ti-pinned me-2"></i>Unpin Chats
                             </a>
                         </li>
+                        <li>
+                            <a class="dropdown-item permanent-delete-chat" href="#" data-user-id="${user.userId}">
+                                <i class="ti ti-trash me-2"></i>Delete
+                            </a>
+                        </li>
                     </ul>
                 `;
 
@@ -7892,9 +7962,18 @@ initializeFirebase(function (app, auth, database, storage) {
                     userElement.appendChild(userDiv);
                     sidebarElement.appendChild(userElement);
 
-                    // Attach event listener for the unpin button
                     const unpinButton = userDiv.querySelector(".unpin-chat");
                     unpinButton.addEventListener("click", handleUnpinClick);
+                    const pinDelBtn = userDiv.querySelector(".permanent-delete-chat");
+                    if (pinDelBtn) {
+                        pinDelBtn.addEventListener("click", (e) => {
+                            e.preventDefault();
+                            const uid = e.target.closest("[data-user-id]")?.getAttribute("data-user-id");
+                            if (uid && window.confirm("Permanently delete this chat and all its data (messages, images, videos, documents)?")) {
+                                permanentlyDeleteChat(uid);
+                            }
+                        });
+                    }
                     scheduleRefreshChatFilterBadgeCounts();
                 })
                 .catch((error) => { });
@@ -7945,8 +8024,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 // Update the UI
                 const updatedPinnedUsers = Array.isArray(pinnedUsers)
                     ? pinnedUsers.filter((user) => user.userId !== chatUserId)
-                    : []; // If pinnedUsers is not an array, use an empty array
-                window.location.reload();
+                    : [];
                 displayPinnedUsers(usersMap, updatedPinnedUsers);
             })
             .catch((error) => {
@@ -8042,18 +8120,10 @@ initializeFirebase(function (app, auth, database, storage) {
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end p-3">
                         <li>
-                            <a class="dropdown-item" href="#"><i class="ti ti-box-align-right me-2"></i>Archive Chat</a>
+                            <a class="dropdown-item permanent-delete-chat" href="#" data-user-id="${user.userId}">
+                                <i class="ti ti-trash me-2"></i>Delete
+                            </a>
                         </li>
-                        <li>
-                            <a class="dropdown-item" href="#"><i class="ti ti-heart me-2"></i>Mark as Favourite</a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" href="#"><i class="ti ti-check me-2"></i>Mark as Unread</a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" href="#"><i class="ti ti-pinned me-2"></i>Pin Chats</a>
-                        </li>
-                       
                     </ul>
                 </div>
             </div>
@@ -8066,6 +8136,16 @@ initializeFirebase(function (app, auth, database, storage) {
                     e.preventDefault();
                     selectUser(user.userId);
                 };
+            }
+            const delBtn = userElement.querySelector(".permanent-delete-chat");
+            if (delBtn) {
+                delBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    const uid = e.target.closest("[data-user-id]")?.getAttribute("data-user-id");
+                    if (uid && window.confirm("Permanently delete this chat and all its data (messages, images, videos, documents)?")) {
+                        permanentlyDeleteChat(uid);
+                    }
+                });
             }
         });
         scheduleRefreshChatFilterBadgeCounts();
@@ -8218,21 +8298,21 @@ initializeFirebase(function (app, auth, database, storage) {
                             <ul class="dropdown-menu dropdown-menu-end p-3">
                                 <li>
                                     <a class="dropdown-item undelete-chat" href="#" data-chat-id="${user.chatId}" data-user-id="${user.userId}">
-                                        <i class="ti ti-box-align-right me-2"></i>Undelete Chat
+                                        <i class="ti ti-box-align-right me-2"></i>Restore Chat
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item permanent-delete-chat" href="#" data-user-id="${user.userId}">
+                                        <i class="ti ti-trash me-2"></i>Delete Permanently
                                     </a>
                                 </li>
                             </ul>
                 `;
 
-                    // Append the dropdown menu to the userDiv
                     userDiv.appendChild(chatDropdown);
-
-                    // Append the userDiv to the userElement
                     userElement.appendChild(userDiv);
-                    // Append the user element to the sidebar
                     sidebarElement.appendChild(userElement);
 
-                    // Attach event listener for undelete button after appending the user element to DOM
                     const undeleteButton =
                         userElement.querySelector(".undelete-chat");
                     if (undeleteButton) {
@@ -8240,6 +8320,16 @@ initializeFirebase(function (app, auth, database, storage) {
                             "click",
                             handleUndeleteClick
                         );
+                    }
+                    const trashDelBtn = userElement.querySelector(".permanent-delete-chat");
+                    if (trashDelBtn) {
+                        trashDelBtn.addEventListener("click", (e) => {
+                            e.preventDefault();
+                            const uid = e.target.closest("[data-user-id]")?.getAttribute("data-user-id");
+                            if (uid && window.confirm("Permanently delete this chat and all its data (messages, images, videos, documents)? This cannot be undone.")) {
+                                permanentlyDeleteChat(uid);
+                            }
+                        });
                     }
                     scheduleRefreshChatFilterBadgeCounts();
                 })
@@ -8262,8 +8352,6 @@ initializeFirebase(function (app, auth, database, storage) {
 
         remove(deletedChatsRef)
             .then(() => {
-                // Update the UI by filtering out the undeleted user
-                window.location.reload();
                 const updatedDeletedUsers = deletedUsers.filter(
                     (user) => user.userId !== chatUserId
                 );
