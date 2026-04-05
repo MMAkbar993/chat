@@ -4163,23 +4163,32 @@ async function fetchContactsNotInGroup(groupId, currentUserId) {
             return;
         }
 
-        // Render the contacts as checkboxes
+        // Render the contacts as checkboxes (same style as group creation picker)
         contactsContainer.innerHTML = nonMemberContacts
             .map(([contactId, contactInfo]) => {
                 const imgSrc = resolveGroupProfileImageUrl(
                     rawAvatarFromUserAndContact(contactInfo, contactInfo)
                 );
+                const displayName = contactInfo.userName
+                    || contactInfo.firstName
+                    || contactInfo.mobile_number
+                    || 'Unknown';
                 return `
-                <div class="list-group-item d-flex align-items-center">
-                    <input type="checkbox" id="contact-${contactId}" class="form-check-input me-3"
-                        onchange="toggleMemberSelection('${contactId}')">
-                    <label for="contact-${contactId}" class="d-flex align-items-center">
-                        <img src="${imgSrc}" alt="${contactInfo.firstName || contactInfo.mobile_number || contactInfo.email}" class="rounded-circle me-3" width="40">
-                        <div>
-                            <h6 class="mb-0">${contactInfo.firstName || contactInfo.mobile_number || contactInfo.email}</h6>
-                            <small>${contactInfo.email || 'No email'}</small>
+                <div class="contact-user">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="avatar avatar-lg">
+                                <img src="${imgSrc}" class="rounded-circle" alt="image">
+                            </div>
+                            <div class="ms-2">
+                                <h6>${capitalizeFirstLetter(displayName)}</h6>
+                            </div>
                         </div>
-                    </label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="${contactId}"
+                                onchange="toggleMemberSelection('${contactId}')">
+                        </div>
+                    </div>
                 </div>
             `;
             })
@@ -4229,16 +4238,17 @@ async function addSelectedMembersToGroup(groupId) {
         // Update the userIds array in the database
         await set(groupMembersRef, updatedUserIds);
 
-        alert('Members added successfully!');
         const modal = bootstrap.Modal.getInstance(document.getElementById('group-add-new'));
         if (modal) modal.hide();
 
-        // Clear the selection and refresh the modal
         selectedMembers = [];
-        fetchContactsNotInGroup(groupId, currentUserId);
+
+        // Refresh the group info panel (participants list + member count) live
+        if (typeof fetchGroupInfo === 'function') {
+            fetchGroupInfo(groupId);
+        }
     } catch (error) {
         console.error('Error adding members to group:', error);
-        //alert('Failed to add members. Please try again.');
     }
 }
 

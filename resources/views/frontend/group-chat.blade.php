@@ -496,7 +496,10 @@
                     <div class="content-wrapper other-info mb-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <h5 class="sub-title mb-0" id="group-participants-heading">{{ __('Participants')}}</h5>
-                            <a href="javascript:void(0);" class="text-muted" id="group-participants-search-toggle"><i class="ti ti-search"></i></a>
+                            <div class="d-flex align-items-center gap-2">
+                                <a href="javascript:void(0);" class="text-muted" id="group-participants-search-toggle"><i class="ti ti-search"></i></a>
+                                <a href="javascript:void(0);" class="text-muted" data-bs-toggle="modal" data-bs-target="#group-add-new" title="{{ __('Add Members') }}"><i class="ti ti-user-plus"></i></a>
+                            </div>
                         </div>
                         <div class="mb-2 d-none" id="group-participants-search-wrap">
                             <input type="text" class="form-control form-control-sm" id="group-participants-search" placeholder="{{ __('Search participants...') }}">
@@ -1433,6 +1436,32 @@
     </div>
 </div>
 <!-- /Add Group Modal -->
+
+<!-- Add Members to Existing Group Modal -->
+<div class="modal fade" id="group-add-new">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">{{ __('Add Members') }}</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="contact-scroll contact-select mb-3" id="contact-list-container"></div>
+                <div class="row g-3">
+                    <div class="col-6">
+                        <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal">{{ __('Cancel') }}</a>
+                    </div>
+                    <div class="col-6">
+                        <button type="button" class="btn btn-primary w-100" id="select-add-group">{{ __('Add') }}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- /Add Members to Existing Group Modal -->
 
 <div class="modal fade" id="forward-modal" tabindex="-1" aria-labelledby="forwardModalLabel"
     aria-hidden="true">
