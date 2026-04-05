@@ -8967,9 +8967,26 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     async function setMessageReaction(messageElement, reactionEmoji) {
-        if (!currentUser?.uid || !selectedUserId || !messageElement) return;
+        if (!currentUser?.uid || !messageElement) return;
         const messageKey = messageElement.dataset.messageKey;
         if (!messageKey) return;
+
+        const groupIdFromEl =
+            messageElement.getAttribute("data-group-id") ||
+            messageElement.dataset.groupId;
+        const onGroupPage = !!document.getElementById("group-area");
+        if (onGroupPage && groupIdFromEl) {
+            const messageRef = ref(
+                database,
+                `data/chats/${groupIdFromEl}/${messageKey}`
+            );
+            await update(messageRef, {
+                [`reactions/${currentUser.uid}`]: reactionEmoji,
+            });
+            return;
+        }
+
+        if (!selectedUserId) return;
         const chatRoomId = getDeterministicChatRoomId(
             currentUser.uid,
             selectedUserId

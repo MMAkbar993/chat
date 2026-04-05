@@ -907,21 +907,21 @@ if (typeof window !== "undefined") {
 }
 
 // Function to display groups and set click event listeners
+let displayGroupsGeneration = 0;
+
 function displayGroups(groups, currentUserId) {
     if (!groups || typeof groups !== 'object') return;
-    const chatUsersWrap = document.querySelector("#group-list"); // The container for the groups
+    const chatUsersWrap = document.querySelector("#group-list");
     if (!chatUsersWrap) return;
-    chatUsersWrap.innerHTML = ""; // Clear existing content
+
+    const renderGen = ++displayGroupsGeneration;
 
     const groupPromises = Object.keys(groups).map(groupId => {
         const group = groups[groupId];
 
-        // Only proceed if the logged-in user is a member of this group
         if (group.userIds && group.userIds.includes(currentUserId)) {
-            // Fetch the latest message for the group
             return getLatestMessageForGroup(groupId)
                 .then(async latestMessage => {
-                    // Decrypt and format the message if available
                     let displayMessage = "";
                     if (latestMessage) {
                         const messageType = latestMessage.attachmentType || "unknown";
@@ -930,15 +930,12 @@ function displayGroups(groups, currentUserId) {
                                 const originalMessage = await decryptlibsodiumMessage(latestMessage.body);
                                 displayMessage = originalMessage || "";
                             } catch (e) {
-                            
                                 displayMessage = "Encrypted message";
                             }
                         } else if (messageType === 5) {
                             displayMessage = "File sent";
                         } else if (messageType === 2) {
                             displayMessage = "Image sent";
-                        } else if (messageType === 6) {
-                            displayMessage = "Emoji";
                         } else if (messageType === 1) {
                             displayMessage = "Video sent";
                         } else if (messageType === 3) {
@@ -951,34 +948,31 @@ function displayGroups(groups, currentUserId) {
                     return {
                         groupId,
                         ...group,
-                        latestMessageTimestamp: latestMessage ? latestMessage.timestamp : group.date, // Fallback to group creation time
+                        latestMessageTimestamp: latestMessage ? latestMessage.timestamp : group.date,
                         displayMessage
                     };
                 })
                 .catch(() => ({
                     groupId,
                     ...group,
-                    latestMessageTimestamp: group.date, // Fallback in case of error
+                    latestMessageTimestamp: group.date,
                     displayMessage: ""
                 }));
         } else {
-            // Return null if the user is not a member of the group
             return Promise.resolve(null);
         }
     });
 
-    // Wait for all group promises to resolve
     Promise.all(groupPromises).then(groupsWithLatestMessage => {
-        // Filter out null values (non-member groups)
+        if (renderGen !== displayGroupsGeneration) return;
+
         const filteredGroups = groupsWithLatestMessage.filter(group => group !== null);
 
-        // Sort groups by the most recent message or creation date
         filteredGroups.sort((a, b) => {
             return new Date(b.latestMessageTimestamp) - new Date(a.latestMessageTimestamp);
         });
 
-        // Now display the filtered and sorted groups
-        filteredGroups.forEach(group => {
+        const htmlParts = filteredGroups.map(group => {
             const AvatarURL = resolveGroupProfileImageUrl(
                 withCacheBuster(
                     pickGroupAvatarRaw(group),
@@ -987,8 +981,7 @@ function displayGroups(groups, currentUserId) {
             );
             const formattedTime = formatedTimestamp(group.latestMessageTimestamp);
 
-            // Create the HTML for each group
-            const groupHtml = `
+            return `
                 <div class="chat-list" data-group-id="${group.groupId}">
                     <a href="#" class="chat-user-list">
                         <div class="avatar avatar-lg me-2">
@@ -1008,12 +1001,11 @@ function displayGroups(groups, currentUserId) {
                     </a>
                 </div>
             `;
-
-            chatUsersWrap.innerHTML += groupHtml; // Append group to the container
         });
 
-        // Add click event to each group to load messages and set selected group ID
-        document.querySelectorAll(".chat-list").forEach((group) => {
+        chatUsersWrap.innerHTML = htmlParts.join("");
+
+        chatUsersWrap.querySelectorAll(".chat-list").forEach((group) => {
             group.addEventListener("click", (event) => {
                 if (event) event.preventDefault();
                 const newGroupId = group.getAttribute("data-group-id");
@@ -1168,36 +1160,16 @@ function loadGroupDetails(groupId) {
 }
 
 function loadChatMessages(groupId) {
-    // Implement the logic to load and display chat messages for the group
-    const messagesRef = ref(database, `data/chats/${groupId}`); // Path to your messages data
-
-    get(messagesRef)
-        .then((snapshot) => {
-            if (snapshot.exists()) {
-                const messages = snapshot.val();
-                // Clear existing messages
-                const messagesContainer =
-                    document.getElementById("chat-messages");
-                messagesContainer.innerHTML = ""; // Clear existing messages
-
-                // Loop through messages and append to the chat
-                // for (const messageId in messages) {
-                //     const message = messages[messageId];
-                //     const messageHtml = `
-                //         <div class="message">
-                //             <p>${message.sender}: ${message.content}</p>
-                //         </div>`;
-                //     messagesContainer.innerHTML += messageHtml; // Append new message
-                // }
-            }
-             const groupScrollHost =
-                 document.getElementById("group-area") ||
-                 messagesContainer;
-             groupScrollHost.scrollTop = groupScrollHost.scrollHeight;
-        })
-        .catch((error) => {
-       
-        });
+    // Scroll to bottom after a short delay so loadGroupMessages' onValue render has time to paint.
+    // Messages are rendered by the onValue listener in loadGroupMessages — this function
+    // must NOT clear the container (the old rendering code was commented out, leaving only
+    // a destructive innerHTML="" that blanked the screen).
+    setTimeout(() => {
+        const messagesContainer = document.getElementById("chat-messages");
+        const groupScrollHost =
+            document.getElementById("group-area") || messagesContainer;
+        if (groupScrollHost) groupScrollHost.scrollTop = groupScrollHost.scrollHeight;
+    }, 300);
 }
 
 // Call loadGroupDetails when a group is clicked
@@ -1207,6 +1179,87 @@ document.querySelectorAll(".group-item").forEach((item) => {
         loadGroupDetails(groupId);
     });
 });
+
+const GROUP_REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+function normalizeGroupMessageReactions(raw) {
+    if (!raw || typeof raw !== "object") return {};
+    const out = {};
+    Object.entries(raw).forEach(([uid, emoji]) => {
+        const safeUid = String(uid || "").trim();
+        const safeEmoji = String(emoji || "").trim();
+        if (safeUid && safeEmoji) out[safeUid] = safeEmoji;
+    });
+    return out;
+}
+
+function buildGroupReactionSummaryMarkup(rawReactions) {
+    const reactions = normalizeGroupMessageReactions(rawReactions);
+    const counts = {};
+    Object.values(reactions).forEach((emoji) => {
+        counts[emoji] = (counts[emoji] || 0) + 1;
+    });
+    const parts = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([emoji, count]) => {
+            return `<span class="message-reaction-chip">${emoji} ${count}</span>`;
+        });
+    return parts.length
+        ? `<div class="message-reaction-summary">${parts.join("")}</div>`
+        : "";
+}
+
+function buildGroupReactionPickerMarkup() {
+    return `
+            <div class="message-reaction-picker" aria-label="Message reactions">
+                ${GROUP_REACTION_EMOJIS.map(
+                    (emoji) =>
+                        `<button type="button" class="message-react-option" data-reaction="${emoji}">${emoji}</button>`
+                ).join("")}
+                <button type="button" class="message-react-more" title="More emojis">+</button>
+            </div>
+            <div class="message-reaction-picker-extended" aria-label="More reaction emojis"></div>
+        `;
+}
+
+function updateGroupReactionSummaryInMessage(messageElement, rawReactions) {
+    if (!messageElement) return;
+    const bubbleWrap = messageElement.querySelector(".message-bubble-wrap");
+    if (!bubbleWrap) return;
+    const currentSummary = bubbleWrap.querySelector(".message-reaction-summary");
+    const nextMarkup = buildGroupReactionSummaryMarkup(rawReactions);
+    if (!nextMarkup) {
+        if (currentSummary) currentSummary.remove();
+        return;
+    }
+    if (currentSummary) {
+        currentSummary.outerHTML = nextMarkup;
+        return;
+    }
+    bubbleWrap.insertAdjacentHTML("beforeend", nextMarkup);
+}
+
+function groupMessagesContentFingerprint(snapshot) {
+    const parts = [];
+    snapshot.forEach((child) => {
+        const v = child.val();
+        if (!v || typeof v !== "object") {
+            parts.push(`${child.key}:__primitive__:${String(v)}`);
+            return;
+        }
+        const copy = { ...v };
+        delete copy.reactions;
+        parts.push(`${child.key}:${JSON.stringify(copy)}`);
+    });
+    parts.sort();
+    return parts.join("\n");
+}
+
+let groupChatMessageFingerprint = { groupId: null, fp: null };
+
+let loadGroupMessagesGeneration = 0;
+let cachedUsers = null;
 
 function loadGroupMessages(groupId) {
     highlightActiveGroup(groupId);
@@ -1221,238 +1274,282 @@ function loadGroupMessages(groupId) {
         return;
     }
 
-    messagesContainer.innerHTML = "";
     const loggedInUserId = currentUserId;
+    const renderGen = ++loadGroupMessagesGeneration;
 
-    getUsers().then((users) => {
-        onValue(messagesRef, (snapshot) => {
+    onValue(messagesRef, async (snapshot) => {
+        if (renderGen !== loadGroupMessagesGeneration) return;
+
+        if (groupChatMessageFingerprint.groupId !== groupId) {
+            groupChatMessageFingerprint = { groupId, fp: null };
+        }
+
+        if (!snapshot.exists()) {
+            groupChatMessageFingerprint.fp = null;
             messagesContainer.innerHTML = "";
-            if (!snapshot.exists()) {
-                //console.log("No messages found for this group.");
-                return;
-            }
-           
-            snapshot.forEach((childSnapshot) => {
-                const messageData = childSnapshot.val();
-                const messageKey = childSnapshot.key;  // This is the key you need
-                const formattedTime = formatTimestamp(messageData.timestamp);
-                const type= messageData.attachmentType;
+            return;
+        }
 
-                // Initialize default sender details
-                let senderName = "Unknown";
-                let senderImage = resolveGroupProfileImageUrl("");
-    
-                // Fetch contact details (same path as chat/contacts: data/contacts/{me}/{peer})
-                const contactRef = ref(database, `data/contacts/${loggedInUserId}/${messageData.senderId}`);
-                get(contactRef).then(async (contactSnapshot) => {
-                    if (contactSnapshot.exists()) {
-                        const contactData = contactSnapshot.val();
-                        senderName = contactData.firstName || contactData.lastName 
-                            ? `${contactData.firstName || ""} ${contactData.lastName || ""}`.trim()
-                            : senderName;
-                        senderImage = resolveGroupProfileImageUrl(
-                            rawAvatarFromUserAndContact(contactData, contactData)
-                        );
-                    } else if (users[messageData.senderId]) {
-                        // Fallback to users collection if contact data isn't available
-                        const userData = users[messageData.senderId];
-                        senderName = `${userData.mobile_number}`;
-                        senderImage = resolveGroupProfileImageUrl(
-                            rawAvatarFromUserAndContact(userData, null)
-                        );
-                    }
-                    if (
-                        messageData.senderId === loggedInUserId &&
-                        typeof window !== "undefined" &&
-                        window.LARAVEL_USER
-                    ) {
-                        const lu =
-                            window.LARAVEL_USER.profile_image ||
-                            window.LARAVEL_USER.image;
-                        if (lu && String(lu).trim()) {
-                            senderImage = resolveGroupProfileImageUrl(String(lu).trim());
-                        }
-                    }
-    
-                    const forwardedLabel = messageData.isForward
-                    ? `<div class="forwarded-label" style="color: #FFF; font-size: 12px; margin-bottom: 5px;">
-                            <i class="ti ti-arrow-forward-up me-2t"></i>
-                            Forwarded
-                       </div>`
-                    : "";
-
-                    // Decrypt message content
-                    let messageContent = "";
-                    let replyContent = "";
-                    let forwardContent = "";
-
-                    if (messageData.attachmentType === 6) {
-                        messageContent = await decryptlibsodiumMessage(messageData.body);
-                    } else {
-                       
-                     
-                            const attUrl =
-                                messageData.attachment &&
-                                normalizeChatMediaUrl(messageData.attachment.url);
-                            if (messageData.attachmentType === 3) {
-                                messageContent = `<audio controls preload="metadata" src="${attUrl}"></audio>`;
-                            }  else if (messageData.attachmentType === 2) {
-                                    messageContent = `<img src="${attUrl}" alt="Image Preview" class="message-image-preview video-style"></img>`;
-                                } 
-                            else if (messageData.attachmentType === 1) {
-                                messageContent = `<video width="200" controls src="${attUrl}"></video>`;
-                            } else if (messageData.attachmentType === 5) {
-                                messageContent = `<a href="${attUrl}" target="_blank" download>Download ${messageData.fileName || 'File'}</a>`;
-                            } else {
-                                messageContent = "Unsupported message type.";
-                            }
-                        
-                    }
-
-                      // If the message is a reply, fetch the original message and show its content
-                      if (messageData.replyId != "0") {
-                        try {
-                            const originalMessageRef = ref(database, `data/chats/${groupId}/${messageData.replyId}`);
-                            const snapshot = await get(originalMessageRef);
-
-                            if (snapshot.exists()) {
-                                const originalMessageData = snapshot.val();
-                                const originalMessageType = originalMessageData.attachmentType.toString();
-
-                                switch (originalMessageType) {
-                                    case "6": // Text Message
-                                        const decryptedReplyContent = await decryptlibsodiumMessage(originalMessageData.body);
-                                        const sanitizedReplyContent = decryptedReplyContent.trim();
-                                        replyContent = `<div>${sanitizedReplyContent}</div>`;
-
-                                        break;
-                                    case "2": // Image
-                                        replyContent = `<img src="${normalizeChatMediaUrl(originalMessageData.attachment && originalMessageData.attachment.url)}" alt="Image" style="max-height: 70px; border-radius: 5px;">`;
-                                        break;
-                                    case "3": // Audio
-                                        replyContent = `<div><i class="ti ti-microphone"></i> Audio</div>`;
-                                        break;
-                                    case "1": // Video
-                                        replyContent = `<div><i class="ti ti-video"></i> Video</div>`;
-                                        break;
-                                    case "5": // File/Document
-                                        replyContent = `<div><i class="ti ti-file"></i> File</div>`;
-                                        break;
-                                    default:
-                                        replyContent = "<div>Unsupported reply content</div>";
-                                }
-                            } else {
-                                replyContent = "<div>[Original message not found]</div>";
-                            }
-                        } catch (error) {
-                            console.error("Error processing reply:", error);
-                            replyContent = "[Decryption Error]";
-                        }
-                    }
-    
-                const messageBody = `
-                <div>${messageContent}</div>`;
-                    // Determine the status icon based on delivered and readMsg status
-                    let statusIcon = "";
-                    // if (!messageData.delivered && !messageData.readMsg) {
-                    //     statusIcon = `<i class="ti ti-check"></i>`; // Single tick
-                    // } else if (messageData.delivered && !messageData.readMsg) {
-                    //     statusIcon = `<i class="ti ti-checks"></i>`; // Double ticks, not read
-                    // } else if (messageData.delivered && messageData.readMsg) {
-                    //     statusIcon = `<i class="ti ti-checks text-success"></i>`; // Double ticks, read
-                    // }
-
-                    if (messageData.clearedFor && messageData.clearedFor.includes(currentUserId)) {
-                        return; // Skip displaying the message
-                    }
-
-                    if (messageData.deletedFor && messageData.deletedFor.includes(currentUserId)) {
-                        return; // Skip displaying the message
-                    }
-                    // Construct message HTML
-                    let messageHTML = "";
-                    if (messageData.senderId === loggedInUserId) {                       
-                        if (messageData.deletedForMe) {
-                            // Remove the message element from the DOM
-                            messageElement.remove();
-                            return; // Exit the function early to avoid further processing for this message
-                        }
-                        messageHTML = `
-                            <div class="chats chats-right" data-group-id="${groupId}" data-message-key="${messageKey}" data-type="${type}">
-                                <div class="chat-content">
-                                    <div class="chat-profile-name text-end">
-                                        <h6>You <i class="ti ti-circle-filled fs-7 mx-2"></i><span class="chat-time">${formattedTime}</span>
-                                        <span class="msg-read">${statusIcon}</span>
-                                        </h6> 
-                                    </div>
-                                    <div class="chat-info">
-                                        <div class="chat-actions">
-                                        <a class="#" href="#" data-bs-toggle="dropdown">
-                                            <i class="ti ti-dots-vertical"></i>
-                                        </a>
-                                        <ul class="dropdown-menu dropdown-menu-end p-3">
-                                            <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
-                                            <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
-                                            <li><a class="dropdown-item delete-btn" href="#" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
-                                        </ul>
-                                        </div>   
-                                        <div class="message-content">
-                                        ${forwardedLabel} <!-- Forwarded Label -->
-                                        ${messageData.replyId != "0" ? `<div class="message-reply">${replyContent}</div>` : ""} <!-- Reply Content only if it's a reply -->
-                                            ${messageBody} <!-- Default Message -->
-                                        </div>   
-                                    </div>
-                                </div>
-                                <div class="chat-avatar">
-                                    <img src="${senderImage}" class="rounded-circle" alt="image">
-                                </div>
-                            </div>
-                        `;
-                    } else {
-                        messageHTML = `
-                            <div class="chats" data-group-id="${groupId}" data-message-key="${messageKey}" data-type="${type}">
-                                <div class="chat-avatar">
-                                    <img src="${senderImage}" class="rounded-circle" alt="image">
-                                </div>
-                                <div class="chat-content">
-                                    <div class="chat-profile-name">
-                                        <h6>${senderName} <i class="ti ti-circle-filled fs-7 mx-2"></i><span class="chat-time">${formattedTime}</span>
-                                        <span class="msg-read">${statusIcon}</span>
-                                        </h6>
-                                    </div>
-                                    <div class="chat-info">
-                                    <div class="message-content">
-                                        ${forwardedLabel} <!-- Forwarded Label -->
-                                        ${messageData.replyId != "0" ? `<div class="message-reply">${replyContent}</div>` : ""} <!-- Reply Content only if it's a reply -->
-                                            ${messageBody} <!-- Default Message -->
-                                        </div>  
-                                        <div class="chat-actions">
-                                            <a class="#" href="#" data-bs-toggle="dropdown">
-                                                <i class="ti ti-dots-vertical"></i>
-                                            </a>
-                                            <ul class="dropdown-menu dropdown-menu-end p-3">
-                                                <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
-                                                <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
-                                                <li><a class="dropdown-item delete-btn" href="#" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
-                                            </ul>
-                                        </div>   
-                                         
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }
-    
-                    messagesContainer.innerHTML += messageHTML;
-                });
+        const contentFp = groupMessagesContentFingerprint(snapshot);
+        if (
+            groupChatMessageFingerprint.fp !== null &&
+            contentFp === groupChatMessageFingerprint.fp
+        ) {
+            snapshot.forEach((child) => {
+                const el = messagesContainer.querySelector(
+                    `.chats[data-message-key="${child.key}"]`
+                );
+                if (el) {
+                    updateGroupReactionSummaryInMessage(
+                        el,
+                        child.val().reactions
+                    );
+                }
             });
-    
-            const groupScrollHost =
+            const groupScrollHostFast =
                 document.getElementById("group-area") || messagesContainer;
-            groupScrollHost.scrollTop = groupScrollHost.scrollHeight;
+            groupScrollHostFast.scrollTop = groupScrollHostFast.scrollHeight;
+            return;
+        }
+
+        if (!cachedUsers) {
+            cachedUsers = await getUsers();
+        }
+        const users = cachedUsers;
+        if (renderGen !== loadGroupMessagesGeneration) return;
+
+        const entries = [];
+        snapshot.forEach((childSnapshot) => {
+            entries.push({ data: childSnapshot.val(), key: childSnapshot.key });
         });
+
+        const htmlParts = await Promise.all(entries.map(async (entry) => {
+            if (renderGen !== loadGroupMessagesGeneration) return null;
+
+            const messageData = entry.data;
+            const messageKey = entry.key;
+            const formattedTime = formatTimestamp(messageData.timestamp);
+            const type = messageData.attachmentType;
+
+            if (messageData.clearedFor && messageData.clearedFor.includes(currentUserId)) {
+                return null;
+            }
+            if (messageData.deletedFor && messageData.deletedFor.includes(currentUserId)) {
+                return null;
+            }
+            if (messageData.senderId === loggedInUserId && messageData.deletedForMe) {
+                return null;
+            }
+
+            let senderName = "Unknown";
+            let senderImage = resolveGroupProfileImageUrl("");
+
+            try {
+                const contactRef = ref(database, `data/contacts/${loggedInUserId}/${messageData.senderId}`);
+                const contactSnapshot = await get(contactRef);
+                if (contactSnapshot.exists()) {
+                    const contactData = contactSnapshot.val();
+                    senderName = contactData.firstName || contactData.lastName
+                        ? `${contactData.firstName || ""} ${contactData.lastName || ""}`.trim()
+                        : senderName;
+                    senderImage = resolveGroupProfileImageUrl(
+                        rawAvatarFromUserAndContact(contactData, contactData)
+                    );
+                } else if (users[messageData.senderId]) {
+                    const userData = users[messageData.senderId];
+                    senderName = `${userData.mobile_number}`;
+                    senderImage = resolveGroupProfileImageUrl(
+                        rawAvatarFromUserAndContact(userData, null)
+                    );
+                }
+            } catch (_e) { /* keep defaults */ }
+
+            if (
+                messageData.senderId === loggedInUserId &&
+                typeof window !== "undefined" &&
+                window.LARAVEL_USER
+            ) {
+                const lu =
+                    window.LARAVEL_USER.profile_image ||
+                    window.LARAVEL_USER.image;
+                if (lu && String(lu).trim()) {
+                    senderImage = resolveGroupProfileImageUrl(String(lu).trim());
+                }
+            }
+
+            const forwardedLabel = messageData.isForward
+                ? `<div class="forwarded-label" style="color: #FFF; font-size: 12px; margin-bottom: 5px;">
+                        <i class="ti ti-arrow-forward-up me-2t"></i>
+                        Forwarded
+                   </div>`
+                : "";
+
+            let messageContent = "";
+            let replyContent = "";
+
+            if (messageData.attachmentType === 6) {
+                messageContent = await decryptlibsodiumMessage(messageData.body);
+            } else {
+                const attUrl =
+                    messageData.attachment &&
+                    normalizeChatMediaUrl(messageData.attachment.url);
+                if (messageData.attachmentType === 3) {
+                    messageContent = `<audio controls preload="metadata" src="${attUrl}"></audio>`;
+                } else if (messageData.attachmentType === 2) {
+                    messageContent = `<img src="${attUrl}" alt="Image Preview" class="message-image-preview video-style"></img>`;
+                } else if (messageData.attachmentType === 1) {
+                    messageContent = `<video width="200" controls src="${attUrl}"></video>`;
+                } else if (messageData.attachmentType === 5) {
+                    messageContent = `<a href="${attUrl}" target="_blank" download>Download ${messageData.fileName || 'File'}</a>`;
+                } else {
+                    messageContent = "Unsupported message type.";
+                }
+            }
+
+            if (messageData.replyId != "0") {
+                try {
+                    const originalMessageRef = ref(database, `data/chats/${groupId}/${messageData.replyId}`);
+                    const replySnap = await get(originalMessageRef);
+
+                    if (replySnap.exists()) {
+                        const originalMessageData = replySnap.val();
+                        const originalMessageType = originalMessageData.attachmentType.toString();
+
+                        switch (originalMessageType) {
+                            case "6":
+                                const decryptedReplyContent = await decryptlibsodiumMessage(originalMessageData.body);
+                                replyContent = `<div>${decryptedReplyContent.trim()}</div>`;
+                                break;
+                            case "2":
+                                replyContent = `<img src="${normalizeChatMediaUrl(originalMessageData.attachment && originalMessageData.attachment.url)}" alt="Image" style="max-height: 70px; border-radius: 5px;">`;
+                                break;
+                            case "3":
+                                replyContent = `<div><i class="ti ti-microphone"></i> Audio</div>`;
+                                break;
+                            case "1":
+                                replyContent = `<div><i class="ti ti-video"></i> Video</div>`;
+                                break;
+                            case "5":
+                                replyContent = `<div><i class="ti ti-file"></i> File</div>`;
+                                break;
+                            default:
+                                replyContent = "<div>Unsupported reply content</div>";
+                        }
+                    } else {
+                        replyContent = "<div>[Original message not found]</div>";
+                    }
+                } catch (error) {
+                    console.error("Error processing reply:", error);
+                    replyContent = "[Decryption Error]";
+                }
+            }
+
+            const messageBody = `<div>${messageContent}</div>`;
+            let statusIcon = "";
+            const reactionsMarkup = buildGroupReactionSummaryMarkup(
+                messageData.reactions
+            );
+            const reactionPickerMarkup = buildGroupReactionPickerMarkup();
+
+            if (messageData.senderId === loggedInUserId) {
+                return `
+                    <div class="chats chats-right" data-group-id="${groupId}" data-message-key="${messageKey}" data-type="${type}">
+                        <div class="chat-content">
+                            <div class="chat-profile-name text-end">
+                                <h6>You <i class="ti ti-circle-filled fs-7 mx-2"></i><span class="chat-time">${formattedTime}</span>
+                                <span class="msg-read">${statusIcon}</span>
+                                </h6> 
+                            </div>
+                            <div class="chat-info">
+                                <div class="message-hover-actions">
+                                    <a href="#" class="message-hover-btn hover-emoji-btn" title="React">
+                                        <i class="ti ti-mood-smile"></i>
+                                    </a>
+                                    <a href="#" class="message-hover-btn forward-btn" title="Forward">
+                                        <i class="ti ti-arrow-forward-up"></i>
+                                    </a>
+                                    ${reactionPickerMarkup}
+                                </div>
+                                <div class="chat-actions">
+                                <a class="#" href="#" data-bs-toggle="dropdown">
+                                    <i class="ti ti-dots-vertical"></i>
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end p-3">
+                                    <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
+                                    <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
+                                    <li><a class="dropdown-item delete-btn" href="#" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
+                                </ul>
+                                </div>
+                                <div class="message-bubble-wrap">
+                                <div class="message-content">
+                                ${forwardedLabel}
+                                ${messageData.replyId != "0" ? `<div class="message-reply">${replyContent}</div>` : ""}
+                                    ${messageBody}
+                                </div>
+                                ${reactionsMarkup}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-avatar">
+                            <img src="${senderImage}" class="rounded-circle" alt="image">
+                        </div>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="chats" data-group-id="${groupId}" data-message-key="${messageKey}" data-type="${type}">
+                        <div class="chat-avatar">
+                            <img src="${senderImage}" class="rounded-circle" alt="image">
+                        </div>
+                        <div class="chat-content">
+                            <div class="chat-profile-name">
+                                <h6>${senderName} <i class="ti ti-circle-filled fs-7 mx-2"></i><span class="chat-time">${formattedTime}</span>
+                                <span class="msg-read">${statusIcon}</span>
+                                </h6>
+                            </div>
+                            <div class="chat-info">
+                            <div class="message-hover-actions">
+                                <a href="#" class="message-hover-btn hover-emoji-btn" title="React">
+                                    <i class="ti ti-mood-smile"></i>
+                                </a>
+                                <a href="#" class="message-hover-btn forward-btn" title="Forward">
+                                    <i class="ti ti-arrow-forward-up"></i>
+                                </a>
+                                ${reactionPickerMarkup}
+                            </div>
+                            <div class="message-bubble-wrap">
+                            <div class="message-content">
+                                ${forwardedLabel}
+                                ${messageData.replyId != "0" ? `<div class="message-reply">${replyContent}</div>` : ""}
+                                    ${messageBody}
+                                </div>
+                                ${reactionsMarkup}
+                                </div>
+                                <div class="chat-actions">
+                                    <a class="#" href="#" data-bs-toggle="dropdown">
+                                        <i class="ti ti-dots-vertical"></i>
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end p-3">
+                                        <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
+                                        <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
+                                        <li><a class="dropdown-item delete-btn" href="#" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }));
+
+        if (renderGen !== loadGroupMessagesGeneration) return;
+
+        messagesContainer.innerHTML = htmlParts.filter(Boolean).join("");
+        groupChatMessageFingerprint.fp = contentFp;
+        const groupScrollHost =
+            document.getElementById("group-area") || messagesContainer;
+        groupScrollHost.scrollTop = groupScrollHost.scrollHeight;
     });
-    
 }
 
 

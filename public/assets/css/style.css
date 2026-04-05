@@ -12403,6 +12403,26 @@ Form help
   margin-left: 0;
   margin-right: 8px;
 }
+/* Other people's messages: bubble first, then emoji/forward, then ⋮ (same side as your messages) */
+.chats:not(.chats-right) .chat-info .message-bubble-wrap {
+  order: 1;
+}
+.chats:not(.chats-right) .chat-info .message-hover-actions {
+  order: 2;
+  margin-left: 8px;
+  margin-right: 0;
+}
+.chats:not(.chats-right) .chat-info .chat-actions {
+  order: 3;
+}
+.chats:not(.chats-right) .chat-info .message-reaction-picker {
+  left: auto;
+  right: 0;
+}
+.chats:not(.chats-right) .chat-info .message-reaction-picker-extended {
+  left: auto;
+  right: 0;
+}
 .chats:hover .chat-info .message-hover-actions {
   opacity: 1;
   visibility: visible;
