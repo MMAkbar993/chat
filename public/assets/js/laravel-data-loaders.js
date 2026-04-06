@@ -18,6 +18,53 @@
         return document.getElementById('contact-details');
     }
 
+    /** Same as firebaseContact.js: duplicate id="contact-details" leaves a dimmed screen with no dialog. */
+    function dedupeContactDetailsModalsIfNeeded() {
+        if (typeof window.dedupeContactDetailsModals === 'function') {
+            window.dedupeContactDetailsModals();
+            return;
+        }
+        try {
+            var canonical = document.querySelector('#spa-page-modals #contact-details');
+            if (!canonical) canonical = document.querySelector('#contact-details');
+            if (!canonical) return;
+            document.querySelectorAll('#contact-details').forEach(function (el) {
+                if (el === canonical) return;
+                el.removeAttribute('id');
+                el.setAttribute('data-legacy-duplicate-contact-modal', '1');
+                el.classList.add('d-none');
+                el.setAttribute('aria-hidden', 'true');
+            });
+        } catch (e) { /* ignore */ }
+    }
+
+    function cleanupStaleModalBackdropAndBody() {
+        try {
+            if (document.querySelector('.modal.show')) return;
+            document.querySelectorAll('.modal-backdrop').forEach(function (b) {
+                b.remove();
+            });
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('overflow');
+        } catch (e) { /* ignore */ }
+    }
+
+    document.addEventListener('hidden.bs.modal', cleanupStaleModalBackdropAndBody);
+
+    document.addEventListener(
+        'click',
+        function (e) {
+            var opener =
+                e.target &&
+                e.target.closest &&
+                e.target.closest('[data-bs-target="#contact-details"], [data-bs-toggle="modal"][href="#contact-details"]');
+            if (!opener) return;
+            dedupeContactDetailsModalsIfNeeded();
+        },
+        true
+    );
+
     function getPathname(url) {
         if (!url) return '';
         try {
@@ -93,6 +140,7 @@
 
             container.querySelectorAll('.chat-user-list').forEach(function (el) {
                 el.addEventListener('click', function () {
+                    dedupeContactDetailsModalsIfNeeded();
                     var uid = this.getAttribute('data-user-id');
                     var data = window.__laravelContacts[uid];
                     if (!data) return;
@@ -507,9 +555,15 @@
                     try {
                         if (typeof localStorage !== 'undefined') localStorage.setItem('selectedGroupId', gid);
                     } catch (err) {}
-                    if (typeof loadGroupMessages === 'function') loadGroupMessages(gid);
-                    if (typeof loadGroupDetails === 'function') loadGroupDetails(gid);
-                    else window.location.href = baseUrl + '/group-chat?group=' + encodeURIComponent(gid);
+                    if (typeof loadGroupDetails === 'function') {
+                        loadGroupDetails(gid);
+                        if (typeof loadGroupMessages === 'function') loadGroupMessages(gid);
+                        if (typeof window.__dreamchatEnsureChatPageVisible === 'function') {
+                            window.__dreamchatEnsureChatPageVisible();
+                        }
+                    } else {
+                        window.location.href = baseUrl + '/group-chat?group=' + encodeURIComponent(gid);
+                    }
                 });
             });
         }).catch(function () {
@@ -548,12 +602,15 @@
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {
+            dedupeContactDetailsModalsIfNeeded();
             runForPathname();
         });
     } else {
+        dedupeContactDetailsModalsIfNeeded();
         runForPathname();
     }
     window.addEventListener('spa-page-applied', function (e) {
+        dedupeContactDetailsModalsIfNeeded();
         var pathname = (e && e.detail && e.detail.pathname) ? e.detail.pathname : getPathname(window.location.href);
         runForPathname(pathname);
     });

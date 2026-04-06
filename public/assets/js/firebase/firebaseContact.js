@@ -57,6 +57,73 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
+    /**
+     * Several Blade templates duplicate id="contact-details". Bootstrap opens the first match in
+     * the DOM while firebaseContact.js updates #spa-page-modals #contact-details — user sees only
+     * the dimmed backdrop ("black screen"). Strip duplicate ids so only the canonical modal remains.
+     */
+    function dedupeContactDetailsModals() {
+        try {
+            let canonical = document.querySelector("#spa-page-modals #contact-details");
+            if (!canonical) {
+                canonical = document.querySelector("#contact-details");
+                if (!canonical) return;
+            }
+            document.querySelectorAll("#contact-details").forEach(function (el) {
+                if (el === canonical) return;
+                el.removeAttribute("id");
+                el.setAttribute("data-legacy-duplicate-contact-modal", "1");
+                el.classList.add("d-none");
+                el.setAttribute("aria-hidden", "true");
+            });
+        } catch (e) {
+            /* ignore */
+        }
+    }
+
+    function cleanupStaleModalBackdropAndBody() {
+        try {
+            if (document.querySelector(".modal.show")) return;
+            document.querySelectorAll(".modal-backdrop").forEach(function (b) {
+                b.remove();
+            });
+            document.body.classList.remove("modal-open");
+            document.body.style.removeProperty("padding-right");
+            document.body.style.removeProperty("overflow");
+        } catch (e) {
+            /* ignore */
+        }
+    }
+
+    document.addEventListener(
+        "click",
+        function (e) {
+            const opener =
+                e.target &&
+                e.target.closest &&
+                e.target.closest('[data-bs-target="#contact-details"], [data-bs-toggle="modal"][href="#contact-details"]');
+            if (!opener) return;
+            dedupeContactDetailsModals();
+        },
+        true
+    );
+
+    document.addEventListener("hidden.bs.modal", function () {
+        cleanupStaleModalBackdropAndBody();
+    });
+
+    window.addEventListener("spa-page-applied", function () {
+        dedupeContactDetailsModals();
+    });
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", dedupeContactDetailsModals);
+    } else {
+        dedupeContactDetailsModals();
+    }
+
+    window.dedupeContactDetailsModals = dedupeContactDetailsModals;
+
     // Monitor the user's authentication state (chat session)
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -158,6 +225,59 @@ initializeFirebase(function (app, auth, database, storage) {
         if (r) user.primaryRole = r;
     }
 
+    /** Prefer Laravel public_display_name (username vs full name) for list + modal consistency. */
+    function applyLaravelPublicDisplayNameMap(user, nameByUid, nameByEmail, nameByUsername) {
+        if (!user) return;
+        let n = "";
+        if (user.uid && String(user.uid).indexOf("pending_") !== 0 && nameByUid && nameByUid[user.uid]) {
+            n = nameByUid[user.uid];
+        }
+        if (!n && user.email && nameByEmail) {
+            const e = String(user.email).trim().toLowerCase();
+            if (e && nameByEmail[e]) n = nameByEmail[e];
+        }
+        if (!n && user.userName && nameByUsername) {
+            const k = String(user.userName).trim().toLowerCase();
+            if (k && nameByUsername[k]) n = nameByUsername[k];
+        }
+        if (n && String(n).trim()) user.laravelPublicDisplayName = String(n).trim();
+    }
+
+    function resolvePublicNameFromLaravelBatch(uid, contactData, userData, laravelMap) {
+        if (!laravelMap) return "";
+        const nu = laravelMap.name_by_uid || {};
+        const ne = laravelMap.name_by_email || {};
+        const nb = laravelMap.name_by_username || {};
+        if (uid && String(uid).indexOf("pending_") !== 0 && nu[uid]) return String(nu[uid]).trim();
+        const tryEmails = [];
+        if (contactData && contactData.email && String(contactData.email).trim()) {
+            tryEmails.push(String(contactData.email).trim().toLowerCase());
+        }
+        if (userData && userData.email && String(userData.email).trim()) {
+            const em = String(userData.email).trim().toLowerCase();
+            if (tryEmails.indexOf(em) < 0) tryEmails.push(em);
+        }
+        for (let i = 0; i < tryEmails.length; i++) {
+            if (ne[tryEmails[i]]) return String(ne[tryEmails[i]]).trim();
+        }
+        const tryUsernames = [];
+        if (contactData) {
+            const a = contactData.userName || contactData.username || contactData.user_name;
+            if (a && String(a).trim()) tryUsernames.push(String(a).trim().toLowerCase());
+        }
+        if (userData) {
+            const b = userData.userName || userData.username || userData.user_name;
+            if (b && String(b).trim()) {
+                const k = String(b).trim().toLowerCase();
+                if (tryUsernames.indexOf(k) < 0) tryUsernames.push(k);
+            }
+        }
+        for (let j = 0; j < tryUsernames.length; j++) {
+            if (nb[tryUsernames[j]]) return String(nb[tryUsernames[j]]).trim();
+        }
+        return "";
+    }
+
     async function enrichContactListAvatarsFromLaravel(usersArray) {
         const need = usersArray.filter(function (u) {
             return u && u._needsLaravelAvatar;
@@ -199,19 +319,26 @@ initializeFirebase(function (app, auth, database, storage) {
             usernames: usernames.slice(0, 60),
         });
         if (!data) return;
+        const nameByUid = data.name_by_uid || {};
+        const nameByEmail = data.name_by_email || {};
+        const nameByUsername = data.name_by_username || {};
+        usersArray.forEach(function (u) {
+            applyLaravelPublicDisplayNameMap(u, nameByUid, nameByEmail, nameByUsername);
+        });
         const roleByUid = data.role_by_uid || {};
         const roleByEmail = data.role_by_email || {};
         const roleByUsername = data.role_by_username || {};
         usersArray.forEach(function (u) {
             applyLaravelRoleMap(u, roleByUid, roleByEmail, roleByUsername);
         });
-        if (!need.length) return;
         const byUid = data.by_uid || {};
         const byEmail = data.by_email || {};
         const byUsername = data.by_username || {};
-        need.forEach(function (u) {
-            applyLaravelAvatarMap(u, byUid, byEmail, byUsername);
-        });
+        if (need.length) {
+            need.forEach(function (u) {
+                applyLaravelAvatarMap(u, byUid, byEmail, byUsername);
+            });
+        }
     }
 
     function displayUsers(searchTerm = '') {
@@ -325,8 +452,13 @@ initializeFirebase(function (app, auth, database, storage) {
                     `;
                     group.forEach(user => {
                         const contact = contacts[user.uid] || {};
-                        const displayName = (contact.firstName || user.firstName || user.userName || user.mobile_number || user.email) + ' ' + (contact.lastName || user.lastName || '').trim();
-                        const listLabel = displayName.trim() || user.email || user.userName || "Unknown";
+                        const fallbackLine = (contact.firstName || user.firstName || user.userName || user.mobile_number || user.email) + ' ' + (contact.lastName || user.lastName || '').trim();
+                        const listLabel =
+                            (user.laravelPublicDisplayName && String(user.laravelPublicDisplayName).trim()) ||
+                            fallbackLine.trim() ||
+                            user.email ||
+                            user.userName ||
+                            "Unknown";
                         const imgSrcSafe = String(user.image || "").replace(/"/g, "&quot;");
                         const roleEsc = user.primaryRole
                             ? String(user.primaryRole).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
@@ -476,6 +608,8 @@ initializeFirebase(function (app, auth, database, storage) {
             return;
         }
 
+        dedupeContactDetailsModals();
+
         const gen = ++contactDetailFetchGeneration;
         const detailModal = getContactDetailsModalEl();
         const contactRef = ref(database, `data/contacts/${currentUserId}/${uid}`); // Reference to the contact data
@@ -510,11 +644,44 @@ initializeFirebase(function (app, auth, database, storage) {
             if (modalInput) modalInput.value = uid;
             const legacyEl = document.getElementById("edit-contact-user-id");
             if (legacyEl) legacyEl.value = uid;
-            // Name: contact first, then userData fallback; then mobile/email/userName
+            // Same display string as contact list: Laravel public_display_name (uid/email/username) first
             const firstName = (contactData.firstName || userData.firstName || "").trim();
             const lastName = (contactData.lastName || userData.lastName || "").trim();
             const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
-            const displayName = fullName || contactData.mobile_number || contactData.email || userData.userName || userData.mobile_number || userData.email || "—";
+            const fbUids = uid && String(uid).indexOf("pending_") !== 0 ? [uid] : [];
+            const emailList = [];
+            const unList = [];
+            if (contactData && contactData.email && String(contactData.email).trim()) {
+                emailList.push(String(contactData.email).trim().toLowerCase());
+            }
+            if (userData && userData.email && String(userData.email).trim()) {
+                const em = String(userData.email).trim().toLowerCase();
+                if (emailList.indexOf(em) < 0) emailList.push(em);
+            }
+            if (contactData && contactData.user_name && String(contactData.user_name).trim()) {
+                unList.push(String(contactData.user_name).trim());
+            }
+            if (userData && (userData.userName || userData.username)) {
+                const un = String(userData.userName || userData.username).trim();
+                if (un && unList.indexOf(un) < 0) unList.push(un);
+            }
+            const laravelMap = await fetchLaravelContactAvatars({
+                firebase_uids: fbUids,
+                emails: emailList,
+                usernames: unList,
+            });
+            const fromBatch = resolvePublicNameFromLaravelBatch(uid, contactData, userData, laravelMap);
+            const displayName =
+                fromBatch ||
+                fullName ||
+                contactData.mobile_number ||
+                contactData.email ||
+                userData.userName ||
+                userData.username ||
+                userData.user_name ||
+                userData.mobile_number ||
+                userData.email ||
+                "—";
             const nameEl =
                 (detailModal && detailModal.querySelector("#contact-detail-name")) ||
                 document.getElementById("contact-detail-name") ||
@@ -536,42 +703,20 @@ initializeFirebase(function (app, auth, database, storage) {
                         userData.photoURL ||
                         userData.avatar)) ||
                 "";
-            if (!rawAvatar) {
-                const fbUids = uid && String(uid).indexOf("pending_") !== 0 ? [uid] : [];
-                const emailList = [];
-                const unList = [];
-                if (contactData && contactData.email && String(contactData.email).trim())
-                    emailList.push(String(contactData.email).trim().toLowerCase());
-                if (userData && userData.email && String(userData.email).trim()) {
-                    const em = String(userData.email).trim().toLowerCase();
-                    if (emailList.indexOf(em) < 0) emailList.push(em);
-                }
-                if (contactData && contactData.user_name && String(contactData.user_name).trim())
-                    unList.push(String(contactData.user_name).trim());
-                if (userData && (userData.userName || userData.username)) {
-                    const un = String(userData.userName || userData.username).trim();
-                    if (un && unList.indexOf(un) < 0) unList.push(un);
-                }
-                const laravelMap = await fetchLaravelContactAvatars({
-                    firebase_uids: fbUids,
-                    emails: emailList,
-                    usernames: unList,
-                });
-                if (laravelMap) {
-                    const bu = laravelMap.by_uid || {};
-                    const be = laravelMap.by_email || {};
-                    const buser = laravelMap.by_username || {};
-                    if (fbUids.length && bu[uid]) rawAvatar = bu[uid];
-                    if (!rawAvatar && emailList.length) {
-                        for (let i = 0; i < emailList.length && !rawAvatar; i++) {
-                            if (be[emailList[i]]) rawAvatar = be[emailList[i]];
-                        }
+            if (!rawAvatar && laravelMap) {
+                const bu = laravelMap.by_uid || {};
+                const be = laravelMap.by_email || {};
+                const buser = laravelMap.by_username || {};
+                if (fbUids.length && bu[uid]) rawAvatar = bu[uid];
+                if (!rawAvatar && emailList.length) {
+                    for (let i = 0; i < emailList.length && !rawAvatar; i++) {
+                        if (be[emailList[i]]) rawAvatar = be[emailList[i]];
                     }
-                    if (!rawAvatar && unList.length) {
-                        for (let j = 0; j < unList.length && !rawAvatar; j++) {
-                            const k = String(unList[j]).toLowerCase();
-                            if (buser[k]) rawAvatar = buser[k];
-                        }
+                }
+                if (!rawAvatar && unList.length) {
+                    for (let j = 0; j < unList.length && !rawAvatar; j++) {
+                        const k = String(unList[j]).toLowerCase();
+                        if (buser[k]) rawAvatar = buser[k];
                     }
                 }
             }

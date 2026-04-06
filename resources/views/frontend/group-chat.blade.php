@@ -6,23 +6,18 @@
 
 @section('content')
 <style>
-/* Sidebar group three-dot dropdown */
+/* Sidebar group three-dot: use .chat-dropdown so theme absolute positioning applies */
 #group-list .chat-list {
     position: relative;
 }
-#group-list .chat-list .chat-drop {
-    position: absolute;
+#group-list .chat-list .chat-dropdown {
     right: 8px;
     top: 50%;
+    bottom: auto;
     transform: translateY(-50%);
-    opacity: 0;
-    transition: opacity 0.15s ease;
     z-index: 2;
 }
-#group-list .chat-list:hover .chat-drop {
-    opacity: 1;
-}
-#group-list .chat-list .chat-drop .group-sidebar-dots {
+#group-list .chat-list .chat-dropdown .group-sidebar-dots {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -32,7 +27,7 @@
     color: #6c757d;
     text-decoration: none;
 }
-#group-list .chat-list .chat-drop .group-sidebar-dots:hover {
+#group-list .chat-list .chat-dropdown .group-sidebar-dots:hover {
     background: rgba(0,0,0,0.08);
     color: #333;
 }
@@ -77,25 +72,39 @@
     font-size: 10px !important;
     line-height: 1;
 }
+/* Group thread: align messages from the top; flex-end left a tall empty band above messages */
+#group-area #chat-messages {
+    justify-content: flex-start;
+}
 /* Header overlapping member avatars */
 #header-member-avatars-wrap {
     margin-left: auto;
     margin-right: 8px;
     flex-shrink: 0;
+    align-self: center;
 }
 #header-member-avatars-wrap .header-member-stack {
     display: flex;
     align-items: center;
+    line-height: 0;
 }
 #header-member-avatars-wrap .header-member-stack .hm-avatar {
+    display: block;
     width: 32px;
     height: 32px;
+    min-width: 32px;
+    min-height: 32px;
     border-radius: 50%;
     border: 2px solid #fff;
     margin-left: -10px;
     object-fit: cover;
     background: #e9ecef;
     flex-shrink: 0;
+    box-sizing: border-box;
+}
+#header-member-avatars-wrap .header-member-stack .hm-avatar.hm-avatar-skeleton {
+    flex-shrink: 0;
+    border-style: solid;
 }
 #header-member-avatars-wrap .header-member-stack .hm-avatar:first-child {
     margin-left: 0;
@@ -118,6 +127,54 @@
 .darkmode #header-member-avatars-wrap .header-member-stack .hm-avatar,
 .darkmode #header-member-avatars-wrap .hm-count-badge {
     border-color: #0D0D0D;
+}
+/* Rich text / link previews: keep media inside the thread so they never read as a broken header */
+#group-area .message-content {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+#group-area .message-content img,
+#group-area .message-content iframe,
+#group-area .message-content video {
+    max-width: 100%;
+    height: auto;
+}
+/* Lock column layout on first paint: header above thread (theme .chat-header can wrap on small screens). */
+#middle.chat {
+    flex-direction: column !important;
+    min-height: 0;
+}
+#middle.chat > div:first-of-type {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+#middle.chat .chat-header {
+    flex-shrink: 0;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+}
+#middle.chat .chat-header .user-details .avatar img#group_image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+#middle.chat #group-area.chat-body {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow-x: hidden !important;
+}
+/* Theme hides .welcome-content below 1200px; on group-chat we still want the welcome pane before a group is chosen */
+@media (max-width: 1199.98px) {
+    #spa-page-content #welcome-container.welcome-content {
+        display: flex !important;
+        visibility: visible !important;
+    }
 }
 </style>
 
@@ -474,7 +531,7 @@
                                 <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#edit-group">
                                     <div class="profile-info flex-grow-1 pe-2">
                                         <h6 class="fs-16 mb-1">{{ __('Edit Group Settings') }}</h6>
-                                        <p class="text-muted small mb-0">{{ __('All Participants') }}</p>
+                                        <p class="text-muted small mb-0" id="group-setting-edit-label">{{ __('All Participants') }}</p>
                                     </div>
                                     <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
                                 </a>
@@ -486,7 +543,7 @@
                                                 {{ __('Send Messages') }}
                                             </button>
                                         </h2>
-                                        <p class="fs-14 text-muted mb-0 ps-3">{{ __('All Participants') }}</p>
+                                        <p class="fs-14 text-muted mb-0 ps-3" id="group-setting-send-label">{{ __('All Participants') }}</p>
                                         <div id="send-privacy-group-info" class="accordion-collapse collapse" data-bs-parent="#send-settings-group-info">
                                             <div class="accordion-body px-3 pt-2 pb-3">
                                                 <div class="form-check mb-3">
@@ -497,7 +554,7 @@
                                                     <input class="form-check-input" type="radio" name="group_send_messages" id="group-send-admins-only">
                                                     <label class="form-check-label" for="group-send-admins-only">{{ __('Only Admins') }}</label>
                                                 </div>
-                                                <button type="button" class="btn btn-primary w-100">{{ __('Save Changes') }}</button>
+                                                <button type="button" class="btn btn-primary w-100" id="group-send-messages-save-btn">{{ __('Save Changes') }}</button>
                                             </div>
                                         </div>
                                     </div>
@@ -506,7 +563,7 @@
                                 <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#approve-participants">
                                     <div class="profile-info flex-grow-1 pe-2">
                                         <h6 class="fs-16 mb-1">{{ __('Approve New Participants') }}</h6>
-                                        <p class="text-muted small mb-0">{{ __('Off') }}</p>
+                                        <p class="text-muted small mb-0" id="group-setting-approve-label">{{ __('Off') }}</p>
                                     </div>
                                     <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
                                 </a>
@@ -549,7 +606,7 @@
                         </div>
                         <div class="card contact-info-card border-0">
                             <div class="card-body p-0">
-                                <div id="members-container">
+                                <div id="members-container" class="pt-3">
                                 </div>
                                 <div class="text-center py-2 d-none" id="group-view-all-members">
                                     <a href="javascript:void(0);" class="small fw-medium text-primary" id="group-view-all-link">
@@ -1000,7 +1057,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <form onsubmit="return false">
+                <form id="approve-participants-form" onsubmit="return false">
                     <div class="block-wrap mb-3">
                         <p class="text-gray-9">
                             {{ __('When turned on, admins must approve anyone who wants to join this group.') }}
@@ -1021,7 +1078,7 @@
                             <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
                         </div>
                         <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100">Save</button>
+                            <button type="submit" class="btn btn-primary w-100" id="approve-participants-save-btn">Save</button>
                         </div>
                     </div>
                 </form>
@@ -1041,7 +1098,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <form onsubmit="return false">
+                <form id="edit-group-settings-form" onsubmit="return false">
                     <div class="block-wrap mb-3">
                         <p class="text-gray-9">
                             {{ __('Choose who can change this group\'s subject, icon, and description. They can also edit the disappearing message timer and keep or unkeep messages.') }}
@@ -1062,7 +1119,7 @@
                             <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
                         </div>
                         <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100">Save</button>
+                            <button type="submit" class="btn btn-primary w-100" id="edit-group-settings-save-btn">Save</button>
                         </div>
                     </div>
                 </form>

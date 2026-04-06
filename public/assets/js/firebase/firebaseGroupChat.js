@@ -56,6 +56,11 @@ onAuthStateChanged(auth, (user) => {
         fetchGroups();
         fetchGroupUsers(currentUserId);
         refetchGroupPickerIfModalOpen();
+        setTimeout(function () {
+            if (typeof applyGroupChatDeepLinkFromUrl === "function") {
+                applyGroupChatDeepLinkFromUrl();
+            }
+        }, 0);
     } else {
         // window.location.href = "/login";
     
@@ -332,12 +337,27 @@ async function renderHeaderMemberAvatars(groupData) {
         wrap.innerHTML = '';
         const stack = document.createElement('div');
         stack.className = 'header-member-stack';
+        stack.style.setProperty('display', 'flex', 'important');
+        stack.style.setProperty('align-items', 'center', 'important');
+        stack.style.setProperty('line-height', '0', 'important');
 
-        avatarUrls.forEach((url) => {
+        avatarUrls.forEach((url, idx) => {
             const img = document.createElement('img');
             img.className = 'hm-avatar';
             img.src = url;
             img.alt = '';
+            img.style.setProperty('width', '32px', 'important');
+            img.style.setProperty('height', '32px', 'important');
+            img.style.setProperty('min-width', '32px', 'important');
+            img.style.setProperty('min-height', '32px', 'important');
+            img.style.setProperty('object-fit', 'cover', 'important');
+            img.style.setProperty('border-radius', '50%', 'important');
+            img.style.setProperty('flex-shrink', '0', 'important');
+            img.style.setProperty('box-sizing', 'border-box', 'important');
+            img.style.setProperty('display', 'block', 'important');
+            img.style.setProperty('background', '#e9ecef', 'important');
+            img.style.setProperty('border', '2px solid #fff', 'important');
+            if (idx > 0) img.style.setProperty('margin-left', '-10px', 'important');
             stack.appendChild(img);
         });
 
@@ -345,6 +365,20 @@ async function renderHeaderMemberAvatars(groupData) {
             const badge = document.createElement('span');
             badge.className = 'hm-count-badge';
             badge.textContent = `${remaining}+`;
+            badge.style.setProperty('width', '32px', 'important');
+            badge.style.setProperty('height', '32px', 'important');
+            badge.style.setProperty('border-radius', '50%', 'important');
+            badge.style.setProperty('border', '2px solid #fff', 'important');
+            badge.style.setProperty('margin-left', '-10px', 'important');
+            badge.style.setProperty('background', '#6338f6', 'important');
+            badge.style.setProperty('color', '#fff', 'important');
+            badge.style.setProperty('font-size', '10px', 'important');
+            badge.style.setProperty('font-weight', '600', 'important');
+            badge.style.setProperty('display', 'flex', 'important');
+            badge.style.setProperty('align-items', 'center', 'important');
+            badge.style.setProperty('justify-content', 'center', 'important');
+            badge.style.setProperty('flex-shrink', '0', 'important');
+            badge.style.setProperty('box-sizing', 'border-box', 'important');
             stack.appendChild(badge);
         }
 
@@ -667,7 +701,10 @@ function bindDreamchatGroupCreateUi() {
         createdBy: currentUserId,
         admin:currentUserId,
         date: Date.now(),
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        settingsEditOnlyAdmins: false,
+        settingsSendOnlyAdmins: false,
+        settingsApproveJoin: false,
     };
     const resetStartGroupButton = () => {
         startGroupButton.disabled = false;
@@ -913,14 +950,6 @@ function bindDreamchatGroupCreateUi() {
 }
 
 bindDreamchatGroupCreateUi();
-if (typeof window !== "undefined") {
-    window.addEventListener("spa-page-applied", function (e) {
-        const path = e && e.detail && e.detail.pathname ? e.detail.pathname : "";
-        if (path === "/group-chat" || document.getElementById("new-group")) {
-            bindDreamchatGroupCreateUi();
-        }
-    });
-}
 
 // Function to close the popup
 function closePopup() {
@@ -940,6 +969,48 @@ let selectedGroupId = null; // Declare a variable to hold the selected group ID 
 let previousMessagesRef = null; // Store previous messages reference for detaching listeners
 /** Bumps on each fetchGroupInfo call so in-flight async work does not paint stale group data */
 let groupInfoRenderGeneration = 0;
+
+function applyGroupChatDeepLinkFromUrl() {
+    try {
+        const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
+        if (path !== "/group-chat" || !currentUserId) return;
+        const params = new URLSearchParams(window.location.search || "");
+        const gFromUrl = params.get("group");
+        if (!gFromUrl || !String(gFromUrl).trim()) return;
+        const gid = String(gFromUrl).trim();
+        selectedGroupId = gid;
+        window.__dreamchatSelectedGroupId = gid;
+        loadGroupDetails(gid);
+        loadGroupMessages(gid);
+        fetchGroupInfo(gid);
+        if (typeof window.__dreamchatEnsureChatPageVisible === "function") {
+            window.__dreamchatEnsureChatPageVisible();
+        }
+    } catch (e) {
+        /* ignore */
+    }
+}
+
+if (typeof window !== "undefined") {
+    window.addEventListener("spa-page-applied", function (e) {
+        const path = e && e.detail && e.detail.pathname ? e.detail.pathname : "";
+        if (path === "/group-chat" || document.getElementById("new-group")) {
+            bindDreamchatGroupCreateUi();
+        }
+        if (path === "/group-chat" && currentUserId) {
+            const params = new URLSearchParams(window.location.search || "");
+            const gFromUrl = params.get("group");
+            if (!gFromUrl || !String(gFromUrl).trim()) {
+                selectedGroupId = null;
+                window.__dreamchatSelectedGroupId = null;
+                if (typeof window.__dreamchatEnsureChatPageVisible === "function") {
+                    window.__dreamchatEnsureChatPageVisible();
+                }
+            }
+            applyGroupChatDeepLinkFromUrl();
+        }
+    });
+}
 
 function resetGroupInfoPanelPlaceholders() {
     const nameEl = document.getElementById("group-profile-name");
@@ -987,6 +1058,9 @@ function finalizeGroupCreateUI(fullGroupId) {
     loadGroupDetails(selectedGroupId);
     loadGroupMessages(selectedGroupId);
     fetchGroupInfo(selectedGroupId);
+    if (typeof window.__dreamchatEnsureChatPageVisible === "function") {
+        window.__dreamchatEnsureChatPageVisible();
+    }
 }
 
 function closeGroupInfoOffcanvas() {
@@ -1204,7 +1278,7 @@ function displayGroups(groups, currentUserId) {
                             </div>    
                         </div>
                     </a>
-                    <div class="chat-drop dropdown">
+                    <div class="chat-dropdown dropdown">
                         <a class="group-sidebar-dots" href="#" data-bs-toggle="dropdown">
                             <i class="ti ti-dots-vertical"></i>
                         </a>
@@ -1225,7 +1299,7 @@ function displayGroups(groups, currentUserId) {
         chatUsersWrap.querySelectorAll(".chat-list").forEach((group) => {
             group.addEventListener("click", (event) => {
                 if (event) event.preventDefault();
-                if (event.target.closest(".chat-drop")) return;
+                if (event.target.closest(".chat-dropdown")) return;
                 const newGroupId = group.getAttribute("data-group-id");
                 if (selectedGroupId && newGroupId && selectedGroupId !== newGroupId) {
                     closeGroupInfoOffcanvas();
@@ -1236,6 +1310,9 @@ function displayGroups(groups, currentUserId) {
                 }
                 loadGroupMessages(selectedGroupId);
                 loadGroupDetails(selectedGroupId);
+                if (typeof window.__dreamchatEnsureChatPageVisible === "function") {
+                    window.__dreamchatEnsureChatPageVisible();
+                }
             });
         });
     });
@@ -1325,7 +1402,15 @@ function loadGroupDetails(groupId) {
         .then((snapshot) => {
             if (snapshot.exists()) {
                 const groupData = snapshot.val();
-               
+
+                const _wc = document.getElementById("welcome-container");
+                if (_wc) _wc.style.setProperty("display", "none", "important");
+                const _mid = document.getElementById("middle");
+                if (_mid) {
+                    _mid.style.setProperty("display", "flex", "important");
+                    _mid.classList.add("message-panel-visible");
+                }
+
                 // Update group name and member count
                 document.getElementById("group-name").innerText = groupData.name; // Update group name
                 const groupIdField = document.getElementById("group_id");
@@ -1338,13 +1423,6 @@ function loadGroupDetails(groupId) {
                 );
                 document.getElementById("group-member-count").innerText = `${(groupData.userIds || []).length} Members`;
                 try { renderHeaderMemberAvatars(groupData); } catch (e) { /* safe */ }
-                const _wc = document.getElementById("welcome-container");
-                if (_wc) _wc.style.setProperty("display", "none", "important");
-                const _mid = document.getElementById("middle");
-                if (_mid) {
-                    _mid.style.setProperty("display", "flex", "important");
-                    _mid.classList.add("message-panel-visible");
-                }
 
                 // Load chat messages or any other group-specific data here if needed
                 loadChatMessages(groupId);
@@ -1483,6 +1561,32 @@ function syncGroupReadReceiptFromSnapshot(groupId, snapshot, loggedInUserId, ren
         .catch(() => {});
 }
 
+function hideBrokenImagesInGroupChat(container) {
+    if (!container || !container.querySelectorAll) return;
+    container.querySelectorAll("img").forEach((img) => {
+        img.addEventListener(
+            "error",
+            () => {
+                const wrap = img.closest(".image-preview-container");
+                img.style.display = "none";
+                if (wrap) wrap.style.display = "none";
+            },
+            { once: true }
+        );
+    });
+}
+
+/** Rich text / previews sometimes inject a lone "No Image" label when og:image is missing */
+function removeNoImagePlaceholders(container) {
+    if (!container || !container.querySelectorAll) return;
+    container.querySelectorAll(".message-content *").forEach((el) => {
+        if (el.children && el.children.length) return;
+        if ((el.textContent || "").trim() !== "No Image") return;
+        if (el.tagName === "IMG") return;
+        el.remove();
+    });
+}
+
 function loadGroupMessages(groupId) {
     highlightActiveGroup(groupId);
     const messagesRef = ref(database, `data/chats/${groupId}`);
@@ -1490,9 +1594,7 @@ function loadGroupMessages(groupId) {
         off(previousMessagesRef);
     }
     previousMessagesRef = messagesRef;
-    const messagesContainer = document.getElementById("chat-messages");
-
-    if (!messagesContainer) {
+    if (!document.getElementById("chat-messages")) {
         return;
     }
 
@@ -1501,6 +1603,11 @@ function loadGroupMessages(groupId) {
 
     onValue(messagesRef, async (snapshot) => {
         if (renderGen !== loadGroupMessagesGeneration) return;
+
+        const messagesContainer = document.getElementById("chat-messages");
+        if (!messagesContainer || !messagesContainer.isConnected) {
+            return;
+        }
 
         if (groupChatMessageFingerprint.groupId !== groupId) {
             groupChatMessageFingerprint = { groupId, fp: null };
@@ -1609,22 +1716,74 @@ function loadGroupMessages(groupId) {
             let messageContent = "";
             let replyContent = "";
 
-            if (messageData.attachmentType === 6) {
-                messageContent = await decryptlibsodiumMessage(messageData.body);
-            } else {
-                const attUrl =
-                    messageData.attachment &&
-                    normalizeChatMediaUrl(messageData.attachment.url);
-                if (messageData.attachmentType === 3) {
-                    messageContent = `<audio controls preload="metadata" src="${attUrl}"></audio>`;
-                } else if (messageData.attachmentType === 2) {
-                    messageContent = `<img src="${attUrl}" alt="Image Preview" class="message-image-preview video-style"></img>`;
-                } else if (messageData.attachmentType === 1) {
-                    messageContent = `<video width="200" controls src="${attUrl}"></video>`;
-                } else if (messageData.attachmentType === 5) {
-                    messageContent = `<a href="${attUrl}" target="_blank" download>Download ${messageData.fileName || 'File'}</a>`;
+            if (Number(messageData.attachmentType) === 6) {
+                const decrypted = await decryptlibsodiumMessage(messageData.body);
+                if (
+                    typeof decrypted === "string" &&
+                    /https?:\/\/(maps\.google\.com|goo\.gl)\//.test(decrypted.trim())
+                ) {
+                    const u = decrypted.trim();
+                    messageContent = `<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`;
                 } else {
-                    messageContent = "Unsupported message type.";
+                    messageContent = decrypted;
+                }
+            } else {
+                const att = messageData.attachment || {};
+                const attUrl = att.url ? normalizeChatMediaUrl(att.url) : "";
+                const t = Number(messageData.attachmentType);
+                switch (t) {
+                    case 4: {
+                        const uniqueId = `mapPreview-${messageKey}`;
+                        const mapImg = attUrl;
+                        const lat = att.lat;
+                        const lng = att.lng;
+                        const liveLink =
+                            att.link ||
+                            (lat != null && lng != null
+                                ? `https://maps.google.com/?q=${lat},${lng}`
+                                : "");
+                        if (!mapImg) {
+                            messageContent =
+                                '<span class="text-muted small">Location unavailable</span>';
+                            break;
+                        }
+                        messageContent = `
+                            <div class="image-preview-container" id="${uniqueId}">
+                                <a href="${liveLink || "#"}" target="_blank" rel="noopener noreferrer">
+                                    <img src="${mapImg}" alt="" class="message-image-preview video-style" loading="lazy">
+                                </a>
+                            </div>`;
+                        break;
+                    }
+                    case 2:
+                        if (!attUrl) {
+                            messageContent =
+                                '<span class="text-muted small">Image unavailable</span>';
+                            break;
+                        }
+                        messageContent = `
+						<div class="image-preview-container" id="imagePreview-${messageKey}">
+							<img src="${attUrl}" alt="" class="message-image-preview video-style" loading="lazy">
+						</div>`;
+                        break;
+                    case 3:
+                    case 8:
+                        messageContent = attUrl
+                            ? `<audio controls preload="metadata" src="${attUrl}"></audio>`
+                            : '<span class="text-muted small">Audio unavailable</span>';
+                        break;
+                    case 1:
+                        messageContent = attUrl
+                            ? `<video width="200" controls src="${attUrl}"></video>`
+                            : '<span class="text-muted small">Video unavailable</span>';
+                        break;
+                    case 5:
+                        messageContent = attUrl
+                            ? `<a href="${attUrl}" target="_blank" download>Download ${messageData.fileName || "File"}</a>`
+                            : '<span class="text-muted small">File unavailable</span>';
+                        break;
+                    default:
+                        messageContent = "Unsupported message type.";
                 }
             }
 
@@ -1653,6 +1812,12 @@ function loadGroupMessages(groupId) {
                                 break;
                             case "5":
                                 replyContent = `<div><i class="ti ti-file"></i> File</div>`;
+                                break;
+                            case "4":
+                                replyContent = `<div><i class="ti ti-map-pin"></i> Location</div>`;
+                                break;
+                            case "8":
+                                replyContent = `<div><i class="ti ti-microphone"></i> Audio</div>`;
                                 break;
                             default:
                                 replyContent = "<div>Unsupported reply content</div>";
@@ -1774,6 +1939,8 @@ function loadGroupMessages(groupId) {
         if (renderGen !== loadGroupMessagesGeneration) return;
 
         messagesContainer.innerHTML = htmlParts.filter(Boolean).join("");
+        hideBrokenImagesInGroupChat(messagesContainer);
+        removeNoImagePlaceholders(messagesContainer);
         groupChatMessageFingerprint.fp = contentFp;
         const groupScrollHost =
             document.getElementById("group-area") || messagesContainer;
@@ -2654,6 +2821,33 @@ async function sendCallNotification(toId, fromId, title, channelName, callerName
     } catch (error) { console.error('Error sending notification:', error); }
 }
 
+function isGroupAdminUid(groupData, uid) {
+    if (!groupData || !uid) return false;
+    return groupData.admin === uid || groupData.createdBy === uid;
+}
+
+function canMemberEditGroupMetadata(groupData, uid) {
+    if (!groupData || !uid) return false;
+    const ids = groupData.userIds || [];
+    if (!Array.isArray(ids) || !ids.includes(uid)) return false;
+    if (groupData.settingsEditOnlyAdmins === true) {
+        return isGroupAdminUid(groupData, uid);
+    }
+    return true;
+}
+
+function applyGroupSettingsLabelsToPanel(groupData) {
+    const editEl = document.getElementById("group-setting-edit-label");
+    const sendEl = document.getElementById("group-setting-send-label");
+    const apprEl = document.getElementById("group-setting-approve-label");
+    const onlyAdminsEdit = groupData && groupData.settingsEditOnlyAdmins === true;
+    const onlyAdminsSend = groupData && groupData.settingsSendOnlyAdmins === true;
+    const approveOn = groupData && groupData.settingsApproveJoin === true;
+    if (editEl) editEl.textContent = onlyAdminsEdit ? "Only Admins" : "All Participants";
+    if (sendEl) sendEl.textContent = onlyAdminsSend ? "Only Admins" : "All Participants";
+    if (apprEl) apprEl.textContent = approveOn ? "On" : "Off";
+}
+
 /**
  * Sends a message to a group chat, handling both new messages and replies.
  * This corrected version ensures the message ID is always included in the message data
@@ -2673,6 +2867,28 @@ async function sendGroupMessage(groupId, messageText, messageType = 'text', file
     }
 
     try {
+        const groupMetaSnap = await get(ref(database, `data/groups/${groupId}`));
+        if (!groupMetaSnap.exists()) {
+            console.error("Group not found for groupId:", groupId);
+            return;
+        }
+        const groupMeta = groupMetaSnap.val();
+        if (
+            groupMeta.settingsSendOnlyAdmins === true &&
+            !isGroupAdminUid(groupMeta, currentUserId)
+        ) {
+            if (typeof Toastify !== "undefined") {
+                Toastify({
+                    text: "Only admins can send messages in this group.",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ef4444",
+                }).showToast();
+            }
+            return;
+        }
+
         const groupMembersRef = ref(database, `data/groups/${groupId}/userIds`);
         const snapshot = await get(groupMembersRef);
 
@@ -3600,6 +3816,19 @@ async function fetchGroupInfo(groupId) {
 
     const groupData = snapshot.val();
 
+    try {
+        applyGroupSettingsLabelsToPanel(groupData);
+        const onlyAdminsSend = groupData.settingsSendOnlyAdmins === true;
+        const sendAll = document.getElementById("group-send-all");
+        const sendAdm = document.getElementById("group-send-admins-only");
+        if (sendAll && sendAdm) {
+            sendAll.checked = !onlyAdminsSend;
+            sendAdm.checked = onlyAdminsSend;
+        }
+    } catch (e) {
+        /* safe */
+    }
+
     if (nameEl) nameEl.textContent = groupData.name || "No Name";
     if (countEl) {
         countEl.textContent = `Group - ${
@@ -3708,7 +3937,7 @@ async function fetchGroupInfo(groupId) {
             memberElement.dataset.hiddenMember = "1";
         }
 
-        const isAdmin = groupData.createdBy === user.memberId;
+        const isAdmin = isGroupAdminUid(groupData, user.memberId);
 
         const statusText = user.status === "online" ? "Available" :
                            user.status === "busy" ? "Busy" :
@@ -4213,16 +4442,11 @@ const closeGroupBtnEl = document.getElementById('close-group-btn');
 if (closeGroupBtnEl) closeGroupBtnEl.addEventListener('click', function (event) {
     event.preventDefault(); // Prevent default link behavior
 
-    // Get the chat section by its ID
-    const chatSection = document.getElementById('middle');
-    const welcomeContainer = document.getElementById('welcome-container');
-
-    if (chatSection) {
-        chatSection.style.display = 'none'; // Hide the chat section
-        welcomeContainer.style.display = 'block';
-    }
     selectedGroupId = null;
     if (typeof window !== 'undefined') window.__dreamchatSelectedGroupId = null;
+    if (typeof window.__dreamchatEnsureChatPageVisible === 'function') {
+        window.__dreamchatEnsureChatPageVisible();
+    }
 });
 
 const clearGroupBtnEl = document.getElementById('clear-group-btn');
@@ -4670,12 +4894,11 @@ if (groupIconUploadEl) {
             }
 
             const groupData = groupSnap.val() || {};
-            const isAdmin =
-                groupData.admin === currentUserId ||
-                groupData.createdBy === currentUserId;
-            if (!isAdmin) {
+            if (!canMemberEditGroupMetadata(groupData, currentUserId)) {
                 Toastify({
-                    text: "Only group admin can change the icon.",
+                    text: groupData.settingsEditOnlyAdmins
+                        ? "Only group admins can change the icon."
+                        : "You cannot change the icon for this group.",
                     duration: 2500,
                     gravity: "top",
                     position: "right",
@@ -5243,6 +5466,146 @@ if (groupDisappearSaveBtn) {
                     }).showToast();
                 }
             });
+    });
+}
+
+async function persistGroupSettingsFields(groupId, updates) {
+    if (!groupId || !currentUserId) return false;
+    const groupRef = ref(database, `data/groups/${groupId}`);
+    const snap = await get(groupRef);
+    if (!snap.exists()) {
+        if (typeof Toastify !== "undefined") {
+            Toastify({
+                text: "Group not found.",
+                duration: 2500,
+                backgroundColor: "#ef4444",
+            }).showToast();
+        }
+        return false;
+    }
+    const gd = snap.val();
+    if (!isGroupAdminUid(gd, currentUserId)) {
+        if (typeof Toastify !== "undefined") {
+            Toastify({
+                text: "Only a group admin can change this.",
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#ef4444",
+            }).showToast();
+        }
+        return false;
+    }
+    await update(groupRef, { ...updates, settingsUpdatedAt: Date.now() });
+    fetchGroupInfo(groupId);
+    if (typeof Toastify !== "undefined") {
+        Toastify({
+            text: "Settings saved.",
+            duration: 2500,
+            gravity: "top",
+            position: "right",
+            backgroundColor: "#22c55e",
+        }).showToast();
+    }
+    return true;
+}
+
+async function syncEditGroupSettingsModalFromFirebase() {
+    if (!selectedGroupId) return;
+    try {
+        const snap = await get(ref(database, `data/groups/${selectedGroupId}`));
+        const onlyAdmins = snap.exists() && snap.val().settingsEditOnlyAdmins === true;
+        const edit1 = document.getElementById("edit1");
+        const edit2 = document.getElementById("edit2");
+        if (edit1 && edit2) {
+            edit1.checked = !onlyAdmins;
+            edit2.checked = onlyAdmins;
+        }
+    } catch (e) {
+        /* ignore */
+    }
+}
+
+async function syncApproveModalFromFirebase() {
+    if (!selectedGroupId) return;
+    try {
+        const snap = await get(ref(database, `data/groups/${selectedGroupId}`));
+        const on = snap.exists() && snap.val().settingsApproveJoin === true;
+        const a1 = document.getElementById("approve1");
+        const a2 = document.getElementById("approve2");
+        if (a1 && a2) {
+            a1.checked = !on;
+            a2.checked = on;
+        }
+    } catch (e) {
+        /* ignore */
+    }
+}
+
+const editGroupSettingsModalEl = document.getElementById("edit-group");
+if (editGroupSettingsModalEl) {
+    editGroupSettingsModalEl.addEventListener("show.bs.modal", function () {
+        syncEditGroupSettingsModalFromFirebase();
+    });
+}
+
+const editGroupSettingsForm = document.getElementById("edit-group-settings-form");
+if (editGroupSettingsForm) {
+    editGroupSettingsForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        if (!selectedGroupId) return;
+        const edit2 = document.getElementById("edit2");
+        const onlyAdmins = !!(edit2 && edit2.checked);
+        const ok = await persistGroupSettingsFields(selectedGroupId, {
+            settingsEditOnlyAdmins: onlyAdmins,
+        });
+        if (ok && editGroupSettingsModalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+            const m = bootstrap.Modal.getInstance(editGroupSettingsModalEl);
+            if (m) m.hide();
+        }
+    });
+}
+
+const approveParticipantsModalEl = document.getElementById("approve-participants");
+if (approveParticipantsModalEl) {
+    approveParticipantsModalEl.addEventListener("show.bs.modal", function () {
+        syncApproveModalFromFirebase();
+    });
+}
+
+const approveParticipantsForm = document.getElementById("approve-participants-form");
+if (approveParticipantsForm) {
+    approveParticipantsForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        if (!selectedGroupId) return;
+        const approve2 = document.getElementById("approve2");
+        const on = !!(approve2 && approve2.checked);
+        const ok = await persistGroupSettingsFields(selectedGroupId, {
+            settingsApproveJoin: on,
+        });
+        if (ok && approveParticipantsModalEl && bootstrap.Modal) {
+            const m = bootstrap.Modal.getInstance(approveParticipantsModalEl);
+            if (m) m.hide();
+        }
+    });
+}
+
+const groupSendMessagesSaveBtn = document.getElementById("group-send-messages-save-btn");
+if (groupSendMessagesSaveBtn) {
+    groupSendMessagesSaveBtn.addEventListener("click", async function () {
+        if (!selectedGroupId) return;
+        const adm = document.getElementById("group-send-admins-only");
+        const onlyAdmins = !!(adm && adm.checked);
+        const ok = await persistGroupSettingsFields(selectedGroupId, {
+            settingsSendOnlyAdmins: onlyAdmins,
+        });
+        if (ok) {
+            const collapseEl = document.getElementById("send-privacy-group-info");
+            if (collapseEl && typeof bootstrap !== "undefined" && bootstrap.Collapse) {
+                const inst = bootstrap.Collapse.getInstance(collapseEl);
+                if (inst) inst.hide();
+            }
+        }
     });
 }
 

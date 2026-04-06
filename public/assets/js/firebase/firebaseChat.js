@@ -11477,9 +11477,16 @@ initializeFirebase(function (app, auth, database, storage) {
         const urlGroup = searchParams.get("group");
         let hasSelectedUser;
         if (path === "/group-chat") {
+            // Only treat a group as "selected" for layout when the user opened it this session
+            // (window.__dreamchatSelectedGroupId) or the URL has ?group=. Do not use localStorage —
+            // it caused the empty chat shell ("Select a group") to show before clicking a group.
+            const gid =
+                typeof window !== "undefined" && window.__dreamchatSelectedGroupId
+                    ? String(window.__dreamchatSelectedGroupId).trim()
+                    : "";
             hasSelectedUser = !!(
                 (urlGroup && String(urlGroup).trim()) ||
-                (typeof window !== "undefined" && window.__dreamchatSelectedGroupId)
+                gid
             );
         } else {
             hasSelectedUser = !!(urlPeer || selectedUserId);
@@ -11532,15 +11539,21 @@ initializeFirebase(function (app, auth, database, storage) {
         if (auth.currentUser && !hasSelectedUser) fetchUsers();
     }
 
+    window.__dreamchatEnsureChatPageVisible = ensureChatPageVisible;
+
     function guardWelcomeVisible() {
         const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
         const params = new URLSearchParams(window.location.search || "");
         const gUrl = params.get("user");
         const gGroup = params.get("group");
         if (path === "/group-chat") {
+            const gid =
+                typeof window !== "undefined" && window.__dreamchatSelectedGroupId
+                    ? String(window.__dreamchatSelectedGroupId).trim()
+                    : "";
             if (
                 (gGroup && String(gGroup).trim()) ||
-                (typeof window !== "undefined" && window.__dreamchatSelectedGroupId)
+                gid
             ) {
                 return;
             }
