@@ -1012,6 +1012,89 @@ if (typeof window !== "undefined") {
 // Function to display groups and set click event listeners
 let displayGroupsGeneration = 0;
 
+function updateGroupSidebarUnreadBadge(groupId, count) {
+    const row = document.querySelector(
+        `#group-list .chat-list[data-group-id="${groupId}"]`
+    );
+    if (!row) return;
+    const span = row.querySelector(".count-message");
+    if (!span) return;
+    const n = Math.max(0, Math.floor(Number(count)) || 0);
+    if (n > 0) {
+        span.textContent = String(n);
+        span.style.display = "inline-block";
+    } else {
+        span.textContent = "";
+        span.style.display = "none";
+    }
+}
+
+/** One RTDB read of the chat + per-user read state; used for sidebar preview and red unread count. */
+function getGroupSidebarMeta(groupId) {
+    const uid = currentUserId;
+    if (!uid) {
+        return Promise.resolve({
+            latestMessage: null,
+            unreadCount: 0,
+            latestMessageTimestamp: null,
+        });
+    }
+    const messagesRef = ref(database, `data/chats/${groupId}`);
+    return Promise.all([
+        get(messagesRef),
+        get(ref(database, `data/users/${uid}/group_last_read/${groupId}`)),
+        get(ref(database, `data/users/${uid}/unread_groups/${groupId}`)),
+    ])
+        .then(([snap, lastReadSnap, manualSnap]) => {
+            let lastReadTs = 0;
+            if (lastReadSnap.exists()) {
+                const v = Number(lastReadSnap.val());
+                lastReadTs = Number.isFinite(v) ? v : 0;
+            }
+            let manualMarked = false;
+            if (manualSnap.exists()) {
+                const v = manualSnap.val();
+                manualMarked = !!(v && typeof v === "object" && v.marked);
+            }
+
+            if (!snap.exists()) {
+                return {
+                    latestMessage: null,
+                    unreadCount: manualMarked ? 1 : 0,
+                    latestMessageTimestamp: null,
+                };
+            }
+
+            const messagesVal = snap.val();
+            const messageArray = Object.values(messagesVal);
+            const latestMessage = messageArray.reduce((latest, current) => {
+                const ca = Number(current.timestamp || 0);
+                const la = Number(latest.timestamp || 0);
+                return ca > la ? current : latest;
+            });
+
+            let unreadCount = 0;
+            for (let i = 0; i < messageArray.length; i++) {
+                const m = messageArray[i];
+                if (!m || m.senderId === uid) continue;
+                const ts = Number(m.timestamp || m.date || 0);
+                if (ts > lastReadTs) unreadCount++;
+            }
+            if (manualMarked) unreadCount = Math.max(unreadCount, 1);
+
+            return {
+                latestMessage,
+                unreadCount,
+                latestMessageTimestamp: latestMessage ? latestMessage.timestamp : null,
+            };
+        })
+        .catch(() => ({
+            latestMessage: null,
+            unreadCount: 0,
+            latestMessageTimestamp: null,
+        }));
+}
+
 function displayGroups(groups, currentUserId) {
     if (!groups || typeof groups !== 'object') return;
     const chatUsersWrap = document.querySelector("#group-list");
@@ -1023,8 +1106,9 @@ function displayGroups(groups, currentUserId) {
         const group = groups[groupId];
 
         if (group.userIds && group.userIds.includes(currentUserId)) {
-            return getLatestMessageForGroup(groupId)
-                .then(async latestMessage => {
+            return getGroupSidebarMeta(groupId)
+                .then(async (meta) => {
+                    const latestMessage = meta.latestMessage;
                     let displayMessage = "";
                     if (latestMessage) {
                         const messageType = latestMessage.attachmentType || "unknown";
@@ -1051,15 +1135,20 @@ function displayGroups(groups, currentUserId) {
                     return {
                         groupId,
                         ...group,
-                        latestMessageTimestamp: latestMessage ? latestMessage.timestamp : group.date,
-                        displayMessage
+                        latestMessageTimestamp:
+                            meta.latestMessageTimestamp != null
+                                ? meta.latestMessageTimestamp
+                                : group.date,
+                        displayMessage,
+                        unreadCount: meta.unreadCount || 0,
                     };
                 })
                 .catch(() => ({
                     groupId,
                     ...group,
                     latestMessageTimestamp: group.date,
-                    displayMessage: ""
+                    displayMessage: "",
+                    unreadCount: 0,
                 }));
         } else {
             return Promise.resolve(null);
@@ -1091,6 +1180,9 @@ function displayGroups(groups, currentUserId) {
             const pinIconClass = isPinned ? 'ti-pinned-off' : 'ti-pin';
             const archiveLabel = isArchived ? 'Unarchive Group' : 'Archive Group';
             const archiveIconClass = isArchived ? 'ti-archive-off' : 'ti-archive';
+            const uc = Number(group.unreadCount) || 0;
+            const unreadBadgeDisplay = uc > 0 ? "inline-block" : "none";
+            const unreadBadgeText = uc > 0 ? String(uc) : "";
 
             return `
                 <div class="chat-list${archivedClass}" data-group-id="${group.groupId}">
@@ -1107,6 +1199,7 @@ function displayGroups(groups, currentUserId) {
                                 <span class="time">${formattedTime}</span>
                                 <div class="chat-pin">
                                     ${pinIcon}
+                                    <span class="count-message fs-12 fw-semibold" style="display:${unreadBadgeDisplay}">${unreadBadgeText}</span>
                                 </div>
                             </div>    
                         </div>
@@ -1174,29 +1267,6 @@ function formatedTimestamp(timestamp) {
     const month = (date.getMonth() + 1).toString().padStart(2, "0"); // Month is 0-based
     const year = date.getFullYear();
     return `${month}/${day}/${year}`;
-}
-
-function getLatestMessageForGroup(groupId) {
-    const messagesRef = ref(database, `data/chats/${groupId}`);
-
-    // Query to get the last message
-    return get(messagesRef)
-        .then(snapshot => {
-            if (snapshot.exists()) {
-                const messages = snapshot.val();
-                const messageArray = Object.values(messages);
-                const latestMessage = messageArray.reduce((latest, current) => {
-                    return current.timestamp > latest.timestamp ? current : latest;
-                });
-                return latestMessage;
-            } else {
-                return null; // No messages found
-            }
-        })
-        .catch(error => {
-            return null; // Return null if there's an error
-        });
-        
 }
 
 // Function to format the timestamp into a readable time
@@ -1386,6 +1456,32 @@ let groupChatMessageFingerprint = { groupId: null, fp: null };
 
 let loadGroupMessagesGeneration = 0;
 let cachedUsers = null;
+
+function syncGroupReadReceiptFromSnapshot(groupId, snapshot, loggedInUserId, renderGen) {
+    if (renderGen !== loadGroupMessagesGeneration) return;
+    if (groupId !== selectedGroupId) return;
+    if (!loggedInUserId || !snapshot.exists()) return;
+    let maxTs = 0;
+    snapshot.forEach((child) => {
+        const v = child.val();
+        if (!v) return;
+        if (!groupMessageVisibleForViewer(v, loggedInUserId)) return;
+        const t = Number(v.timestamp || v.date || 0);
+        if (t > maxTs) maxTs = t;
+    });
+    if (maxTs <= 0) return;
+    const lastReadRef = ref(database, `data/users/${loggedInUserId}/group_last_read/${groupId}`);
+    const manualUnreadRef = ref(database, `data/users/${loggedInUserId}/unread_groups/${groupId}`);
+    Promise.all([
+        set(lastReadRef, maxTs),
+        remove(manualUnreadRef).catch(() => {}),
+    ])
+        .then(() => {
+            if (renderGen !== loadGroupMessagesGeneration) return;
+            updateGroupSidebarUnreadBadge(groupId, 0);
+        })
+        .catch(() => {});
+}
 
 function loadGroupMessages(groupId) {
     highlightActiveGroup(groupId);
@@ -1682,6 +1778,12 @@ function loadGroupMessages(groupId) {
         const groupScrollHost =
             document.getElementById("group-area") || messagesContainer;
         groupScrollHost.scrollTop = groupScrollHost.scrollHeight;
+        syncGroupReadReceiptFromSnapshot(
+            groupId,
+            snapshot,
+            loggedInUserId,
+            renderGen
+        );
     });
 }
 
@@ -2662,6 +2764,16 @@ async function sendGroupMessage(groupId, messageText, messageType = 'text', file
         // ====================================================================
         const newMessageRef = ref(database, `data/chats/${groupId}/${newMessageKey}`);
         await set(newMessageRef, finalMessageData);
+
+        try {
+            await update(ref(database, `data/groups/${groupId}`), {
+                lastMessageAt: Date.now(),
+            });
+        } catch (e) {
+            if (typeof console !== "undefined" && console.warn) {
+                console.warn("Group lastMessageAt update failed (sidebar may lag):", e);
+            }
+        }
 
         // --- UI and State Updates after successful send ---
         if (replyToMessage) {
@@ -5394,18 +5506,7 @@ async function markGroupUnread(gid) {
     try {
         const unreadRef = ref(database, `data/users/${currentUserId}/unread_groups/${gid}`);
         await set(unreadRef, { marked: true, updatedAt: Date.now() });
-        const chatListEl = document.querySelector(`#group-list .chat-list[data-group-id="${gid}"]`);
-        if (chatListEl) {
-            let badge = chatListEl.querySelector(".unread-badge");
-            if (!badge) {
-                badge = document.createElement("span");
-                badge.className = "unread-badge badge bg-primary rounded-pill ms-1";
-                badge.style.fontSize = "10px";
-                badge.textContent = "●";
-                const pinDiv = chatListEl.querySelector(".chat-pin");
-                if (pinDiv) pinDiv.appendChild(badge);
-            }
-        }
+        refreshGroupsList();
         Toastify({ text: "Marked as unread.", duration: 2000, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
     } catch (e) { console.error("Unread error:", e); }
 }
