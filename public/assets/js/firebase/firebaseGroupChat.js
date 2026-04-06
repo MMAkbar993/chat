@@ -1012,6 +1012,17 @@ if (typeof window !== "undefined") {
     });
 }
 
+/** Resolves the open group when opening the info offcanvas (SPA may clear selectedGroupId; #group_id stays set after loadGroupDetails). */
+function getActiveGroupIdForGroupInfo() {
+    if (selectedGroupId) return selectedGroupId;
+    if (typeof window !== "undefined" && window.__dreamchatSelectedGroupId) {
+        return window.__dreamchatSelectedGroupId;
+    }
+    const inp = document.getElementById("group_id");
+    const v = inp && inp.value ? String(inp.value).trim() : "";
+    return v || null;
+}
+
 function resetGroupInfoPanelPlaceholders() {
     const nameEl = document.getElementById("group-profile-name");
     if (nameEl) nameEl.textContent = "";
@@ -4233,18 +4244,29 @@ if (editAdminSearchInput) {
     });
 }
 
-const contactProfileOffcanvas = document.getElementById("contact-profile");
-if (contactProfileOffcanvas) {
-    contactProfileOffcanvas.addEventListener("show.bs.offcanvas", function () {
-        resetGroupInfoPanelPlaceholders();
-        const groupId =
-            selectedGroupId ||
-            (typeof window !== "undefined" ? window.__dreamchatSelectedGroupId : null);
-        fetchGroupInfo(groupId);
-        if (groupId && currentUserId) {
-            checkAdminAccess(groupId, currentUserId);
+function handleGroupContactProfileOffcanvasShow() {
+    resetGroupInfoPanelPlaceholders();
+    const groupId = getActiveGroupIdForGroupInfo();
+    fetchGroupInfo(groupId);
+    if (groupId && currentUserId) {
+        checkAdminAccess(groupId, currentUserId);
+    }
+    refreshGroupFavouritesBadgeCount();
+}
+
+// Delegate: #contact-profile is injected when SPA navigates to /group-chat after module load; a one-time
+// getElementById at parse time often misses the node, so group info stayed empty until a full refresh.
+if (typeof document !== "undefined") {
+    document.addEventListener("show.bs.offcanvas", function (e) {
+        try {
+            const el = e.target;
+            if (!el || el.id !== "contact-profile") return;
+            const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
+            if (path !== "/group-chat") return;
+            handleGroupContactProfileOffcanvasShow();
+        } catch (err) {
+            /* ignore */
         }
-        refreshGroupFavouritesBadgeCount();
     });
 }
 
