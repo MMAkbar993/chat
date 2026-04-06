@@ -1141,7 +1141,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         users.forEach(u => {
                             const div = document.createElement("div");
                             div.className = "d-flex align-items-center justify-content-between p-2 border-bottom";
-                            const displayName = u.full_name || [u.first_name, u.last_name].filter(Boolean).join(" ") || u.user_name || "User";
+                            const displayName = u.display_name || u.full_name || [u.first_name, u.last_name].filter(Boolean).join(" ") || u.user_name || "User";
                             const safe = (v) => (v != null ? String(v).replace(/"/g, "&quot;").replace(/</g, "&lt;") : "");
                             const avatarSrc = safe(resolveProfileImageUrl(u.profile_image || ""));
                             const profileEnc = encodeURIComponent(u.profile_image || "");

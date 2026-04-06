@@ -77,6 +77,48 @@
     font-size: 10px !important;
     line-height: 1;
 }
+/* Header overlapping member avatars */
+#header-member-avatars-wrap {
+    margin-left: auto;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+#header-member-avatars-wrap .header-member-stack {
+    display: flex;
+    align-items: center;
+}
+#header-member-avatars-wrap .header-member-stack .hm-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    margin-left: -10px;
+    object-fit: cover;
+    background: #e9ecef;
+    flex-shrink: 0;
+}
+#header-member-avatars-wrap .header-member-stack .hm-avatar:first-child {
+    margin-left: 0;
+}
+#header-member-avatars-wrap .hm-count-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    margin-left: -10px;
+    background: #6338f6;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.darkmode #header-member-avatars-wrap .header-member-stack .hm-avatar,
+.darkmode #header-member-avatars-wrap .hm-count-badge {
+    border-color: #0D0D0D;
+}
 </style>
 
 <!-- content -->
@@ -108,6 +150,7 @@
                         </p>
                     </div>
                 </div>
+                <div class="d-flex align-items-center gap-2" id="header-member-avatars-wrap" style="display:none !important;"></div>
                 <div class="chat-options">
                     <ul>
 

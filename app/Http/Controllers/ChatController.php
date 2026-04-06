@@ -84,10 +84,7 @@ class ChatController extends Controller
         foreach ($chats as $m) {
             $otherId = (int) $m->sender_id === (int) $userId ? $m->receiver_id : $m->sender_id;
             $other = $usersById->get((int) $otherId);
-            $name = $other ? trim(($other->first_name ?? '') . ' ' . ($other->last_name ?? '')) : ('User ' . $otherId);
-            if ($name === '' && $other) {
-                $name = $other->user_name ?? $other->email ?? ('User ' . $otherId);
-            }
+            $name = $other ? $other->public_display_name : ('User ' . $otherId);
             $list[] = [
                 'other_user_id' => $otherId,
                 'other_user' => $other ? [

@@ -10607,14 +10607,14 @@ initializeFirebase(function (app, auth, database, storage) {
                     joinAudioEl.classList.add('d-none');
                     joinAudioEl.classList.remove('d-flex');
                 }
-                $('#audio-call-modal .modal-title').text('Calling...');
+                $('#audio-call-modal .modal-title').text('Calling…');
             } else {
                 if (joinAudioEl) {
                     joinAudioEl.classList.remove('d-none');
                     joinAudioEl.classList.add('d-flex');
                     joinAudioEl.style.removeProperty('display');
                 }
-                $('#audio-call-modal .modal-title').text('Incoming Audio Call...');
+                $('#audio-call-modal .modal-title').text('Incoming audio call');
             }
             
             $('#audio-call-modal').modal('show');

@@ -927,9 +927,11 @@ function displayUserDetails(user) {
             el.src = (src || imageUrl) || 'assets/img/profiles/avatar-03.jpg';
         }
     };
-    setText('profile-name', user.username || (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
-    setText('profile-info-name', (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
-    setText('profile-info-chat-name', (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
+    const lu = (typeof window !== 'undefined' && window.LARAVEL_USER) ? window.LARAVEL_USER : null;
+    const preferredName = (lu && lu.public_display_name) || '';
+    setText('profile-name', preferredName || user.username || (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
+    setText('profile-info-name', preferredName || (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
+    setText('profile-info-chat-name', preferredName || (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
     setText('profile-info-email', user.email || 'No Email');
     setText('profile-info-phone', user.mobile_number || 'No Phone');
     setText('profile-info-country', user.country || 'No Country');

@@ -35,6 +35,7 @@ class UserSearchController extends Controller
                 $selectColumns = [
                     'id', 'first_name', 'last_name', 'full_name', 'user_name',
                     'company_name', 'primary_role', 'country', 'profile_image', 'kyc_verified_at',
+                    'profile_display_name',
                 ];
                 if ($hasFirebaseUid) {
                     $selectColumns[] = 'firebase_uid';
@@ -56,6 +57,7 @@ class UserSearchController extends Controller
                             'last_name' => $user->last_name,
                             'full_name' => $user->full_name,
                             'user_name' => $user->user_name,
+                            'display_name' => $user->public_display_name,
                             'company_name' => $user->company_name,
                             'primary_role' => $user->primary_role,
                             'country' => $user->country,
@@ -298,18 +300,12 @@ class UserSearchController extends Controller
         $hasFb = Schema::hasColumn($table, 'firebase_uid');
 
         $displayNameFromUser = static function ($u) {
-            $fn = trim((string) ($u->first_name ?? ''));
-            $ln = trim((string) ($u->last_name ?? ''));
-            $full = trim((string) ($u->full_name ?? ''));
-            $un = trim((string) ($u->user_name ?? ''));
-            $combined = trim($fn.' '.$ln);
-
-            return $full !== '' ? $full : ($combined !== '' ? $combined : ($un !== '' ? $un : ''));
+            return $u->public_display_name;
         };
 
         if ($hasFb && count($firebaseUids) > 0) {
             User::whereIn('firebase_uid', $firebaseUids)
-                ->get(['firebase_uid', 'profile_image', 'primary_role', 'other_role_text', 'first_name', 'last_name', 'full_name', 'user_name'])
+                ->get(['firebase_uid', 'profile_image', 'primary_role', 'other_role_text', 'first_name', 'last_name', 'full_name', 'user_name', 'profile_display_name', 'kyc_verified_at'])
                 ->each(function ($u) use (&$byUid, &$nameByUid, &$roleByUid, $displayNameFromUser) {
                     if (! empty($u->firebase_uid)) {
                         $byUid[$u->firebase_uid] = $u->profile_image_link;
@@ -334,7 +330,7 @@ class UserSearchController extends Controller
                         $q->orWhereRaw('LOWER(email) = ?', [$le]);
                     }
                 }
-            })->get(['email', 'profile_image', 'primary_role', 'other_role_text', 'first_name', 'last_name', 'full_name', 'user_name'])->each(function ($u) use (&$byEmail, &$nameByEmail, &$roleByEmail, $displayNameFromUser) {
+            })->get(['email', 'profile_image', 'primary_role', 'other_role_text', 'first_name', 'last_name', 'full_name', 'user_name', 'profile_display_name', 'kyc_verified_at'])->each(function ($u) use (&$byEmail, &$nameByEmail, &$roleByEmail, $displayNameFromUser) {
                 $byEmail[mb_strtolower($u->email)] = $u->profile_image_link;
                 $dn = $displayNameFromUser($u);
                 if ($dn !== '') {
@@ -355,7 +351,7 @@ class UserSearchController extends Controller
             if (count($normalizedUsernames) > 0) {
                 User::whereIn('user_name', $normalizedUsernames)
                     ->orWhereRaw('LOWER(user_name) in (' . implode(',', array_fill(0, count($normalizedUsernames), '?')) . ')', $normalizedUsernames)
-                    ->get(['user_name', 'profile_image', 'primary_role', 'other_role_text', 'first_name', 'last_name', 'full_name'])
+                    ->get(['user_name', 'profile_image', 'primary_role', 'other_role_text', 'first_name', 'last_name', 'full_name', 'profile_display_name', 'kyc_verified_at'])
                     ->each(function ($user) use (&$byUsername, &$nameByUsername, &$roleByUsername, $displayNameFromUser) {
                         if (! $user->user_name) {
                             return;

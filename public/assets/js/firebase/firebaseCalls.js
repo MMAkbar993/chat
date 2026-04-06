@@ -340,7 +340,30 @@ function escapeAttr(s) {
 async function getUserDisplayName(userId) {
     if (!userId) return "Unknown User";
 
-    // 1. Try current user's contacts (same path as contact list: data/contacts/{currentUid}/{otherUid})
+    // 0. If this is the logged-in user, prefer their chosen display name
+    if (currentUser && userId === currentUser.uid && window.LARAVEL_USER && window.LARAVEL_USER.public_display_name) {
+        return window.LARAVEL_USER.public_display_name;
+    }
+
+    // 1. Try Laravel batch API for the display name preference
+    try {
+        const baseUrl = (typeof APP_URL !== "undefined" && APP_URL ? String(APP_URL).replace(/\/$/, "") : window.location.origin) || "";
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        const csrf = csrfMeta ? csrfMeta.getAttribute("content") : "";
+        const res = await fetch(baseUrl + "/api/users/contact-avatars", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json", "X-Requested-With": "XMLHttpRequest", ...(csrf ? { "X-CSRF-TOKEN": csrf } : {}) },
+            credentials: "same-origin",
+            body: JSON.stringify({ firebase_uids: [userId] }),
+        });
+        if (res.ok) {
+            const data = await res.json();
+            const name = (data.name_by_uid || {})[userId];
+            if (name) return name;
+        }
+    } catch (e) { /* fall through */ }
+
+    // 2. Try current user's contacts
     const contactRef = ref(database, `data/contacts/${currentUser.uid}/${userId}`);
     const contactSnapshot = await get(contactRef);
     if (contactSnapshot.exists()) {
@@ -352,7 +375,7 @@ async function getUserDisplayName(userId) {
         if (data.mobile_number) return data.mobile_number;
     }
 
-    // 2. Fallback to the main users collection
+    // 3. Fallback to the main users collection
     const userRef = ref(database, `data/users/${userId}`);
     const userSnapshot = await get(userRef);
     if (userSnapshot.exists()) {

@@ -58,12 +58,12 @@ class FirebaseSyncService
 
         $uid = null;
         try {
-            $displayName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+            $displayName = $user->public_display_name;
             $created = $auth->createUser([
                 'email' => $user->email,
                 'emailVerified' => false,
                 'password' => $plainPassword,
-                'displayName' => $displayName !== '' ? $displayName : ($user->user_name ?? $user->email),
+                'displayName' => $displayName !== '' && $displayName !== 'User' ? $displayName : ($user->user_name ?? $user->email),
                 'disabled' => false,
             ]);
             $uid = $created->uid;

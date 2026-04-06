@@ -158,6 +158,9 @@ function rawAvatarFromUserAndContact(userData, contactData) {
 
 /** Name for group info sidebar — contacts may exist but lack names; users may use user_name / mobile only */
 function buildGroupParticipantDisplayName(contactData, userData) {
+    if (userData && userData.public_display_name) {
+        return String(userData.public_display_name).trim();
+    }
     if (contactData && typeof contactData === "object" && contactData.firstName) {
         const n = `${contactData.firstName} ${contactData.lastName || ""}`.trim();
         if (n) return n;
@@ -207,6 +210,7 @@ function mergeLaravelProfileIfSelf(memberId, userData) {
     fill("email", lu.email);
     fill("profile_image", lu.profile_image || lu.image);
     fill("image", lu.image || lu.profile_image);
+    fill("public_display_name", lu.public_display_name);
     if (empty(base.firstName) && empty(base.lastName) && lu.full_name) {
         const parts = String(lu.full_name).trim().split(/\s+/);
         if (parts.length) {
@@ -272,6 +276,85 @@ async function enrichGroupMembersWithLaravelBatch(members) {
     }
 }
 
+/**
+ * Populate the overlapping member-avatar strip in the group chat header.
+ * Shows up to MAX_HEADER_AVATARS thumbnails + a "+N" badge for the rest.
+ * Also updates the member-count line with an online count.
+ */
+const MAX_HEADER_AVATARS = 4;
+async function renderHeaderMemberAvatars(groupData) {
+    try {
+        const wrap = document.getElementById('header-member-avatars-wrap');
+        if (!wrap) return;
+
+        const userIds = Array.isArray(groupData && groupData.userIds) ? groupData.userIds : [];
+        if (userIds.length === 0) {
+            wrap.style.setProperty('display', 'none', 'important');
+            return;
+        }
+
+        const visible = userIds.slice(0, MAX_HEADER_AVATARS);
+        const remaining = Math.max(0, userIds.length - MAX_HEADER_AVATARS);
+
+        const memberSnapshots = await Promise.all(
+            userIds.map(async (uid) => {
+                try {
+                    const uSnap = await get(ref(database, `data/users/${uid}`));
+                    return { uid, data: uSnap.exists() ? uSnap.val() : {} };
+                } catch (e) {
+                    return { uid, data: {} };
+                }
+            })
+        );
+
+        const memberMap = {};
+        memberSnapshots.forEach((s) => { memberMap[s.uid] = s.data; });
+
+        let onlineCount = 0;
+        memberSnapshots.forEach((s) => {
+            if (s.data && s.data.status === 'online') onlineCount++;
+        });
+
+        const countEl = document.getElementById('group-member-count');
+        if (countEl) {
+            let txt = `${userIds.length} Member${userIds.length !== 1 ? 's' : ''}`;
+            if (onlineCount > 0) txt += `, <span class="text-success">${onlineCount} Online</span>`;
+            countEl.innerHTML = txt;
+        }
+
+        const avatarUrls = visible.map((uid) => {
+            const u = memberMap[uid] || {};
+            const merged = mergeLaravelProfileIfSelf(uid, u);
+            const raw = rawAvatarFromUserAndContact(merged, null);
+            return resolveGroupProfileImageUrl(raw || '');
+        });
+
+        wrap.innerHTML = '';
+        const stack = document.createElement('div');
+        stack.className = 'header-member-stack';
+
+        avatarUrls.forEach((url) => {
+            const img = document.createElement('img');
+            img.className = 'hm-avatar';
+            img.src = url;
+            img.alt = '';
+            stack.appendChild(img);
+        });
+
+        if (remaining > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'hm-count-badge';
+            badge.textContent = `${remaining}+`;
+            stack.appendChild(badge);
+        }
+
+        wrap.appendChild(stack);
+        wrap.style.setProperty('display', 'flex', 'important');
+    } catch (e) {
+        /* never break page rendering */
+    }
+}
+
 // Function to display users in the HTML list (one-shot reads — avoids stacking onValue listeners on each open / refetch)
 function displayGroupUsers(users, currentUser) {
     const renderGen = ++displayGroupUsersGeneration;
@@ -290,6 +373,7 @@ function displayGroupUsers(users, currentUser) {
             return get(contactsRef).then((contactSnapshot) => {
                 const contactData = contactSnapshot.exists() ? contactSnapshot.val() : null;
                 let displayName =
+                    user.public_display_name ||
                     user.userName ||
                     user.user_name ||
                     [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
@@ -1182,9 +1266,10 @@ function loadGroupDetails(groupId) {
                         groupData.updatedAt || groupData.date || Date.now()
                     )
                 );
-                document.getElementById("group-member-count").innerText = `${groupData.userIds.length} Members`; // Update member count
+                document.getElementById("group-member-count").innerText = `${(groupData.userIds || []).length} Members`;
+                try { renderHeaderMemberAvatars(groupData); } catch (e) { /* safe */ }
                 const _wc = document.getElementById("welcome-container");
-                if (_wc) _wc.style.setProperty("display", "none", "important"); // Hide welcome content
+                if (_wc) _wc.style.setProperty("display", "none", "important");
                 const _mid = document.getElementById("middle");
                 if (_mid) {
                     _mid.style.setProperty("display", "flex", "important");
@@ -2071,7 +2156,7 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
         const audioRingTitle = $('#audio-call-new-group .group-audio-ring-title');
         const audioRingAnswerBtn = $('#audio-call-new-group .group-audio-answer-btn');
         if (audioRingTitle.length) {
-            audioRingTitle.text(myCallData.inOrOut === 'IN' ? 'Incoming audio call' : 'Calling...');
+            audioRingTitle.text(myCallData.inOrOut === 'IN' ? 'Incoming audio call' : 'Calling…');
         }
         if (audioRingAnswerBtn.length) {
             if (myCallData.inOrOut === 'IN') {
@@ -3410,6 +3495,8 @@ async function fetchGroupInfo(groupId) {
         } Participants`;
     }
     if (aboutEl) aboutEl.textContent = groupData.status || "No Description";
+
+    try { renderHeaderMemberAvatars(groupData); } catch (e) { /* safe */ }
 
     const timestamp = groupData.date;
     if (groupDateElement) {
@@ -5342,7 +5429,10 @@ document.addEventListener("click", async function (e) {
         const md = snap.val();
 
         const senderSnap = await get(ref(database, `data/users/${md.senderId}`));
-        const senderName = senderSnap.exists() ? (senderSnap.val().user_name || "Unknown") : "Unknown";
+        const senderData = senderSnap.exists() ? senderSnap.val() : null;
+        const senderName = senderData
+            ? (senderData.public_display_name || senderData.user_name || [senderData.firstName, senderData.lastName].filter(Boolean).join(" ").trim() || "Unknown")
+            : "Unknown";
         const sentTime = new Date(md.timestamp || md.date).toLocaleString();
 
         const typeMap = { 6: "Text", 2: "Image", 1: "Video", 3: "Audio", 5: "File" };

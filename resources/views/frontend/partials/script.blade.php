@@ -147,6 +147,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                 })(),
                 'website_urls' => $u->websites()->whereNotNull('verified_at')->orderBy('sort_order')->get()->map(fn ($w) => $w->getDisplayUrl())->values()->all(),
                 'profile_display_name' => $u->profile_display_name ?? 'full_name',
+                'public_display_name' => $u->public_display_name,
             ]);
             $verifiedPlatforms = $u->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
             $platformToKey = [ 'facebook' => 'facebook_link', 'x' => 'twitter_link', 'linkedin' => 'linkedin_link', 'youtube' => 'youtube_link', 'instagram' => 'instagram_link', 'kick' => 'kick_link', 'twitch' => 'twitch_link' ];
@@ -235,7 +236,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         setImg('profileImageProfile', imgUrl);
         setImg('profileImageChat', imgUrl);
         setImg('ProfileImageSidebar', imgUrl);
-        var fullName = ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || '';
+        var fullName = u.public_display_name || ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || '';
         var subWelcome = fullName
             || String(u.email || u.user_name || u.username || '').trim();
         if (subWelcome) setText('profile-info-chat-name', subWelcome + ' 😊');
@@ -276,7 +277,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         if (document.getElementById('user-id')) document.getElementById('user-id').innerText = 'Logged in as: ' + u.id;
         if (typeof window.syncLaravelUserProfileImages === 'function') window.syncLaravelUserProfileImages();
         if (!forceApply && !window.FIREBASE_DISABLED) return;
-        var fullName = ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || 'No Name';
+        var fullName = u.public_display_name || ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || 'No Name';
         var defaultImg = (typeof APP_URL !== 'undefined' ? APP_URL : '') + '/assets/img/profiles/avatar-03.jpg';
         if (defaultImg.indexOf('/') === 0) defaultImg = defaultImg.slice(1);
         if (!defaultImg.match(/^https?:\/\//)) defaultImg = (window.location.origin || '') + '/' + defaultImg.replace(/^\//,'');

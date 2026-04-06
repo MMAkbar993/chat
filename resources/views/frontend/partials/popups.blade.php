@@ -216,33 +216,35 @@
 <!-- /Voice Call attend -->
 
 <!-- Voice Call (incoming/outgoing ring) - global so receiver sees popup on any page -->
-<div class="modal fade" id="audio-call-modal">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header justify-content-center border-0">
-                <span class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
-                    <i class="ti ti-phone-call"></i>
+<div class="modal fade video-call-ring-modal" id="audio-call-modal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-body text-center pt-4 pb-2 px-3">
+                <span class="model-icon bg-primary bg-opacity-10 text-primary d-inline-flex justify-content-center align-items-center rounded-circle mb-3" style="width:56px;height:56px;">
+                    <i class="ti ti-phone-call fs-24"></i>
                 </span>
-                <h4 class="modal-title">{{ __('Audio Calling...') }}</h4>
-            </div>
-            <div class="modal-body pb-0">
-                <div class="card bg-light mb-0">
-                    <div class="card-body d-flex justify-content-center">
-                        <div>
-                            <span class="avatar avatar-audio avatar-xxl">
-                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" alt="user">
-                            </span>
-                            <h6 class="fs-14 audio-name">Loading...</h6>
-                        </div>
-                    </div>
+                <h5 class="modal-title mb-1" id="audio-call-ring-title">{{ __('Audio call')}}</h5>
+                <p class="text-muted small mb-0 audio-name"></p>
+                <p class="text-muted small mb-0 mt-1 audio-call-ring-status" id="audio-call-ring-status"></p>
+                <div class="d-flex justify-content-center my-4">
+                    <span class="avatar avatar-xxl avatar-audio audio-call-ring-avatar-wrap">
+                        <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle audio-call-ring-avatar" alt="">
+                    </span>
                 </div>
             </div>
-            <div class="modal-footer justify-content-center border-0">
-                <a href="javascript:void(0);" class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2" id="join-audio-call">
-                    <i class="ti ti-phone fs-20"></i>
+            <div class="modal-footer justify-content-center border-0 pt-0 pb-4 gap-2 flex-nowrap">
+                <a href="javascript:void(0);" id="join-audio-call"
+                    class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center"
+                    style="width:56px;height:56px;"
+                    title="{{ __('Answer') }}">
+                    <i class="ti ti-phone fs-22"></i>
                 </a>
-                <a href="javascript:void(0);" class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center" id="decline-audio-call">
-                    <i class="ti ti-phone-off fs-20"></i>
+                <a href="javascript:void(0);" id="decline-audio-call"
+                    class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center"
+                    style="width:56px;height:56px;"
+                    data-bs-dismiss="modal" aria-label="{{ __('Decline') }}"
+                    title="{{ __('Decline') }}">
+                    <i class="ti ti-phone-off fs-22"></i>
                 </a>
             </div>
         </div>
@@ -440,39 +442,34 @@
 </div>
 <!-- /Logout -->
 
-<div class="modal fade" id="video-call-new">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header justify-content-center border-0">
-                <span
-                    class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
-                    <i class="ti ti-phone-call"></i>
+<div class="modal fade video-call-ring-modal" id="video-call-new" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-body text-center pt-4 pb-2 px-3">
+                <span class="model-icon bg-primary bg-opacity-10 text-primary d-inline-flex justify-content-center align-items-center rounded-circle mb-3" style="width:56px;height:56px;">
+                    <i class="ti ti-video fs-24"></i>
                 </span>
-                <h4 class="modal-title" id="videoCallModalLabel">{{ __('Video Calling...')}}</h4>
-            </div>
-            <div class="modal-body pb-0">
-                <div class="card bg-light mb-0">
-                    <div class="card-body calling-name d-flex justify-content-center">
-                        <div>
-                            <span class="avatar avatar-new avatar-xxl">
-                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                    alt="user">
-                            </span>
-                            <h6 class="fs-14">Loading...</h6>
-                        </div>
-
-                    </div>
+                <h5 class="modal-title mb-1" id="videoCallModalLabel">{{ __('Video call')}}</h5>
+                <p class="text-muted small mb-0 calling-name"></p>
+                <div class="d-flex justify-content-center my-4">
+                    <span class="avatar avatar-xxl avatar-new">
+                        <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle" alt="">
+                    </span>
                 </div>
             </div>
-            <div class="modal-footer justify-content-center border-0">
+            <div class="modal-footer justify-content-center border-0 pt-0 pb-4 gap-2 flex-nowrap">
                 <a href="javascript:void(0);" id="join"
-                    class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2">
-                    <i class="ti ti-phone fs-20"></i>
+                    class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center"
+                    style="width:56px;height:56px;"
+                    title="{{ __('Answer') }}">
+                    <i class="ti ti-video fs-22"></i>
                 </a>
                 <a href="javascript:void(0);" id="decline"
                     class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center"
-                    data-bs-dismiss="modal" aria-label="close">
-                    <i class="ti ti-phone-off fs-20"></i>
+                    style="width:56px;height:56px;"
+                    data-bs-dismiss="modal" aria-label="close"
+                    title="{{ __('Decline') }}">
+                    <i class="ti ti-phone-off fs-22"></i>
                 </a>
             </div>
         </div>
@@ -596,34 +593,36 @@
     </div>
 </div>
 
-{{-- Group audio ring: outgoing/incoming in compact "Calling..." card style --}}
-<div class="modal fade" id="audio-call-new-group" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header justify-content-center border-0">
-                <span class="model-icon bg-primary d-flex justify-content-center align-items-center rounded-circle me-2">
-                    <i class="ti ti-phone-call"></i>
+{{-- Group audio ring: outgoing/incoming compact style (matches group video ring) --}}
+<div class="modal fade video-call-ring-modal" id="audio-call-new-group" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-body text-center pt-4 pb-2 px-3">
+                <span class="model-icon bg-primary bg-opacity-10 text-primary d-inline-flex justify-content-center align-items-center rounded-circle mb-3" style="width:56px;height:56px;">
+                    <i class="ti ti-phone-call fs-24"></i>
                 </span>
-                <h4 class="modal-title group-audio-ring-title mb-0">{{ __('Calling...') }}</h4>
-            </div>
-            <div class="modal-body pb-0">
-                <div class="card bg-light mb-0">
-                    <div class="card-body d-flex justify-content-center py-3">
-                        <div>
-                            <span class="avatar avatar-audio avatar-xxl">
-                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" alt="">
-                            </span>
-                            <h6 class="fs-14 audio-name text-center mt-2 mb-0">Loading...</h6>
-                        </div>
-                    </div>
+                <h5 class="modal-title mb-1 group-audio-ring-title">{{ __('Audio call') }}</h5>
+                <p class="text-muted small mb-0 audio-name"></p>
+                <p class="text-muted small mb-0 mt-1 group-audio-ring-status" id="group-audio-ring-status"></p>
+                <div class="d-flex justify-content-center my-4">
+                    <span class="avatar avatar-xxl avatar-audio">
+                        <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle group-audio-call-ring-avatar" alt="">
+                    </span>
                 </div>
             </div>
-            <div class="modal-footer justify-content-center border-0 pb-4">
-                <a href="javascript:void(0);" class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center me-2 group-audio-answer-btn" id="join-audio-group" title="{{ __('Answer') }}">
-                    <i class="ti ti-phone fs-20"></i>
+            <div class="modal-footer justify-content-center border-0 pt-0 pb-4 gap-2 flex-nowrap">
+                <a href="javascript:void(0);" id="join-audio-group"
+                    class="voice-icon btn btn-success rounded-circle d-flex justify-content-center align-items-center group-audio-answer-btn"
+                    style="width:56px;height:56px;"
+                    title="{{ __('Answer') }}">
+                    <i class="ti ti-phone fs-22"></i>
                 </a>
-                <a href="javascript:void(0);" id="decline-audio-group" class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center" data-bs-dismiss="modal" aria-label="{{ __('Decline') }}" title="{{ __('Decline') }}">
-                    <i class="ti ti-phone-off fs-20"></i>
+                <a href="javascript:void(0);" id="decline-audio-group"
+                    class="voice-icon btn btn-danger rounded-circle d-flex justify-content-center align-items-center"
+                    style="width:56px;height:56px;"
+                    data-bs-dismiss="modal" aria-label="{{ __('Decline') }}"
+                    title="{{ __('Decline') }}">
+                    <i class="ti ti-phone-off fs-22"></i>
                 </a>
             </div>
         </div>

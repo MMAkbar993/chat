@@ -60,7 +60,8 @@ initializeFirebase(function (app, auth, database, storage) {
         const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = (text != null && text !== '') ? text : '—'; };
         const imageUrl = u.image || u.profile_image || u.photoURL || u.profileImage || defaultImg;
         const setImg = (id, src) => { const el = document.getElementById(id); if (el && el.tagName === 'IMG') el.src = src || imageUrl || defaultImg; };
-        const fullName = (u.firstName || '') + ' ' + (u.lastName || '').trim() || u.username || 'No Name';
+        const lu = (typeof window !== 'undefined' && window.LARAVEL_USER) ? window.LARAVEL_USER : null;
+        const fullName = (lu && lu.public_display_name) || (u.firstName || '') + ' ' + (u.lastName || '').trim() || u.username || 'No Name';
         setText('profile-name', fullName);
         setText('profile-info-name', fullName);
         setText('profile-info-chat-name', fullName);
