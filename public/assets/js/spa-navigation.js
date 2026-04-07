@@ -34,6 +34,42 @@
         return pathname && SPA_ROUTES.indexOf(pathname) !== -1;
     }
 
+    /**
+     * slimScroll runs once on load for every .slimscroll in the sidebar. Panes that are hidden
+     * (no .active.show) get zero/incorrect heights; after a full reload the active route's pane
+     * is visible so heights are correct. Re-apply heights after the tab is shown.
+     */
+    function refreshSidebarPaneSlimscroll(tabId) {
+        if (typeof jQuery === 'undefined' || !jQuery.fn.slimScroll) return;
+        var $ = jQuery;
+        var $pane = tabId ? $('#' + tabId) : $('.sidebar-group > .tab-content > .tab-pane.active');
+        if (!$pane.length) return;
+        function apply() {
+            var wHeight = $(window).height();
+            $pane.find('.slimscroll').each(function () {
+                var $el = $(this);
+                if ($el.parent().hasClass('slimScrollDiv')) {
+                    $el.slimScroll({ height: wHeight });
+                } else {
+                    $el.slimScroll({
+                        height: 'auto',
+                        width: '100%',
+                        position: 'right',
+                        size: '7px',
+                        color: '#ccc',
+                        wheelStep: 10,
+                        touchScrollStep: 100
+                    });
+                    $el.height(wHeight);
+                }
+            });
+            $('.left-sidebar .slimScrollDiv, .sidebar-menu .slimScrollDiv').height(wHeight);
+        }
+        requestAnimationFrame(function () {
+            requestAnimationFrame(apply);
+        });
+    }
+
     function switchSidebarTab(pathname) {
         var tabId = ROUTE_TAB_MAP[pathname];
         if (!tabId) return;
@@ -51,6 +87,7 @@
 
         $('.sidebar-group > .tab-content > .tab-pane').removeClass('active show');
         $('#' + tabId).addClass('active show');
+        refreshSidebarPaneSlimscroll(tabId);
     }
 
 
@@ -389,7 +426,11 @@
     try {
         var initialPath = getPathname(window.location.href);
         if (initialPath && isSpaRoute(window.location.href)) {
-            setTimeout(function () { window.dispatchEvent(new CustomEvent('spa-page-applied', { detail: { pathname: initialPath } })); }, 100);
+            setTimeout(function () {
+                var tid = ROUTE_TAB_MAP[initialPath];
+                if (tid) refreshSidebarPaneSlimscroll(tid);
+                window.dispatchEvent(new CustomEvent('spa-page-applied', { detail: { pathname: initialPath } }));
+            }, 100);
         }
     } catch (e) {}
 

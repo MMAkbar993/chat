@@ -148,7 +148,6 @@ initializeFirebase(function (app, auth, database, storage) {
             currentUserId = user.uid;
             const userEl = document.getElementById('user-id');
             if (userEl) userEl.innerText = `Logged in as: ${currentUser.uid}`;
-            applySavedBackground(currentUser.uid);
             // Fetch profile from Firebase RTDB and populate sidebar profile pane
             get(ref(database, 'data/users/' + user.uid))
                 .then((snapshot) => {
@@ -201,159 +200,12 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     });
 
-    const defaultAvatar = "{{ asset('assets/img/profiles/avatar-03.jpg') }}";
-    // Background Image
-    let selectedBackground = null;
-
-    // Background Image
-    function selectBackground(imageUrl, imgElement) {
-        selectedBackground = imageUrl; // Set the selected background URL
-        // Highlight the selected image
-        const allImages = document.querySelectorAll('.img-wrap');
-        allImages.forEach((imgWrap) => {
-            imgWrap.classList.remove('selected-background'); // Remove class from all images
-            imgWrap.classList.remove('selected');
-        });
-        imgElement.classList.add('selected-background'); // Add class to the clicked image
-        imgElement.classList.add('selected');
-
-        const chatArea = document.getElementById('chat-area');
-        if (chatArea) {
-            chatArea.style.backgroundImage = `url(${selectedBackground})`;
-        }
-
-        const groupArea = document.getElementById('group-area');
-        if (groupArea) {
-            groupArea.style.backgroundImage = `url(${selectedBackground})`;
-        }
-    }
-
-    // Background Image
-    function saveBackground() {
-        if (currentUser) { // Check if the user is logged in
-            if (selectedBackground) {
-                // Save to Firebase under the user ID
-                const backgroundRef = ref(database, `data/users/${currentUser.uid}/wallpaper`); // Path to user-specific background
-                set(backgroundRef, selectedBackground)
-                    .then(() => {
-                        Toastify({
-                            text: "Background Image updated successfully!",
-                            duration: 3000,
-                            gravity: "top",
-                            position: "right",
-                            backgroundColor: "#28a745",
-                        }).showToast();
-                        // Save to local storage for access on chat page
-                        localStorage.setItem('chat-background', selectedBackground);
-                    })
-                    .catch((error) => {
-
-                    });
-            } else {
-                alert('Please select a background image.');
-            }
-        } else {
-            alert('You must be logged in to save a background image.');
-        }
-    }
-
-    // Background Image
-    function applySavedBackground(userId) {
-        const backgroundRef = ref(database, `data/users/${userId}/wallpaper`); // Path to user-specific background
-        get(backgroundRef).then((snapshot) => {
-            if (snapshot.exists()) {
-                const retrievedBackground = snapshot.val();
-                const chatArea = document.getElementById('chat-area');
-                if (chatArea) {
-                    chatArea.style.backgroundImage = `url(${retrievedBackground})`;
-                    selectedBackground = retrievedBackground; // Store the selectedBackground for the session
-                }
-
-                const groupArea = document.getElementById('group-area');
-                if (groupArea) {
-                    groupArea.style.backgroundImage = `url(${retrievedBackground})`;
-                    selectedBackground = retrievedBackground; // Store the selectedBackground for the session
-                }
-            }
-        }).catch((error) => {
-
-        });
-    }
-
-    // Background Image (removed from UI - keep handlers for backwards compatibility)
-    const imageGallery = document.getElementById('image-gallery');
-    if (imageGallery) {
-        imageGallery.addEventListener('click', function (event) {
-            const target = event.target.closest('.img-wrap');
-            if (target) {
-                const imageUrl = target.getAttribute('data-image');
-                selectBackground(imageUrl, target);
-            }
-        });
-    }
-    const imageSaveBtn = document.getElementById('image-save-button');
-    if (imageSaveBtn) imageSaveBtn.addEventListener('click', saveBackground);
-
-    // Background Image
-
-    if (currentUser) {
-        applySavedBackground(currentUser.uid); // Apply saved background for the logged-in user
-    }
-
-
-    // Function to remove the background image
-
-    function removeBackground() {
-        selectedBackground = null; // Reset the selected background
-        const allImages = document.querySelectorAll('.img-wrap');
-        allImages.forEach((imgWrap) => {
-            imgWrap.classList.remove('selected-background'); // Remove class from all images
-            imgWrap.classList.remove('selected');
-        });
-
-        // Remove from local storage
+    // Background selection was removed from settings. Clear old local cache keys.
+    try {
         localStorage.removeItem('chat-background');
-
-        // Check Firebase for existing background
-        if (currentUser) {
-            const backgroundRef = ref(database, `data/users/${currentUser.uid}/wallpaper`);
-            get(backgroundRef)
-                .then((snapshot) => {
-                    if (snapshot.exists()) {
-                        // Background exists, so remove it
-                        remove(backgroundRef)
-                            .then(() => {
-                                Toastify({
-                                    text: "Background Image removed successfully!",
-                                    duration: 3000,
-                                    gravity: "top",
-                                    position: "right",
-                                    backgroundColor: "#28a745",
-                                }).showToast();
-                            })
-                            .catch((error) => {
-
-                            });
-                    } else {
-                        // Background does not exist
-                        Toastify({
-                            text: "No background image is saved.",
-                            duration: 3000,
-                            gravity: "top",
-                            position: "right",
-                            backgroundColor: "#dc3545",
-                        }).showToast();
-                    }
-                })
-                .catch((error) => {
-
-                });
-        }
-    }
-
-
-    const removeBgBtn = document.getElementById('remove-background-button');
-    if (removeBgBtn) removeBgBtn.addEventListener('click', removeBackground);
+        localStorage.removeItem('chat_background_url');
+        localStorage.removeItem('chat_background_index');
+    } catch (e) { }
 
     // Load language file
     function loadLanguage(language) {

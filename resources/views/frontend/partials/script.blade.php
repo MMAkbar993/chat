@@ -39,7 +39,7 @@
  <!-- Custom JS -->
  <script src="{{ asset('assets/js/script.js') }}"></script>
 
-{{-- Bootstrap modal backdrop is on body; #spa-page-modals must not stay inside .main-wrapper or the dimmer stacks above dialogs (chat / SPA shell). --}}
+{{-- Bootstrap modal backdrop is on body; #spa-page-modals and #block-list-user must not stay inside .main-wrapper or the backdrop stacks above the dialog (modal stuck / "black screen"). --}}
 @auth
 <script>
 (function () {
@@ -51,10 +51,20 @@
         if (!parent) return;
         parent.insertBefore(box, mw.nextSibling);
     }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', relocateSpaPageModals);
-    } else {
+    function relocateBlockListUserModal() {
+        var m = document.getElementById('block-list-user');
+        var mw = document.querySelector('.main-wrapper');
+        if (!m || !mw || !mw.parentNode || !mw.contains(m)) return;
+        mw.parentNode.insertBefore(m, mw.nextSibling);
+    }
+    function relocateAppModalsOutsideWrapper() {
         relocateSpaPageModals();
+        relocateBlockListUserModal();
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', relocateAppModalsOutsideWrapper);
+    } else {
+        relocateAppModalsOutsideWrapper();
     }
 })();
 </script>
@@ -141,15 +151,17 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                 'instagram_link' => $ud ? ($ud->instagram ?? '') : '',
                 'kick_link' => $ud ? ($ud->kick ?? '') : '',
                 'twitch_link' => $ud ? ($ud->twitch ?? '') : '',
-                'website_url' => (function () use ($u) {
-                    $first = $u->websites()->whereNotNull('verified_at')->orderBy('sort_order')->first();
+                'website_url' => (function () use ($u, &$verifiedWebsites) {
+                    $verifiedWebsites = $u->websites()->whereNotNull('verified_at')->orderBy('sort_order')->get();
+                    $first = $verifiedWebsites->first();
                     return $first ? $first->getDisplayUrl() : '';
                 })(),
-                'website_urls' => $u->websites()->whereNotNull('verified_at')->orderBy('sort_order')->get()->map(fn ($w) => $w->getDisplayUrl())->values()->all(),
+                'website_urls' => isset($verifiedWebsites) ? $verifiedWebsites->map(fn ($w) => $w->getDisplayUrl())->values()->all() : [],
                 'profile_display_name' => $u->profile_display_name ?? 'full_name',
                 'public_display_name' => $u->public_display_name,
             ]);
-            $verifiedPlatforms = $u->socialAccounts()->where('oauth_verified', true)->pluck('platform')->toArray();
+            $verifiedAccountsByPlatform = $u->socialAccounts()->where('oauth_verified', true)->get()->keyBy('platform');
+            $verifiedPlatforms = $verifiedAccountsByPlatform->keys()->toArray();
             $platformToKey = [ 'facebook' => 'facebook_link', 'x' => 'twitter_link', 'linkedin' => 'linkedin_link', 'youtube' => 'youtube_link', 'instagram' => 'instagram_link', 'kick' => 'kick_link', 'twitch' => 'twitch_link' ];
             $socialVerified = [];
             foreach ($platformToKey as $platform => $key) {
@@ -161,7 +173,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                 foreach ($platformToKey as $platform => $key) {
                     $baseKey = str_replace('_link', '', $key);
                     if (empty($laravelUserArr[$key]) && in_array($platform, $verifiedPlatforms)) {
-                        $acc = $u->socialAccounts()->where('platform', $platform)->where('oauth_verified', true)->first();
+                        $acc = $verifiedAccountsByPlatform->get($platform);
                         $url = $acc && $acc->profile_url ? $acc->profile_url : ($fallbackUrls[$platform] ?? 'https://' . $platform . '.com/');
                         $laravelUserArr[$baseKey] = $url;
                         $laravelUserArr[$key] = $url;
@@ -436,24 +448,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
     setTimeout(bindWhenReady, 800);
 })();
 </script>
-{{-- Apply chat background from Settings when on chat page --}}
-<script>
-(function() {
-    try {
-        var path = (window.location.pathname || '').replace(/\/+/g, '/');
-        if (path.indexOf('/chat') !== 0 && path !== '/chat') return;
-        var url = localStorage.getItem('chat_background_url');
-        if (url) {
-            var el = document.getElementById('chat-area') || document.getElementById('middle');
-            if (el) {
-                el.style.backgroundImage = 'url(' + url.replace(/"/g, '%22') + ')';
-                el.style.backgroundSize = 'cover';
-                el.style.backgroundPosition = 'center';
-            }
-        }
-    } catch (e) {}
-})();
-</script>
+{{-- Background image preference removed from Settings --}}
 {{-- Contact details "Chat" button: go to chat with selected user when Firebase disabled --}}
 <script>
 (function() {

@@ -11,9 +11,6 @@
                             <i class="ti ti-dots-vertical"></i>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end p-3">
-                            <li>
-                                <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#edit-contact"><i class="ti ti-edit me-2"></i>{{ __('Edit')}}</a>
-                            </li>
                             <li><a class="dropdown-item" href="#" id="blockContactUserDropdownBtn"><i class="ti ti-user-off me-2"></i><span id="blockContactUserLabel">{{ __('Block')}}</span></a></li>
                             <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#delete-contact"><i class="ti ti-trash me-2"></i>{{ __('Delete')}}</a></li>
                         </ul>

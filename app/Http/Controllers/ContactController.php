@@ -76,15 +76,18 @@ class ContactController extends Controller
             return response()->json(['message' => __('Unauthorized.')], 401);
         }
 
+        $hasFirebaseUid = Schema::hasColumn((new \App\Models\User)->getTable(), 'firebase_uid');
+        $defaultAvatar = request()->getSchemeAndHttpHost() . '/assets/img/profiles/avatar-03.jpg';
+
         $contacts = UserContact::where('user_id', $user->id)
             ->with('contactUser')
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(function (UserContact $uc) {
+            ->map(function (UserContact $uc) use ($hasFirebaseUid, $defaultAvatar) {
                 $c = $uc->contactUser;
-                $img = $c && $c->profile_image_link ? $c->profile_image_link : (request()->getSchemeAndHttpHost() . '/assets/img/profiles/avatar-03.jpg');
+                $img = $c && $c->profile_image_link ? $c->profile_image_link : $defaultAvatar;
                 $firebaseUid = null;
-                if ($c && Schema::hasColumn($c->getTable(), 'firebase_uid')) {
+                if ($c && $hasFirebaseUid) {
                     $firebaseUid = $c->firebase_uid ?: null;
                 }
 

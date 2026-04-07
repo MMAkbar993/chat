@@ -2140,8 +2140,15 @@ async function initiateGroupCall(isVideoCall) {
         const groupImageForCall = resolveGroupProfileImageUrl(pickGroupAvatarRaw(groupData));
 
         const baseCallData = {
-            callerImg: groupImageForCall, callerName: groupNameForCall, currentMills: Date.now(),
-            duration: "Ringing", id: newCallId, type: "group", 
+            callerImg: groupImageForCall,
+            callerName: groupNameForCall,
+            groupId: selectedGroupId,
+            groupName: groupNameForCall,
+            groupImage: groupImageForCall,
+            currentMills: Date.now(),
+            duration: "Ringing",
+            id: newCallId,
+            type: "group",
             video: isVideoCall, // The key difference!
             channelName: channelName,
         };
@@ -3650,7 +3657,7 @@ if (closeReplyEl) {
             });
     }
 
-    function sendForwardMessage(toUserId, forwardText, messageType = 'text', originalMessageKey = null) {
+    function sendForwardMessage(toUserId, forwardText, messageType = 6, originalMessageKey = null) {
         if (!currentUserId) {
             return;
         }
@@ -3684,12 +3691,13 @@ if (closeReplyEl) {
                     return; // Exit the function if the user is blocked
                 }
 
+                const normalizedType = Number(messageType);
                 // Prepare the forward message object
                 const message = {
                     sender: currentUserId,
                     senderId: currentUserId,
                     to: toUserId,
-                    attachmentType: messageType,
+                    attachmentType: Number.isNaN(normalizedType) ? 6 : normalizedType,
                     body: forwardText,
                     timestamp: Date.now(),
                     delivered: false,
@@ -3698,8 +3706,8 @@ if (closeReplyEl) {
                     originalMessageKey: originalMessageKey,
                 };
 
-                  // If the message is of type 'text', encrypt it
-                  if (messageType === 6) {
+                  // If the message is text, encrypt it.
+                  if (!Number.isNaN(normalizedType) && normalizedType === 6) {
                      const encryptedForwardText = await encryptMessage(forwardText);
                     message.body = encryptedForwardText; // Use the encrypted message here
                 } else {

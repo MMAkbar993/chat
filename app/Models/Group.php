@@ -34,14 +34,31 @@ class Group extends Model
         return $this->members()->wherePivot('role', 'admin');
     }
 
+    private array $memberRoleCache = [];
+
     public function isAdmin(User $user): bool
     {
-        return $this->owner_id === $user->id
-            || $this->members()->wherePivot('role', 'admin')->where('user_id', $user->id)->exists();
+        if ($this->owner_id === $user->id) {
+            return true;
+        }
+        $this->loadMemberRoleCache($user);
+        return ($this->memberRoleCache[$user->id] ?? null) === 'admin';
     }
 
     public function isMember(User $user): bool
     {
-        return $this->members()->where('user_id', $user->id)->exists();
+        if ($this->owner_id === $user->id) {
+            return true;
+        }
+        $this->loadMemberRoleCache($user);
+        return $this->memberRoleCache[$user->id] !== false;
+    }
+
+    private function loadMemberRoleCache(User $user): void
+    {
+        if (!array_key_exists($user->id, $this->memberRoleCache)) {
+            $row = $this->members()->where('user_id', $user->id)->first();
+            $this->memberRoleCache[$user->id] = $row ? $row->pivot->role : false;
+        }
     }
 }

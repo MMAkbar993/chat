@@ -596,6 +596,25 @@
                                 <div class="chat-search-header">
                                     <div class="header-title d-flex align-items-center justify-content-between">
                                         <h4 class="mb-3">{{ __('Calls') }}</h4>
+                                        <div class="d-flex align-items-center mb-3">
+                                            <a href="javascript:void(0);" class="call-icon d-flex justify-content-center align-items-center text-white bg-primary rounded-circle me-2"
+                                                data-bs-toggle="modal" data-bs-target="#new-call">
+                                                <i class="ti ti-phone-plus fs-16"></i>
+                                            </a>
+                                            <div class="dropdown">
+                                                <a href="javascript:void(0);" data-bs-toggle="dropdown" class="fs-16 text-default">
+                                                    <i class="ti ti-dots-vertical"></i>
+                                                </a>
+                                                <ul class="dropdown-menu p-3">
+                                                    <li>
+                                                        <a href="javascript:void(0);" id="clear-call-log-btn" class="dropdown-item d-flex align-items-center">
+                                                            <span><i class="ti ti-phone-x me-2"></i></span>
+                                                            {{ __('Clear Call Log') }}
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <!-- Chat Search -->
@@ -1568,7 +1587,6 @@
                                                                             }).finally(function() { btn.disabled = false; });
                                                                         });
                                                                         (function initChatSettings() {
-                                                                            var chatBg = document.getElementById('chat-bg-images');
                                                                             var clearAllSwitch = document.getElementById('clearAllChatSwitch');
                                                                             var deleteAllSwitch = document.getElementById('deleteAllChatSwitch');
                                                                             var backupSwitch = document.getElementById('chatBackupSwitch');
@@ -1580,24 +1598,40 @@
                                                                             var token = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
                                                                             function saveChatPref(key, value) { try { localStorage.setItem(key, value ? '1' : '0'); } catch (e) {} }
                                                                             function loadChatPref(key) { try { return localStorage.getItem(key) === '1'; } catch (e) { return false; } }
-                                                                            if (chatBg) {
-                                                                                chatBg.querySelectorAll('.img-wrap').forEach(function(wrap, idx) {
-                                                                                    wrap.style.cursor = 'pointer';
-                                                                                    wrap.addEventListener('click', function() {
-                                                                                        chatBg.querySelectorAll('.img-wrap').forEach(function(w) { w.classList.remove('border', 'border-primary', 'border-2'); });
-                                                                                        this.classList.add('border', 'border-primary', 'border-2');
-                                                                                        var img = this.querySelector('img');
-                                                                                        var src = img ? img.src : '';
-                                                                                        try { localStorage.setItem('chat_background_index', String(idx)); if (src) localStorage.setItem('chat_background_url', src); } catch (e) {}
-                                                                                        if (typeof showToast === 'function') showToast('{{ __("Chat background updated. It will apply on the chat page.") }}');
-                                                                                    });
-                                                                                });
-                                                                                var savedIdx = parseInt(localStorage.getItem('chat_background_index'), 10);
-                                                                                if (!isNaN(savedIdx)) {
-                                                                                    var wraps = chatBg.querySelectorAll('.img-wrap');
-                                                                                    if (wraps[savedIdx]) wraps[savedIdx].classList.add('border', 'border-primary', 'border-2');
+                                                                            function cleanupModalBackdrops() {
+                                                                                // Keep only one backdrop when any modal is visible; remove all if none are visible.
+                                                                                var shownModals = document.querySelectorAll('.modal.show').length;
+                                                                                var backdrops = document.querySelectorAll('.modal-backdrop');
+                                                                                if (!backdrops.length) return;
+                                                                                if (!shownModals) {
+                                                                                    backdrops.forEach(function(b) { b.remove(); });
+                                                                                    document.body.classList.remove('modal-open');
+                                                                                    document.body.style.removeProperty('overflow');
+                                                                                    document.body.style.removeProperty('padding-right');
+                                                                                    return;
+                                                                                }
+                                                                                for (var i = 0; i < backdrops.length - 1; i++) {
+                                                                                    backdrops[i].remove();
                                                                                 }
                                                                             }
+                                                                            function setTopBackdropOpacity(value) {
+                                                                                var backdrops = document.querySelectorAll('.modal-backdrop');
+                                                                                if (!backdrops.length) return;
+                                                                                var topBackdrop = backdrops[backdrops.length - 1];
+                                                                                if (topBackdrop) {
+                                                                                    topBackdrop.style.setProperty('opacity', String(value), 'important');
+                                                                                    topBackdrop.style.setProperty('--bs-backdrop-opacity', String(value), 'important');
+                                                                                }
+                                                                            }
+                                                                            if (!window.__chatModalBackdropGuard) {
+                                                                                window.__chatModalBackdropGuard = window.setInterval(function() {
+                                                                                    var hasShownModal = document.querySelector('.modal.show');
+                                                                                    var hasBackdrop = document.querySelector('.modal-backdrop');
+                                                                                    if (!hasShownModal && hasBackdrop) cleanupModalBackdrops();
+                                                                                }, 800);
+                                                                            }
+                                                                            document.addEventListener('shown.bs.modal', cleanupModalBackdrops);
+                                                                            document.addEventListener('hidden.bs.modal', cleanupModalBackdrops);
                                                                             if (clearAllSwitch) {
                                                                                 clearAllSwitch.addEventListener('change', function() {
                                                                                     if (!this.checked) return;
@@ -1612,6 +1646,7 @@
                                                                             if (deleteAllSwitch) {
                                                                                 deleteAllSwitch.addEventListener('change', function() {
                                                                                     if (this.checked && deleteChatModal) {
+                                                                                        cleanupModalBackdrops();
                                                                                         var modal = typeof bootstrap !== 'undefined' && bootstrap.Modal ? bootstrap.Modal.getOrCreateInstance(deleteChatModal) : null;
                                                                                         if (modal) modal.show();
                                                                                     }
@@ -1619,6 +1654,9 @@
                                                                                 });
                                                                             }
                                                                             if (deleteChatModal) {
+                                                                                deleteChatModal.addEventListener('show.bs.modal', cleanupModalBackdrops);
+                                                                                deleteChatModal.addEventListener('shown.bs.modal', function() { setTopBackdropOpacity(0.28); });
+                                                                                deleteChatModal.addEventListener('hidden.bs.modal', cleanupModalBackdrops);
                                                                                 var form = deleteChatModal.querySelector('form');
                                                                                 if (form) {
                                                                                     form.addEventListener('submit', function(e) {
@@ -1633,6 +1671,12 @@
                                                                                             }).catch(function() { if (typeof showToast === 'function') showToast('{{ __("Could not delete chats.") }}', true); });
                                                                                     });
                                                                                 }
+                                                                            }
+                                                                            var blockedUserModal = document.getElementById('block-list-user');
+                                                                            if (blockedUserModal) {
+                                                                                blockedUserModal.addEventListener('show.bs.modal', cleanupModalBackdrops);
+                                                                                blockedUserModal.addEventListener('shown.bs.modal', function() { setTopBackdropOpacity(0.22); });
+                                                                                blockedUserModal.addEventListener('hidden.bs.modal', cleanupModalBackdrops);
                                                                             }
                                                                             if (backupSwitch) {
                                                                                 backupSwitch.checked = loadChatPref('chat_backup_enabled');
@@ -1844,48 +1888,11 @@
                                     <!-- Chat setting -->
                                     <div class="content-wrapper">
                                         <h5 class="sub-title">{{ __('Chat') }}</h5>
-                                        <p class="text-muted small mb-2">{{ __('Chat preferences: background image, clear or delete all conversations, and backup.') }}</p>
+                                        <p class="text-muted small mb-2">{{ __('Chat preferences: clear or delete all conversations, and backup.') }}</p>
                                         <div class="chat-file">
                                             <div class="file-item ">
                                                 <div class="card">
                                                     <div class="card-body">
-                                                        <div class="d-flex justify-content-between align-items-center profile-list border-bottom pb-3 mb-3">
-                                                            <h6 class="fs-14">
-                                                                <a href="javascript:void(0);" data-bs-toggle="collapse" data-bs-target="#chat-bg-images" aria-expanded="false">
-                                                                    <i class="ti ti-photo text-gray me-2"></i>{{ __('Background Images') }}
-                                                                </a>
-                                                            </h6>
-                                                            <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
-                                                        </div>
-                                                        <div id="chat-bg-images" class="collapse mb-3">
-                                                            <p class="text-muted small mb-2">{{ __('Choose a background for your chat screen.') }}</p>
-                                                            <div class="chat-user-photo">
-                                                                <div class="chat-img contact-gallery mb-2">
-                                                                    <div class="row g-2">
-                                                                        <div class="col-3 col-md-2">
-                                                                            <div class="img-wrap position-relative rounded overflow-hidden bg-light">
-                                                                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" alt="bg" class="w-100" style="height:60px;object-fit:cover;">
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="col-3 col-md-2">
-                                                                            <div class="img-wrap position-relative rounded overflow-hidden bg-light">
-                                                                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" alt="bg" class="w-100" style="height:60px;object-fit:cover;">
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="col-3 col-md-2">
-                                                                            <div class="img-wrap position-relative rounded overflow-hidden bg-light">
-                                                                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" alt="bg" class="w-100" style="height:60px;object-fit:cover;">
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="col-3 col-md-2">
-                                                                            <div class="img-wrap position-relative rounded overflow-hidden bg-light">
-                                                                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" alt="bg" class="w-100" style="height:60px;object-fit:cover;">
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
                                                         <div class="d-flex justify-content-between align-items-center profile-list border-bottom pb-3 mb-3">
                                                             <h6 class="fs-14">
                                                                 <a href="javascript:void(0);" title="{{ __('Toggle to show/hide clear-all option') }}"><i class="ti ti-clear-all text-gray me-2"></i>{{ __('Clear All Chat') }}</a>

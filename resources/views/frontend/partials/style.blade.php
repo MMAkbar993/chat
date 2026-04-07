@@ -1,6 +1,6 @@
 @if (!Route::is(['signup', 'success', 'reset-password', 'otp', 'forgot-password','login','signin','register.payment']))
     <!-- Theme Script Js -->
-    <script src="{{ asset('assets/js/theme-script.js') }}"></script>
+    <script src="{{ asset('assets/js/theme-script.js') }}" defer></script>
 @endif
 <!-- Bootstrap CSS -->
 <link rel="stylesheet" href="{{ asset('assets/css/bootstrap.min.css') }}">

@@ -46,6 +46,28 @@ initializeFirebase(function (app, auth, database, storage) {
 
     let currentUser = null; // Define the current user here
     let selectedUserId = null; // Store the selected user ID
+    function getAudioCallTriggerEl() {
+        return (
+            document.getElementById("audio-call-btn") ||
+            document.getElementById("audio-call-btn-spa")
+        );
+    }
+    function getVideoCallTriggerEl() {
+        return (
+            document.getElementById("video-call-new-btn") ||
+            document.getElementById("video-call-new-btn-spa")
+        );
+    }
+    /** Peer for outbound calls: open chat selection, or New Call modal (localStorage). */
+    function resolveOutboundCallPeerId() {
+        if (selectedUserId) return selectedUserId;
+        try {
+            const v = localStorage.getItem("selectedUserId");
+            return v && String(v).trim() ? String(v).trim() : null;
+        } catch (e) {
+            return null;
+        }
+    }
     let currentUserId = null;
     /** Same-tab only: restores open chat after refresh. Do not use localStorage for panel visibility (stale after SPA / no selection). */
     const CHAT_ACTIVE_PEER_SESSION_KEY = "dreamchat_active_peer";
@@ -217,8 +239,8 @@ initializeFirebase(function (app, auth, database, storage) {
                                 if (callAction === 'voice' || callAction === 'video') {
                                     setTimeout(() => {
                                         const btn = callAction === 'voice'
-                                            ? (document.getElementById('audio-call-btn') || document.getElementById('audio-new-btn-group'))
-                                            : (document.getElementById('video-call-new-btn') || document.getElementById('video-call-new-btn-group'));
+                                            ? (getAudioCallTriggerEl() || document.getElementById('audio-new-btn-group'))
+                                            : (getVideoCallTriggerEl() || document.getElementById('video-call-new-btn-group'));
                                         if (btn) btn.click();
                                         if (typeof history !== 'undefined' && history.replaceState) {
                                             const u = new URL(window.location.href);
@@ -1349,6 +1371,9 @@ initializeFirebase(function (app, auth, database, storage) {
         // Create userName and userMessage elements
         const userName = document.createElement("h6");
         const userMessage = document.createElement("p");
+        if (user && user.userName && String(user.userName).trim()) {
+            userName.textContent = String(user.userName).trim();
+        }
 
         function applySidebarPreview(text) {
             userMessage.dataset.lastPreview = text;
@@ -1497,28 +1522,41 @@ initializeFirebase(function (app, auth, database, storage) {
             const contactData = snapshot.val();
 
             if (contactData?.firstName) {
-                // If first name and last name are available, display them
-                const displayName = `${contactData.firstName} ${contactData.lastName}`;
+                const displayName = `${contactData.firstName} ${contactData.lastName || ""}`.trim();
                 userName.textContent = displayName;
             } else if (contactData?.mobile_number) {
-                // If mobile number is available in contacts, display it
-                const displayName = `${contactData.mobile_number}`;
-                userName.textContent = displayName;
+                userName.textContent = String(contactData.mobile_number).trim();
+            } else if (
+                contactData &&
+                (contactData.user_name || contactData.userName || contactData.username)
+            ) {
+                userName.textContent = String(
+                    contactData.user_name || contactData.userName || contactData.username
+                ).trim();
+            } else if (contactData?.email) {
+                userName.textContent = String(contactData.email).trim();
             } else {
-                // Fetch from users collection as fallback
                 const userRef = ref(database, `data/users/${userId}`);
                 get(userRef)
                     .then((userSnapshot) => {
                         const userData = userSnapshot.val();
                         if (userData?.mobile_number) {
-                            const displayName = `${userData.mobile_number}`;
-                            userName.textContent = displayName;
+                            userName.textContent = String(userData.mobile_number).trim();
+                        } else if (userData && (userData.userName || userData.username)) {
+                            userName.textContent = String(
+                                userData.userName || userData.username
+                            ).trim();
+                        } else if (user && user.userName && String(user.userName).trim()) {
+                            userName.textContent = String(user.userName).trim();
+                        } else {
+                            userName.textContent = String(userId);
                         }
                     })
                     .catch((error) => {
                         console.error("Error fetching user data:", error);
-                        const displayName = "Error Loading User";
-                        userName.textContent = displayName;
+                        userName.textContent =
+                            (user && user.userName && String(user.userName).trim()) ||
+                            String(userId);
                     });
             }
         });
@@ -1883,14 +1921,33 @@ initializeFirebase(function (app, auth, database, storage) {
         }));
     }
 
+    function getChatBoxElement() {
+        return (
+            document.getElementById("chat-box") ||
+            document.querySelector("#chat-area .messages") ||
+            document.querySelector("#middle .messages")
+        );
+    }
+
+    function getMiddlePanelElement() {
+        return document.getElementById("middle");
+    }
+
     // Function to select a user and display their chat details
     async function selectUser(userId) {
-        const chatBox = document.getElementById("chat-box");
-        const middleEl = document.getElementById("middle");
+        const chatBox = getChatBoxElement();
+        const middleEl = getMiddlePanelElement();
         const welcomeContainer = document.getElementById("welcome-container");
-        if (!chatBox || !middleEl) return;
+        if (!chatBox || !middleEl) {
+            return;
+        }
 
-        const userDetails = await getUserDetails(userId);
+        let userDetails = null;
+        try {
+            userDetails = await getUserDetails(userId);
+        } catch (e) {
+            throw e;
+        }
 
         // Peers opened from Contacts / ?user= may not appear in usersMap yet (bulk data/users read
         // incomplete under rules, or map built before this uid exists). Hydrate from single-user + contact reads.
@@ -2078,58 +2135,94 @@ initializeFirebase(function (app, auth, database, storage) {
             }
         });
 
-        // Update the chat header with the selected user's name
+        // Update the chat header with the selected user's name and avatar (incl. pending_* peers + Laravel).
         const contactsRef = ref(
             database,
             `data/contacts/${currentUser.uid}/${userId}`
         );
-        onValue(contactsRef, (contactSnapshot) => {
-            let displayName = ""; // Default to empty
-            const contactData = contactSnapshot.val();
-            const userName = document.querySelector(".chat-header h6"); // Get the element for the user's name
-
-            if (contactData && contactData.firstName) {
-                // If firstName exists in contacts
-                displayName = `${contactData.firstName} ${contactData.lastName}`;
-                userName.textContent = capitalizeFirstLetter(displayName);
-            } else if (contactData && contactData.mobile_number) {
-                // If mobile_number exists in contacts
-                displayName = contactData.mobile_number;
-                userName.textContent = capitalizeFirstLetter(displayName);
-            } else {
-                // Fallback to the `users` collection to fetch mobile_number
-                const userRef = ref(database, `data/users/${userId}`);
-                get(userRef)
-                    .then((userSnapshot) => {
-                        const userData = userSnapshot.val();
-                        if (userData && userData.mobile_number) {
-                            displayName = userData.mobile_number;
-                            userName.textContent =
-                                capitalizeFirstLetter(displayName);
-                        } else {
-                            // Fallback text if no data is available
-                            userName.textContent = "Unknown User";
-                        }
-                    })
-                    .catch((error) => {
-                        console.error("Error fetching user data:", error);
-                        userName.textContent = "Error Loading User";
-                    });
-            }
-        });
-
-        // Update the user's profile image
-        const userImage = resolveCallProfileImageUrl(
-            (usersMap[userId] && usersMap[userId].profileImage)
-                ? usersMap[userId].profileImage
-                : (contactData && (contactData.profile_image || contactData.image))
-                    ? (contactData.profile_image || contactData.image)
-                    : ""
-        );
-        const headerImg =
+        const headerNameEl = document.querySelector(".chat-header h6");
+        const headerImgEl =
             document.getElementById("chat-header-avatar") ||
             document.querySelector(".chat-header .avatar img");
-        if (headerImg) headerImg.src = userImage;
+        if (
+            headerImgEl &&
+            usersMap[userId] &&
+            usersMap[userId].profileImage &&
+            String(usersMap[userId].profileImage).trim()
+        ) {
+            headerImgEl.src = resolveCallProfileImageUrl(usersMap[userId].profileImage);
+        }
+        if (headerNameEl && usersMap[userId] && usersMap[userId].userName) {
+            const seed = String(usersMap[userId].userName).trim();
+            if (seed) headerNameEl.textContent = capitalizeFirstLetter(seed);
+        }
+        onValue(contactsRef, (contactSnapshot) => {
+            const contactData = contactSnapshot.val();
+            const setHeaderUserName = (nameText) => {
+                if (headerNameEl) headerNameEl.textContent = nameText;
+            };
+            const applyChatHeaderFromPeer = async () => {
+                const userRef = ref(database, `data/users/${userId}`);
+                let userData = {};
+                try {
+                    const us = await get(userRef);
+                    if (us.exists()) userData = us.val() || {};
+                } catch (e) {
+                    /* ignore */
+                }
+                let baseName = "";
+                if (contactData && contactData.firstName) {
+                    baseName = `${contactData.firstName} ${contactData.lastName || ""}`.trim();
+                } else if (contactData && contactData.mobile_number) {
+                    baseName = String(contactData.mobile_number).trim();
+                } else if (
+                    contactData &&
+                    (contactData.user_name || contactData.userName || contactData.username)
+                ) {
+                    baseName = String(
+                        contactData.user_name ||
+                            contactData.userName ||
+                            contactData.username
+                    ).trim();
+                } else if (contactData && contactData.email) {
+                    baseName = String(contactData.email).trim();
+                } else if (userData && userData.mobile_number) {
+                    baseName = String(userData.mobile_number).trim();
+                } else if (userData && (userData.userName || userData.username)) {
+                    baseName = String(userData.userName || userData.username).trim();
+                }
+                const laravelResolved = await resolveCallUserAvatarAndDisplayName(
+                    userId,
+                    userData,
+                    contactData,
+                    { includeLaravelDisplayName: true }
+                );
+                let finalName =
+                    (laravelResolved.displayName &&
+                        String(laravelResolved.displayName).trim()) ||
+                    baseName ||
+                    (usersMap[userId] && String(usersMap[userId].userName || "").trim()) ||
+                    "";
+                finalName = callDisplayNameFromUsersMap(userId, finalName);
+                if (!finalName || finalName === "Unknown User") {
+                    finalName =
+                        (usersMap[userId] && String(usersMap[userId].userName || "").trim()) ||
+                        String(userId);
+                }
+                setHeaderUserName(capitalizeFirstLetter(finalName));
+                if (headerImgEl) {
+                    headerImgEl.src = await resolveCallUserAvatarUrl(
+                        userId,
+                        userData,
+                        contactData
+                    );
+                }
+            };
+            applyChatHeaderFromPeer().catch((error) => {
+                console.error("Error loading chat header peer:", error);
+                setHeaderUserName("Error Loading User");
+            });
+        });
 
         // Fetch KYC verified badge status
         const kycBadges = document.querySelectorAll('.kyc-badge, .contact-kyc-badge');
@@ -2640,6 +2733,78 @@ initializeFirebase(function (app, auth, database, storage) {
             });
     }
 
+    /**
+     * Pending_* peer keys have no Firebase users row; resolve avatar + display name from Laravel
+     * using email/username on data/contacts/{me}/{peerId} (same as Contacts / contact-avatars API).
+     */
+    async function enrichPendingChatListPeersFromLaravel() {
+        const me = auth.currentUser?.uid;
+        if (!me) return;
+        const pendingIds = Object.keys(usersMap).filter(
+            (id) =>
+                id &&
+                id !== me &&
+                String(id).indexOf("pending_") === 0
+        );
+        if (pendingIds.length === 0) return;
+        const token =
+            typeof document !== "undefined" &&
+            document.querySelector('meta[name="csrf-token"]')
+                ? document
+                      .querySelector('meta[name="csrf-token"]')
+                      .getAttribute("content")
+                : "";
+        const origin =
+            typeof window !== "undefined" && window.location && window.location.origin
+                ? window.location.origin
+                : "";
+        if (!token || !origin) return;
+        let contactsAll = {};
+        try {
+            const cs = await get(ref(database, `data/contacts/${me}`));
+            if (cs.exists()) contactsAll = cs.val() || {};
+        } catch (e) {
+            return;
+        }
+        for (let p = 0; p < pendingIds.length; p++) {
+            const pid = pendingIds[p];
+            const c = contactsAll[pid] || null;
+            const body = buildContactAvatarsRequestBody(pid, {}, c);
+            if (
+                !body.firebase_uids.length &&
+                !body.emails.length &&
+                !body.usernames.length
+            ) {
+                continue;
+            }
+            try {
+                const r = await fetch(origin + "/api/users/contact-avatars", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                    body: JSON.stringify(body),
+                });
+                if (!r.ok) continue;
+                const data = await r.json();
+                const picked = pickLaravelAvatarAndName(data, pid, body);
+                if (!usersMap[pid]) continue;
+                if (picked.avatarUrl && String(picked.avatarUrl).trim()) {
+                    usersMap[pid].profileImage = picked.avatarUrl;
+                }
+                if (picked.displayName && String(picked.displayName).trim()) {
+                    usersMap[pid].userName = picked.displayName.trim();
+                }
+            } catch (e) {
+                /* ignore */
+            }
+        }
+    }
+
     /** Fill chat sidebar avatars from MySQL (same API as Contacts) when Firebase/contact nodes lack profile_image. */
     async function enrichChatListUsersMapFromLaravel() {
         const me = auth.currentUser?.uid;
@@ -2660,44 +2825,50 @@ initializeFirebase(function (app, auth, database, storage) {
             typeof window !== "undefined" && window.location && window.location.origin
                 ? window.location.origin
                 : "";
-        if (!token || !origin || allIds.length === 0) return;
-        for (let i = 0; i < allIds.length; i += 60) {
-            const chunk = allIds.slice(i, i + 60);
-            try {
-                const r = await fetch(origin + "/api/users/contact-avatars", {
-                    method: "POST",
-                    credentials: "same-origin",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                        "X-Requested-With": "XMLHttpRequest",
-                    },
-                    body: JSON.stringify({
-                        firebase_uids: chunk,
-                        emails: [],
-                        usernames: [],
-                    }),
-                });
-                if (!r.ok) continue;
-                const data = await r.json();
-                const byUid = data.by_uid || {};
-                chunk.forEach((uid) => {
-                    const url = byUid[uid];
-                    if (
-                        url &&
-                        String(url).trim() &&
-                        usersMap[uid]
-                    ) {
-                        usersMap[uid].profileImage = resolveCallProfileImageUrl(
-                            String(url).trim()
-                        );
-                    }
-                });
-            } catch (e) {
-                /* ignore */
+        if (!token || !origin) {
+            await enrichPendingChatListPeersFromLaravel();
+            return;
+        }
+        if (allIds.length > 0) {
+            for (let i = 0; i < allIds.length; i += 60) {
+                const chunk = allIds.slice(i, i + 60);
+                try {
+                    const r = await fetch(origin + "/api/users/contact-avatars", {
+                        method: "POST",
+                        credentials: "same-origin",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Accept: "application/json",
+                            "X-CSRF-TOKEN": token,
+                            "X-Requested-With": "XMLHttpRequest",
+                        },
+                        body: JSON.stringify({
+                            firebase_uids: chunk,
+                            emails: [],
+                            usernames: [],
+                        }),
+                    });
+                    if (!r.ok) continue;
+                    const data = await r.json();
+                    const byUid = data.by_uid || {};
+                    chunk.forEach((uid) => {
+                        const url = byUid[uid];
+                        if (
+                            url &&
+                            String(url).trim() &&
+                            usersMap[uid]
+                        ) {
+                            usersMap[uid].profileImage = resolveCallProfileImageUrl(
+                                String(url).trim()
+                            );
+                        }
+                    });
+                } catch (e) {
+                    /* ignore */
+                }
             }
         }
+        await enrichPendingChatListPeersFromLaravel();
     }
 
     /** New Chat modal: apply MySQL avatars when RTDB has no profile_image (same API as sidebar). */
@@ -2908,11 +3079,15 @@ initializeFirebase(function (app, auth, database, storage) {
         `;
     }
 
-    async function displayMessage(message) {
-        const chatBox = document.getElementById("chat-box");
-        // Check if chatBox element exists
+    async function displayMessage(message, attempt = 0) {
+        const chatBox = getChatBoxElement();
+        // Retry briefly while DOM settles when opening/switching chats.
         if (!chatBox) {
-            console.error("Chat box element not found!");
+            if (attempt < 10) {
+                setTimeout(() => {
+                    displayMessage(message, attempt + 1);
+                }, 100);
+            }
             return;
         }
         const viewerUid = currentUser?.uid || currentUserId;
@@ -6130,14 +6305,14 @@ initializeFirebase(function (app, auth, database, storage) {
             audio.dataset.wired = "1";
             audio.addEventListener("click", (e) => {
                 e.preventDefault();
-                document.getElementById("audio-call-btn")?.click();
+                getAudioCallTriggerEl()?.click();
             });
         }
         if (video && !video.dataset.wired) {
             video.dataset.wired = "1";
             video.addEventListener("click", (e) => {
                 e.preventDefault();
-                document.getElementById("video-call-new-btn")?.click();
+                getVideoCallTriggerEl()?.click();
             });
         }
         if (chatBtn && !chatBtn.dataset.wired) {
@@ -9969,7 +10144,7 @@ initializeFirebase(function (app, auth, database, storage) {
         };
     }
 
-    const audioCallButton = document.getElementById("audio-call-btn");
+    const audioCallButton = getAudioCallTriggerEl();
     const joinCallButton = document.getElementById('join-audio-call');
     const endCallButton = document.getElementById("end-audio-call");
     const muteButton = document.getElementById("mute-btn");
@@ -9980,7 +10155,7 @@ initializeFirebase(function (app, auth, database, storage) {
         audioCallButton.onclick = async (e) => {
             e.preventDefault();
 
-            const receiverId = selectedUserId;
+            const receiverId = resolveOutboundCallPeerId();
             if (!receiverId) {
                 console.error("No user selected for the call.");
                 return;
@@ -10651,7 +10826,7 @@ initializeFirebase(function (app, auth, database, storage) {
     let lastVideoCallerDeclineToastId = null;
 
     // Video call UI elements
-    const videoCallButton = document.getElementById("video-call-new-btn");
+    const videoCallButton = getVideoCallTriggerEl();
     const joinVideoCallButton = document.getElementById("join-video-call");
     const endVideoCallButton = document.getElementById("leave-video-call");
     const muteVideoAudioButton = document.getElementById("mute-call");
@@ -10663,7 +10838,7 @@ initializeFirebase(function (app, auth, database, storage) {
         videoCallButton.onclick = async (e) => {
             e.preventDefault();
 
-            const receiverId = selectedUserId;
+            const receiverId = resolveOutboundCallPeerId();
             if (!receiverId) {
                 console.error("No user selected for the call.");
                 return;
@@ -11470,7 +11645,7 @@ initializeFirebase(function (app, auth, database, storage) {
     function ensureChatPageVisible() {
         const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
         let welcomeEl = document.getElementById("welcome-container");
-        const middleEl = document.getElementById("middle");
+        const middleEl = getMiddlePanelElement();
         const spaContent = document.getElementById("spa-page-content");
         const searchParams = new URLSearchParams(window.location.search || "");
         const urlPeer = searchParams.get("user");

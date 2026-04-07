@@ -1571,17 +1571,35 @@ initializeFirebase(function (app, auth, database, storage) {
     }
     let otherUserId = "";
     let isUserContactBlocked = false;
+    async function refreshContactBlockState(userId) {
+        if (!currentUserId || !userId) {
+            isUserContactBlocked = false;
+            const labelEl = document.getElementById("blockContactUserLabel");
+            if (labelEl) labelEl.textContent = "Block";
+            return false;
+        }
+
+        try {
+            const snapshot = await get(ref(database, `data/contacts/${currentUserId}/${userId}`));
+            const nextBlocked = !!(snapshot.exists() && snapshot.val() && snapshot.val().isBlocked === true);
+            isUserContactBlocked = nextBlocked;
+            const labelEl = document.getElementById("blockContactUserLabel");
+            if (labelEl) labelEl.textContent = nextBlocked ? "Unblock" : "Block";
+            return nextBlocked;
+        } catch (e) {
+            isUserContactBlocked = false;
+            const labelEl = document.getElementById("blockContactUserLabel");
+            if (labelEl) labelEl.textContent = "Block";
+            return false;
+        }
+    }
+
     const blockContactUserModal = document.getElementById('block-contact-user');
     if (blockContactUserModal) {
-        blockContactUserModal.addEventListener('show.bs.modal', function (event) {
+        blockContactUserModal.addEventListener('show.bs.modal', async function (event) {
             const userId = document.getElementById("contact-detail-user-id")?.value || "";
             const otherUserId = userId;
-            isUserContactBlocked = localStorage.getItem("isUserContactBlocked") === "true";
-            if (isUserContactBlocked) {
-                document.getElementById("blockContactUserLabel").textContent = "Unblock";
-            } else {
-                document.getElementById("blockContactUserLabel").textContent = "Block";
-            }
+            await refreshContactBlockState(userId);
             const blockUserInput = document.querySelector('#block-contact-user .modal-body #block-contact-user-id');
             if (blockUserInput) blockUserInput.value = userId; // Set the user ID for block modal
             // blockUser(userId);
@@ -1589,9 +1607,14 @@ initializeFirebase(function (app, auth, database, storage) {
     }
     const blockContactUserDropdownBtn = document.getElementById("blockContactUserDropdownBtn");
     if (blockContactUserDropdownBtn) {
-        blockContactUserDropdownBtn.addEventListener("click", function (event) {
+        blockContactUserDropdownBtn.addEventListener("click", async function (event) {
+            event.preventDefault();
             const userId = document.getElementById("contact-detail-user-id")?.value || "";
+            if (!userId) return;
             otherUserId = userId; // Replace with actual user ID logic
+            await refreshContactBlockState(userId);
+            const blockUserInput = document.getElementById("block-contact-user-id");
+            if (blockUserInput) blockUserInput.value = userId;
             const EditpopupElement = getContactDetailsModalEl();
             if (EditpopupElement) {
                 const editpopup = bootstrap.Modal.getInstance(EditpopupElement);  // Get the existing modal instance
@@ -1815,7 +1838,6 @@ initializeFirebase(function (app, auth, database, storage) {
                 }).showToast();
                 document.getElementById("blockContactUserLabel").textContent = "Unblock";
                 isUserContactBlocked = true;
-                localStorage.setItem("isUserContactBlocked", "true");
                 // Close the block modal explicitly
                 const blockModal = bootstrap.Modal.getInstance(document.getElementById("block-contact-user"));
                 if (blockModal) blockModal.hide();
@@ -1853,8 +1875,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     backgroundColor: "#28a745",
                 }).showToast();
                 document.getElementById("blockContactUserLabel").textContent = "Block";
-                isUserContactBlocked = true;
-                localStorage.setItem("isUserContactBlocked", "true");
+                isUserContactBlocked = false;
                 // Close the block modal explicitly
                 const unblockModal = bootstrap.Modal.getInstance(document.getElementById("unblock-contact-user"));
                 if (unblockModal) unblockModal.hide();

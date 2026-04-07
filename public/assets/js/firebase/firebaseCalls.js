@@ -52,7 +52,8 @@ function resolveCallsProfileImageUrl(raw) {
             ? window.location.protocol
             : "https:") + s;
     const path = s.replace(/^\.?\/+/, "");
-    return origin ? origin + "/" + path : defaultUrl;
+    const finalUrl = origin ? origin + "/" + path : defaultUrl;
+    return finalUrl;
 }
 
 let currentUser = null; // Define the current user here
@@ -61,6 +62,17 @@ let usersMap = {}; // Define usersMap here
 /** Latest calls payload so we can re-render when `users` loads after calls. */
 let lastCallsData = {};
 let unsubCallsListener = null;
+let selectedCallKey = null;
+let selectedCallTitle = "";
+let selectedCallAvatar = "";
+let selectedCallIsGroup = false;
+
+function isCallsPagePath() {
+    const p = ((window.location && window.location.pathname) || "")
+        .replace(/\/+$/, "")
+        .toLowerCase();
+    return p === "/calls" || p === "/all-calls";
+}
 
 // Monitor the user's authentication state
 onAuthStateChanged(auth, (user) => {
@@ -132,6 +144,7 @@ async function rerenderCallsTabsFromCache() {
             displayAudioCalls(c),
             displayVideoCalls(c),
         ]);
+        renderSelectedCallHistoryFromCache();
     } catch (e) {
         /* ignore */
     }
@@ -337,6 +350,321 @@ function escapeAttr(s) {
     return String(s == null ? "" : s).replace(/"/g, "&quot;");
 }
 
+function escapeHtml(s) {
+    return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+function getAudioCallTriggerEl() {
+    return (
+        document.getElementById("audio-call-btn") ||
+        document.getElementById("audio-call-btn-spa")
+    );
+}
+
+function getVideoCallTriggerEl() {
+    return (
+        document.getElementById("video-call-new-btn") ||
+        document.getElementById("video-call-new-btn-spa")
+    );
+}
+
+function pickGroupAvatarRawForCalls(groupData) {
+    if (!groupData || typeof groupData !== "object") return "";
+    const candidate =
+        groupData.image ||
+        groupData.avatarURL ||
+        groupData.profile_image ||
+        groupData.avatar ||
+        "";
+    if (candidate && typeof candidate === "object") {
+        return (
+            candidate.url ||
+            candidate.path ||
+            candidate.src ||
+            ""
+        );
+    }
+    return String(candidate || "").trim();
+}
+
+function getCallHistoryKey(call, rowData) {
+    if (call && call.type === "group") {
+        const gid =
+            call.groupId ||
+            call.group_id ||
+            call.groupKey ||
+            call.channelName ||
+            call.id;
+        return "group:" + String(gid || "unknown").trim();
+    }
+    const uid = (rowData && rowData.otherUserId) || getCallOtherPartyUid(call) || "unknown";
+    return "user:" + String(uid).trim();
+}
+
+function getSelectedPeerUserId() {
+    if (!selectedCallKey || selectedCallIsGroup) return null;
+    if (!String(selectedCallKey).startsWith("user:")) return null;
+    const uid = String(selectedCallKey).slice(5).trim();
+    return uid || null;
+}
+
+function renderCallsWelcomePane() {
+    if (!isCallsPagePath()) {
+        return;
+    }
+    const host = document.getElementById("spa-page-content");
+    if (!host) return;
+    host.innerHTML = `
+        <div id="welcome-container" class="welcome-content d-flex align-items-center justify-content-center">
+            <div class="welcome-info text-center">
+                <div class="welcome-box bg-white d-inline-flex align-items-center gap-2">
+                    <span class="avatar avatar-md flex-shrink-0">
+                        <img id="profileImageChat" src="/assets/img/profiles/avatar-03.jpg" alt="img" class="rounded-circle">
+                    </span>
+                    <h6 class="title mb-0">Welcome!</h6>
+                </div>
+                <p class="mt-3 mb-4">Choose a person or group to start chat with them.</p>
+                <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#add-contact"><i class="ti ti-send me-2"></i>Invite Contacts</a>
+            </div>
+        </div>`;
+}
+
+function getCallDurationLabel(call) {
+    const d = call && call.duration != null ? String(call.duration).trim() : "";
+    if (!d) return "00 Min 00 Sec";
+    if (/^\d{2}:\d{2}:\d{2}$/.test(d)) {
+        const parts = d.split(":");
+        return `${parts[1]} Min ${parts[2]} Sec`;
+    }
+    if (/^\d{2}:\d{2}$/.test(d)) {
+        const p = d.split(":");
+        return `${p[0]} Min ${p[1]} Sec`;
+    }
+    if (d === "Ringing") return "Ringing";
+    if (d === "Declined") return "Declined";
+    if (d === "Ended") return "Ended";
+    if (d === "Cancelled") return "Cancelled";
+    return d;
+}
+
+function getCallCardVisuals(call) {
+    const isVideo = !!(call && call.video === true);
+    const kind = isVideo ? "Video" : "Audio";
+    const inOrOut = call && call.inOrOut ? String(call.inOrOut) : "";
+    let title = `${kind} Call Ended`;
+    let icon = isVideo ? "ti ti-video" : "ti ti-phone-call";
+    let iconBg = "bg-success";
+    if (inOrOut === "MISSED") {
+        title = `Missed ${kind} Call`;
+        icon = isVideo ? "ti ti-video" : "ti ti-phone-call";
+        iconBg = "bg-danger";
+    } else if (inOrOut === "Declined") {
+        title = `Declined ${kind} Call`;
+        icon = "ti ti-phone-x";
+        iconBg = "bg-danger";
+    } else if (inOrOut === "IN") {
+        title = `${kind} Call Ended`;
+        icon = "ti ti-phone-incoming";
+        iconBg = "bg-success";
+    } else if (inOrOut === "OUT") {
+        title = `${kind} Call Ended`;
+        icon = isVideo ? "ti ti-video" : "ti ti-phone-outgoing";
+        iconBg = "bg-success";
+    }
+    return { title, icon, iconBg };
+}
+
+function renderCallHistoryPane(historyRows) {
+    if (!isCallsPagePath()) {
+        return;
+    }
+    const host = document.getElementById("spa-page-content");
+    if (!host) return;
+    if (!historyRows || historyRows.length === 0) {
+        renderCallsWelcomePane();
+        return;
+    }
+    const title = escapeHtml(selectedCallTitle || "Call History");
+    const avatar = escapeAttr(resolveCallsProfileImageUrl(selectedCallAvatar || ""));
+    const historyHtml = historyRows
+        .map((row) => {
+            const ts = formatedTimestamp(row.call.currentMills || Date.now());
+            const me = row.call && row.call.inOrOut === "OUT";
+            const whoName = me ? "You" : title;
+            const visuals = getCallCardVisuals(row.call);
+            const durationLabel = getCallDurationLabel(row.call);
+            if (me) {
+                return `
+                <div class="chats chats-right">
+                    <div class="chat-content">
+                        <div class="chat-profile-name text-end">
+                            <h6>${escapeHtml(whoName)}<i class="ti ti-circle-filled fs-7 mx-2"></i><span class="chat-time">${escapeHtml(ts)}</span><span class="msg-read success"></span></h6>
+                        </div>
+                        <div class="chat-info">
+                            <div class="chat-actions">
+                                <a class="#" href="javascript:void(0);"><i class="ti ti-dots-vertical"></i></a>
+                            </div>
+                            <div class="message-content">
+                                <div class="file-attach">
+                                    <span class="file-icon ${visuals.iconBg} text-white">
+                                        <i class="${visuals.icon}"></i>
+                                    </span>
+                                    <div class="ms-2 overflow-hidden">
+                                        <h6 class="mb-1">${escapeHtml(visuals.title)}</h6>
+                                        <p>${escapeHtml(durationLabel)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-avatar">
+                        <img src="${avatar}" class="rounded-circle dreams_chat" alt="image">
+                    </div>
+                </div>`;
+            }
+            return `
+                <div class="chats">
+                    <div class="chat-avatar">
+                        <img src="${avatar}" class="rounded-circle" alt="image">
+                    </div>
+                    <div class="chat-content">
+                        <div class="chat-profile-name">
+                            <h6>${escapeHtml(whoName)}<i class="ti ti-circle-filled fs-7 mx-2"></i><span class="chat-time">${escapeHtml(ts)}</span><span class="msg-read success"></span></h6>
+                        </div>
+                        <div class="chat-info">
+                            <div class="message-content">
+                                <div class="file-attach">
+                                    <div class="d-flex align-items-center">
+                                        <span class="file-icon ${visuals.iconBg} text-white">
+                                            <i class="${visuals.icon}"></i>
+                                        </span>
+                                        <div class="ms-2 overflow-hidden">
+                                            <h6 class="mb-1 text-truncate">${escapeHtml(visuals.title)}</h6>
+                                            <p>${escapeHtml(durationLabel)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="chat-actions">
+                                <a class="#" href="javascript:void(0);"><i class="ti ti-dots-vertical"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        })
+        .join("");
+    host.innerHTML = `
+        <div class="chat chat-messages show" id="middle">
+            <div>
+                <div class="chat-header">
+                    <div class="user-details">
+                        <div class="avatar avatar-lg ${selectedCallIsGroup ? "" : "online"}">
+                            <img src="${avatar}" class="rounded-circle" alt="image">
+                        </div>
+                        <div class="ms-2">
+                            <h6>${title}</h6>
+                            <span class="last-seen">${selectedCallIsGroup ? "Group" : "Online"}</span>
+                        </div>
+                    </div>
+                    <div class="chat-options">
+                        <ul>
+                            <li><a href="javascript:void(0);" class="btn chat-search-btn"><i class="ti ti-search"></i></a></li>
+                            <li><a href="javascript:void(0);" class="btn call-header-action" data-call-kind="video"><i class="ti ti-video"></i></a></li>
+                            <li><a href="javascript:void(0);" class="btn call-header-action" data-call-kind="audio"><i class="ti ti-phone"></i></a></li>
+                            <li>
+                                <a class="btn no-bg" href="javascript:void(0);" data-bs-toggle="dropdown">
+                                    <i class="ti ti-dots-vertical"></i>
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end p-3">
+                                    <li><a href="javascript:void(0);" class="dropdown-item"><i class="ti ti-copy me-2"></i>Copy Number</a></li>
+                                    <li><a href="javascript:void(0);" class="dropdown-item"><i class="ti ti-ban me-2"></i>Block</a></li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="chat-search search-wrap contact-search">
+                        <form onsubmit="return false;">
+                            <div class="input-group">
+                                <input type="text" class="form-control" placeholder="Search Contacts">
+                                <span class="input-group-text"><i class="ti ti-search"></i></span>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="chat-body chat-page-group slimscroll">
+                    <div class="messages">${historyHtml}</div>
+                </div>
+                <div class="chat-footer position-relative">
+                    <form class="footer-form" onsubmit="return false;">
+                        <div class="chat-footer-wrap">
+                            <div class="form-item"><a href="javascript:void(0);" class="action-circle"><i class="ti ti-microphone"></i></a></div>
+                            <div class="form-wrap"><input type="text" class="form-control" placeholder="Type Your Message"></div>
+                            <div class="form-item emoj-action-foot"><a href="javascript:void(0);" class="action-circle"><i class="ti ti-mood-smile"></i></a></div>
+                            <div class="form-item position-relative d-flex align-items-center justify-content-center"><a href="javascript:void(0);" class="action-circle file-action position-absolute"><i class="ti ti-folder"></i></a><input type="file" class="open-file position-relative" name="files"></div>
+                            <div class="form-item"><a href="javascript:void(0);"><i class="ti ti-dots-vertical"></i></a></div>
+                            <div class="form-btn"><button class="btn btn-primary" type="submit"><i class="ti ti-send"></i></button></div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>`;
+}
+
+function bindCallRowClicks(container) {
+    if (!container) return;
+    container.querySelectorAll(".chat-user-list[data-call-key]").forEach((el) => {
+        el.addEventListener("click", function (e) {
+            e.preventDefault();
+            selectedCallKey = this.getAttribute("data-call-key") || null;
+            selectedCallTitle = this.getAttribute("data-call-title") || "";
+            selectedCallAvatar = this.getAttribute("data-call-avatar") || "";
+            selectedCallIsGroup = this.getAttribute("data-call-group") === "1";
+            renderSelectedCallHistoryFromCache();
+        });
+    });
+}
+
+function renderSelectedCallHistoryFromCache() {
+    if (!selectedCallKey) {
+        renderCallsWelcomePane();
+        return;
+    }
+    const rows = Object.values(lastCallsData || {}).sort(
+        (a, b) => (b.currentMills || 0) - (a.currentMills || 0)
+    );
+    Promise.all(
+        rows.map(async (call) => {
+            const rowData = await processCallData(call);
+            if (!rowData) return null;
+            const key = getCallHistoryKey(call, rowData);
+            return {
+                key,
+                rowData,
+                call,
+                directionText: rowData.directionText,
+                directionIcon: rowData.directionIcon,
+                directionColor: rowData.directionColor,
+                callTypeIcon: rowData.callTypeIcon,
+            };
+        })
+    )
+        .then((all) => {
+            const historyRows = all.filter((x) => x && x.key === selectedCallKey);
+            if (!historyRows.length) {
+                renderCallsWelcomePane();
+                return;
+            }
+            renderCallHistoryPane(historyRows);
+        })
+        .catch(() => {
+            renderCallsWelcomePane();
+        });
+}
+
 async function getUserDisplayName(userId) {
     if (!userId) return "Unknown User";
 
@@ -401,10 +729,43 @@ async function processCallData(call) {
 
     // Handle Group vs. Single calls
     if (call.type === 'group') {
-        // --- LOGIC FOR GROUP CALLS ---
-        displayName = call.groupName || "Group Call"; // Assuming group name is stored in the call
-        profileImage = resolveCallsProfileImageUrl(call.groupImage || "");
-    
+        // Group calls are written with callerName/callerImg (see firebaseGroupChat initiateGroupCall);
+        // also accept groupName/groupImage for compatibility.
+        let rawName =
+            (call.groupName && String(call.groupName).trim()) ||
+            (call.group_name && String(call.group_name).trim()) ||
+            (call.callerName && String(call.callerName).trim()) ||
+            (call.name && String(call.name).trim()) ||
+            "";
+        let rawImg =
+            (call.groupImage && String(call.groupImage).trim()) ||
+            (call.group_image && String(call.group_image).trim()) ||
+            (call.callerImg && String(call.callerImg).trim()) ||
+            (call.caller_img && String(call.caller_img).trim()) ||
+            "";
+        const gid = call.groupId || call.group_id;
+        if (gid) {
+            try {
+                const gs = await get(ref(database, `data/groups/${gid}`));
+                if (gs.exists()) {
+                    const g = gs.val();
+                    if (!rawName || rawName === "Group Call") {
+                        const fromG =
+                            (g.groupName && String(g.groupName).trim()) ||
+                            (g.name && String(g.name).trim()) ||
+                            "";
+                        if (fromG) rawName = fromG;
+                    }
+                    if (!rawImg) {
+                        rawImg = pickGroupAvatarRawForCalls(g);
+                    }
+                }
+            } catch (e) {
+                /* ignore */
+            }
+        }
+        displayName = rawName || "Group Call";
+        profileImage = resolveCallsProfileImageUrl(rawImg || "");
     } else {
         // --- LOGIC FOR SINGLE (ONE-TO-ONE) CALLS ---
         otherUserId = getCallOtherPartyUid(call);
@@ -499,12 +860,14 @@ async function displayAllCalls(calls) {
     allCallsWrap.classList.add('chat-users-wrap');
 
     // 2. Now that all data is fetched, build the HTML in the correct order
-    renderedData.forEach(data => {
+    renderedData.forEach((data, idx) => {
+        const callHistoryKey = getCallHistoryKey(sortedCalls[idx], data);
+        const isGroup = sortedCalls[idx] && sortedCalls[idx].type === "group" ? "1" : "0";
         const callItem = document.createElement('div');
         callItem.classList.add('chat-list');
         const imgSrc = escapeAttr(data.profileImage);
         callItem.innerHTML = `
-            <a href="#" class="chat-user-list">
+            <a href="#" class="chat-user-list" data-call-key="${escapeAttr(callHistoryKey)}" data-call-title="${escapeAttr(data.fullName)}" data-call-avatar="${imgSrc}" data-call-group="${isGroup}">
                 <div class="avatar avatar-lg ${data.userOnlineClass} me-2">
                     <img src="${imgSrc}" class="rounded-circle" alt="image">
                 </div>
@@ -526,6 +889,7 @@ async function displayAllCalls(calls) {
     });
 
     container.appendChild(allCallsWrap);
+    bindCallRowClicks(container);
 }
 
 
@@ -555,12 +919,14 @@ async function displayAudioCalls(calls) {
     const audioCallsWrap = document.createElement('div');
     audioCallsWrap.classList.add('chat-users-wrap');
 
-    renderedData.forEach(data => {
+    renderedData.forEach((data, idx) => {
+        const callHistoryKey = getCallHistoryKey(audioCalls[idx], data);
+        const isGroup = audioCalls[idx] && audioCalls[idx].type === "group" ? "1" : "0";
         const callItem = document.createElement('div');
         callItem.classList.add('chat-list');
         const imgSrc = escapeAttr(data.profileImage);
         callItem.innerHTML = `
-            <a href="#" class="chat-user-list">
+            <a href="#" class="chat-user-list" data-call-key="${escapeAttr(callHistoryKey)}" data-call-title="${escapeAttr(data.fullName)}" data-call-avatar="${imgSrc}" data-call-group="${isGroup}">
                 <div class="avatar avatar-lg ${data.userOnlineClass} me-2">
                     <img src="${imgSrc}" class="rounded-circle" alt="image">
                 </div>
@@ -582,6 +948,7 @@ async function displayAudioCalls(calls) {
     });
 
     container.appendChild(audioCallsWrap);
+    bindCallRowClicks(container);
 }
 
 
@@ -611,12 +978,14 @@ async function displayVideoCalls(calls) {
     const videoCallsWrap = document.createElement('div');
     videoCallsWrap.classList.add('chat-users-wrap');
 
-    renderedData.forEach(data => {
+    renderedData.forEach((data, idx) => {
+        const callHistoryKey = getCallHistoryKey(videoCalls[idx], data);
+        const isGroup = videoCalls[idx] && videoCalls[idx].type === "group" ? "1" : "0";
         const callItem = document.createElement('div');
         callItem.classList.add('chat-list');
         const imgSrc = escapeAttr(data.profileImage);
         callItem.innerHTML = `
-            <a href="#" class="chat-user-list">
+            <a href="#" class="chat-user-list" data-call-key="${escapeAttr(callHistoryKey)}" data-call-title="${escapeAttr(data.fullName)}" data-call-avatar="${imgSrc}" data-call-group="${isGroup}">
                 <div class="avatar avatar-lg ${data.userOnlineClass} me-2">
                     <img src="${imgSrc}" class="rounded-circle" alt="image">
                 </div>
@@ -638,6 +1007,7 @@ async function displayVideoCalls(calls) {
     });
 
     container.appendChild(videoCallsWrap);
+    bindCallRowClicks(container);
 }
 
 
@@ -654,6 +1024,59 @@ function formatCallDuration(timestamp) {
 
 // Initial fetch when the page loads
 fetchAndDisplayCalls();
+
+const clearCallLogBtn = document.getElementById("clear-call-log-btn");
+if (clearCallLogBtn) {
+    clearCallLogBtn.addEventListener("click", async function (e) {
+        e.preventDefault();
+        const uid = auth.currentUser?.uid || currentUser?.uid;
+        if (!uid) return;
+        let shouldClear = true;
+        if (typeof Swal !== "undefined") {
+            const result = await Swal.fire({
+                title: "",
+                text: "Are you sure you want to clear your call log?",
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Yes, clear it",
+                cancelButtonText: "Cancel",
+                confirmButtonColor: "#7c3aed",
+            });
+            shouldClear = !!(result && result.isConfirmed);
+        } else {
+            shouldClear = window.confirm("Are you sure you want to clear your call log?");
+        }
+        if (!shouldClear) return;
+        try {
+            await remove(ref(database, `data/calls/${uid}`));
+            lastCallsData = {};
+            selectedCallKey = null;
+            selectedCallTitle = "";
+            selectedCallAvatar = "";
+            selectedCallIsGroup = false;
+            await rerenderCallsTabsFromCache();
+            if (typeof Toastify !== "undefined") {
+                Toastify({
+                    text: "Call log cleared.",
+                    duration: 2500,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#28a745",
+                }).showToast();
+            }
+        } catch (err) {
+            if (typeof Toastify !== "undefined") {
+                Toastify({
+                    text: "Failed to clear call log.",
+                    duration: 2500,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ff6b6b",
+                }).showToast();
+            }
+        }
+    });
+}
 
 function refreshCallsWelcomeProfileFromLaravel() {
     if (typeof window.syncLaravelUserProfileImages === "function") {
@@ -675,28 +1098,177 @@ setTimeout(refreshCallsWelcomeProfileFromLaravel, 1500);
 
 async function populateUserList() {
     const userListElement = document.getElementById('user-list');
+    if (!userListElement) return;
     userListElement.innerHTML = ''; // Clear existing content
 
-    const users = await fetchUsers(); // Fetch users from Firebase
+    const uid = auth.currentUser?.uid || currentUser?.uid;
+    if (!uid) {
+        userListElement.innerHTML = '<p class="text-muted mb-0">Please sign in to see contacts.</p>';
+        return;
+    }
 
-    users.forEach(user => {
+    const contactsSnap = await get(ref(database, `data/contacts/${uid}`));
+    if (!contactsSnap.exists()) {
+        userListElement.innerHTML = '<p class="text-muted mb-0">No contacts found.</p>';
+        return;
+    }
+
+    const contacts = contactsSnap.val() || {};
+    const contactEntries = Object.entries(contacts);
+    if (!contactEntries.length) {
+        userListElement.innerHTML = '<p class="text-muted mb-0">No contacts found.</p>';
+        return;
+    }
+
+    const rows = await Promise.all(
+        contactEntries.map(async ([contactKey, contactValue]) => {
+            const c = contactValue || {};
+            const targetUserId = String(c.contact_id || contactKey || "").trim();
+            if (!targetUserId) return null;
+            try {
+                const us = await get(ref(database, `data/users/${targetUserId}`));
+                const u = us.exists() ? us.val() : {};
+                const displayName =
+                    `${c.firstName || u.firstName || ""} ${c.lastName || u.lastName || ""}`.trim() ||
+                    c.user_name ||
+                    u.username ||
+                    u.userName ||
+                    c.email ||
+                    "Unknown";
+                const rawAvatar =
+                    c.profile_image ||
+                    u.profile_image ||
+                    u.image ||
+                    "";
+                return {
+                    id: targetUserId,
+                    displayName,
+                    avatar: resolveCallsProfileImageUrl(rawAvatar),
+                    email: c.email ? String(c.email).trim().toLowerCase() : "",
+                    username: c.user_name ? String(c.user_name).trim() : "",
+                };
+            } catch (err) {
+                return null;
+            }
+        })
+    );
+
+    const filteredRows = rows.filter(Boolean);
+    if (filteredRows.length) {
+        const token =
+            typeof document !== "undefined" &&
+            document.querySelector('meta[name="csrf-token"]')
+                ? document
+                      .querySelector('meta[name="csrf-token"]')
+                      .getAttribute("content")
+                : "";
+        const origin =
+            typeof window !== "undefined" && window.location && window.location.origin
+                ? window.location.origin
+                : "";
+        if (token && origin) {
+            try {
+                const resp = await fetch(origin + "/api/users/contact-avatars", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                    body: JSON.stringify({
+                        firebase_uids: filteredRows.map((r) => r.id).filter(Boolean),
+                        emails: [...new Set(filteredRows.map((r) => r.email).filter(Boolean))].slice(0, 60),
+                        usernames: [...new Set(filteredRows.map((r) => r.username).filter(Boolean))].slice(0, 60),
+                    }),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const byUid = data.by_uid || {};
+                    const byEmail = data.by_email || {};
+                    const byUsername = data.by_username || {};
+                    filteredRows.forEach((row) => {
+                        let url = byUid[row.id] || "";
+                        if (!url && row.email && byEmail[row.email]) url = byEmail[row.email];
+                        if (!url && row.username) {
+                            const k = row.username.toLowerCase();
+                            if (byUsername[k]) url = byUsername[k];
+                        }
+                        if (url && String(url).trim()) {
+                            row.avatar = resolveCallsProfileImageUrl(String(url).trim());
+                        }
+                    });
+                }
+            } catch (e) {
+                /* keep Firebase avatar fallback */
+            }
+        }
+    }
+    filteredRows.forEach((user) => {
         const userItem = document.createElement('div');
         userItem.className = 'contact-user d-flex align-items-center justify-content-between';
+        userItem.setAttribute("data-contact-name", String(user.displayName || "").toLowerCase());
         userItem.innerHTML = `
             <div class="d-flex align-items-center">
                 <div class="avatar avatar-lg">
-                    <img src="${resolveCallsProfileImageUrl((user.profile_image && String(user.profile_image).trim()) || user.image || '')}" class="rounded-circle" alt="${user.firstName}">
+                    <img src="${escapeAttr(user.avatar)}" class="rounded-circle" alt="${escapeAttr(user.displayName)}">
                 </div>
                 <div class="ms-2">
-                    <h6>${user.firstName}</h6>
+                    <h6>${escapeHtml(user.displayName)}</h6>
                 </div>
             </div>
             <div class="d-inline-flex">
-                <a href="#" class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle me-2" data-bs-toggle="modal" data-bs-target="#voice_call"><span><i class="ti ti-phone"></i></span></a>
-                <a href="#" class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle" data-bs-toggle="modal" data-bs-target="#video-call"><span><i class="ti ti-video"></i></span></a>
+                <a href="javascript:void(0);" class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle me-2 new-call-action" data-call-user="${escapeAttr(user.id)}" data-call-kind="audio"><span><i class="ti ti-phone"></i></span></a>
+                <a href="javascript:void(0);" class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle new-call-action" data-call-user="${escapeAttr(user.id)}" data-call-kind="video"><span><i class="ti ti-video"></i></span></a>
             </div>
         `;
         userListElement.appendChild(userItem);
+    });
+
+    userListElement.querySelectorAll(".new-call-action").forEach((btn) => {
+        btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            const selectedUid = this.getAttribute("data-call-user");
+            const kind = this.getAttribute("data-call-kind") || "";
+            if (!selectedUid) return;
+            try {
+                localStorage.setItem("selectedUserId", String(selectedUid));
+            } catch (err) {
+                /* ignore */
+            }
+            try {
+                const nc = document.getElementById("new-call");
+                if (nc && typeof bootstrap !== "undefined") {
+                    const mi =
+                        bootstrap.Modal.getInstance(nc) ||
+                        bootstrap.Modal.getOrCreateInstance(nc);
+                    mi.hide();
+                }
+            } catch (err2) {
+                /* ignore */
+            }
+            const audioEl =
+                document.getElementById("audio-call-btn") ||
+                document.getElementById("audio-call-btn-spa");
+            const videoEl =
+                document.getElementById("video-call-new-btn") ||
+                document.getElementById("video-call-new-btn-spa");
+            if (kind === "audio" && audioEl) audioEl.click();
+            else if (kind === "video" && videoEl) videoEl.click();
+        });
+    });
+}
+
+const newCallSearchInput = document.getElementById("newCallSearchInput");
+if (newCallSearchInput) {
+    newCallSearchInput.addEventListener("input", function () {
+        const q = String(this.value || "").trim().toLowerCase();
+        const rows = document.querySelectorAll("#user-list .contact-user");
+        rows.forEach((row) => {
+            const name = String(row.getAttribute("data-contact-name") || "").toLowerCase();
+            row.style.display = !q || name.includes(q) ? "" : "none";
+        });
     });
 }
 
@@ -739,4 +1311,21 @@ if (searchCallInput) {
         } 
     });
 }
+
+document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".call-header-action[data-call-kind]");
+    if (!btn) return;
+    e.preventDefault();
+    const peerUid = getSelectedPeerUserId();
+    if (!peerUid) return;
+    try {
+        localStorage.setItem("selectedUserId", String(peerUid));
+    } catch (err) {
+        /* ignore */
+    }
+    const kind = btn.getAttribute("data-call-kind");
+    const trigger =
+        kind === "video" ? getVideoCallTriggerEl() : getAudioCallTriggerEl();
+    if (trigger) trigger.click();
+});
 });

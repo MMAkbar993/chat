@@ -531,8 +531,8 @@
 </div>
 <!-- /New Chat -->
 
-<!-- Delete Chat -->
-<div class="modal fade" id="delete-chat">
+<!-- Delete Chat (legacy modal id changed to avoid duplicate with sidebar settings modal) -->
+<div class="modal fade" id="delete-chat-legacy">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">

@@ -8,14 +8,16 @@
   z-index: 2000 !important;
 }
 
+.modal-backdrop.show {
+  opacity: 0.45 !important;
+}
+
 .modal {
   z-index: 2005 !important;
 }
 
-/* Let clicks reach the dialog when a parent uses odd stacking (backdrop above chrome). */
-body.modal-open .modal.show {
-  pointer-events: none;
-}
+/* Keep modal fully interactive to avoid "black stuck" states. */
+body.modal-open .modal.show,
 body.modal-open .modal.show .modal-dialog {
-  pointer-events: auto;
+  pointer-events: auto !important;
 }

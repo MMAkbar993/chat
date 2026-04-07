@@ -9,103 +9,15 @@
                 </button>
             </div>
             <div class="modal-body">
-                <form action="{{ route('all-calls') }}">
+                <form onsubmit="return false;">
                     <div class="search-wrap contact-search mb-3">
                         <div class="input-group">
-                            <input type="text" class="form-control" placeholder="{{ __('Search')}}">
+                            <input type="text" id="newCallSearchInput" class="form-control" placeholder="{{ __('Search')}}">
                             <a href="javascript:void(0);" class="input-group-text"><i class="ti ti-search"></i></a>
                         </div>
                     </div>
                     <h6 class="mb-3 fw-medium fs-16">{{ __('Contacts')}}</h6>
-                    <div class="contact-scroll contact-select mb-3">
-                        <div class="contact-user d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center">
-                                <div class="avatar avatar-lg">
-                                    <img src="assets/img/profiles/avatar-06.jpg" class="rounded-circle"
-                                        alt="image">
-                                </div>
-                                <div class="ms-2">
-                                    <h6>Edward Lietz</h6>
-                                    <p>App Developer</p>
-                                </div>
-                            </div>
-                            <div class="d-inline-flex">
-                                <a href=""
-                                    class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle me-2"
-                                    data-bs-toggle="modal" data-bs-target="#voice_call"><span><i
-                                            class="ti ti-phone"></i></span></a>
-                                <a href=""
-                                    class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle"
-                                    data-bs-toggle="modal" data-bs-target="#video-call"><span><i
-                                            class="ti ti-video"></i></span></a>
-                            </div>
-                        </div>
-                        <div class="contact-user d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center">
-                                <div class="avatar avatar-lg">
-                                    <img src="assets/img/profiles/avatar-02.jpg" class="rounded-circle"
-                                        alt="image">
-                                </div>
-                                <div class="ms-2">
-                                    <h6>Sarika Jain</h6>
-                                    <p>UI/UX Designer</p>
-                                </div>
-                            </div>
-                            <div class="d-inline-flex">
-                                <a href=""
-                                    class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle me-2"
-                                    data-bs-toggle="modal" data-bs-target="#voice_call"><span><i
-                                            class="ti ti-phone"></i></span></a>
-                                <a href=""
-                                    class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle"
-                                    data-bs-toggle="modal" data-bs-target="#video-call"><span><i
-                                            class="ti ti-video"></i></span></a>
-                            </div>
-                        </div>
-                        <div class="contact-user d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center">
-                                <div class="avatar avatar-lg">
-                                    <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                        alt="image">
-                                </div>
-                                <div class="ms-2">
-                                    <h6>Clyde Smith</h6>
-                                    <p>Web Developer</p>
-                                </div>
-                            </div>
-                            <div class="d-inline-flex">
-                                <a href=""
-                                    class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle me-2"
-                                    data-bs-toggle="modal" data-bs-target="#voice_call"><span><i
-                                            class="ti ti-phone"></i></span></a>
-                                <a href=""
-                                    class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle"
-                                    data-bs-toggle="modal" data-bs-target="#video-call"><span><i
-                                            class="ti ti-video"></i></span></a>
-                            </div>
-                        </div>
-                        <div class="contact-user d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center">
-                                <div class="avatar avatar-lg">
-                                    <img src="assets/img/profiles/avatar-04.jpg" class="rounded-circle"
-                                        alt="image">
-                                </div>
-                                <div class="ms-2">
-                                    <h6>Carla Jenkins</h6>
-                                    <p>Business Analyst</p>
-                                </div>
-                            </div>
-                            <div class="d-inline-flex">
-                                <a href=""
-                                    class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle me-2"
-                                    data-bs-toggle="modal" data-bs-target="#voice_call"><span><i
-                                            class="ti ti-phone"></i></span></a>
-                                <a href=""
-                                    class="model-icon bg-light d-flex justify-content-center align-items-center rounded-circle"
-                                    data-bs-toggle="modal" data-bs-target="#video-call"><span><i
-                                            class="ti ti-video"></i></span></a>
-                            </div>
-                        </div>
+                    <div class="contact-scroll contact-select mb-3" id="user-list">
                     </div>
                 </form>
             </div>
@@ -114,6 +26,9 @@
 </div>
 <!-- /Add Call -->
 
+{{-- Hidden triggers: firebaseChat wires outbound audio/video to #audio-call-btn / #video-call-new-btn (see chat.blade). On /calls those IDs are absent; these SPA fallbacks keep initiation working. --}}
+<a href="javascript:void(0);" id="audio-call-btn-spa" class="d-none" tabindex="-1" aria-hidden="true"></a>
+<a href="javascript:void(0);" id="video-call-new-btn-spa" class="d-none" tabindex="-1" aria-hidden="true"></a>
 
 {{-- 1:1 video ring UI: outgoing = red cancel only; incoming = green answer + red decline. Active call uses #start-video-call-container. --}}
 <div class="modal fade video-call-ring-modal" id="video-call" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
