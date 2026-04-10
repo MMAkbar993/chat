@@ -209,6 +209,18 @@ initializeFirebase(function (app, auth, database, storage) {
                             document.body.setAttribute("data-chat-panel", "welcome");
                         }
                     }
+                    // Tab discard / full reload clears session + ?user= in code above; recover last peer from localStorage
+                    // only in that case so a normal /chat visit does not reopen a stale thread.
+                    if (!storedUserId && isPageReload) {
+                        try {
+                            const ls = (
+                                localStorage.getItem("selectedUserId") || ""
+                            ).trim();
+                            if (ls) storedUserId = ls;
+                        } catch (e) {
+                            /* ignore */
+                        }
+                    }
                     if (!storedUserId) {
                         storedUserId = null;
                     }
@@ -12146,59 +12158,104 @@ initializeFirebase(function (app, auth, database, storage) {
 
     window.__dreamchatEnsureChatPageVisible = ensureChatPageVisible;
 
-    // After switching browser tabs, in-memory selectedUserId can desync from URL/storage;
-    // restore the open thread so the main panel does not fall back to the welcome screen.
-    let dreamchatTabWasHidden = false;
+    // Re-open 1:1 thread after tab sleep / bfcache / races that cleared listeners or showed welcome
+    // while the sidebar still shows a conversation.
+    let dreamchatEverDocumentHidden = false;
+    let dreamchatResyncChatTimer = null;
+    function dreamchatResolveStoredOneOnOnePeerId() {
+        try {
+            const q = new URLSearchParams(window.location.search || "").get(
+                "user"
+            );
+            if (q && String(q).trim()) return String(q).trim();
+        } catch (e) {
+            /* ignore */
+        }
+        try {
+            const s = (
+                sessionStorage.getItem(CHAT_ACTIVE_PEER_SESSION_KEY) || ""
+            ).trim();
+            if (s) return s;
+        } catch (e) {
+            /* ignore */
+        }
+        try {
+            const ls = (localStorage.getItem("selectedUserId") || "").trim();
+            if (ls) return ls;
+        } catch (e) {
+            /* ignore */
+        }
+        return null;
+    }
+    function dreamchatOneOnOneUiMissingOpenThread() {
+        const wel = document.getElementById("welcome-container");
+        const mid = document.getElementById("middle");
+        if (!mid) return false;
+        if (wel) {
+            const w = window.getComputedStyle(wel);
+            if (
+                w.display !== "none" &&
+                w.visibility !== "hidden" &&
+                parseFloat(w.opacity || "1") > 0.05
+            ) {
+                return true;
+            }
+        }
+        const m = window.getComputedStyle(mid);
+        if (m.display === "none") return true;
+        if (typeof messageListener !== "function" || !messageListener) {
+            return true;
+        }
+        return false;
+    }
+    function dreamchatResyncOneOnOneChatNow() {
+        const path =
+            (window.location.pathname || "").replace(/\/+$/, "") || "/";
+        if (path !== "/chat" && path !== "/index") return;
+        if (!auth.currentUser) return;
+        const peer = dreamchatResolveStoredOneOnOnePeerId();
+        if (!peer) return;
+        if (String(selectedUserId || "") !== String(peer)) {
+            selectUser(peer);
+            return;
+        }
+        if (dreamchatOneOnOneUiMissingOpenThread()) {
+            selectUser(peer);
+            return;
+        }
+        ensureChatPageVisible();
+    }
+    function dreamchatScheduleResyncOneOnOneChat() {
+        if (dreamchatResyncChatTimer) clearTimeout(dreamchatResyncChatTimer);
+        dreamchatResyncChatTimer = setTimeout(function () {
+            dreamchatResyncChatTimer = null;
+            dreamchatResyncOneOnOneChatNow();
+        }, 160);
+    }
     if (typeof document !== "undefined") {
         document.addEventListener("visibilitychange", function () {
             if (document.visibilityState === "hidden") {
-                dreamchatTabWasHidden = true;
+                dreamchatEverDocumentHidden = true;
                 return;
             }
-            if (document.visibilityState !== "visible" || !dreamchatTabWasHidden) {
-                return;
+            if (
+                document.visibilityState === "visible" &&
+                dreamchatEverDocumentHidden
+            ) {
+                dreamchatScheduleResyncOneOnOneChat();
             }
-            dreamchatTabWasHidden = false;
-            const path =
-                (window.location.pathname || "").replace(/\/+$/, "") || "/";
-            if (path !== "/chat" && path !== "/index") return;
-            if (!auth.currentUser) return;
-            let peer = null;
-            try {
-                const q = new URLSearchParams(window.location.search || "").get(
-                    "user"
-                );
-                if (q && String(q).trim()) peer = String(q).trim();
-            } catch (e) {
-                /* ignore */
+        });
+    }
+    if (typeof window !== "undefined") {
+        window.addEventListener("pageshow", function (e) {
+            if (e && e.persisted) {
+                dreamchatScheduleResyncOneOnOneChat();
             }
-            if (!peer) {
-                try {
-                    peer =
-                        (
-                            sessionStorage.getItem(
-                                CHAT_ACTIVE_PEER_SESSION_KEY
-                            ) || ""
-                        ).trim() || null;
-                } catch (e) {
-                    /* ignore */
-                }
-            }
-            if (!peer) {
-                try {
-                    peer =
-                        (localStorage.getItem("selectedUserId") || "").trim() ||
-                        null;
-                } catch (e) {
-                    /* ignore */
-                }
-            }
-            if (!peer) return;
-            if (String(selectedUserId || "") === String(peer)) {
-                ensureChatPageVisible();
-                return;
-            }
-            selectUser(peer);
+        });
+        window.addEventListener("focus", function () {
+            if (!dreamchatEverDocumentHidden) return;
+            if (document.visibilityState !== "visible") return;
+            dreamchatScheduleResyncOneOnOneChat();
         });
     }
 
