@@ -1458,59 +1458,81 @@ initializeFirebase(function (app, auth, database, storage) {
         const dropdownMenu = document.createElement("ul");
         dropdownMenu.classList.add("dropdown-menu", "dropdown-menu-end", "p-3");
 
-        // Define dropdown options
-        const options = [
-            {
-                text: "Archive Chat",
-                icon: "ti ti-box-align-right",
-                click: () => archiveChat(userId),
-            },
-            {
-                text: "Mark as Favourite",
-                icon: "ti ti-heart",
-                click: () => favouriteChat(userId),
-            },
-            {
-                text: "Mark as Unread",
-                icon: "ti ti-check",
-                click: () => markChatAsUnread(userId),
-            },
-            {
-                text: "Pin Chats",
-                icon: "ti ti-pinned",
-                click: () => pinChat(userId),
-            },
-            {
-                text: "Delete",
-                icon: "ti ti-trash",
-                click: () => {
-                    if (
-                        typeof window !== "undefined" &&
-                        window.confirm(
-                            "Permanently delete this chat and all its data (messages, images, videos, documents)?"
-                        )
-                    ) {
-                        permanentlyDeleteChat(userId);
-                    }
-                },
-            },
-        ];
-
-        // Create dropdown items
-        options.forEach((option) => {
+        function appendDropdownItem(text, iconClass, onClick) {
             const dropdownItem = document.createElement("li");
             const dropdownLink = document.createElement("a");
             dropdownLink.classList.add("dropdown-item");
-            dropdownLink.href = "#"; // Prevent default action
-            dropdownLink.innerHTML = `<i class="${option.icon} me-2"></i>${option.text}`;
-
+            dropdownLink.href = "#";
+            dropdownLink.innerHTML = `<i class="${iconClass} me-2"></i>${text}`;
             dropdownLink.onclick = (event) => {
-                event.preventDefault(); // Prevent default action
-                option.click(); // Call the associated click function
+                event.preventDefault();
+                onClick();
             };
             dropdownItem.appendChild(dropdownLink);
             dropdownMenu.appendChild(dropdownItem);
+            return dropdownLink;
+        }
+
+        appendDropdownItem("Archive Chat", "ti ti-box-align-right", () =>
+            archiveChat(userId)
+        );
+        const favMenuLink = appendDropdownItem(
+            "Mark as Favourite",
+            "ti ti-heart",
+            () => favouriteChat(userId)
+        );
+        appendDropdownItem("Mark as Unread", "ti ti-check", () =>
+            markChatAsUnread(userId)
+        );
+        const pinMenuLink = appendDropdownItem("Pin Chats", "ti ti-pinned", () =>
+            pinChat(userId)
+        );
+        appendDropdownItem("Delete", "ti ti-trash", () => {
+            if (
+                typeof window !== "undefined" &&
+                window.confirm(
+                    "Permanently delete this chat and all its data (messages, images, videos, documents)?"
+                )
+            ) {
+                permanentlyDeleteChat(userId);
+            }
         });
+
+        let rowIsFavourite = false;
+        let rowIsPinned = false;
+
+        function updateFavPinMenuItems() {
+            if (favMenuLink) {
+                if (rowIsFavourite) {
+                    favMenuLink.innerHTML = `<i class="ti ti-heart-off me-2"></i>Unfavourite`;
+                    favMenuLink.onclick = (event) => {
+                        event.preventDefault();
+                        unfavouriteChat(userId);
+                    };
+                } else {
+                    favMenuLink.innerHTML = `<i class="ti ti-heart me-2"></i>Mark as Favourite`;
+                    favMenuLink.onclick = (event) => {
+                        event.preventDefault();
+                        favouriteChat(userId);
+                    };
+                }
+            }
+            if (pinMenuLink) {
+                if (rowIsPinned) {
+                    pinMenuLink.innerHTML = `<i class="ti ti-pinned-off me-2"></i>Unpin`;
+                    pinMenuLink.onclick = (event) => {
+                        event.preventDefault();
+                        unpinChatUser(userId);
+                    };
+                } else {
+                    pinMenuLink.innerHTML = `<i class="ti ti-pinned me-2"></i>Pin Chats`;
+                    pinMenuLink.onclick = (event) => {
+                        event.preventDefault();
+                        pinChat(userId);
+                    };
+                }
+            }
+        }
 
         chatDropdown.appendChild(dropdownMenu);
         userDiv.appendChild(chatDropdown);
@@ -1610,9 +1632,30 @@ initializeFirebase(function (app, auth, database, storage) {
         onValue(pinnedListRef, (snap) => {
             const pinned = snap.val() || [];
             const arr = Array.isArray(pinned) ? pinned : [];
-            pinsIcon.innerHTML = arr.includes(userId)
+            rowIsPinned = arr.includes(userId);
+            pinsIcon.innerHTML = rowIsPinned
                 ? '<i class="ti ti-pin"></i>'
                 : "";
+            updateFavPinMenuItems();
+        });
+
+        const favouriteChatsListRef = ref(
+            database,
+            `data/users/${currentUserId}/favourite_chats`
+        );
+        onValue(favouriteChatsListRef, (snap) => {
+            rowIsFavourite = false;
+            if (snap.exists()) {
+                const favs = snap.val();
+                for (const k in favs) {
+                    const uid = favs[k]?.userId;
+                    if (uid != null && String(uid) === String(userId)) {
+                        rowIsFavourite = true;
+                        break;
+                    }
+                }
+            }
+            updateFavPinMenuItems();
         });
 
         /** Avoids stale sidebar text/time when an older onValue async pass finishes after a newer one. */
@@ -6042,6 +6085,38 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
+    function unfavouriteChat(userId) {
+        const me = currentUser?.uid || currentUserId;
+        if (!me || !userId) return;
+        const favRef = ref(database, `data/users/${me}/favourite_chats`);
+        get(favRef)
+            .then((snap) => {
+                if (!snap.exists()) return Promise.resolve();
+                const favs = snap.val();
+                const removeOps = [];
+                for (const key in favs) {
+                    if (String(favs[key]?.userId) === String(userId)) {
+                        removeOps.push(
+                            remove(
+                                ref(database, `data/users/${me}/favourite_chats/${key}`)
+                            )
+                        );
+                    }
+                }
+                return removeOps.length ? Promise.all(removeOps) : Promise.resolve();
+            })
+            .then(() => {
+                Toastify({
+                    text: "Removed from favourites.",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#28a745",
+                }).showToast();
+            })
+            .catch(() => {});
+    }
+
     function pinChat(userId) {
         const userRef = `data/users/${currentUser.uid}/pinnedUserId`;
 
@@ -6096,6 +6171,34 @@ initializeFirebase(function (app, auth, database, storage) {
                     });
             }
         });
+    }
+
+    function unpinChatUser(userId) {
+        const me = currentUser?.uid || currentUserId;
+        if (!me || !userId) return;
+        const pinnedChatsRef = ref(database, `data/users/${me}/pinnedUserId`);
+        get(pinnedChatsRef)
+            .then((snapshot) => {
+                if (!snapshot.exists()) {
+                    return Promise.resolve();
+                }
+                const updatedPinnedUserIds = normalizeUserIdList(
+                    snapshot.val()
+                ).filter((id) => id !== String(userId));
+                return set(pinnedChatsRef, updatedPinnedUserIds);
+            })
+            .then(() => {
+                Toastify({
+                    text: "Chat unpinned.",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#28a745",
+                }).showToast();
+            })
+            .catch((error) => {
+                console.error("Error unpinning chat:", error);
+            });
     }
 
     /**

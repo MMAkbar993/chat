@@ -1052,16 +1052,33 @@ if (typeof window !== "undefined") {
             bindDreamchatGroupCreateUi();
         }
         if (path === "/group-chat" && currentUserId) {
+            applyGroupChatDeepLinkFromUrl();
+            // SPA nav often loads /group-chat without ?group=; do not clear the open group or the
+            // welcome screen replaces an active conversation when returning from another sidebar tab.
             const params = new URLSearchParams(window.location.search || "");
             const gFromUrl = params.get("group");
-            if (!gFromUrl || !String(gFromUrl).trim()) {
-                selectedGroupId = null;
-                window.__dreamchatSelectedGroupId = null;
-                if (typeof window.__dreamchatEnsureChatPageVisible === "function") {
-                    window.__dreamchatEnsureChatPageVisible();
+            const hasUrlGroup = !!(gFromUrl && String(gFromUrl).trim());
+            if (!hasUrlGroup) {
+                const gid =
+                    (typeof window !== "undefined" &&
+                        window.__dreamchatSelectedGroupId &&
+                        String(window.__dreamchatSelectedGroupId).trim()) ||
+                    (selectedGroupId && String(selectedGroupId).trim()) ||
+                    "";
+                if (gid) {
+                    selectedGroupId = gid;
+                    if (typeof window !== "undefined") {
+                        window.__dreamchatSelectedGroupId = gid;
+                    }
+                    loadGroupDetails(gid);
+                    loadGroupMessages(gid);
+                    fetchGroupInfo(gid);
+                    refreshGroupsList();
                 }
             }
-            applyGroupChatDeepLinkFromUrl();
+            if (typeof window.__dreamchatEnsureChatPageVisible === "function") {
+                window.__dreamchatEnsureChatPageVisible();
+            }
         }
     });
 }
