@@ -113,11 +113,11 @@
                 byLetter[letter].forEach(function (item) {
                     var c = item.c;
                     var name = item.name;
-                    var img = c.image || baseUrl + '/assets/img/profiles/avatar-03.jpg';
-                    if (img && img.indexOf('/') === 0) img = baseUrl + img;
+                    var rawImg = (c.image || '').trim();
+                    if (rawImg && rawImg.indexOf('/') === 0 && rawImg.indexOf('//') !== 0) rawImg = baseUrl + rawImg;
                     var username = (c.userName || '').replace(/"/g, '&quot;');
                     html += '<a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#contact-details" class="chat-user-list" data-user-id="' + escapeAttr(c.uid) + '" data-username="' + escapeAttr(username) + '">';
-                    html += '<div class="avatar avatar-lg me-2"><img src="' + escapeAttr(img) + '" class="rounded-circle" alt="image"></div>';
+                    html += '<div class="avatar avatar-lg me-2">' + laravelAvatarInnerFromRaw(rawImg) + '</div>';
                     html += '<div class="chat-user-info"><div class="chat-user-msg"><h6>' + escapeHtml(name) + '</h6></div></div></a>';
                 });
                 html += '</div></div>';
@@ -127,11 +127,11 @@
                 others.forEach(function (item) {
                     var c = item.c;
                     var name = item.name;
-                    var img = c.image || baseUrl + '/assets/img/profiles/avatar-03.jpg';
-                    if (img && img.indexOf('/') === 0) img = baseUrl + img;
+                    var rawImg = (c.image || '').trim();
+                    if (rawImg && rawImg.indexOf('/') === 0 && rawImg.indexOf('//') !== 0) rawImg = baseUrl + rawImg;
                     var username = (c.userName || '').replace(/"/g, '&quot;');
                     html += '<a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#contact-details" class="chat-user-list" data-user-id="' + escapeAttr(c.uid) + '" data-username="' + escapeAttr(username) + '">';
-                    html += '<div class="avatar avatar-lg me-2"><img src="' + escapeAttr(img) + '" class="rounded-circle" alt="image"></div>';
+                    html += '<div class="avatar avatar-lg me-2">' + laravelAvatarInnerFromRaw(rawImg) + '</div>';
                     html += '<div class="chat-user-info"><div class="chat-user-msg"><h6>' + escapeHtml(name) + '</h6></div></div></a>';
                 });
                 html += '</div></div>';
@@ -167,8 +167,13 @@
                     if (titleEl) {
                         titleEl.textContent = data.primary_role_label || formatRoleLine(data.primary_role, data.other_role_text) || data.userName || '';
                     }
-                    var avatar = (modal && modal.querySelector('#contact-detail-avatar')) || document.getElementById('contact-detail-avatar') || document.querySelector('#contact-details .avatar img');
-                    if (avatar) avatar.src = data.image || (baseUrl + '/assets/img/profiles/avatar-03.jpg');
+                    var rawAv = (data.image || '').trim();
+                    if (typeof window !== 'undefined' && window.DreamChatProfileAvatar && typeof window.DreamChatProfileAvatar.setProfileImageSlotById === 'function') {
+                        window.DreamChatProfileAvatar.setProfileImageSlotById('contact-detail-avatar', rawAv);
+                    } else {
+                        var avatar = (modal && modal.querySelector('#contact-detail-avatar')) || document.getElementById('contact-detail-avatar') || document.querySelector('#contact-details .avatar img');
+                        if (avatar && avatar.tagName === 'IMG') avatar.src = rawAv || '';
+                    }
                     var phoneEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="phone"]');
                     if (phoneEl) phoneEl.textContent = data.mobile_number || '—';
                     var emailEl = document.querySelector('#contact-details .fw-medium.fs-14.mb-2[data-field="email"]');
@@ -316,10 +321,10 @@
         list.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
         var html = '';
         list.forEach(function (item) {
-            var img = item.c.image || baseUrl + '/assets/img/profiles/avatar-03.jpg';
-            if (img && img.indexOf('/') === 0 && img.indexOf('//') !== 0) img = baseUrl + img;
+            var rawImg = (item.c.image || '').trim();
+            if (rawImg && rawImg.indexOf('/') === 0 && rawImg.indexOf('//') !== 0) rawImg = baseUrl + rawImg;
             html += '<div class="contact-user d-flex align-items-center mb-2 p-2 rounded" data-user-id="' + escapeAttr(item.uid) + '" style="cursor:pointer;">';
-            html += '<div class="avatar avatar-lg me-2"><img src="' + escapeAttr(img) + '" class="rounded-circle" alt=""></div>';
+            html += '<div class="avatar avatar-lg me-2">' + laravelAvatarInnerFromRaw(rawImg) + '</div>';
             html += '<div class="user-details"><h6 class="user-title mb-0">' + escapeHtml(item.name) + '</h6></div></div>';
         });
         mainContainer.innerHTML = html;
@@ -377,14 +382,14 @@
         list.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
         var html = '';
         list.forEach(function (item) {
-            var img = item.c.image || baseUrl + '/assets/img/profiles/avatar-03.jpg';
-            if (img && img.indexOf('/') === 0 && img.indexOf('//') !== 0) img = baseUrl + img;
+            var rawImg = (item.c.image || '').trim();
+            if (rawImg && rawImg.indexOf('/') === 0 && rawImg.indexOf('//') !== 0) rawImg = baseUrl + rawImg;
             var displayName = item.name;
             if (displayName && displayName.charAt(0)) displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
             html += '<div class="contact-user">';
             html += '<div class="d-flex align-items-center justify-content-between">';
             html += '<div class="d-flex align-items-center">';
-            html += '<div class="avatar avatar-lg"><img src="' + escapeAttr(img) + '" class="rounded-circle" alt="image"></div>';
+            html += '<div class="avatar avatar-lg">' + laravelAvatarInnerFromRaw(rawImg) + '</div>';
             html += '<div class="ms-2"><h6>' + escapeHtml(displayName) + '</h6><p></p></div>';
             html += '</div>';
             html += '<div class="form-check"><input class="form-check-input" type="checkbox" name="contact" value="' + escapeAttr(item.uid) + '"></div>';
@@ -472,12 +477,12 @@
                 var name = item.display_name || ('User ' + uid);
                 var lastMsg = (item.last_message || '').trim() || 'No messages';
                 if (lastMsg.length > 35) lastMsg = lastMsg.slice(0, 32) + '...';
-                var img = (item.other_user && item.other_user.profile_image_link) ? item.other_user.profile_image_link : (baseUrl + '/assets/img/profiles/avatar-03.jpg');
-                if (img && img.indexOf('/') === 0 && img.indexOf('//') !== 0) img = baseUrl + img;
+                var rawImg = (item.other_user && item.other_user.profile_image_link) ? String(item.other_user.profile_image_link).trim() : '';
+                if (rawImg && rawImg.indexOf('/') === 0 && rawImg.indexOf('//') !== 0) rawImg = baseUrl + rawImg;
                 var time = formatChatTime(item.last_at || item.timestamp);
                 html += '<div class="chat-list" data-user-id="' + escapeAttr(String(uid)) + '">';
                 html += '<a href="#" class="chat-user-list">';
-                html += '<div class="avatar avatar-lg me-2"><img src="' + escapeAttr(img) + '" class="rounded-circle" alt="image"></div>';
+                html += '<div class="avatar avatar-lg me-2">' + laravelAvatarInnerFromRaw(rawImg) + '</div>';
                 html += '<div class="chat-user-info"><div class="chat-user-msg"><h6>' + escapeHtml(name) + '</h6><p>' + escapeHtml(lastMsg) + '</p></div>';
                 html += '<div class="chat-user-time"><span class="time">' + escapeHtml(time) + '</span><div class="chat-pin"></div></div></div></a></div>';
             });
@@ -529,16 +534,16 @@
             groups.forEach(function (group) {
                 var gid = group.id;
                 var name = group.name || 'Group';
-                var img = group.image;
+                var rawG = (group.image || '').trim();
+                var img = rawG;
                 if (img && img.indexOf('http') !== 0) img = baseUrl + (img.indexOf('/') === 0 ? '' : '/storage/') + img;
-                if (!img) img = baseUrl + '/assets/img/profiles/avatar-03.jpg';
                 var updated = group.updated_at || group.created_at;
                 var time = formatGroupTime(updated);
                 var lastMsg = (group.latest_message && group.latest_message.body) ? group.latest_message.body : '';
                 if (lastMsg.length > 35) lastMsg = lastMsg.slice(0, 32) + '...';
                 html += '<div class="chat-list" data-group-id="' + escapeAttr(String(gid)) + '">';
                 html += '<a href="#" class="chat-user-list">';
-                html += '<div class="avatar avatar-lg me-2"><img src="' + escapeAttr(img) + '" class="rounded-circle" alt="image"></div>';
+                html += '<div class="avatar avatar-lg me-2">' + laravelAvatarInnerFromRaw(rawG ? img : '') + '</div>';
                 html += '<div class="chat-user-info"><div class="chat-user-msg"><h6>' + escapeHtml(name) + '</h6><p>' + escapeHtml(lastMsg) + '</p></div>';
                 html += '<div class="chat-user-time"><span class="time">' + escapeHtml(time) + '</span><div class="chat-pin"></div></div></div></a></div>';
             });
@@ -585,6 +590,16 @@
             .replace(/'/g, '&#39;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
+    }
+
+    function laravelAvatarInnerFromRaw(raw) {
+        if (typeof window !== 'undefined' && window.DreamChatProfileAvatar && typeof window.DreamChatProfileAvatar.innerHtmlForAvatar === 'function') {
+            return window.DreamChatProfileAvatar.innerHtmlForAvatar(raw || '', { imgClass: 'rounded-circle' });
+        }
+        if (!raw || !String(raw).trim()) {
+            return '<span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback" role="img" aria-label="User"><i class="ti ti-user" aria-hidden="true"></i></span>';
+        }
+        return '<img src="' + escapeAttr(raw) + '" class="rounded-circle" alt="">';
     }
 
     function runForPathname(pathname) {

@@ -66,7 +66,7 @@
 									<img src="assets/img/profiles/avatar-12.jpg" alt="img">
 								</span>
                                 <span class="avatar avatar-xl avatar-rounded border border-white">
-									<img src="assets/img/profiles/avatar-03.jpg" alt="img">
+									<span class="d-inline-flex align-items-center justify-content-center rounded-circle avatar-contact-fallback" style="width:4rem;height:4rem"><i class="ti ti-user" aria-hidden="true"></i></span>
 								</span>
                                 <span class="avatar avatar-xl avatar-rounded border border-white">
 									<img src="assets/img/profiles/avatar-02.jpg" alt="img">

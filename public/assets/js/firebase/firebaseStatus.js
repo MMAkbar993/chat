@@ -23,6 +23,28 @@ import {
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-storage.js";
 
 initializeFirebase(function (app, auth, database, storage) {
+    function statusAvatarInnerHtml(raw) {
+        const pa =
+            typeof window !== "undefined" && window.DreamChatProfileAvatar
+                ? window.DreamChatProfileAvatar
+                : null;
+        if (pa && typeof pa.innerHtmlForAvatar === "function") {
+            return pa.innerHtmlForAvatar(raw || "", { imgClass: "rounded-circle" });
+        }
+        const r =
+            raw != null && String(raw).trim() ? String(raw).trim() : "";
+        if (!r) {
+            return (
+                '<span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>'
+            );
+        }
+        return (
+            '<img src="' +
+            r.replace(/"/g, "&quot;") +
+            '" class="rounded-circle" alt="image">'
+        );
+    }
+
     // Get the current user ID (this happens when the user is authenticated)
     let loggeduserId;
 
@@ -223,7 +245,7 @@ initializeFirebase(function (app, auth, database, storage) {
             groupedStatuses[userId] = {
                 userId: userId,
                 userName: "Unknown User",
-                userImage: "assets/img/profiles/avatar-03.jpg",
+                userImage: "",
                 statuses: [],
                 lastStatusTime: 0,
                 allSeen: true,
@@ -252,9 +274,7 @@ initializeFirebase(function (app, auth, database, storage) {
             const userSnap = await get(userRef);
             if (userSnap.exists()) {
                 const userData = userSnap.val();
-                group.userImage =
-                    userData.image ||
-                    "assets/img/profiles/avatar-03.jpg";
+                group.userImage = userData.image || "";
             }
             const contactRef = ref(
                 database,
@@ -296,8 +316,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     <a href="javascript:void(0)" class="chat-user-list" data-user-id="${userGroup.userId
                 }">
                         <div class="story-avatar avatar avatar-lg">
-                            <img src="${userGroup.userImage
-                }" class="rounded-circle" alt="image">
+                            ${statusAvatarInnerHtml(userGroup.userImage)}
                         </div>
                         <div class="chat-user-info">
                             <h6 class="ms-2">${userGroup.userName}</h6>
@@ -641,7 +660,7 @@ initializeFirebase(function (app, auth, database, storage) {
         let recentUpdates = [];
         let alreadySeen = [];
         let userName = "Unknown User"; // Define userName outside the loop
-        let userImage = "assets/img/profiles/avatar-03.jpg"; // Default image
+        let userImage = "";
 
         for (const status of userStatuses) {
             try {
@@ -697,7 +716,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 const statusHTML = `
                 <div class="chat-user">
                     <div class="avatar avatar-lg me-2">
-                        <img src="${userImage}" class="rounded-circle" alt="image">
+                        ${statusAvatarInnerHtml(userImage)}
                     </div>
                     <div class="user-online">
                         <h5>${userName}</h5>
@@ -763,8 +782,21 @@ initializeFirebase(function (app, auth, database, storage) {
 
         // Update the header of the story viewer
         if (carouselHeader) {
-            carouselHeader.querySelector('img').src = userImage;
-            carouselHeader.querySelector('h5').textContent = userName;
+            const avWrap =
+                carouselHeader.querySelector(".avatar") ||
+                carouselHeader.querySelector(".story-avatar");
+            const pa =
+                typeof window !== "undefined" && window.DreamChatProfileAvatar
+                    ? window.DreamChatProfileAvatar
+                    : null;
+            if (avWrap && pa && typeof pa.setAvatarDivImageOrContactIcon === "function") {
+                pa.setAvatarDivImageOrContactIcon(avWrap, userImage || "");
+            } else {
+                const im = carouselHeader.querySelector("img");
+                if (im) im.src = userImage || "";
+            }
+            const h5n = carouselHeader.querySelector("h5");
+            if (h5n) h5n.textContent = userName;
             // We'll update the time dynamically as the slide changes
         }
 

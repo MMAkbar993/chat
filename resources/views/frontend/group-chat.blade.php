@@ -156,7 +156,7 @@
     flex-wrap: nowrap !important;
     align-items: center !important;
 }
-#middle.chat .chat-header .user-details .avatar img#group_image {
+#middle.chat .chat-header .user-details .avatar#group_image img {
     display: block;
     width: 100%;
     height: 100%;
@@ -196,9 +196,7 @@
                             <i class="fas fa-arrow-left"></i>
                         </a>
                     </div>
-                    <div class="avatar avatar-lg online flex-shrink-0">
-                        <img src="assets/img/profiles/avatar-03.jpg" id="group_image" class="rounded-circle" alt="image">
-                    </div>
+                    <div id="group_image" class="avatar avatar-lg online flex-shrink-0"></div>
                     <div class="ms-2 overflow-hidden">
                         <h6 id="group-name">{{ __('Select a group') }}</h6>
                         <input type="hidden" id="group_id" value="">
@@ -354,9 +352,7 @@
 
                     {{-- Identity --}}
                     <div class="contact-profile-info text-center pt-2">
-                        <div class="avatar avatar-xxl online mb-3 mx-auto">
-                            <img id="group-avatar" src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" alt="img">
-                        </div>
+                        <div id="group-avatar" class="avatar avatar-xxl online mb-3 mx-auto"></div>
                         <div id="group-icon-edit-wrap" class="mb-2 d-none">
                             <label for="group-icon-upload" class="btn btn-sm btn-outline-primary">
                                 <i class="ti ti-camera me-1"></i>{{ __('Change Icon') }}
@@ -1003,8 +999,8 @@
                                 <a href="#" class="">
                                     <img src="assets/img/profiles/avatar-05.jpg" class="rounded-circle" alt="user">
                                 </a>
-                                <a href="#" class="">
-                                    <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="user">
+                                <a href="#" class="d-inline-flex align-items-center justify-content-center rounded-circle bg-soft-primary" style="width:3rem;height:3rem">
+                                    <i class="ti ti-user" aria-hidden="true"></i>
                                 </a>
                             </div>
                             <h6 class="fs-14">Edward Lietz, Aariyan Jose, Federico Wells, +1</h6>
@@ -1443,8 +1439,8 @@
                     <div class="d-flex justify-content-center align-items-center">
                         <label for="avatar-upload" class="set-pro avatar avatar-xxl rounded-circle mb-3 p-1">
                             <img id="avatar-preview"
-                                src="{{ asset('assets/img/profiles/avatar-03.jpg') }}"
-                                data-default-avatar="{{ asset('assets/img/profiles/avatar-03.jpg') }}"
+                                src=""
+                                data-default-avatar=""
                                 class="rounded-circle" alt="user">
                             <span class="add avatar avatar-sm d-flex justify-content-center align-items-center">
                                 <i class="ti ti-plus rounded-circle d-flex justify-content-center align-items-center"></i>

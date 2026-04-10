@@ -23,11 +23,13 @@
 @endif
 <!-- Custom JS -->
 <script src="{{ asset('assets/js/admin-main.js') }}"></script>
+<script src="{{ asset('assets/js/profile-avatar.js') }}"></script>
 @if (Route::is('admin.users'))
 <script src="{{ asset('assets/js/admin-users-database.js') }}"></script>
 @endif
 <script src="{{ asset('assets/js/toastify.js') }} "></script>
 <script>
-    const defaultAvatar = "{{ asset('assets/img/profiles/avatar-03.jpg') }}";
+    /** Empty: UIs use DreamChatProfileAvatar (ti-user) when no photo. */
+    const defaultAvatar = "";
     const defaultLogoAvatar = "{{ asset('assets/img/full-logo.png') }}"
 </script>

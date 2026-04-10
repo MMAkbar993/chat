@@ -76,8 +76,7 @@
                             <input type="text" value="" class="form-control" placeholder="UID"
                                 id="user-id" style="display: none">
                             <span class="user-img me-2">
-                                <img id="profileImageAdmin" src="{{ asset('assets/img/profiles/avatar-03.jpg') }}"
-                                    alt="user">
+                                <span id="profileImageAdmin" class="avatar avatar-sm rounded-circle d-inline-flex align-items-center justify-content-center"></span>
                             </span>
                             <div>
                                 <h6 class="fs-14 fw-medium" id="profile-first-name">Loading...</h6>

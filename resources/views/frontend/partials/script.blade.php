@@ -38,6 +38,8 @@
  <script src="{{ asset('assets/js/axios.min.js') }}"></script>
  <!-- Custom JS -->
  <script src="{{ asset('assets/js/script.js') }}"></script>
+ {{-- Shared profile avatar: ti-user when no photo (used by firebase modules + inline UIs) --}}
+ <script src="{{ asset('assets/js/profile-avatar.js') }}"></script>
 
 {{-- Bootstrap modal backdrop is on body; #spa-page-modals and #block-list-user must not stay inside .main-wrapper or the backdrop stacks above the dialog (modal stuck / "black screen"). --}}
 @auth
@@ -236,18 +238,23 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         var el = document.getElementById(id);
         if (el && el.tagName === 'IMG' && src) el.src = src;
     }
+    function setProfileSlot(id, rawUrl) {
+        var pa = typeof window !== 'undefined' && window.DreamChatProfileAvatar ? window.DreamChatProfileAvatar : null;
+        if (pa && typeof pa.setProfileImageSlotById === 'function') {
+            pa.setProfileImageSlotById(id, (rawUrl != null && String(rawUrl).trim()) ? rawUrl : '');
+            return;
+        }
+        setImg(id, rawUrl);
+    }
     /** Laravel profile photo for the logged-in user: welcome screen, sidebar, header (always; Firebase may omit image). */
     window.syncLaravelUserProfileImages = function syncLaravelUserProfileImages() {
         if (typeof window.LARAVEL_USER === 'undefined' || !window.LARAVEL_USER) return;
         var u = window.LARAVEL_USER;
-        var defaultImg = (typeof APP_URL !== 'undefined' ? APP_URL : '') + '/assets/img/profiles/avatar-03.jpg';
-        if (defaultImg.indexOf('/') === 0) defaultImg = defaultImg.slice(1);
-        if (!defaultImg.match(/^https?:\/\//)) defaultImg = (window.location.origin || '') + '/' + defaultImg.replace(/^\//, '');
-        var imgUrl = u.profile_image || u.image || defaultImg;
-        setImg('profileImage', imgUrl);
-        setImg('profileImageProfile', imgUrl);
-        setImg('profileImageChat', imgUrl);
-        setImg('ProfileImageSidebar', imgUrl);
+        var imgUrl = u.profile_image || u.image || '';
+        setProfileSlot('profileImage', imgUrl);
+        setProfileSlot('profileImageProfile', imgUrl);
+        setProfileSlot('profileImageChat', imgUrl);
+        setProfileSlot('ProfileImageSidebar', imgUrl);
         var fullName = u.public_display_name || ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || '';
         var subWelcome = fullName
             || String(u.email || u.user_name || u.username || '').trim();
@@ -290,10 +297,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         if (typeof window.syncLaravelUserProfileImages === 'function') window.syncLaravelUserProfileImages();
         if (!forceApply && !window.FIREBASE_DISABLED) return;
         var fullName = u.public_display_name || ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || 'No Name';
-        var defaultImg = (typeof APP_URL !== 'undefined' ? APP_URL : '') + '/assets/img/profiles/avatar-03.jpg';
-        if (defaultImg.indexOf('/') === 0) defaultImg = defaultImg.slice(1);
-        if (!defaultImg.match(/^https?:\/\//)) defaultImg = (window.location.origin || '') + '/' + defaultImg.replace(/^\//,'');
-        var imgUrl = u.profile_image || u.image || defaultImg;
+        var imgUrl = u.profile_image || u.image || '';
         setText('profile-name', fullName);
         setText('profile-info-name', fullName);
         setText('profile-info-chat-name', fullName + ' 😊');
@@ -313,10 +317,10 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         setLinkOrText('profile-info-instagram', u.instagram_link || u.instagram);
         setLinkOrText('profile-info-kick', u.kick_link || u.kick);
         setLinkOrText('profile-info-twitch', u.twitch_link || u.twitch);
-        setImg('profileImage', imgUrl);
-        setImg('profileImageProfile', imgUrl);
-        setImg('profileImageChat', imgUrl);
-        setImg('ProfileImageSidebar', imgUrl);
+        setProfileSlot('profileImage', imgUrl);
+        setProfileSlot('profileImageProfile', imgUrl);
+        setProfileSlot('profileImageChat', imgUrl);
+        setProfileSlot('ProfileImageSidebar', imgUrl);
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() { window.applyLaravelProfile(false); });
@@ -426,7 +430,14 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                 var reader = new FileReader();
                 reader.onload = function(e) {
                     var img = document.getElementById('profileImage');
-                    if (img) img.src = e.target.result;
+                    if (!img) return;
+                    var wrap = img.closest('.set-pro');
+                    if (wrap) {
+                        var ph = wrap.querySelector('[data-dc-profile-img-placeholder]');
+                        if (ph) ph.remove();
+                    }
+                    img.style.display = '';
+                    img.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
             });

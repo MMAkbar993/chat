@@ -28,14 +28,19 @@
         if (typeof $ !== 'undefined' && $.fn.DataTable && $.fn.dataTable.isDataTable('#usersTable')) {
             $('#usersTable').DataTable().destroy();
         }
-        var defaultAvatar = (typeof defaultAvatar !== 'undefined' ? window.defaultAvatar : null) || '/assets/img/profiles/avatar-03.jpg';
         tbody.innerHTML = '';
         users.forEach(function (user) {
             var blockText = user.is_blocked ? 'Unblock' : 'Block';
-            var imgSrc = user.profile_image_link || defaultAvatar;
+            var pa = typeof window !== 'undefined' && window.DreamChatProfileAvatar ? window.DreamChatProfileAvatar : null;
+            var pl = (user.profile_image_link || '').trim();
+            var avatarInner = pa && typeof pa.innerHtmlForAvatar === 'function'
+                ? pa.innerHtmlForAvatar(pl, { imgClass: 'img-fluid rounded-circle' })
+                : (pl
+                    ? ('<img src="' + String(pl).replace(/"/g, '&quot;') + '" class="img-fluid rounded-circle" alt="img">')
+                    : '<span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>');
             var row = document.createElement('tr');
             row.setAttribute('data-user-id', user.id);
-            row.innerHTML = '<td>' + user.sno + '</td><td><div class="d-flex align-items-center"><a href="#" class="avatar avatar-md"><img src="' + imgSrc + '" class="img-fluid rounded-circle" alt="img" onerror="this.src=\'' + defaultAvatar + '\'"></a><div class="ms-2 profile-name"><p class="text-dark mb-0">' + (escapeHtml(user.name) || '-') + '</p></div></div></td><td>' + escapeHtml(user.email) + '</td><td>' + escapeHtml(user.mobile_number) + '</td><td>' + escapeHtml(user.reg_date) + '</td><td>' + escapeHtml(user.country) + '</td><td>' + escapeHtml(user.last_seen) + '</td><td><div class="d-flex align-items-center"><div class="dropdowns"><a href="#" class="btn btn-white btn-icon btn-sm d-flex align-items-center justify-content-center rounded-circle p-0" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-14"></i></a><ul class="dropdown-menu dropdown-menu-right p-3"><li><a class="dropdown-item rounded-1 edit-user-button" href="#" data-user-id="' + user.id + '" data-bs-toggle="modal" data-bs-target="#edit_user"><i class="ti ti-edit me-2"></i>Edit</a></li><li><a class="dropdown-item rounded-1 block-user-button" href="#" data-block-id="' + user.id + '" data-block-status="' + (user.is_blocked ? 'true' : 'false') + '" data-bs-toggle="modal" data-bs-target="#block_user"><i class="ti ti-ban me-2"></i>' + blockText + '</a></li><li><a class="dropdown-item rounded-1 delete-user-btn" href="#" data-id="' + user.id + '" data-bs-toggle="modal" data-bs-target="#delete-user"><i class="ti ti-trash me-2"></i>Delete</a></li></ul></div></div></td>';
+            row.innerHTML = '<td>' + user.sno + '</td><td><div class="d-flex align-items-center"><a href="#" class="avatar avatar-md d-inline-flex align-items-center justify-content-center">' + avatarInner + '</a><div class="ms-2 profile-name"><p class="text-dark mb-0">' + (escapeHtml(user.name) || '-') + '</p></div></div></td><td>' + escapeHtml(user.email) + '</td><td>' + escapeHtml(user.mobile_number) + '</td><td>' + escapeHtml(user.reg_date) + '</td><td>' + escapeHtml(user.country) + '</td><td>' + escapeHtml(user.last_seen) + '</td><td><div class="d-flex align-items-center"><div class="dropdowns"><a href="#" class="btn btn-white btn-icon btn-sm d-flex align-items-center justify-content-center rounded-circle p-0" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-14"></i></a><ul class="dropdown-menu dropdown-menu-right p-3"><li><a class="dropdown-item rounded-1 edit-user-button" href="#" data-user-id="' + user.id + '" data-bs-toggle="modal" data-bs-target="#edit_user"><i class="ti ti-edit me-2"></i>Edit</a></li><li><a class="dropdown-item rounded-1 block-user-button" href="#" data-block-id="' + user.id + '" data-block-status="' + (user.is_blocked ? 'true' : 'false') + '" data-bs-toggle="modal" data-bs-target="#block_user"><i class="ti ti-ban me-2"></i>' + blockText + '</a></li><li><a class="dropdown-item rounded-1 delete-user-btn" href="#" data-id="' + user.id + '" data-bs-toggle="modal" data-bs-target="#delete-user"><i class="ti ti-trash me-2"></i>Delete</a></li></ul></div></div></td>';
             tbody.appendChild(row);
         });
         if (typeof $ !== 'undefined' && $.fn.DataTable && document.getElementById('usersTable')) {

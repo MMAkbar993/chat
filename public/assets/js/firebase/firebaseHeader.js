@@ -64,14 +64,14 @@ function fetchUserDetails(userId) {
                 // Populate the input fields with existing user data
                 document.getElementById('profile-first-name').innerText = fullName.trim();
                 document.getElementById('profile-info-role').innerText = user.role || '';
-                document.getElementById('profileImageAdmin').innerText = user.image ||
-                    "No Profile image";
-                if (user.image) {
-                    document.getElementById('profileImageAdmin').src = user
-                        .image; // Set the profile image URL
+                const pa = typeof window !== 'undefined' && window.DreamChatProfileAvatar ? window.DreamChatProfileAvatar : null;
+                if (pa && typeof pa.setProfileImageSlotById === 'function') {
+                    pa.setProfileImageSlotById('profileImageAdmin', user.image || '');
                 } else {
-                    document.getElementById('profileImageAdmin').src =
-                        defaultAvatar; // Optional: set a default image
+                    const el = document.getElementById('profileImageAdmin');
+                    if (el && el.tagName === 'IMG') {
+                        el.src = user.image || "";
+                    }
                 }
                 document.getElementById('user-id').innerText = user.uid || '';
             } 

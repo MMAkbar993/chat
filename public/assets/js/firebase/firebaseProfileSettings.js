@@ -90,19 +90,28 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
 
+    function applyProfileImageProfile(rawUrl) {
+        const pa =
+            typeof window !== "undefined" && window.DreamChatProfileAvatar
+                ? window.DreamChatProfileAvatar
+                : null;
+        if (pa && typeof pa.setProfileImageSlotById === "function") {
+            pa.setProfileImageSlotById("profileImageProfile", rawUrl || "");
+            return;
+        }
+        const el = document.getElementById("profileImageProfile");
+        if (el && el.tagName === "IMG") {
+            el.src = rawUrl || "";
+        }
+    }
+
     function displayUserDetails(user) {
         // Example function to display user details
         document.getElementById('profile-info-first-name').innerText = user.firstName || "No Name";
         document.getElementById('profile-info-last-name').innerText = user.lastName || "No Name";
         document.getElementById('profile-info-email').innerText = user.email || "No Email";
         document.getElementById('profile-info-phone').innerText = user.mobile_number || "No Phone";
-        document.getElementById('profileImageProfile').innerText = user.image || "No Profile image";
-        if (user.image) {
-            document.getElementById('profileImageProfile').src = user.image; // Set the profile image URL
-        } else {
-            document.getElementById('profileImageProfile').src = 'assets/img/profiles/avatar-03.jpg'; // Optional: set a default image
-        }
-        // Add other fields as needed
+        applyProfileImageProfile(user.image || "");
     }
 
     function fetchUserDetails(userId) {
@@ -116,12 +125,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     document.getElementById('profile-info-last-name').value = user.lastName || '';
                     document.getElementById('profile-info-phone').value = user.mobile_number || '';
                     document.getElementById('profile-info-email').value = user.email || '';
-                    document.getElementById('profileImageProfile').innerText = user.image || "No Profile image";
-                    if (user.image) {
-                        document.getElementById('profileImageProfile').src = user.image; // Set the profile image URL
-                    } else {
-                        document.getElementById('profileImageProfile').src = defaultAvatar; // Optional: set a default image
-                    }
+                    applyProfileImageProfile(user.image || "");
                     document.getElementById('user-id').value = user.uid || '';
                 } 
             })
@@ -310,7 +314,12 @@ initializeFirebase(function (app, auth, database, storage) {
         if (file && validTypes.includes(file.type)) {
             const reader = new FileReader();
             reader.onload = function (e) {
-                document.getElementById('profileImageProfile').src = e.target.result; // Preview the selected image
+                const el = document.getElementById('profileImageProfile');
+                if (el && el.tagName === 'IMG') {
+                    el.src = e.target.result;
+                } else {
+                    applyProfileImageProfile(e.target.result);
+                }
                 selectedImage = file; // Store the selected file for uploading later
             };
             reader.readAsDataURL(file); // Read the file as a data URL
@@ -321,10 +330,7 @@ initializeFirebase(function (app, auth, database, storage) {
     });
     // Remove image event listener
     document.getElementById('removeImageBtn').addEventListener('click', function () {
-        // Reset the image preview to the default
-        document.getElementById('profileImageProfile').src = defaultAvatar;
-
-        // Clear the selected image
+        applyProfileImageProfile('');
         selectedImage = null;
     });
     function showToastImage(message, isError = false) {

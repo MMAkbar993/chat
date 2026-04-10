@@ -157,7 +157,7 @@
                                                 <div class="chat-list">
                                                     <a href="{{ route('chat') }}" class="chat-user-list">
                                                         <div class="avatar avatar-lg online me-2">
-                                                            <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
+                                                            <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                         </div>
                                                         <div class="chat-user-info">
                                                             <div class="chat-user-msg">
@@ -194,7 +194,7 @@
                                                 <div class="chat-list">
                                                     <a href="{{ route('chat') }}" class="chat-user-list">
                                                         <div class="avatar avatar-lg online me-2">
-                                                            <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
+                                                            <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                         </div>
                                                         <div class="chat-user-info">
                                                             <div class="chat-user-msg">
@@ -710,7 +710,7 @@
                                                 <div class="chat-list">
                                                     <a href="{{ route('chat') }}" class="chat-user-list">
                                                         <div class="avatar avatar-lg online me-2">
-                                                            <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
+                                                            <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                         </div>
                                                         <div class="chat-user-info">
                                                             <div class="chat-user-msg">
@@ -1098,7 +1098,7 @@
                                                 <div class="chat-list">
                                                     <a href="{{ route('chat') }}" class="chat-user-list">
                                                         <div class="avatar avatar-lg online me-2">
-                                                            <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
+                                                            <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                         </div>
                                                         <div class="chat-user-info">
                                                             <div class="chat-user-msg">
@@ -1582,7 +1582,7 @@
                                                 <div class="chat-list">
                                                     <a href="{{ route('chat') }}" class="chat-user-list">
                                                         <div class="avatar avatar-lg online me-2">
-                                                            <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
+                                                            <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                         </div>
                                                         <div class="chat-user-info">
                                                             <div class="chat-user-msg">
@@ -2066,7 +2066,7 @@
                                             <div class="chat-list"> 
                                                 <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#contact-details" class="chat-user-list">
                                                     <div class="avatar avatar-lg offline me-2">
-                                                        <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
+                                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                     </div>
                                                     <div class="chat-user-info">
                                                         <div class="chat-user-msg">
@@ -2967,7 +2967,7 @@
                                             <div class="chat-list">
                                                 <a href="{{ route('all-calls') }}" class="chat-user-list">
                                                     <div class="avatar avatar-lg online me-2">
-                                                        <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
+                                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                     </div>
                                                     <div class="chat-user-info">
                                                         <div class="chat-user-msg">
@@ -3129,7 +3129,7 @@
                                             <div class="chat-list">
                                                 <a href="{{ route('all-calls') }}" class="chat-user-list">
                                                     <div class="avatar avatar-lg online me-2">
-                                                        <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
+                                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                     </div>
                                                     <div class="chat-user-info">
                                                         <div class="chat-user-msg">
@@ -3288,7 +3288,7 @@
                                             <div class="chat-list">
                                                 <a href="{{ route('all-calls') }}" class="chat-user-list">
                                                     <div class="avatar avatar-lg online me-2">
-                                                        <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
+                                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                     </div>
                                                     <div class="chat-user-info">
                                                         <div class="chat-user-msg">

@@ -56,10 +56,19 @@ initializeFirebase(function (app, auth, database, storage) {
             }
             // If both are empty, still apply u so UI shows "No Name" etc.; don't recurse
         }
-        const defaultImg = 'assets/img/profiles/avatar-03.jpg';
+        const defaultImg = '';
         const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = (text != null && text !== '') ? text : '—'; };
         const imageUrl = u.image || u.profile_image || u.photoURL || u.profileImage || defaultImg;
-        const setImg = (id, src) => { const el = document.getElementById(id); if (el && el.tagName === 'IMG') el.src = src || imageUrl || defaultImg; };
+        const pa = typeof window !== 'undefined' && window.DreamChatProfileAvatar ? window.DreamChatProfileAvatar : null;
+        const setImg = (id, src) => {
+            const raw = src != null && src !== '' ? src : imageUrl;
+            if (pa && typeof pa.setProfileImageSlotById === 'function') {
+                pa.setProfileImageSlotById(id, raw);
+                return;
+            }
+            const el = document.getElementById(id);
+            if (el && el.tagName === 'IMG') el.src = raw || '';
+        };
         const lu = (typeof window !== 'undefined' && window.LARAVEL_USER) ? window.LARAVEL_USER : null;
         const fullName = (lu && lu.public_display_name) || (u.firstName || '') + ' ' + (u.lastName || '').trim() || u.username || 'No Name';
         setText('profile-name', fullName);
@@ -473,7 +482,7 @@ initializeFirebase(function (app, auth, database, storage) {
     });
 
     async function fetchActiveContacts() {
-        const defaultProfileImage = "/assets/img/profiles/avatar-03.jpg"; // Set your default image path here
+        const defaultProfileImage = "";
         const loggedInUserId = currentUserId; // Replace with the actual logged-in user's ID
 
         try {

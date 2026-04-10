@@ -95,6 +95,6 @@
     <!-- /Page Wrapper -->
     @endsection
     <script>
-    defaultAvatar = "{{ asset('assets/img/profiles/avatar-03.jpg') }}";
+    defaultAvatar = "";
     </script>
 

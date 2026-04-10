@@ -95,16 +95,20 @@ function normalizeChatMediaUrl(url) {
     return url;
 }
 
-/** Root-relative fallbacks break on /group-chat (browser resolves assets under /group-chat/...). Same logic as firebaseChat.js */
+/** Root-relative fallbacks break on /group-chat (browser resolves assets under /group-chat/...). Delegates to profile-avatar.js */
 function resolveGroupProfileImageUrl(raw) {
+    const pa =
+        typeof window !== "undefined" && window.DreamChatProfileAvatar
+            ? window.DreamChatProfileAvatar
+            : null;
+    if (pa && typeof pa.resolveGroupProfileImageUrl === "function") {
+        return pa.resolveGroupProfileImageUrl(raw);
+    }
     const origin =
         typeof window !== "undefined" && window.location && window.location.origin
             ? window.location.origin
             : "";
-    const defaultUrl = origin
-        ? origin + "/assets/img/profiles/avatar-03.jpg"
-        : "/assets/img/profiles/avatar-03.jpg";
-    if (raw == null || !String(raw).trim()) return defaultUrl;
+    if (raw == null || !String(raw).trim()) return "";
     const s = String(raw).trim();
     if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:"))
         return s;
@@ -113,7 +117,30 @@ function resolveGroupProfileImageUrl(raw) {
             ? window.location.protocol
             : "https:") + s;
     const path = s.replace(/^\.?\/+/, "");
-    return origin ? origin + "/" + path : defaultUrl;
+    return origin ? origin + "/" + path : "/" + path;
+}
+
+/** Inner HTML for .avatar: photo or ti-user (see profile-avatar.js). */
+function dcAvatarInnerHtml(raw) {
+    const pa =
+        typeof window !== "undefined" && window.DreamChatProfileAvatar
+            ? window.DreamChatProfileAvatar
+            : null;
+    if (pa && typeof pa.innerHtmlForAvatar === "function") {
+        return pa.innerHtmlForAvatar(raw, { imgClass: "rounded-circle" });
+    }
+    const r = (raw != null && String(raw).trim()) ? String(raw).trim() : "";
+    if (!r) {
+        return (
+            '<span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback" role="img" aria-label="User">' +
+            '<i class="ti ti-user" aria-hidden="true"></i></span>'
+        );
+    }
+    return (
+        '<img src="' +
+        String(resolveGroupProfileImageUrl(r)).replace(/"/g, "&quot;") +
+        '" class="rounded-circle" alt="">'
+    );
 }
 
 function pickGroupAvatarRaw(groupData) {
@@ -474,7 +501,7 @@ function appendUserCard(container, displayName, profileImage, role, userId) {
             <div class="d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center">
                     <div class="avatar avatar-lg">
-                        <img src="${profileImage}" class="rounded-circle" alt="image">
+                        ${dcAvatarInnerHtml(profileImage)}
                     </div>
                     <div class="ms-2">
                         <h6>${capitalizeFirstLetter(displayName)}</h6>
@@ -859,6 +886,10 @@ function bindDreamchatGroupCreateUi() {
             const reader = new FileReader(); // Create a FileReader object
 
             reader.onload = function (e) {
+                const wrapPh = preview.closest(".set-pro");
+                const phEl =
+                    wrapPh && wrapPh.querySelector("[data-dc-new-group-avatar-ph]");
+                if (phEl) phEl.remove();
                 preview.src = e.target.result; // Set the src of the preview to the file's result
                 preview.style.display = 'block'; // Show the preview
                 preview.style.objectFit = 'cover';
@@ -890,7 +921,30 @@ function bindDreamchatGroupCreateUi() {
             const prev = document.getElementById("avatar-preview");
             if (prev) {
                 const def = prev.getAttribute("data-default-avatar");
-                if (def) prev.src = def;
+                const wrap = prev.closest(".set-pro");
+                const phSel = "[data-dc-new-group-avatar-ph]";
+                if (wrap) {
+                    const oldPh = wrap.querySelector(phSel);
+                    if (oldPh) oldPh.remove();
+                }
+                if (def && String(def).trim()) {
+                    prev.src = def;
+                    prev.style.display = "";
+                } else {
+                    prev.removeAttribute("src");
+                    prev.style.display = "none";
+                    if (wrap && !wrap.querySelector(phSel)) {
+                        const ph = document.createElement("span");
+                        ph.setAttribute("data-dc-new-group-avatar-ph", "1");
+                        ph.className =
+                            "d-inline-flex align-items-center justify-content-center rounded-circle avatar-contact-fallback";
+                        ph.style.cssText =
+                            "position:absolute;inset:0.25rem;z-index:0;pointer-events:none;";
+                        ph.innerHTML =
+                            '<i class="ti ti-user" aria-hidden="true"></i>';
+                        wrap.insertBefore(ph, prev);
+                    }
+                }
                 prev.style.objectFit = "";
                 prev.style.zIndex = "";
             }
@@ -1035,9 +1089,8 @@ function resetGroupInfoPanelPlaceholders() {
     const membersEl = document.getElementById("members-container");
     if (membersEl) membersEl.innerHTML = "";
     const avatarEl = document.getElementById("group-avatar");
-    if (avatarEl) {
-        avatarEl.src = "assets/img/profiles/avatar-03.jpg";
-        avatarEl.alt = "img";
+    if (avatarEl && typeof window !== "undefined" && window.DreamChatProfileAvatar) {
+        window.DreamChatProfileAvatar.setAvatarDivImageOrContactIcon(avatarEl, "");
     }
     const headingEl = document.getElementById("group-participants-heading");
     if (headingEl) headingEl.textContent = "Participants";
@@ -1273,7 +1326,7 @@ function displayGroups(groups, currentUserId) {
                 <div class="chat-list${archivedClass}" data-group-id="${group.groupId}">
                     <a href="#" class="chat-user-list">
                         <div class="avatar avatar-lg me-2">
-                             <img src="${AvatarURL}" class="rounded-circle" alt="image">
+                             ${dcAvatarInnerHtml(AvatarURL)}
                         </div>
                         <div class="chat-user-info">
                             <div class="chat-user-msg">
@@ -1426,12 +1479,18 @@ function loadGroupDetails(groupId) {
                 document.getElementById("group-name").innerText = groupData.name; // Update group name
                 const groupIdField = document.getElementById("group_id");
                 if (groupIdField) groupIdField.value = groupId;
-                document.getElementById("group_image").src = resolveGroupProfileImageUrl(
-                    withCacheBuster(
-                        pickGroupAvatarRaw(groupData),
-                        groupData.updatedAt || groupData.date || Date.now()
-                    )
-                );
+                const groupHeaderAvatar = document.getElementById("group_image");
+                if (groupHeaderAvatar && typeof window !== "undefined" && window.DreamChatProfileAvatar) {
+                    window.DreamChatProfileAvatar.setAvatarDivImageOrContactIcon(
+                        groupHeaderAvatar,
+                        resolveGroupProfileImageUrl(
+                            withCacheBuster(
+                                pickGroupAvatarRaw(groupData),
+                                groupData.updatedAt || groupData.date || Date.now()
+                            )
+                        )
+                    );
+                }
                 document.getElementById("group-member-count").innerText = `${(groupData.userIds || []).length} Members`;
                 try { renderHeaderMemberAvatars(groupData); } catch (e) { /* safe */ }
 
@@ -1893,7 +1952,7 @@ function loadGroupMessages(groupId) {
                             </div>
                         </div>
                         <div class="chat-avatar">
-                            <img src="${senderImage}" class="rounded-circle" alt="image">
+                            <div class="avatar avatar-sm">${dcAvatarInnerHtml(senderImage)}</div>
                         </div>
                     </div>
                 `;
@@ -1901,7 +1960,7 @@ function loadGroupMessages(groupId) {
                 return `
                     <div class="chats" data-group-id="${groupId}" data-message-key="${messageKey}" data-type="${type}">
                         <div class="chat-avatar">
-                            <img src="${senderImage}" class="rounded-circle" alt="image">
+                            <div class="avatar avatar-sm">${dcAvatarInnerHtml(senderImage)}</div>
                         </div>
                         <div class="chat-content">
                             <div class="chat-profile-name">
@@ -2415,7 +2474,16 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
 
     if (myCallData.video) {
         $('#video-call-new-group .group-video-call-ring-name').text(groupName);
-        $('#video-call-new-group .group-video-call-ring-avatar').attr('src', groupImage).attr('alt', groupName);
+        (function () {
+            const wrap = document.querySelector("#video-call-new-group .group-video-call-ring-avatar-wrap");
+            const pa =
+                typeof window !== "undefined" && window.DreamChatProfileAvatar
+                    ? window.DreamChatProfileAvatar
+                    : null;
+            if (wrap && pa && typeof pa.setAvatarDivImageOrContactIcon === "function") {
+                pa.setAvatarDivImageOrContactIcon(wrap, groupImage || "");
+            }
+        })();
         const ringTitle = $('#video-call-new-group .group-video-ring-title');
         if (ringTitle.length) {
             ringTitle.text(
@@ -2430,7 +2498,19 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
                 myCallData.duration === 'Ringing' ? 'Ringing…' : '';
         }
         $('#video_group_new #group-video-head-name').text(groupName);
-        $('#video_group_new #group-video-head-avatar').attr('src', groupImage).attr('alt', groupName);
+        (function () {
+            const el = document.getElementById("group-video-head-avatar");
+            const pa =
+                typeof window !== "undefined" && window.DreamChatProfileAvatar
+                    ? window.DreamChatProfileAvatar
+                    : null;
+            if (el && pa && typeof pa.setAvatarDivImageOrContactIcon === "function") {
+                pa.setAvatarDivImageOrContactIcon(el, groupImage || "");
+            } else if (el && el.tagName === "IMG") {
+                el.src = groupImage || "";
+                el.alt = groupName || "";
+            }
+        })();
         
         // You would also update the remote video users here in a similar way to audio
         // For example, by iterating through 'allCalls' and finding active video participants.
@@ -2439,7 +2519,16 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
         // --- AUDIO CALL UI LOGIC ---
 
         $('#audio-call-new-group .audio-name').text(groupName);
-        $('#audio-call-new-group .avatar-audio img').attr('src', groupImage).attr('alt', groupName);
+        (function () {
+            const wrap = document.querySelector("#audio-call-new-group .group-audio-call-ring-avatar-wrap");
+            const pa =
+                typeof window !== "undefined" && window.DreamChatProfileAvatar
+                    ? window.DreamChatProfileAvatar
+                    : null;
+            if (wrap && pa && typeof pa.setAvatarDivImageOrContactIcon === "function") {
+                pa.setAvatarDivImageOrContactIcon(wrap, groupImage || "");
+            }
+        })();
         const audioRingTitle = $('#audio-call-new-group .group-audio-ring-title');
         const audioRingAnswerBtn = $('#audio-call-new-group .group-audio-answer-btn');
         if (audioRingTitle.length) {
@@ -2453,7 +2542,19 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
             }
         }
         $('#group-audio-head-name').text(groupName);
-        $('#group-audio-head-avatar').attr('src', groupImage).attr('alt', groupName);
+        (function () {
+            const el = document.getElementById("group-audio-head-avatar");
+            const pa =
+                typeof window !== "undefined" && window.DreamChatProfileAvatar
+                    ? window.DreamChatProfileAvatar
+                    : null;
+            if (el && pa && typeof pa.setAvatarDivImageOrContactIcon === "function") {
+                pa.setAvatarDivImageOrContactIcon(el, groupImage || "");
+            } else if (el && el.tagName === "IMG") {
+                el.src = groupImage || "";
+                el.alt = groupName || "";
+            }
+        })();
 
         // Update Active AUDIO Call Modal
         const userSnap = await get(child(usersRef, currentUser.uid));
@@ -2530,7 +2631,7 @@ async function updateCallUI(myCallData, allCalls, currentUser) {
                                 <div class="card-body">
                                     <div class="d-flex justify-content-center align-items-center">
                                         <span class="avatar avatar-xxxl bg-soft-primary rounded-circle p-2">
-                                            <img src="${userImage}" class="rounded-circle" alt="${userName}">
+                                            ${dcAvatarInnerHtml(userImage)}
                                         </span>
                                         <div class="d-flex audio-group-m-name align-items-end justify-content-end">
                                             <span class="badge badge-info">${userName}</span>
@@ -3397,14 +3498,17 @@ if (deleteChatForm) {
 
 let replyToMessage = null; // To store the replied message content
 
-// Event listener for the reply button
+// Event listener for the reply button (group messages only — same global #reply-div as 1:1 chat)
 document.addEventListener("click", (e) => {
-    if (e.target.classList.contains("reply-btn")) {
-        const messageElement = e.target.closest(".chats");
-      
+    const replyBtn = e.target.closest(".reply-btn");
+    if (!replyBtn) return;
+    const messageElement = replyBtn.closest(".chats");
+    if (!messageElement || !messageElement.closest("#group-area")) return;
+    e.preventDefault();
+
         // Extract user and type information
         const replyUser = "";
-        const replyType = messageElement.dataset.type || 6; // Extract type from a data attribute
+        const replyType = String(messageElement.dataset.type || "6");
 
         let replyContent = ""; // To hold the reply content
         let mediaUrl = null; // To hold the media URL if applicable
@@ -3468,9 +3572,6 @@ document.addEventListener("click", (e) => {
             attachmentType: replyType, // Store the type of the original message
             attachment: attachment,
         };
-
-   
-    }
 });
 
 const closeReplyEl = document.getElementById("closeReply");
@@ -3617,7 +3718,7 @@ if (closeReplyEl) {
             const label = user.groupName || user.name || "Group";
             userItem.innerHTML = `
                 <input type="checkbox" class="user-checkbox" data-group-id="${user.id}">
-                <img src="${avatar}" alt="${label}" class="user-avatar" width="30">
+                <span class="user-avatar avatar avatar-sm d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width:30px;height:30px;">${dcAvatarInnerHtml(avatar)}</span>
                 <span>${label}</span>
             `;
     
@@ -3888,11 +3989,14 @@ async function fetchGroupInfo(groupId) {
         }
     }
 
-    if (avatarElement) {
-        avatarElement.src = resolveGroupProfileImageUrl(
-            withCacheBuster(
-                pickGroupAvatarRaw(groupData),
-                groupData.updatedAt || groupData.date || Date.now()
+    if (avatarElement && typeof window !== "undefined" && window.DreamChatProfileAvatar) {
+        window.DreamChatProfileAvatar.setAvatarDivImageOrContactIcon(
+            avatarElement,
+            resolveGroupProfileImageUrl(
+                withCacheBuster(
+                    pickGroupAvatarRaw(groupData),
+                    groupData.updatedAt || groupData.date || Date.now()
+                )
             )
         );
     }
@@ -3992,7 +4096,7 @@ async function fetchGroupInfo(groupId) {
                 <div class="d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center overflow-hidden">
                         <span class="${avatarClass}">
-                            <img src="${resolveGroupProfileImageUrl(avatarRaw)}" alt="img" class="rounded-circle">
+                            ${dcAvatarInnerHtml(avatarRaw)}
                         </span>
                         <div class="ms-2 overflow-hidden">
                             <div class="d-flex align-items-center">
@@ -4145,7 +4249,7 @@ async function populateEditAdminMembersModal() {
             row.innerHTML = `
                 <div class="d-flex align-items-center min-w-0">
                     <div class="avatar avatar-lg flex-shrink-0">
-                        <img src="${imgSrc}" class="rounded-circle" alt="">
+                        ${dcAvatarInnerHtml(imgSrc)}
                     </div>
                     <div class="ms-2 min-w-0">
                         <h6 class="text-truncate mb-0">${user.displayName}</h6>
@@ -4631,7 +4735,7 @@ async function fetchContactsNotInGroup(groupId, currentUserId) {
                     <div class="d-flex align-items-center justify-content-between">
                         <div class="d-flex align-items-center">
                             <div class="avatar avatar-lg">
-                                <img src="${imgSrc}" class="rounded-circle" alt="image">
+                                ${dcAvatarInnerHtml(imgSrc)}
                             </div>
                             <div class="ms-2">
                                 <h6>${capitalizeFirstLetter(displayName)}</h6>
@@ -4975,12 +5079,29 @@ if (groupIconUploadEl) {
             );
 
             const offcanvasAvatar = document.getElementById("group-avatar");
-            if (offcanvasAvatar) offcanvasAvatar.src = finalAvatar;
             const headerAvatar = document.getElementById("group_image");
-            if (headerAvatar) headerAvatar.src = finalAvatar;
-            const activeSidebarAvatar = document.querySelector(`.chat-list.active .avatar img`);
-            if (activeSidebarAvatar) {
-                activeSidebarAvatar.src = finalAvatar;
+            if (typeof window !== "undefined" && window.DreamChatProfileAvatar) {
+                if (offcanvasAvatar) {
+                    window.DreamChatProfileAvatar.setAvatarDivImageOrContactIcon(
+                        offcanvasAvatar,
+                        finalAvatar
+                    );
+                }
+                if (headerAvatar) {
+                    window.DreamChatProfileAvatar.setAvatarDivImageOrContactIcon(
+                        headerAvatar,
+                        finalAvatar
+                    );
+                }
+                const activeSidebarAvatarWrap = document.querySelector(
+                    ".chat-list.active .avatar"
+                );
+                if (activeSidebarAvatarWrap) {
+                    window.DreamChatProfileAvatar.setAvatarDivImageOrContactIcon(
+                        activeSidebarAvatarWrap,
+                        finalAvatar
+                    );
+                }
             }
 
             // Force-refresh all UI binding points that render group icon

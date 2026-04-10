@@ -172,8 +172,7 @@
                                 </div>
                             </div>
                             <div class="chat-avatar">
-                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle dreams_chat"
-                                    alt="image">
+                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle dreams_chat w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                             </div>
                         </div>
                         <div class="chats">
@@ -269,8 +268,7 @@
                                 </div>
                             </div>
                             <div class="chat-avatar">
-                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle dreams_chat"
-                                    alt="image">
+                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle dreams_chat w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                             </div>
                         </div>
                         <div class="chats">
@@ -366,8 +364,7 @@
                                 </div>
                             </div>
                             <div class="chat-avatar">
-                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle dreams_chat"
-                                    alt="image">
+                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle dreams_chat w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                             </div>
                         </div>
                         <div class="chats incoming d-flex">
@@ -546,7 +543,7 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center mb-3">
                             <div class="avatar avatar-lg me-2">
-                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle" alt="image">
+                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                             </div>
                             <div class="chat-user-info">
                                 <div class="chat-user-msg">
@@ -665,9 +662,8 @@
                                         <img src="assets/img/profiles/avatar-05.jpg" class="rounded-circle"
                                             alt="user">
                                     </a>
-                                    <a href="#" class="">
-                                        <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                            alt="user">
+                                    <a href="#" class="d-inline-flex align-items-center justify-content-center rounded-circle bg-soft-primary" style="width:3rem;height:3rem">
+                                        <i class="ti ti-user" aria-hidden="true"></i>
                                     </a>
                                 </div>
                                 <h6 class="fs-14">Edward Lietz, Aariyan Jose, Federico Wells, +1</h6>
@@ -744,8 +740,7 @@
                                 <span
                                     class="call-span border border-2 border-primary d-flex justify-content-center align-items-center rounded">
                                     <span class="avatar avatar-xl bg-soft-primary rounded-circle p-2">
-                                        <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                            alt="user">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                     </span>
                                 </span>
                             </div>
@@ -874,8 +869,7 @@
                                         <span
                                             class="call-span border border-2 border-primary d-flex justify-content-center align-items-center rounded">
                                             <span class="avatar avatar-xxl bg-soft-primary rounded-circle p-2">
-                                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                                    alt="user">
+                                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                             </span>
                                         </span>
                                     </div>
@@ -969,8 +963,7 @@
                                         <div class="card-body ">
                                             <div class="d-flex justify-content-center align-items-center">
                                                 <span class="avatar avatar-xxxl bg-soft-primary rounded-circle p-2">
-                                                    <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                                        alt="user">
+                                                    <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                 </span>
                                             </div>
                                             <div class="d-flex align-items-end justify-content-end">
@@ -1067,7 +1060,7 @@
                 </div>
                 <div class="modal-body border-0 pt-0">
                     <div class="video-call-view br-8 overflow-hidden position-relative">
-                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                         <div class="mini-video-view active br-8 overflow-hidden position-absolute">
                             <img src="assets/img/video/user-image.jpg" alt="">
                             <div
@@ -1188,7 +1181,7 @@
                             <div class="row">
                                 <div class="col-md-12">
                                     <div class="video-call-view br-8 overflow-hidden position-relative">
-                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                         <div class="mini-video-view active br-8 overflow-hidden position-absolute">
                                             <img src="assets/img/video/user-image.jpg" alt="">
                                             <div
@@ -1206,22 +1199,22 @@
                             <div class="row row-gap-4">
                                 <div class="col-md-6 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                     </div>
                                 </div>
                                 <div class="col-md-6 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">
@@ -1303,9 +1296,8 @@
                                         <img src="assets/img/profiles/avatar-05.jpg" class="rounded-circle"
                                             alt="user">
                                     </a>
-                                    <a href="#" class="">
-                                        <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                            alt="user">
+                                    <a href="#" class="d-inline-flex align-items-center justify-content-center rounded-circle bg-soft-primary" style="width:3rem;height:3rem">
+                                        <i class="ti ti-user" aria-hidden="true"></i>
                                     </a>
                                 </div>
                                 <h6 class="fs-14">Edward Lietz, Aariyan Jose, Federico Wells, +1</h6>

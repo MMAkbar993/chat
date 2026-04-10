@@ -77,15 +77,13 @@ class ContactController extends Controller
         }
 
         $hasFirebaseUid = Schema::hasColumn((new \App\Models\User)->getTable(), 'firebase_uid');
-        $defaultAvatar = request()->getSchemeAndHttpHost() . '/assets/img/profiles/avatar-03.jpg';
-
         $contacts = UserContact::where('user_id', $user->id)
             ->with('contactUser')
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(function (UserContact $uc) use ($hasFirebaseUid, $defaultAvatar) {
+            ->map(function (UserContact $uc) use ($hasFirebaseUid) {
                 $c = $uc->contactUser;
-                $img = $c && $c->profile_image_link ? $c->profile_image_link : $defaultAvatar;
+                $img = $c && $c->profile_image_link ? $c->profile_image_link : '';
                 $firebaseUid = null;
                 if ($c && $hasFirebaseUid) {
                     $firebaseUid = $c->firebase_uid ?: null;

@@ -46,7 +46,7 @@
                                 <div class="card-body setting-sidebar">
                                     <div class="d-flex">
                                         <a href="{{ route('admin.profile-settings') }}" class="active rounded flex-fill"><i
-                                                class="ti ti-user-circle me-2"></i>Profile Settings</a>
+                                                class="ti ti-user me-2"></i>Profile Settings</a>
                                     </div>
                                     <div class="d-flex">
                                         <a href="{{ route('admin.change-password') }}" class="rounded flex-fill"><i
@@ -72,11 +72,7 @@
                                         </div>
                                     </div>
                                     <div class="d-flex align-items-center mb-3">
-                                        <div class="avatar avatar-xxl me-3">
-                                            <img id="profileImageProfile"
-                                                src="{{ asset('assets/img/profiles/avatar-03.jpg') }}"
-                                                class="rounded img-fluid" alt="user">
-                                        </div>
+                                        <span id="profileImageProfile" class="avatar avatar-xxl me-3"></span>
                                         <div>
                                             <p class="text-dark fw-medium mb-0">Upload Profile Image</p>
                                             <div class="d-flex align-items-center">
@@ -141,5 +137,5 @@
     <!-- /Page Wrapper -->
 @endsection
 <script>
-    defaultAvatar = "{{ asset('assets/img/profiles/avatar-03.jpg') }}";
+    defaultAvatar = "";
 </script>

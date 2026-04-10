@@ -133,7 +133,7 @@
         </div>
         <div class="chat-footer">
             <form class="footer-form" id="message-form">
-                <div class="chats reply-chat reply-div" id="reply-div">
+                <div class="chats reply-chat reply-div" id="reply-div" style="display:none">
 
                     <div class="chat-content">
                         <div class="chat-profile-name">
@@ -242,10 +242,7 @@
                 <div class="profile-content px-3 pb-3">
                     {{-- Identity --}}
                     <div class="contact-profile-info text-center pt-2">
-                        <div class="avatar avatar-xxl online mb-3 mx-auto contact-panel-avatar-wrap">
-                            <img id="contact-avatar" src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle"
-                                alt="">
-                        </div>
+                        <div id="contact-avatar" class="avatar avatar-xxl online mb-3 mx-auto contact-panel-avatar-wrap"></div>
                         <div class="d-flex align-items-center justify-content-center gap-1 flex-wrap">
                             <h4 class="contact-panel-name mb-0 fw-semibold" id="contact-full-name"></h4>
                         </div>
@@ -1315,8 +1312,7 @@
                                         <span
                                             class="call-span border border-2 border-primary d-flex justify-content-center align-items-center rounded">
                                             <span class="avatar avatar-xxl bg-soft-primary rounded-circle p-2">
-                                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                                    alt="user">
+                                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                             </span>
                                         </span>
                                     </div>
@@ -1412,8 +1408,7 @@
                                         <div class="card-body ">
                                             <div class="d-flex justify-content-center align-items-center">
                                                 <span class="avatar avatar-xxxl bg-soft-primary rounded-circle p-2">
-                                                    <img src="assets/img/profiles/avatar-03.jpg"
-                                                        class="rounded-circle" alt="user">
+                                                    <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                                 </span>
                                             </div>
                                             <div class="d-flex align-items-end justify-content-end">
@@ -1559,7 +1554,7 @@
                             <div class="row">
                                 <div class="col-md-12">
                                     <div class="video-call-view br-8 overflow-hidden position-relative">
-                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                         <div class="mini-video-view active br-8 overflow-hidden position-absolute">
                                             <img src="assets/img/video/user-image.jpg" alt="">
                                             <div
@@ -1577,22 +1572,22 @@
                             <div class="row row-gap-4">
                                 <div class="col-md-6 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                     </div>
                                 </div>
                                 <div class="col-md-6 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">
                                     <div class="video-call-view br-8 overflow-hidden flex-fill">
-                                        <img src="assets/img/profiles/avatar-03.jpg" alt="user-image">
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                     </div>
                                 </div>
                                 <div class="col-md-4 d-flex">
@@ -1790,8 +1785,7 @@
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="d-flex align-items-center">
                                             <span class="avatar avatar-lg me-2">
-                                                <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                                    alt="">
+                                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                             </span>
                                             <div>
                                                 <h6>Clyde Smith</h6>

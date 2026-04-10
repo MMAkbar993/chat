@@ -27,9 +27,7 @@
                         <input type="hidden" id="contact-detail-user-id" />
                         <div class="d-flex align-items-center justify-content-between">
                             <div class="d-flex align-items-center mb-3">
-                                <span class="avatar avatar-lg">
-                                    <img src="" class="rounded-circle" alt="img" id="contact-detail-avatar">
-                                </span>
+                                <span id="contact-detail-avatar" class="avatar avatar-lg"></span>
                                 <div class="ms-2">
                                     <h6 id="contact-detail-name"></h6>
                                     <p class="mb-0 small text-muted" id="contact-detail-title" style="display: none;"></p>

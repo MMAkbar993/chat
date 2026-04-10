@@ -40,10 +40,7 @@ function resolveCallsProfileImageUrl(raw) {
         typeof window !== "undefined" && window.location && window.location.origin
             ? window.location.origin
             : "";
-    const defaultUrl = origin
-        ? origin + "/assets/img/profiles/avatar-03.jpg"
-        : "assets/img/profiles/avatar-03.jpg";
-    if (raw == null || !String(raw).trim()) return defaultUrl;
+    if (raw == null || !String(raw).trim()) return "";
     const s = String(raw).trim();
     if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:"))
         return s;
@@ -52,7 +49,7 @@ function resolveCallsProfileImageUrl(raw) {
             ? window.location.protocol
             : "https:") + s;
     const path = s.replace(/^\.?\/+/, "");
-    const finalUrl = origin ? origin + "/" + path : defaultUrl;
+    const finalUrl = origin ? origin + "/" + path : "/" + path;
     return finalUrl;
 }
 
@@ -422,15 +419,32 @@ function renderCallsWelcomePane() {
         <div id="welcome-container" class="welcome-content d-flex align-items-center justify-content-center">
             <div class="welcome-info text-center">
                 <div class="welcome-box bg-white d-inline-flex align-items-center gap-2">
-                    <span class="avatar avatar-md flex-shrink-0">
-                        <img id="profileImageChat" src="/assets/img/profiles/avatar-03.jpg" alt="img" class="rounded-circle">
-                    </span>
+                    <span id="profileImageChat" class="avatar avatar-md flex-shrink-0"></span>
                     <h6 class="title mb-0">Welcome!</h6>
                 </div>
                 <p class="mt-3 mb-4">Choose a person or group to start chat with them.</p>
                 <a href="javascript:void(0);" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#add-contact"><i class="ti ti-send me-2"></i>Invite Contacts</a>
             </div>
         </div>`;
+    try {
+        const pa =
+            typeof window !== "undefined" && window.DreamChatProfileAvatar
+                ? window.DreamChatProfileAvatar
+                : null;
+        const lu =
+            typeof window !== "undefined" && window.LARAVEL_USER
+                ? window.LARAVEL_USER
+                : null;
+        const raw =
+            lu && (lu.profile_image || lu.image)
+                ? String(lu.profile_image || lu.image).trim()
+                : "";
+        if (pa && typeof pa.setProfileImageSlotById === "function") {
+            pa.setProfileImageSlotById("profileImageChat", raw);
+        }
+    } catch (_e) {
+        /* ignore */
+    }
 }
 
 function getCallDurationLabel(call) {

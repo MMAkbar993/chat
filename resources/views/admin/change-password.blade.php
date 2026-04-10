@@ -46,7 +46,7 @@
                                 <div class="card-body setting-sidebar">
                                     <div class="d-flex">
                                         <a href="{{ route('admin.profile-settings') }}" class=" rounded flex-fill"><i
-                                                class="ti ti-user-circle me-2"></i>Profile Settings</a>
+                                                class="ti ti-user me-2"></i>Profile Settings</a>
                                     </div>
                                     <div class="d-flex">
                                         <a href="{{ route('admin.change-password') }}" class=" active rounded flex-fill"><i

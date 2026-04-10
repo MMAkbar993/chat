@@ -7,7 +7,7 @@
                     <div class="">
                         <div class="d-flex align-items-center">
                             <span class="avatar avatar-video avatar-lg online me-2">
-                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" alt="user">
+                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                             </span>
                             <div class="user-name">
                             </div>

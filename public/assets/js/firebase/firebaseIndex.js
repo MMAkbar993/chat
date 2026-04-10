@@ -42,6 +42,21 @@ let currentUser = null; // Define the current user here
 let selectedUserId = null; // Store the selected user ID
 let usersMap = {}; // Define usersMap here
 
+function adminTableAvatarInner(raw) {
+    const pa =
+        typeof window !== "undefined" && window.DreamChatProfileAvatar
+            ? window.DreamChatProfileAvatar
+            : null;
+    const r = raw != null && String(raw).trim() ? String(raw).trim() : "";
+    if (pa && typeof pa.innerHtmlForAvatar === "function") {
+        return pa.innerHtmlForAvatar(r, { imgClass: "img-fluid rounded-circle" });
+    }
+    if (!r) {
+        return '<span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>';
+    }
+    return '<img src="' + r.replace(/"/g, "&quot;") + '" class="img-fluid rounded-circle" alt="img">';
+}
+
 // Monitor the user's authentication state
 onAuthStateChanged(auth, (user) => {
     if (user) {
@@ -187,8 +202,8 @@ onValue(recentUsersQuery, (snapshot) => {
             <tr>
                 <td>
                     <div class="d-flex align-items-center">
-                        <a href="#" class="avatar avatar-md">
-                            <img src="${userData.image || defaultAvatar}" class="img-fluid rounded-circle" alt="img">
+                        <a href="#" class="avatar avatar-md d-inline-flex align-items-center justify-content-center">
+                            ${adminTableAvatarInner(userData.image)}
                         </a>
                         <div class="ms-2 profile-name">
                             <p class="text-dark mb-0">${userData.firstName} ${userData.lastName}</p>
@@ -259,8 +274,8 @@ onValue(recentGroupsQuery, (snapshot) => {
             <tr>
                 <td>
                     <div class="d-flex align-items-center">
-                        <a href="#" class="avatar avatar-md">
-                            <img src="${groupData.image || defaultAvatar}" class="img-fluid rounded-circle" alt="img">
+                        <a href="#" class="avatar avatar-md d-inline-flex align-items-center justify-content-center">
+                            ${adminTableAvatarInner(groupData.image)}
                         </a>
                         <div class="ms-2 profile-name">
                             <p class="text-dark mb-0">

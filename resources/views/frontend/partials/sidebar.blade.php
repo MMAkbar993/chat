@@ -38,7 +38,7 @@
                                 data-bs-custom-class="tooltip-primary">
                                 <a href="{{ route('profile') }}"
                                     class="{{ request()->routeIs('profile') ? 'active' : '' }}">
-                                    <i class="ti ti-user-circle"></i>
+                                    <i class="ti ti-user"></i>
                                 </a>
                             </li>
                             <li data-bs-toggle="tooltip" data-bs-placement="right" data-bs-original-title="Settings"
@@ -62,9 +62,7 @@
                             </li>
                             <li>
                                 <div class="dropdown">
-                                    <a href="#" class="avatar avatar-md" data-bs-toggle="dropdown">
-                                        <img id="ProfileImageSidebar" src="assets/img/profiles/avatar-03.jpg"
-                                            alt="img" class="rounded-circle">
+                                    <a href="#" class="avatar avatar-md" data-bs-toggle="dropdown" id="ProfileImageSidebar">
                                     </a>
                                     <div class="dropdown-menu dropdown-menu-end p-3">
                                         <a href="javascript:void(0)" class="dropdown-item" id="logout-button">{{ __('Logout') }}
@@ -367,10 +365,7 @@
                                 <div class="profile mx-3">
                                     <div class="border-bottom text-center pb-3 mx-1">
                                         <div class="d-flex justify-content-center ">
-                                            <span class="avatar avatar-xxxl online mb-4">
-                                                <img id="profileImageProfile" src="assets/img/profiles/avatar-03.jpg"
-                                                    class="rounded-circle" alt="user">
-                                            </span>
+                                            <span id="profileImageProfile" class="avatar avatar-xxxl online mb-4"></span>
                                         </div>
                                         <div>
                                             <h6 class="fs-16" id="profile-name">{{ __('Loading...') }}</h6>
@@ -398,7 +393,7 @@
                                                         <h6 class="fs-14">{{ __('Name') }}</h6>
                                                         <p class="fs-16 " id="profile-info-name">{{ __('Loading...') }}</p>
                                                     </div>
-                                                    <span><i class="ti ti-user-circle fs-16"></i></span>
+                                                    <span><i class="ti ti-user fs-16"></i></span>
                                                 </div>
                                                 <div
                                                     class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
@@ -725,7 +720,7 @@
                                                                         <span
                                                                             class="set-pro avatar avatar-xxl rounded-circle mb-3 p-1">
                                                                             <img id="profileImage"
-                                                                                src="assets/img/profiles/avatar-03.jpg"
+                                                                                src=""
                                                                                 class="rounded-circle" alt="user">
                                                                             <span
                                                                                 class="add avatar avatar-sm d-flex justify-content-center align-items-center"
@@ -793,7 +788,7 @@
                                                                                     <option value="full_name">{{ __('Full name') }}</option>
                                                                                     <option value="username">{{ __('Username') }}</option>
                                                                                 </select>
-                                                                                <span class="icon-addon"><i class="ti ti-user-circle"></i></span>
+                                                                                <span class="icon-addon"><i class="ti ti-user"></i></span>
                                                                                 <small class="text-muted">{{ __('Verified users can show username instead of full name for privacy.') }}</small>
                                                                             </div>
                                                                         </div>

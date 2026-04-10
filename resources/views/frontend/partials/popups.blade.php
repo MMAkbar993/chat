@@ -43,7 +43,7 @@
                 <p class="text-muted small mb-0 mt-1 video-call-ring-status" id="video-call-ring-status"></p>
                 <div class="d-flex justify-content-center my-4">
                     <span class="avatar avatar-xxl video-call-ring-avatar-wrap">
-                        <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle video-call-ring-avatar" alt="">
+                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback" role="img" aria-label="{{ __('User') }}"><i class="ti ti-user" aria-hidden="true"></i></span>
                     </span>
                 </div>
             </div>
@@ -78,7 +78,7 @@
                     <div class="card-body d-flex justify-content-between p-3 flex-wrap row-gap-3">
                         <div class="d-flex align-items-center">
                             <span class="avatar avatar-new-audio avatar-lg online me-2">
-                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" alt="user">
+                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                             </span>
                             <div class="new-name">
                                 <h6>Loading...</h6>
@@ -102,13 +102,15 @@
                         </span>
                     </div>
                     <div class="card-body p-3">
-                        <div class="d-flex avatar-new-audio-big rounded-circle avatar-new-audio-big justify-content-center align-items-center pt-5">
-                            <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" alt="user">
+                        <div class="d-flex justify-content-center align-items-center pt-5">
+                            <span class="avatar avatar-xxxl bg-soft-primary rounded-circle p-2 avatar-new-audio-big">
+                                <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
+                            </span>
                         </div>
                         <div class="d-flex align-items-end justify-content-end">
                             <span class="call-span border border-2 border-primary d-flex justify-content-center align-items-center rounded">
                                 <span class="avatar current-image avatar-xl bg-soft-primary rounded-circle p-2">
-                                    <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" alt="user">
+                                    <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                 </span>
                             </span>
                         </div>
@@ -143,7 +145,7 @@
                 <p class="text-muted small mb-0 mt-1 audio-call-ring-status" id="audio-call-ring-status"></p>
                 <div class="d-flex justify-content-center my-4">
                     <span class="avatar avatar-xxl avatar-audio audio-call-ring-avatar-wrap">
-                        <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle audio-call-ring-avatar" alt="">
+                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback" role="img" aria-label="{{ __('User') }}"><i class="ti ti-user" aria-hidden="true"></i></span>
                     </span>
                 </div>
             </div>
@@ -225,8 +227,7 @@
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div class="d-flex align-items-center">
                                         <span class="avatar avatar-lg me-2">
-                                            <img src="assets/img/profiles/avatar-03.jpg" class="rounded-circle"
-                                                alt="">
+                                            <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>
                                         </span>
                                         <div>
                                             <h6>Clyde Smith</h6>
@@ -397,9 +398,7 @@
             <div class="modal-header d-flex border-0 pb-0">
                 <div class="user-video-head">
                     <div class="d-flex align-items-center">
-                        <span class="avatar avatar-video avatar-lg online me-2">
-                            <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" id="group-video-head-avatar" alt="">
-                        </span>
+                        <span class="avatar avatar-video avatar-lg online me-2" id="group-video-head-avatar"></span>
                         <div class="user-name" id="group-video-head-name">{{ __('Group video call') }}</div>
                         <span class="badge border border-primary text-primary badge-sm ms-5">
                             <span id="group-video-call-timer" class="call-duration">00:00:00</span>
@@ -446,8 +445,8 @@
                 <p class="text-muted small mb-0 group-video-call-ring-name"></p>
                 <p class="text-muted small mb-0 mt-1 group-video-ring-status" id="group-video-ring-status"></p>
                 <div class="d-flex justify-content-center my-4">
-                    <span class="avatar avatar-xxl">
-                        <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle group-video-call-ring-avatar" alt="">
+                    <span class="avatar avatar-xxl group-video-call-ring-avatar-wrap">
+                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback" role="img" aria-label="{{ __('User') }}"><i class="ti ti-user" aria-hidden="true"></i></span>
                     </span>
                 </div>
             </div>
@@ -484,9 +483,7 @@
                 <div class="card bg-light mb-0">
                     <div class="card-body d-flex justify-content-center py-3">
                         <div class="text-center">
-                            <span class="avatar avatar-audio avatar-xxl mb-2">
-                                <img src="{{ asset('assets/img/profiles/avatar-03.jpg') }}" class="rounded-circle" id="group-audio-head-avatar" alt="">
-                            </span>
+                            <span class="avatar avatar-audio avatar-xxl mb-2" id="group-audio-head-avatar"></span>
                             <h6 class="fs-14 mb-1" id="group-audio-head-name">{{ __('Group call') }}</h6>
                             <p class="text-muted small mb-0" id="group-call-timer-display">00:00:00</p>
                         </div>
@@ -520,8 +517,8 @@
                 <p class="text-muted small mb-0 audio-name"></p>
                 <p class="text-muted small mb-0 mt-1 group-audio-ring-status" id="group-audio-ring-status"></p>
                 <div class="d-flex justify-content-center my-4">
-                    <span class="avatar avatar-xxl avatar-audio">
-                        <img src="{{ asset('assets/img/profiles/avatar-06.jpg') }}" class="rounded-circle group-audio-call-ring-avatar" alt="">
+                    <span class="avatar avatar-xxl avatar-audio group-audio-call-ring-avatar-wrap">
+                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback" role="img" aria-label="{{ __('User') }}"><i class="ti ti-user" aria-hidden="true"></i></span>
                     </span>
                 </div>
             </div>

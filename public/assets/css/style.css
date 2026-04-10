@@ -1963,6 +1963,17 @@ ul .btn-primary:not(:disabled):not(.disabled):active:focus, ul .btn-primary:not(
   width: 1.8rem;
   height: 1.8rem;
 }
+.avatar.avatar-lg .avatar-contact-fallback i.ti {
+  font-size: 1.5rem;
+  line-height: 1;
+  opacity: 0.72;
+}
+.avatar.avatar-md .avatar-contact-fallback i.ti,
+.avatar.avatar-sm .avatar-contact-fallback i.ti {
+  font-size: 1.25rem;
+  line-height: 1;
+  opacity: 0.72;
+}
 .avatar.avatar-xl {
   width: 4rem;
   height: 4rem;
@@ -12162,7 +12173,9 @@ Form help
   display: -webkit-flex;
   align-items: center;
   -webkit-align-items: center;
+  flex-wrap: nowrap;
   font-size: 14px;
+  overflow: hidden;
 }
 .chat .chat-body .messages .chat-profile-name h6 .chat-time {
   color: #72767D;
@@ -12556,7 +12569,9 @@ Form help
   display: -webkit-flex;
   align-items: center;
   -webkit-align-items: center;
+  flex-wrap: nowrap;
   font-size: 14px;
+  overflow: hidden;
 }
 .chats .chat-profile-name h6 .chat-time {
   color: #72767D;
@@ -14793,7 +14808,8 @@ audio{
 #emoji-picker {
   position: absolute;
   bottom: 80px;
-  left: 10px;
+  left: auto;
+  right: 10px;
   z-index: 1080;
   background-color: #fff;
   border: 1px solid #ccc;
@@ -14819,6 +14835,21 @@ audio{
 .emoji {
   font-size: 20px;
   cursor: pointer;
+}
+
+/* Force dropdown dividers in chat filter menu to render as neutral grey, not red */
+.chat-filter-dropdown .dropdown-divider,
+.chat-dropdown .dropdown-menu .dropdown-divider,
+#innerTab .dropdown-divider {
+  border-color: #dee2e6 !important;
+  opacity: 1;
+}
+
+/* Sender name + timestamp always on one line inside chat bubbles */
+.chat-profile-name h6,
+.chats .chat-profile-name h6 {
+  flex-wrap: nowrap !important;
+  white-space: nowrap;
 }
 
 .emoji:hover {

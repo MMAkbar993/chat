@@ -494,8 +494,6 @@ function fetchBlockedUsers() {
                         if (userSnapshot.exists()) {
                             const userData = userSnapshot.val();
                             const firstName = userData.firstName || ''; // Assuming firstName exists
-                            const profileImage = userData.image || 'assets/img/profiles/avatar-03.jpg';
-
                             // Create a list item to display the blocked user
                             const userListDiv = document.createElement("div");
                             userListDiv.classList.add(
@@ -516,13 +514,19 @@ function fetchBlockedUsers() {
                             // Create avatar div
                             const userAvatarDiv = document.createElement("div");
                             userAvatarDiv.classList.add("avatar", "avatar-lg");
-
-                            // Create avatar image element
-                            const userAvatarImage = document.createElement("img");
-                            userAvatarImage.src = profileImage; // User profile image
-                            userAvatarImage.classList.add("rounded-circle");
-                            userAvatarImage.alt = `${firstName}'s image`;
-                            userAvatarDiv.appendChild(userAvatarImage);
+                            const paBlocked =
+                                typeof window !== "undefined" && window.DreamChatProfileAvatar
+                                    ? window.DreamChatProfileAvatar
+                                    : null;
+                            if (paBlocked && typeof paBlocked.setAvatarDivImageOrContactIcon === "function") {
+                                paBlocked.setAvatarDivImageOrContactIcon(userAvatarDiv, userData.image || "");
+                            } else {
+                                const userAvatarImage = document.createElement("img");
+                                userAvatarImage.src = userData.image || "";
+                                userAvatarImage.classList.add("rounded-circle");
+                                userAvatarImage.alt = `${firstName}'s image`;
+                                userAvatarDiv.appendChild(userAvatarImage);
+                            }
 
                             const userInfoDiv = document.createElement("div");
                             userInfoDiv.classList.add("ms-2");
@@ -722,9 +726,14 @@ function fetchUserDetails(userId) {
 
                 // Set profile image in Settings form and everywhere
                 const profileImageUrl = user.image || user.profile_image || user.photoURL || '';
-                const profileImgEl = document.getElementById('profileImage');
-                if (profileImgEl && profileImgEl.tagName === 'IMG') {
-                    profileImgEl.src = profileImageUrl || profileImgEl.src || 'assets/img/profiles/avatar-03.jpg';
+                const paFetch = typeof window !== "undefined" && window.DreamChatProfileAvatar ? window.DreamChatProfileAvatar : null;
+                if (paFetch && typeof paFetch.setProfileImageSlotById === "function") {
+                    paFetch.setProfileImageSlotById("profileImage", profileImageUrl);
+                } else {
+                    const profileImgEl = document.getElementById('profileImage');
+                    if (profileImgEl && profileImgEl.tagName === 'IMG') {
+                        profileImgEl.src = profileImageUrl || '';
+                    }
                 }
 
                 safeSetVal('website_link', user.website_link || user.website || '');
@@ -921,10 +930,16 @@ function displayUserDetails(user) {
     const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = text || '-'; };
     // Support common Firebase keys for profile image
     const imageUrl = user.image || user.profile_image || user.photoURL || user.profileImage || '';
+    const pa = typeof window !== 'undefined' && window.DreamChatProfileAvatar ? window.DreamChatProfileAvatar : null;
     const setImg = (id, src) => {
+        const raw = (src != null && src !== '') ? src : imageUrl;
+        if (pa && typeof pa.setProfileImageSlotById === 'function') {
+            pa.setProfileImageSlotById(id, raw);
+            return;
+        }
         const el = document.getElementById(id);
         if (el && el.tagName === 'IMG') {
-            el.src = (src || imageUrl) || 'assets/img/profiles/avatar-03.jpg';
+            el.src = raw || '';
         }
     };
     const lu = (typeof window !== 'undefined' && window.LARAVEL_USER) ? window.LARAVEL_USER : null;

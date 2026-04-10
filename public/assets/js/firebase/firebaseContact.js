@@ -152,18 +152,46 @@ initializeFirebase(function (app, auth, database, storage) {
     // Initialize Firebase Database reference
     const usersRef = ref(database, "data/users"); // Correct Firebase reference to the "users" node
 
-    /** Avatar URL for <img src> — handles http(s), data:, relative Laravel paths from any route. */
+    /** Avatar URL for <img src> — delegates to profile-avatar.js when present. */
     function resolveProfileImageUrl(raw) {
+        const pa =
+            typeof window !== "undefined" && window.DreamChatProfileAvatar
+                ? window.DreamChatProfileAvatar
+                : null;
+        if (pa && typeof pa.resolveProfileImageUrl === "function") {
+            return pa.resolveProfileImageUrl(raw);
+        }
         const origin = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
-        const defaultPath = "/assets/img/profiles/avatar-03.jpg";
         if (raw == null || !String(raw).trim()) {
-            return origin ? origin + defaultPath : defaultPath.replace(/^\//, "assets/img/profiles/avatar-03.jpg");
+            return "";
         }
         const s = String(raw).trim();
         if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:")) return s;
         if (s.startsWith("//")) return (typeof window !== "undefined" && window.location && window.location.protocol ? window.location.protocol : "https:") + s;
         const path = s.replace(/^\.?\/+/, "");
         return origin ? origin + "/" + path : s;
+    }
+
+    function contactAvatarInnerHtml(raw) {
+        const pa =
+            typeof window !== "undefined" && window.DreamChatProfileAvatar
+                ? window.DreamChatProfileAvatar
+                : null;
+        if (pa && typeof pa.innerHtmlForAvatar === "function") {
+            return pa.innerHtmlForAvatar(raw || "", { imgClass: "rounded-circle" });
+        }
+        const r = (raw != null && String(raw).trim()) ? String(raw).trim() : "";
+        if (!r) {
+            return (
+                '<span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback" role="img" aria-label="User">' +
+                '<i class="ti ti-user" aria-hidden="true"></i></span>'
+            );
+        }
+        return (
+            '<img src="' +
+            String(resolveProfileImageUrl(r)).replace(/"/g, "&quot;") +
+            '" class="rounded-circle" alt="image">'
+        );
     }
 
     /** Load profile_image URLs from Laravel for contacts with no Firebase/local avatar (auth + CSRF). */
@@ -459,7 +487,6 @@ initializeFirebase(function (app, auth, database, storage) {
                             user.email ||
                             user.userName ||
                             "Unknown";
-                        const imgSrcSafe = String(user.image || "").replace(/"/g, "&quot;");
                         const roleEsc = user.primaryRole
                             ? String(user.primaryRole).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
                             : "";
@@ -468,7 +495,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#contact-details" class="chat-user-list"
                             data-user-id="${user.uid}" data-username="${(user.userName || '').replace(/"/g, '&quot;')}">
                             <div class="avatar avatar-lg me-2">
-                                <img src="${imgSrcSafe}" class="rounded-circle" alt="image">
+                                ${contactAvatarInnerHtml(user.image || "")}
                             </div>
                             <div class="chat-user-info">
                                 <div class="chat-user-msg">
@@ -1173,7 +1200,9 @@ initializeFirebase(function (app, auth, database, storage) {
                                     set(newUserContactsRef, {
                                         contact_id: loggedInUserId,
                                         email: loggedInUserData.email,
-                                        mobile_number:loggedInUserData.mobile_number ||"",
+                                        mobile_number: loggedInUserData.mobile_number || "",
+                                        firstName: loggedInUserData.firstName || "",
+                                        lastName: loggedInUserData.lastName || "",
                                     });
                                         
                                 } else {
@@ -1288,12 +1317,11 @@ initializeFirebase(function (app, auth, database, storage) {
                             div.className = "d-flex align-items-center justify-content-between p-2 border-bottom";
                             const displayName = u.display_name || u.full_name || [u.first_name, u.last_name].filter(Boolean).join(" ") || u.user_name || "User";
                             const safe = (v) => (v != null ? String(v).replace(/"/g, "&quot;").replace(/</g, "&lt;") : "");
-                            const avatarSrc = safe(resolveProfileImageUrl(u.profile_image || ""));
                             const profileEnc = encodeURIComponent(u.profile_image || "");
                             const roleEnc = encodeURIComponent(u.primary_role != null ? String(u.primary_role) : "");
                             div.innerHTML = `
                                 <div class="d-flex align-items-center">
-                                    <img src="${avatarSrc}" class="rounded-circle me-2" width="32" height="32" alt="">
+                                    <div class="avatar avatar-sm me-2 flex-shrink-0" style="width:32px;height:32px;">${contactAvatarInnerHtml(u.profile_image || "")}</div>
                                     <div>
                                         <strong>${displayName.replace(/</g, "&lt;")}</strong>
                                         <br><small class="text-muted">@${(u.user_name || "").replace(/</g, "&lt;")}</small>

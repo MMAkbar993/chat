@@ -327,7 +327,7 @@ initializeFirebase(function (app, auth, database, storage) {
         
         // Reset the image to default avatar
         if (image) {
-            image.src = defaultAvatar;
+            image.src = typeof defaultLogoAvatar !== "undefined" ? defaultLogoAvatar : "";
         }
     
         // Clear the corresponding selected image variable

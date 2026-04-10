@@ -100,6 +100,16 @@ initializeFirebase(function (app, auth, database, storage) {
                                 const key = `${from}_${to}`;
                                 const fromImage = users[from]?.image;
                                 const toImage = users[to]?.image;
+                                const pa = typeof window !== "undefined" && window.DreamChatProfileAvatar ? window.DreamChatProfileAvatar : null;
+                                const fallbackAdminAv = function (raw) {
+                                    const u = raw != null && String(raw).trim() ? String(raw).trim() : "";
+                                    if (!u) {
+                                        return '<span class="d-inline-flex align-items-center justify-content-center rounded-circle w-100 h-100 avatar-contact-fallback"><i class="ti ti-user" aria-hidden="true"></i></span>';
+                                    }
+                                    return '<img src="' + u.replace(/"/g, "&quot;") + '" class="img-fluid rounded-circle" alt="img">';
+                                };
+                                const fromAv = pa && pa.innerHtmlForAvatar ? pa.innerHtmlForAvatar(fromImage || "", { imgClass: "img-fluid rounded-circle" }) : fallbackAdminAv(fromImage || defaultAvatar);
+                                const toAv = pa && pa.innerHtmlForAvatar ? pa.innerHtmlForAvatar(toImage || "", { imgClass: "img-fluid rounded-circle" }) : fallbackAdminAv(toImage || defaultAvatar);
     
     
                                 // If this is the first time we've encountered this user pair, initialize the row
@@ -112,8 +122,8 @@ initializeFirebase(function (app, auth, database, storage) {
                                             <td></td> <!-- Increment the sequence number -->
                                             <td>
                                                 <div class="d-flex align-items-center">
-                                                    <a href="#" class="avatar avatar-md">
-                                                        <img src="${fromImage || defaultAvatar}" class="img-fluid rounded-circle" alt="img">
+                                                    <a href="#" class="avatar avatar-md d-inline-flex align-items-center justify-content-center">
+                                                        ${fromAv}
                                                     </a>
                                                     <div class="ms-2 profile-name">
                                                         <p class="text-dark mb-0">${fromName}</p>
@@ -122,8 +132,8 @@ initializeFirebase(function (app, auth, database, storage) {
                                             </td>
                                             <td>
                                                 <div class="d-flex align-items-center">
-                                                    <a href="#" class="avatar avatar-md">
-                                                        <img src="${toImage || defaultAvatar}" class="img-fluid rounded-circle" alt="img">
+                                                    <a href="#" class="avatar avatar-md d-inline-flex align-items-center justify-content-center">
+                                                        ${toAv}
                                                     </a>
                                                     <div class="ms-2 profile-name">
                                                         <p class="text-dark mb-0">${toName}</p>
