@@ -8650,10 +8650,6 @@ initializeFirebase(function (app, auth, database, storage) {
                             <time class="time" spellcheck="false" translate="no"${
                                 favTimeIso ? ` datetime="${favTimeIso}"` : ""
                             }>${formatedTimestamp(user.timestamp)}</time>
-                            <div class="chat-pin">
-                                <i class="ti me-2"></i>
-                                <span class="count-message fs-12 fw-semibold"></span>
-                            </div>
                         </div>
                     </div>
                 </a>
