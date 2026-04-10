@@ -793,6 +793,17 @@ initializeFirebase(function (app, auth, database, storage) {
                             } catch (e) {
                                 /* ignore */
                             }
+                            try {
+                                if (
+                                    !keepChatOpen &&
+                                    localStorage.getItem("selectedUserId") ===
+                                        String(selectedUserId)
+                                ) {
+                                    keepChatOpen = true;
+                                }
+                            } catch (e) {
+                                /* ignore */
+                            }
                             if (!keepChatOpen) {
                                 resetChatShellToWelcome();
                             }
@@ -2316,8 +2327,11 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function highlightActiveUser(userId) {
-        // Select all user elements, adjust the selector based on your HTML structure
-        const userElements = document.querySelectorAll("[data-user-id]");
+        // Only sidebar conversation rows (.chat-list), not dropdown items that also use data-user-id
+        // (otherwise .chat-body .dropdown-item.active paints menu links purple).
+        const userElements = document.querySelectorAll(
+            "#chat-menu .chat-list[data-user-id]"
+        );
 
         userElements.forEach((userElement) => {
             const id = userElement.getAttribute("data-user-id");
@@ -8102,6 +8116,12 @@ initializeFirebase(function (app, auth, database, storage) {
         return `${month}/${day}/${year}`;
     }
 
+    /** ISO string for <time datetime> — reduces false browser spell-check marks on "AM/PM". */
+    function sidebarTimeDatetimeAttr(timestamp) {
+        const d = new Date(timestamp);
+        return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+    }
+
     async function displayArchivedUsers(usersMap, archivedUsers) {
         const sidebarElement = document.getElementById("archive-chats");
         if (!sidebarElement) return;
@@ -8614,21 +8634,22 @@ initializeFirebase(function (app, auth, database, storage) {
         for (const { user, senderName, profileImage } of rows) {
             const userElement = document.createElement("div");
             userElement.classList.add("chat-users-wrap");
+            const favTimeIso = sidebarTimeDatetimeAttr(user.timestamp);
             userElement.innerHTML = `
             <div class="chat-list" data-user-id="${user.userId}">
-                <a href="#" class="chat-user-list">
+                <a href="#" class="chat-user-list" spellcheck="false">
                     <div class="avatar avatar-lg me-2">
                         <img src="${profileImage}" class="rounded-circle" alt="image" />
                     </div>
                     <div class="chat-user-info">
                         <div class="chat-user-msg">
-                            <h6>${senderName}</h6>
+                            <h6 spellcheck="false">${senderName}</h6>
                             <p></p>
                         </div>
                         <div class="chat-user-time">
-                            <span class="time">${formatedTimestamp(
-                    user.timestamp
-                )}</span>
+                            <time class="time" spellcheck="false" translate="no"${
+                                favTimeIso ? ` datetime="${favTimeIso}"` : ""
+                            }>${formatedTimestamp(user.timestamp)}</time>
                             <div class="chat-pin">
                                 <i class="ti me-2"></i>
                                 <span class="count-message fs-12 fw-semibold"></span>
@@ -12054,7 +12075,27 @@ initializeFirebase(function (app, auth, database, storage) {
                 gid
             );
         } else {
-            hasSelectedUser = !!(urlPeer || selectedUserId);
+            const urlPeerTrim = urlPeer && String(urlPeer).trim();
+            let sessPeer = "";
+            let locPeer = "";
+            try {
+                sessPeer = (
+                    sessionStorage.getItem(CHAT_ACTIVE_PEER_SESSION_KEY) || ""
+                ).trim();
+            } catch (e) {
+                /* ignore */
+            }
+            try {
+                locPeer = (localStorage.getItem("selectedUserId") || "").trim();
+            } catch (e) {
+                /* ignore */
+            }
+            hasSelectedUser = !!(
+                urlPeerTrim ||
+                selectedUserId ||
+                sessPeer ||
+                locPeer
+            );
         }
         if (spaContent) {
             spaContent.style.setProperty("display", "flex", "important");
@@ -12109,6 +12150,62 @@ initializeFirebase(function (app, auth, database, storage) {
 
     window.__dreamchatEnsureChatPageVisible = ensureChatPageVisible;
 
+    // After switching browser tabs, in-memory selectedUserId can desync from URL/storage;
+    // restore the open thread so the main panel does not fall back to the welcome screen.
+    let dreamchatTabWasHidden = false;
+    if (typeof document !== "undefined") {
+        document.addEventListener("visibilitychange", function () {
+            if (document.visibilityState === "hidden") {
+                dreamchatTabWasHidden = true;
+                return;
+            }
+            if (document.visibilityState !== "visible" || !dreamchatTabWasHidden) {
+                return;
+            }
+            dreamchatTabWasHidden = false;
+            const path =
+                (window.location.pathname || "").replace(/\/+$/, "") || "/";
+            if (path !== "/chat" && path !== "/index") return;
+            if (!auth.currentUser) return;
+            let peer = null;
+            try {
+                const q = new URLSearchParams(window.location.search || "").get(
+                    "user"
+                );
+                if (q && String(q).trim()) peer = String(q).trim();
+            } catch (e) {
+                /* ignore */
+            }
+            if (!peer) {
+                try {
+                    peer =
+                        (
+                            sessionStorage.getItem(
+                                CHAT_ACTIVE_PEER_SESSION_KEY
+                            ) || ""
+                        ).trim() || null;
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+            if (!peer) {
+                try {
+                    peer =
+                        (localStorage.getItem("selectedUserId") || "").trim() ||
+                        null;
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+            if (!peer) return;
+            if (String(selectedUserId || "") === String(peer)) {
+                ensureChatPageVisible();
+                return;
+            }
+            selectUser(peer);
+        });
+    }
+
     function guardWelcomeVisible() {
         const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
         const params = new URLSearchParams(window.location.search || "");
@@ -12125,8 +12222,25 @@ initializeFirebase(function (app, auth, database, storage) {
             ) {
                 return;
             }
-        } else if (gUrl || selectedUserId) {
-            return;
+        } else {
+            const urlUser = gUrl && String(gUrl).trim();
+            if (urlUser || selectedUserId) return;
+            let sess = "";
+            try {
+                sess = (
+                    sessionStorage.getItem(CHAT_ACTIVE_PEER_SESSION_KEY) || ""
+                ).trim();
+            } catch (e) {
+                /* ignore */
+            }
+            if (sess) return;
+            let loc = "";
+            try {
+                loc = (localStorage.getItem("selectedUserId") || "").trim();
+            } catch (e) {
+                /* ignore */
+            }
+            if (loc) return;
         }
         const welcomeEl = document.getElementById("welcome-container");
         if (!welcomeEl) return;

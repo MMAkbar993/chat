@@ -11491,6 +11491,13 @@ Form help
 .chat-users-wrap .chat-user-list .chat-user-info .chat-user-time {
   text-align: end;
 }
+/* Sidebar: hide native spell-check underlines on times and display names (e.g. "AM", usernames) */
+#chat-menu .chat-user-time time.time::spelling-error,
+#chat-menu .chat-user-time .time::spelling-error,
+#chat-menu .chat-user-msg h6::spelling-error {
+  text-decoration: none;
+  background: transparent;
+}
 .chat-users-wrap .chat-user-list .chat-user-info .chat-user-time .time {
   display: inline-block;
   margin: 0 0 2px 4px;
