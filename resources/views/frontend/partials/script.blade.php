@@ -120,7 +120,6 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
             }
             $laravelUserJson = json_encode([
                 'id' => $u->id,
-                'firebase_uid' => (\Illuminate\Support\Facades\Schema::hasColumn($u->getTable(), 'firebase_uid') ? ($u->firebase_uid ?? '') : ''),
                 'firstName' => $u->first_name,
                 'lastName' => $u->last_name,
                 'full_name' => $u->full_name,
@@ -190,7 +189,6 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                 if ($u) {
                     $laravelUserJson = json_encode([
                         'id' => $u->id,
-                        'firebase_uid' => (\Illuminate\Support\Facades\Schema::hasColumn($u->getTable(), 'firebase_uid') ? ($u->firebase_uid ?? '') : ''),
                         'full_name' => $u->full_name ?? trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')),
                         'email' => $u->email,
                     ]);

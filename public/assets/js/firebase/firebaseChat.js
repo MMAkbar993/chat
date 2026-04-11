@@ -69,56 +69,6 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
     let currentUserId = null;
-
-    function normalizeChatUserId(id) {
-        return String(id ?? "").trim();
-    }
-
-    /** All ids that refer to the logged-in viewer (Firebase uid, synced Laravel id, etc.). */
-    function viewerIdentityIds() {
-        const out = new Set();
-        const add = (v) => {
-            const s = normalizeChatUserId(v);
-            if (s) out.add(s);
-        };
-        add(currentUser?.uid);
-        add(currentUserId);
-        if (typeof window !== "undefined" && window.LARAVEL_USER) {
-            add(window.LARAVEL_USER.id);
-            add(window.LARAVEL_USER.firebase_uid);
-        }
-        return out;
-    }
-
-    /** True when the message was sent by the current viewer (handles Laravel numeric id vs Firebase uid in RTDB). */
-    function isViewerMessageSender(senderId) {
-        const sid = normalizeChatUserId(senderId);
-        if (!sid) return false;
-        return viewerIdentityIds().has(sid);
-    }
-
-    function isViewerRecipient(recipientId) {
-        const rid = normalizeChatUserId(recipientId);
-        if (!rid) return false;
-        return viewerIdentityIds().has(rid);
-    }
-
-    /**
-     * DM thread membership: sender/recipient must be {viewer, peer} in either order.
-     * Viewer may appear as Firebase uid or Laravel user id in legacy messages.
-     */
-    function messageBelongsToDmThread(msg, peerUserId) {
-        const s = normalizeChatUserId(msg.senderId);
-        const r = normalizeChatUserId(msg.recipientId);
-        const peer = normalizeChatUserId(peerUserId);
-        if (!s || !r || !peer) return false;
-        const viewerIds = viewerIdentityIds();
-        const sViewer = viewerIds.has(s);
-        const rViewer = viewerIds.has(r);
-        const sPeer = s === peer;
-        const rPeer = r === peer;
-        return (sViewer && rPeer) || (sPeer && rViewer);
-    }
     /** Same-tab only: restores open chat after refresh. Do not use localStorage for panel visibility (stale after SPA / no selection). */
     const CHAT_ACTIVE_PEER_SESSION_KEY = "dreamchat_active_peer";
 
@@ -1031,7 +981,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                 childSnapshot.key
                             ); // Sanitize the message key
                             if (
-                                isViewerRecipient(message.recipientId) &&
+                                message.recipientId === currentUserId &&
                                 !message.seen
                             ) {
                                 // Update the message status to seen
@@ -1118,7 +1068,7 @@ initializeFirebase(function (app, auth, database, storage) {
             // Increment unseen message count if the message is unseen
             if (
                 lastMessage &&
-                isViewerRecipient(lastMessage.recipientId) &&
+                lastMessage.recipientId === currentUser.uid &&
                 !lastMessage.seen
             ) {
                 unseenMessageCount++;
@@ -1174,7 +1124,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
                     if (
                         lastMessage &&
-                        isViewerRecipient(lastMessage.recipientId) &&
+                        lastMessage.recipientId === currentUserId &&
                         !lastMessage.seen
                     ) {
                         unseenMessageCount++;
@@ -1208,7 +1158,8 @@ initializeFirebase(function (app, auth, database, storage) {
                                 snapshot.forEach((childSnapshot) => {
                                     const message = childSnapshot.val();
                                     if (
-                                        isViewerRecipient(message.recipientId) &&
+                                        message.recipientId ===
+                                        currentUser.uid &&
                                         !message.seen
                                     ) {
                                         update(
@@ -1227,13 +1178,13 @@ initializeFirebase(function (app, auth, database, storage) {
                     });
                 };
 
-                // Update message status (check marks) for the latest message in this room
-                if (lastMessage && isViewerMessageSender(lastMessage.senderId)) {
-                    if (!lastMessage.delivered && !lastMessage.readMsg) {
+                // Update message status (check marks)
+                if (message.senderId === currentUserId) {
+                    if (!message.delivered && !message.readMsg) {
                         statusIcon.innerHTML = `<i class="ti ti-check"></i>`; // Sent (single tick)
-                    } else if (lastMessage.delivered && !lastMessage.readMsg) {
+                    } else if (message.delivered && !message.readMsg) {
                         statusIcon.innerHTML = `<i class="ti ti-checks"></i>`; // Delivered (double ticks)
-                    } else if (lastMessage.delivered && lastMessage.readMsg) {
+                    } else if (message.delivered && message.readMsg) {
                         statusIcon.innerHTML = `<i class="ti ti-checks text-success">dfv</i>`; // Read (green double ticks)
                     }
                 }
@@ -1288,7 +1239,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         `[data-user-id="${userId}"] .status-icon`
                     );
 
-                    if (isViewerMessageSender(lastMessage.senderId)) {
+                    if (lastMessage.senderId === currentUserId) {
                         if (statusIcon) {
                             if (
                                 !lastMessage.delivered &&
@@ -1741,7 +1692,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     return;
                 }
                 if (
-                    isViewerRecipient(message.recipientId) &&
+                    message.recipientId === viewerUid &&
                     !message.seen
                 ) {
                     unseen++;
@@ -1805,7 +1756,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 })
                 : "";
 
-            if (isViewerMessageSender(latestMsg.senderId)) {
+            if (latestMsg.senderId === currentUserId) {
                 if (!latestMsg.delivered && !latestMsg.readMsg) {
                     pinIcon.innerHTML = `<i class="ti ti-check"></i>`;
                 } else if (
@@ -1836,7 +1787,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 snap.forEach((childSnapshot) => {
                     const message = childSnapshot.val();
                     if (
-                        isViewerRecipient(message.recipientId) &&
+                        message.recipientId === currentUser.uid &&
                         !message.seen
                     ) {
                         update(child(chatRef, childSnapshot.key), {
@@ -1982,11 +1933,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
     function uidIncludedInFirebaseList(raw, uid) {
         if (uid == null) return false;
-        const want = normalizeChatUserId(uid);
-        if (!want) return false;
-        return firebaseUidList(raw).some(
-            (x) => normalizeChatUserId(x) === want
-        );
+        return firebaseUidList(raw).includes(uid);
     }
 
     function mergeFirebaseUidLists(a, b) {
@@ -2139,7 +2086,7 @@ initializeFirebase(function (app, auth, database, storage) {
         if (document.body) document.body.setAttribute("data-chat-panel", "visible");
         if (welcomeContainer) welcomeContainer.style.setProperty("display", "none", "important");
 
-        const loggedInUserId = currentUser?.uid || currentUserId;
+        const loggedInUserId = currentUserId;
         selectedUserId = userId; // Set the selected user ID
         // Reset media accordion state so fresh data loads for the new contact
         document.querySelectorAll(".media-collapse-content").forEach(colEl => {
@@ -3413,7 +3360,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     : null;
                 let raw = rawAvatarFromFirebaseAndContact(userData, contactData);
                 if (
-                    isViewerMessageSender(message.senderId) &&
+                    message.senderId === currentUser.uid &&
                     typeof window !== "undefined" &&
                     window.LARAVEL_USER
                 ) {
@@ -3669,7 +3616,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 const formattedTime = formatTimestamp(message.timestamp);
 
                 let statusIcon = "";
-                if (isViewerMessageSender(message.senderId)) {
+                if (message.senderId === currentUserId) {
                     if (message.isOptimistic) {
                         // Use a clock icon for the "sending" state.
                         // Make sure your icon library (e.g., Tabler Icons) has 'ti-clock'.
@@ -3691,7 +3638,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 );
                 const reactionPickerMarkup = buildReactionPickerMarkup();
 
-                if (isViewerMessageSender(message.senderId)) {
+                if (message.senderId === currentUser.uid) {
                     messageElement.classList.add("chats-right"); // Align message to the right
                     messageElement.innerHTML = `
                         <div class="chat-content">
@@ -4325,7 +4272,7 @@ initializeFirebase(function (app, auth, database, storage) {
                               }
                             : snapPri.val()
                         : snapMir.val();
-                    if (isViewerMessageSender(message.senderId)) {
+                    if (message.senderId == currentUserId) {
                         const deleteForEveryoneDiv =
                             document.getElementById("delete-for-everyone-wrap");
                         if (deleteForEveryoneDiv) {
@@ -4744,16 +4691,13 @@ initializeFirebase(function (app, auth, database, storage) {
             if (!message || !currentUser?.uid) {
                 return;
             }
-            const viewerUid = String(
-                currentUser?.uid ?? currentUserId ?? ""
-            ).trim();
             const isMessageForCurrentUser =
-                String(message.recipientId ?? "").trim() === viewerUid;
+                message.recipientId === currentUser.uid;
 
             // Check if the message is for the current user
             if (
-                String(message.recipientId ?? "").trim() === viewerUid ||
-                isViewerMessageSender(message.senderId)
+                message.recipientId === currentUser.uid ||
+                message.senderId === currentUser.uid
             ) {
                 // Display the message regardless of selection
                 // displayMessage(message);
@@ -4855,7 +4799,7 @@ initializeFirebase(function (app, auth, database, storage) {
             const message = snapshot.val();
             const messageKey = snapshot.key;
 
-            if (isViewerMessageSender(message.senderId) && message.tempKey) {
+            if (message.senderId === currentUser.uid && message.tempKey) {
                 if (pendingOptimisticKeys.has(message.tempKey)) {
                     pendingOptimisticKeys.delete(message.tempKey);
                     displayedMessages.add(messageKey);
@@ -4876,7 +4820,12 @@ initializeFirebase(function (app, auth, database, storage) {
                 displayedMessages.add(messageKey);
                 const msg = { ...message, key: messageKey };
 
-                if (messageBelongsToDmThread(msg, toUserId)) {
+                if (
+                    (msg.senderId === fromUserId &&
+                        msg.recipientId === toUserId) ||
+                    (msg.senderId === toUserId &&
+                        msg.recipientId === fromUserId)
+                ) {
                     get(
                         ref(
                             database,
@@ -4897,14 +4846,14 @@ initializeFirebase(function (app, auth, database, storage) {
                             }
                             displayMessage(msg);
 
-                            if (!msg.seen && isViewerRecipient(msg.recipientId)) {
+                            if (!msg.seen && msg.recipientId === currentUser.uid) {
                                 playMessageReceivedSound();
                                 markMessageAsSeen(canonicalRoomId, messageKey);
                             }
                         })
                         .catch(() => {
                             displayMessage(msg);
-                            if (!msg.seen && isViewerRecipient(msg.recipientId)) {
+                            if (!msg.seen && msg.recipientId === currentUser.uid) {
                                 playMessageReceivedSound();
                                 markMessageAsSeen(canonicalRoomId, messageKey);
                             }
