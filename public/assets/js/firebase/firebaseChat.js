@@ -69,6 +69,12 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
     let currentUserId = null;
+    /** True when sender id matches the logged-in user (avoids left/right swap if Firebase stores number vs string). */
+    function isViewerMessageSender(senderId) {
+        const uid = String(currentUser?.uid ?? currentUserId ?? "").trim();
+        const sid = String(senderId ?? "").trim();
+        return uid.length > 0 && sid === uid;
+    }
     /** Same-tab only: restores open chat after refresh. Do not use localStorage for panel visibility (stale after SPA / no selection). */
     const CHAT_ACTIVE_PEER_SESSION_KEY = "dreamchat_active_peer";
 
@@ -1179,7 +1185,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 };
 
                 // Update message status (check marks)
-                if (message.senderId === currentUserId) {
+                if (isViewerMessageSender(message.senderId)) {
                     if (!message.delivered && !message.readMsg) {
                         statusIcon.innerHTML = `<i class="ti ti-check"></i>`; // Sent (single tick)
                     } else if (message.delivered && !message.readMsg) {
@@ -1239,7 +1245,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         `[data-user-id="${userId}"] .status-icon`
                     );
 
-                    if (lastMessage.senderId === currentUserId) {
+                    if (isViewerMessageSender(lastMessage.senderId)) {
                         if (statusIcon) {
                             if (
                                 !lastMessage.delivered &&
@@ -1756,7 +1762,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 })
                 : "";
 
-            if (latestMsg.senderId === currentUserId) {
+            if (isViewerMessageSender(latestMsg.senderId)) {
                 if (!latestMsg.delivered && !latestMsg.readMsg) {
                     pinIcon.innerHTML = `<i class="ti ti-check"></i>`;
                 } else if (
@@ -3360,7 +3366,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     : null;
                 let raw = rawAvatarFromFirebaseAndContact(userData, contactData);
                 if (
-                    message.senderId === currentUser.uid &&
+                    isViewerMessageSender(message.senderId) &&
                     typeof window !== "undefined" &&
                     window.LARAVEL_USER
                 ) {
@@ -3616,7 +3622,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 const formattedTime = formatTimestamp(message.timestamp);
 
                 let statusIcon = "";
-                if (message.senderId === currentUserId) {
+                if (isViewerMessageSender(message.senderId)) {
                     if (message.isOptimistic) {
                         // Use a clock icon for the "sending" state.
                         // Make sure your icon library (e.g., Tabler Icons) has 'ti-clock'.
@@ -3638,7 +3644,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 );
                 const reactionPickerMarkup = buildReactionPickerMarkup();
 
-                if (message.senderId === currentUser.uid) {
+                if (isViewerMessageSender(message.senderId)) {
                     messageElement.classList.add("chats-right"); // Align message to the right
                     messageElement.innerHTML = `
                         <div class="chat-content">
@@ -4691,13 +4697,16 @@ initializeFirebase(function (app, auth, database, storage) {
             if (!message || !currentUser?.uid) {
                 return;
             }
+            const viewerUid = String(
+                currentUser?.uid ?? currentUserId ?? ""
+            ).trim();
             const isMessageForCurrentUser =
-                message.recipientId === currentUser.uid;
+                String(message.recipientId ?? "").trim() === viewerUid;
 
             // Check if the message is for the current user
             if (
-                message.recipientId === currentUser.uid ||
-                message.senderId === currentUser.uid
+                String(message.recipientId ?? "").trim() === viewerUid ||
+                isViewerMessageSender(message.senderId)
             ) {
                 // Display the message regardless of selection
                 // displayMessage(message);
@@ -4799,7 +4808,7 @@ initializeFirebase(function (app, auth, database, storage) {
             const message = snapshot.val();
             const messageKey = snapshot.key;
 
-            if (message.senderId === currentUser.uid && message.tempKey) {
+            if (isViewerMessageSender(message.senderId) && message.tempKey) {
                 if (pendingOptimisticKeys.has(message.tempKey)) {
                     pendingOptimisticKeys.delete(message.tempKey);
                     displayedMessages.add(messageKey);
