@@ -69,11 +69,55 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
     let currentUserId = null;
-    /** True when sender id matches the logged-in user (avoids left/right swap if Firebase stores number vs string). */
+
+    function normalizeChatUserId(id) {
+        return String(id ?? "").trim();
+    }
+
+    /** All ids that refer to the logged-in viewer (Firebase uid, synced Laravel id, etc.). */
+    function viewerIdentityIds() {
+        const out = new Set();
+        const add = (v) => {
+            const s = normalizeChatUserId(v);
+            if (s) out.add(s);
+        };
+        add(currentUser?.uid);
+        add(currentUserId);
+        if (typeof window !== "undefined" && window.LARAVEL_USER) {
+            add(window.LARAVEL_USER.id);
+            add(window.LARAVEL_USER.firebase_uid);
+        }
+        return out;
+    }
+
+    /** True when the message was sent by the current viewer (handles Laravel numeric id vs Firebase uid in RTDB). */
     function isViewerMessageSender(senderId) {
-        const uid = String(currentUser?.uid ?? currentUserId ?? "").trim();
-        const sid = String(senderId ?? "").trim();
-        return uid.length > 0 && sid === uid;
+        const sid = normalizeChatUserId(senderId);
+        if (!sid) return false;
+        return viewerIdentityIds().has(sid);
+    }
+
+    function isViewerRecipient(recipientId) {
+        const rid = normalizeChatUserId(recipientId);
+        if (!rid) return false;
+        return viewerIdentityIds().has(rid);
+    }
+
+    /**
+     * DM thread membership: sender/recipient must be {viewer, peer} in either order.
+     * Viewer may appear as Firebase uid or Laravel user id in legacy messages.
+     */
+    function messageBelongsToDmThread(msg, peerUserId) {
+        const s = normalizeChatUserId(msg.senderId);
+        const r = normalizeChatUserId(msg.recipientId);
+        const peer = normalizeChatUserId(peerUserId);
+        if (!s || !r || !peer) return false;
+        const viewerIds = viewerIdentityIds();
+        const sViewer = viewerIds.has(s);
+        const rViewer = viewerIds.has(r);
+        const sPeer = s === peer;
+        const rPeer = r === peer;
+        return (sViewer && rPeer) || (sPeer && rViewer);
     }
     /** Same-tab only: restores open chat after refresh. Do not use localStorage for panel visibility (stale after SPA / no selection). */
     const CHAT_ACTIVE_PEER_SESSION_KEY = "dreamchat_active_peer";
@@ -987,7 +1031,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                 childSnapshot.key
                             ); // Sanitize the message key
                             if (
-                                message.recipientId === currentUserId &&
+                                isViewerRecipient(message.recipientId) &&
                                 !message.seen
                             ) {
                                 // Update the message status to seen
@@ -1074,7 +1118,7 @@ initializeFirebase(function (app, auth, database, storage) {
             // Increment unseen message count if the message is unseen
             if (
                 lastMessage &&
-                lastMessage.recipientId === currentUser.uid &&
+                isViewerRecipient(lastMessage.recipientId) &&
                 !lastMessage.seen
             ) {
                 unseenMessageCount++;
@@ -1130,7 +1174,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
                     if (
                         lastMessage &&
-                        lastMessage.recipientId === currentUserId &&
+                        isViewerRecipient(lastMessage.recipientId) &&
                         !lastMessage.seen
                     ) {
                         unseenMessageCount++;
@@ -1164,8 +1208,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                 snapshot.forEach((childSnapshot) => {
                                     const message = childSnapshot.val();
                                     if (
-                                        message.recipientId ===
-                                        currentUser.uid &&
+                                        isViewerRecipient(message.recipientId) &&
                                         !message.seen
                                     ) {
                                         update(
@@ -1184,13 +1227,13 @@ initializeFirebase(function (app, auth, database, storage) {
                     });
                 };
 
-                // Update message status (check marks)
-                if (isViewerMessageSender(message.senderId)) {
-                    if (!message.delivered && !message.readMsg) {
+                // Update message status (check marks) for the latest message in this room
+                if (lastMessage && isViewerMessageSender(lastMessage.senderId)) {
+                    if (!lastMessage.delivered && !lastMessage.readMsg) {
                         statusIcon.innerHTML = `<i class="ti ti-check"></i>`; // Sent (single tick)
-                    } else if (message.delivered && !message.readMsg) {
+                    } else if (lastMessage.delivered && !lastMessage.readMsg) {
                         statusIcon.innerHTML = `<i class="ti ti-checks"></i>`; // Delivered (double ticks)
-                    } else if (message.delivered && message.readMsg) {
+                    } else if (lastMessage.delivered && lastMessage.readMsg) {
                         statusIcon.innerHTML = `<i class="ti ti-checks text-success">dfv</i>`; // Read (green double ticks)
                     }
                 }
@@ -1698,7 +1741,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     return;
                 }
                 if (
-                    message.recipientId === viewerUid &&
+                    isViewerRecipient(message.recipientId) &&
                     !message.seen
                 ) {
                     unseen++;
@@ -1793,7 +1836,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 snap.forEach((childSnapshot) => {
                     const message = childSnapshot.val();
                     if (
-                        message.recipientId === currentUser.uid &&
+                        isViewerRecipient(message.recipientId) &&
                         !message.seen
                     ) {
                         update(child(chatRef, childSnapshot.key), {
@@ -1939,7 +1982,11 @@ initializeFirebase(function (app, auth, database, storage) {
 
     function uidIncludedInFirebaseList(raw, uid) {
         if (uid == null) return false;
-        return firebaseUidList(raw).includes(uid);
+        const want = normalizeChatUserId(uid);
+        if (!want) return false;
+        return firebaseUidList(raw).some(
+            (x) => normalizeChatUserId(x) === want
+        );
     }
 
     function mergeFirebaseUidLists(a, b) {
@@ -2092,7 +2139,7 @@ initializeFirebase(function (app, auth, database, storage) {
         if (document.body) document.body.setAttribute("data-chat-panel", "visible");
         if (welcomeContainer) welcomeContainer.style.setProperty("display", "none", "important");
 
-        const loggedInUserId = currentUserId;
+        const loggedInUserId = currentUser?.uid || currentUserId;
         selectedUserId = userId; // Set the selected user ID
         // Reset media accordion state so fresh data loads for the new contact
         document.querySelectorAll(".media-collapse-content").forEach(colEl => {
@@ -4278,7 +4325,7 @@ initializeFirebase(function (app, auth, database, storage) {
                               }
                             : snapPri.val()
                         : snapMir.val();
-                    if (message.senderId == currentUserId) {
+                    if (isViewerMessageSender(message.senderId)) {
                         const deleteForEveryoneDiv =
                             document.getElementById("delete-for-everyone-wrap");
                         if (deleteForEveryoneDiv) {
@@ -4829,12 +4876,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 displayedMessages.add(messageKey);
                 const msg = { ...message, key: messageKey };
 
-                if (
-                    (msg.senderId === fromUserId &&
-                        msg.recipientId === toUserId) ||
-                    (msg.senderId === toUserId &&
-                        msg.recipientId === fromUserId)
-                ) {
+                if (messageBelongsToDmThread(msg, toUserId)) {
                     get(
                         ref(
                             database,
@@ -4855,14 +4897,14 @@ initializeFirebase(function (app, auth, database, storage) {
                             }
                             displayMessage(msg);
 
-                            if (!msg.seen && msg.recipientId === currentUser.uid) {
+                            if (!msg.seen && isViewerRecipient(msg.recipientId)) {
                                 playMessageReceivedSound();
                                 markMessageAsSeen(canonicalRoomId, messageKey);
                             }
                         })
                         .catch(() => {
                             displayMessage(msg);
-                            if (!msg.seen && msg.recipientId === currentUser.uid) {
+                            if (!msg.seen && isViewerRecipient(msg.recipientId)) {
                                 playMessageReceivedSound();
                                 markMessageAsSeen(canonicalRoomId, messageKey);
                             }
