@@ -183,16 +183,9 @@ initializeFirebase(function (app, auth, database, storage) {
                         isPageReload = false;
                     }
 
-                    // Restore open chat from ?user= or same-tab session only when this is not a reload.
+                    // Only restore open chat from explicit ?user= param; never auto-restore from session/localStorage.
                     const urlParams = new URLSearchParams(window.location.search);
-                    let storedUserId = isPageReload ? null : urlParams.get("user");
-                    if (!storedUserId && !isPageReload) {
-                        try {
-                            storedUserId = sessionStorage.getItem(CHAT_ACTIVE_PEER_SESSION_KEY) || "";
-                        } catch (e) {
-                            storedUserId = "";
-                        }
-                    }
+                    let storedUserId = isPageReload ? null : (urlParams.get("user") || "").trim() || null;
                     if (isPageReload) {
                         try {
                             sessionStorage.removeItem(CHAT_ACTIVE_PEER_SESSION_KEY);
@@ -207,18 +200,6 @@ initializeFirebase(function (app, auth, database, storage) {
                         }
                         if (document.body) {
                             document.body.setAttribute("data-chat-panel", "welcome");
-                        }
-                    }
-                    // Tab discard / full reload clears session + ?user= in code above; recover last peer from localStorage
-                    // only in that case so a normal /chat visit does not reopen a stale thread.
-                    if (!storedUserId && isPageReload) {
-                        try {
-                            const ls = (
-                                localStorage.getItem("selectedUserId") || ""
-                            ).trim();
-                            if (ls) storedUserId = ls;
-                        } catch (e) {
-                            /* ignore */
                         }
                     }
                     if (!storedUserId) {
@@ -2089,11 +2070,8 @@ initializeFirebase(function (app, auth, database, storage) {
             return;
         }
 
-        // Persist selection for other modules; panel visibility uses selectedUserId / ?user / session only.
+        // Persist selection for other modules only (not used to restore on navigation/reload).
         try { localStorage.setItem("selectedUserId", String(userId)); } catch (e) { }
-        try {
-            sessionStorage.setItem(CHAT_ACTIVE_PEER_SESSION_KEY, String(userId));
-        } catch (e) { }
         try {
             if (typeof history !== "undefined" && history.replaceState) {
                 const u = new URL(window.location.href);
@@ -3024,9 +3002,10 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     /** New Chat modal: avatars + display names from MySQL when RTDB is thin (same API / rules as chat sidebar). */
-    async function enrichNewChatModalAvatarsFromLaravel(peerIds) {
+    async function enrichNewChatModalAvatarsFromLaravel(peerIds, containerEl) {
         const me = auth.currentUser?.uid;
-        const container = document.getElementById("main-container");
+        const container =
+            containerEl || document.getElementById("main-container");
         const token =
             typeof document !== "undefined" &&
             document.querySelector('meta[name="csrf-token"]')
@@ -12084,26 +12063,7 @@ initializeFirebase(function (app, auth, database, storage) {
             );
         } else {
             const urlPeerTrim = urlPeer && String(urlPeer).trim();
-            let sessPeer = "";
-            let locPeer = "";
-            try {
-                sessPeer = (
-                    sessionStorage.getItem(CHAT_ACTIVE_PEER_SESSION_KEY) || ""
-                ).trim();
-            } catch (e) {
-                /* ignore */
-            }
-            try {
-                locPeer = (localStorage.getItem("selectedUserId") || "").trim();
-            } catch (e) {
-                /* ignore */
-            }
-            hasSelectedUser = !!(
-                urlPeerTrim ||
-                selectedUserId ||
-                sessPeer ||
-                locPeer
-            );
+            hasSelectedUser = !!(urlPeerTrim || selectedUserId);
         }
         if (spaContent) {
             spaContent.style.setProperty("display", "flex", "important");
@@ -12163,29 +12123,14 @@ initializeFirebase(function (app, auth, database, storage) {
     let dreamchatEverDocumentHidden = false;
     let dreamchatResyncChatTimer = null;
     function dreamchatResolveStoredOneOnOnePeerId() {
+        // Only restore from the currently active in-memory selection or explicit ?user= param.
         try {
-            const q = new URLSearchParams(window.location.search || "").get(
-                "user"
-            );
+            const q = new URLSearchParams(window.location.search || "").get("user");
             if (q && String(q).trim()) return String(q).trim();
         } catch (e) {
             /* ignore */
         }
-        try {
-            const s = (
-                sessionStorage.getItem(CHAT_ACTIVE_PEER_SESSION_KEY) || ""
-            ).trim();
-            if (s) return s;
-        } catch (e) {
-            /* ignore */
-        }
-        try {
-            const ls = (localStorage.getItem("selectedUserId") || "").trim();
-            if (ls) return ls;
-        } catch (e) {
-            /* ignore */
-        }
-        return null;
+        return selectedUserId || null;
     }
     function dreamchatOneOnOneUiMissingOpenThread() {
         const wel = document.getElementById("welcome-container");
@@ -12278,22 +12223,6 @@ initializeFirebase(function (app, auth, database, storage) {
         } else {
             const urlUser = gUrl && String(gUrl).trim();
             if (urlUser || selectedUserId) return;
-            let sess = "";
-            try {
-                sess = (
-                    sessionStorage.getItem(CHAT_ACTIVE_PEER_SESSION_KEY) || ""
-                ).trim();
-            } catch (e) {
-                /* ignore */
-            }
-            if (sess) return;
-            let loc = "";
-            try {
-                loc = (localStorage.getItem("selectedUserId") || "").trim();
-            } catch (e) {
-                /* ignore */
-            }
-            if (loc) return;
         }
         const welcomeEl = document.getElementById("welcome-container");
         if (!welcomeEl) return;
@@ -12321,6 +12250,8 @@ initializeFirebase(function (app, auth, database, storage) {
         }, intervalMs);
     }
     window.addEventListener("spa-page-applied", function () {
+        // Reset selected user on every SPA navigation so the welcome screen shows fresh.
+        selectedUserId = null;
         rebindContactProfileDockLayout();
         [0, 120, 450].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
         startWelcomeGuard(12, 250);
