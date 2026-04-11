@@ -255,8 +255,8 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         setProfileSlot('profileImageProfile', imgUrl);
         setProfileSlot('profileImageChat', imgUrl);
         setProfileSlot('ProfileImageSidebar', imgUrl);
-        var fullName = u.public_display_name || ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || '';
-        var subWelcome = fullName
+        var legalFull = ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || String(u.full_name || '').trim();
+        var subWelcome = u.public_display_name || legalFull
             || String(u.email || u.user_name || u.username || '').trim();
         if (subWelcome) setText('profile-info-chat-name', subWelcome + ' 😊');
         else setText('profile-info-chat-name', 'there 😊');
@@ -296,11 +296,15 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         if (document.getElementById('user-id')) document.getElementById('user-id').innerText = 'Logged in as: ' + u.id;
         if (typeof window.syncLaravelUserProfileImages === 'function') window.syncLaravelUserProfileImages();
         if (!forceApply && !window.FIREBASE_DISABLED) return;
-        var fullName = u.public_display_name || ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.full_name || 'No Name';
+        var legalFull = ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || String(u.full_name || '').trim();
+        var uname = String(u.user_name || u.username || '').trim();
+        var nameForHeader = legalFull || uname || 'No Name';
+        var welcomeName = u.public_display_name || legalFull || uname || 'No Name';
         var imgUrl = u.profile_image || u.image || '';
-        setText('profile-name', fullName);
-        setText('profile-info-name', fullName);
-        setText('profile-info-chat-name', fullName + ' 😊');
+        setText('profile-name', nameForHeader);
+        setText('profile-info-name', legalFull || '—');
+        setText('profile-info-username', uname || '—');
+        setText('profile-info-chat-name', welcomeName + ' 😊');
         setText('profile-info-email', u.email || '—');
         setText('profile-info-phone', u.mobile_number || '—');
         setText('profile-info-country', u.country || '—');
@@ -345,7 +349,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         var form = new FormData();
         form.append('_token', getToken());
         var ids = ['user_name','mobile_number','gender','dob','country','about','primary_role','other_role_text'];
-        if (typeof IS_KYC_VERIFIED !== 'undefined' && IS_KYC_VERIFIED) {
+        if (document.getElementById('profile_display_name')) {
             ids.push('profile_display_name');
         }
         if (typeof IS_KYC_VERIFIED === 'undefined' || !IS_KYC_VERIFIED) {
@@ -810,7 +814,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
         
         var fallbackH6 = middle.querySelector('.chat-header h6');
         if (fallbackH6) fallbackH6.textContent = 'User ' + selectedId;
-        var fallbackAvatar = middle.querySelector('#chat-header-avatar, .chat-header .avatar img');
+        var fallbackAvatar = middle.querySelector('#chat-header-avatar, .chat-header .avatar');
         if (chatForm) {
             chatForm.onsubmit = function(e) {
                 e.preventDefault();
@@ -848,15 +852,19 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                 var rawImg = (other && other.other_user)
                     ? (other.other_user.profile_image_link || other.other_user.profile_image || other.other_user.image || '')
                     : '';
-                var img = rawImg ? String(rawImg) : (baseUrl + '/assets/img/profiles/avatar-06.jpg');
+                var img = rawImg ? String(rawImg) : '';
                 if (img && !/^https?:\/\//i.test(img) && !img.startsWith('data:') && !img.startsWith('blob:')) {
                     img = img.replace(/^\.?\/+/, '');
                     img = baseUrl + '/' + img;
                 }
                 var h6 = middle.querySelector('.chat-header h6');
                 if (h6) h6.textContent = name;
-                var avatar = middle.querySelector('#chat-header-avatar, .chat-header .avatar img');
-                if (avatar) avatar.src = img;
+                var avatar = middle.querySelector('#chat-header-avatar') || middle.querySelector('.chat-header .avatar');
+                if (avatar && window.DreamChatProfileAvatar && typeof window.DreamChatProfileAvatar.setAvatarDivImageOrContactIcon === 'function') {
+                    window.DreamChatProfileAvatar.setAvatarDivImageOrContactIcon(avatar, img);
+                } else if (avatar && avatar.tagName === 'IMG') {
+                    avatar.src = img || (baseUrl + '/assets/img/default.png');
+                }
                 return fetch(baseUrl + '/api/chat-messages/' + selectedId, { method: 'GET', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
             })
             .then(function(r) { return r && r.json ? r.json() : []; })

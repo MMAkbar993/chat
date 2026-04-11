@@ -12400,6 +12400,34 @@ Form help
   width: 48px;
   height: 48px;
 }
+.chats .chat-avatar .avatar-contact-fallback {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  flex-shrink: 0;
+  background-color: #ECEFF3;
+  color: #6b7280;
+}
+.chats .chat-avatar .avatar-contact-fallback i.ti {
+  font-size: 1.35rem;
+  line-height: 1;
+  opacity: 0.88;
+}
+.chat .chat-body .messages .chats .chat-avatar .avatar-contact-fallback {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  flex-shrink: 0;
+  background-color: #ECEFF3;
+  color: #6b7280;
+}
+.chat .chat-body .messages .chats .chat-avatar .avatar-contact-fallback i.ti {
+  font-size: 1.35rem;
+  line-height: 1;
+  opacity: 0.88;
+}
 .chats .chat-info {
   display: flex;
   align-items: center;
@@ -12434,14 +12462,6 @@ Form help
 }
 .chats:not(.chats-right) .chat-info .chat-actions {
   order: 3;
-}
-.chats:not(.chats-right) .chat-info .message-reaction-picker {
-  left: auto;
-  right: 0;
-}
-.chats:not(.chats-right) .chat-info .message-reaction-picker-extended {
-  left: auto;
-  right: 0;
 }
 .chats:hover .chat-info .message-hover-actions {
   opacity: 1;
@@ -12484,7 +12504,8 @@ Form help
 .chats .chat-info .message-reaction-picker {
   position: absolute;
   top: -42px;
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
   background: #FFFFFF;
   border: 1px solid #E9EAF0;
   border-radius: 999px;
@@ -12494,10 +12515,6 @@ Form help
   gap: 4px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
   z-index: 5;
-}
-.chats.chats-right .chat-info .message-reaction-picker {
-  left: auto;
-  right: 0;
 }
 .chats .chat-info .message-hover-actions.reaction-open .message-reaction-picker {
   display: inline-flex;
@@ -12531,7 +12548,8 @@ Form help
 .chats .chat-info .message-reaction-picker-extended {
   position: absolute;
   top: -190px;
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 260px;
   max-height: 170px;
   overflow-y: auto;
@@ -12544,10 +12562,6 @@ Form help
   display: none;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 4px;
-}
-.chats.chats-right .chat-info .message-reaction-picker-extended {
-  left: auto;
-  right: 0;
 }
 .chats .chat-info .message-hover-actions.reaction-more-open .message-reaction-picker-extended {
   display: grid;

@@ -133,7 +133,7 @@ class ProfileSettingsController extends Controller
             if (!$nameLocked) {
                 $userFields = array_merge($userFields, ['first_name', 'last_name']);
             }
-            if ($user->isKycVerified() && $request->has('profile_display_name')) {
+            if ($request->has('profile_display_name')) {
                 $user->profile_display_name = in_array($request->input('profile_display_name'), ['full_name', 'username'], true)
                     ? $request->input('profile_display_name') : 'full_name';
             }

@@ -95,14 +95,21 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
-     * Display name shown on public profile (verified users can choose username vs full name).
+     * Display name shown across chat, search, and public profile (Settings: full name vs username).
      */
     public function getPublicDisplayNameAttribute(): string
     {
-        if ($this->isKycVerified() && ($this->profile_display_name ?? 'full_name') === 'username') {
-            return $this->user_name ?? $this->full_name ?? trim($this->first_name . ' ' . $this->last_name) ?: 'User';
+        $preferUsername = ($this->profile_display_name ?? 'full_name') === 'username';
+        $uname = trim((string) ($this->user_name ?? ''));
+        if ($preferUsername && $uname !== '') {
+            return $uname;
         }
-        return $this->full_name ?? trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? '')) ?: $this->user_name ?? 'User';
+        $full = $this->full_name ?? trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        if ($full !== '') {
+            return $full;
+        }
+
+        return $uname !== '' ? $uname : 'User';
     }
 
     /**

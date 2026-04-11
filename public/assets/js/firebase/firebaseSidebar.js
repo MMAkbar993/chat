@@ -70,10 +70,15 @@ initializeFirebase(function (app, auth, database, storage) {
             if (el && el.tagName === 'IMG') el.src = raw || '';
         };
         const lu = (typeof window !== 'undefined' && window.LARAVEL_USER) ? window.LARAVEL_USER : null;
-        const fullName = (lu && lu.public_display_name) || (u.firstName || '') + ' ' + (u.lastName || '').trim() || u.username || 'No Name';
-        setText('profile-name', fullName);
-        setText('profile-info-name', fullName);
-        setText('profile-info-chat-name', fullName);
+        const legalFrom = (a) => (((a.firstName || '') + ' ' + (a.lastName || '')).trim() || String(a.full_name || '').trim());
+        const legalFull = legalFrom(u) || (lu ? legalFrom(lu) : '') || '';
+        const uname = String(u.user_name || u.username || (lu && (lu.user_name || lu.username)) || '').trim();
+        const nameForHeader = legalFull || uname || 'No Name';
+        const welcomeName = (lu && lu.public_display_name) || legalFull || uname || 'No Name';
+        setText('profile-name', nameForHeader);
+        setText('profile-info-name', legalFull || '—');
+        setText('profile-info-username', uname || '—');
+        setText('profile-info-chat-name', welcomeName + ' 😊');
         setText('profile-info-email', u.email || '—');
         setText('profile-info-phone', u.mobile_number || '—');
         setText('profile-info-country', u.country || '—');
@@ -121,6 +126,10 @@ initializeFirebase(function (app, auth, database, storage) {
         return {
             firstName: u.firstName,
             lastName: u.lastName,
+            full_name: u.full_name,
+            user_name: u.user_name,
+            username: u.username,
+            public_display_name: u.public_display_name,
             email: u.email,
             mobile_number: u.mobile_number,
             gender: u.gender,

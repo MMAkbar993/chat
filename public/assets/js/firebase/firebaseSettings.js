@@ -943,10 +943,18 @@ function displayUserDetails(user) {
         }
     };
     const lu = (typeof window !== 'undefined' && window.LARAVEL_USER) ? window.LARAVEL_USER : null;
+    const legalFrom = (a) => (a && typeof a === 'object')
+        ? (((a.firstName || '') + ' ' + (a.lastName || '')).trim() || String(a.full_name || '').trim())
+        : '';
+    const legalFull = legalFrom(user) || (lu ? legalFrom(lu) : '') || '';
+    const uname = String(user.user_name || user.username || (lu && (lu.user_name || lu.username)) || '').trim();
     const preferredName = (lu && lu.public_display_name) || '';
-    setText('profile-name', preferredName || user.username || (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
-    setText('profile-info-name', preferredName || (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
-    setText('profile-info-chat-name', preferredName || (user.firstName || '') + ' ' + (user.lastName || '') || 'No Name');
+    const nameForHeader = legalFull || uname || preferredName || 'No Name';
+    const welcomeName = preferredName || legalFull || uname || 'No Name';
+    setText('profile-name', nameForHeader);
+    setText('profile-info-name', legalFull || '—');
+    setText('profile-info-username', uname || '—');
+    setText('profile-info-chat-name', welcomeName + ' 😊');
     setText('profile-info-email', user.email || 'No Email');
     setText('profile-info-phone', user.mobile_number || 'No Phone');
     setText('profile-info-country', user.country || 'No Country');

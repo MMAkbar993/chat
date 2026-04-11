@@ -39,9 +39,7 @@
                             <i class="fas fa-arrow-left"></i>
                         </a>
                     </div>
-                    <div class="avatar avatar-lg flex-shrink-0">
-                        <img id="chat-header-avatar" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" class="rounded-circle" alt="image">
-                    </div>
+                    <div id="chat-header-avatar" class="avatar avatar-lg flex-shrink-0" role="img" aria-label=""></div>
                                                     <div class="ms-2 overflow-hidden">
                                                         <div class="d-flex align-items-center gap-1">
                                                             <h6></h6>

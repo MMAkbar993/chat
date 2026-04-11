@@ -1548,46 +1548,29 @@ initializeFirebase(function (app, auth, database, storage) {
             `data/contacts/${currentUser.uid}/${userId}`
         );
         onValue(contactsRef, (snapshot) => {
+            userDiv._sidebarPeerNameSeq = (userDiv._sidebarPeerNameSeq || 0) + 1;
+            const mySeq = userDiv._sidebarPeerNameSeq;
             const contactData = snapshot.val();
-
-            if (contactData?.firstName) {
-                const displayName = `${contactData.firstName} ${contactData.lastName || ""}`.trim();
-                userName.textContent = displayName;
-            } else if (contactData?.mobile_number) {
-                userName.textContent = String(contactData.mobile_number).trim();
-            } else if (
-                contactData &&
-                (contactData.user_name || contactData.userName || contactData.username)
-            ) {
-                userName.textContent = String(
-                    contactData.user_name || contactData.userName || contactData.username
-                ).trim();
-            } else if (contactData?.email) {
-                userName.textContent = String(contactData.email).trim();
-            } else {
-                const userRef = ref(database, `data/users/${userId}`);
-                get(userRef)
-                    .then((userSnapshot) => {
-                        const userData = userSnapshot.val();
-                        if (userData?.mobile_number) {
-                            userName.textContent = String(userData.mobile_number).trim();
-                        } else if (userData && (userData.userName || userData.username)) {
-                            userName.textContent = String(
-                                userData.userName || userData.username
-                            ).trim();
-                        } else if (user && user.userName && String(user.userName).trim()) {
-                            userName.textContent = String(user.userName).trim();
-                        } else {
-                            userName.textContent = String(userId);
-                        }
-                    })
-                    .catch((error) => {
-                        console.error("Error fetching user data:", error);
-                        userName.textContent =
-                            (user && user.userName && String(user.userName).trim()) ||
-                            String(userId);
-                    });
-            }
+            (async () => {
+                try {
+                    const nm = await resolveSidebarPeerPublicDisplayName(
+                        userId,
+                        contactData,
+                        user
+                    );
+                    if (mySeq !== userDiv._sidebarPeerNameSeq) return;
+                    userName.textContent = nm;
+                    if (usersMap[userId]) {
+                        usersMap[userId].userName = nm;
+                    }
+                } catch (err) {
+                    console.error("Error resolving sidebar display name:", err);
+                    if (mySeq !== userDiv._sidebarPeerNameSeq) return;
+                    userName.textContent =
+                        (user && user.userName && String(user.userName).trim()) ||
+                        String(userId);
+                }
+            })();
         });
 
         const roomIdForRow = getDeterministicChatRoomId(
@@ -2038,6 +2021,21 @@ initializeFirebase(function (app, auth, database, storage) {
                         "",
                     profileImage: resolveCallProfileImageUrl(raw || ""),
                 };
+                (async () => {
+                    try {
+                        const canonical = await resolveSidebarPeerPublicDisplayName(
+                            userId,
+                            contactData,
+                            usersMap[userId]
+                        );
+                        if (mySeq !== _selectUserSeq) return;
+                        if (usersMap[userId]) {
+                            usersMap[userId].userName = canonical;
+                        }
+                    } catch (e) {
+                        /* ignore */
+                    }
+                })();
             }
         }
 
@@ -2197,20 +2195,19 @@ initializeFirebase(function (app, auth, database, storage) {
             `data/contacts/${currentUser.uid}/${userId}`
         );
         const headerNameEl = document.querySelector(".chat-header h6");
-        const headerImgEl =
-            document.getElementById("chat-header-avatar") ||
-            document.querySelector(".chat-header .avatar img");
+        applyChatHeaderAvatarFromUrl("");
         if (
-            headerImgEl &&
             usersMap[userId] &&
             usersMap[userId].profileImage &&
             String(usersMap[userId].profileImage).trim()
         ) {
-            headerImgEl.src = resolveCallProfileImageUrl(usersMap[userId].profileImage);
+            applyChatHeaderAvatarFromUrl(
+                resolveCallProfileImageUrl(usersMap[userId].profileImage)
+            );
         }
         if (headerNameEl && usersMap[userId] && usersMap[userId].userName) {
             const seed = String(usersMap[userId].userName).trim();
-            if (seed) headerNameEl.textContent = capitalizeFirstLetter(seed);
+            if (seed) headerNameEl.textContent = seed;
         }
         // Tear down the previous peer's contact listener before attaching a new one.
         if (chatHeaderContactUnsub) { chatHeaderContactUnsub(); chatHeaderContactUnsub = null; }
@@ -2270,14 +2267,14 @@ initializeFirebase(function (app, auth, database, storage) {
                         (usersMap[userId] && String(usersMap[userId].userName || "").trim()) ||
                         String(userId);
                 }
-                setHeaderUserName(capitalizeFirstLetter(finalName));
-                if (headerImgEl) {
-                    headerImgEl.src = await resolveCallUserAvatarUrl(
+                setHeaderUserName(finalName);
+                applyChatHeaderAvatarFromUrl(
+                    await resolveCallUserAvatarUrl(
                         userId,
                         userData,
                         contactData
-                    );
-                }
+                    )
+                );
             };
             applyChatHeaderFromPeer().catch((error) => {
                 console.error("Error loading chat header peer:", error);
@@ -2761,6 +2758,33 @@ initializeFirebase(function (app, auth, database, storage) {
         avatarDiv.appendChild(img);
     }
 
+    /** Avatar inner HTML: real photo or same ti-user fallback as sidebar (no default.png in bubbles/lists). */
+    function innerHtmlForAvatarSlot(rawOrResolvedUrl) {
+        const pa = profileAvatarApi();
+        if (pa && typeof pa.innerHtmlForAvatar === "function") {
+            return pa.innerHtmlForAvatar(
+                rawOrResolvedUrl == null ? "" : String(rawOrResolvedUrl),
+                { imgClass: "rounded-circle" }
+            );
+        }
+        const esc = (s) =>
+            String(s == null ? "" : s)
+                .replace(/&/g, "&amp;")
+                .replace(/"/g, "&quot;")
+                .replace(/</g, "&lt;");
+        const url = resolveCallProfileImageUrl(rawOrResolvedUrl || "");
+        return `<img src="${esc(url)}" class="rounded-circle" alt="" />`;
+    }
+
+    function applyChatHeaderAvatarFromUrl(resolvedUrl) {
+        const el =
+            document.getElementById("chat-header-avatar") ||
+            document.querySelector(".chat-header .avatar");
+        if (!el) return;
+        const u = resolvedUrl == null ? "" : String(resolvedUrl).trim();
+        setAvatarDivImageOrContactIcon(el, u);
+    }
+
     function rawAvatarFromFirebaseAndContact(userData, contactData) {
         if (contactData && contactData.profile_image)
             return String(contactData.profile_image).trim();
@@ -2980,17 +3004,21 @@ initializeFirebase(function (app, auth, database, storage) {
                     });
                     if (!r.ok) continue;
                     const data = await r.json();
-                    const byUid = data.by_uid || {};
+                    const postBody = {
+                        firebase_uids: chunk,
+                        emails: [],
+                        usernames: [],
+                    };
                     chunk.forEach((uid) => {
-                        const url = byUid[uid];
-                        if (
-                            url &&
-                            String(url).trim() &&
-                            usersMap[uid]
-                        ) {
+                        if (!usersMap[uid]) return;
+                        const picked = pickLaravelAvatarAndName(data, uid, postBody);
+                        if (picked.avatarUrl && String(picked.avatarUrl).trim()) {
                             usersMap[uid].profileImage = resolveCallProfileImageUrl(
-                                String(url).trim()
+                                String(picked.avatarUrl).trim()
                             );
+                        }
+                        if (picked.displayName && String(picked.displayName).trim()) {
+                            usersMap[uid].userName = String(picked.displayName).trim();
                         }
                     });
                 } catch (e) {
@@ -3686,13 +3714,13 @@ initializeFirebase(function (app, auth, database, storage) {
                             </div>
                         </div>
                         <div class="chat-avatar">
-                            <img src="${profileImage}" class="rounded-circle" alt="image">
+                            ${innerHtmlForAvatarSlot(profileImage)}
                         </div>
                     `;
                 } else {
                     messageElement.innerHTML = `
                         <div class="chat-avatar">
-                            <img src="${profileImage}" class="rounded-circle" alt="image">
+                            ${innerHtmlForAvatarSlot(profileImage)}
                         </div>
                         <div class="chat-content">
                             <div class="chat-profile-name">
@@ -5068,6 +5096,13 @@ initializeFirebase(function (app, auth, database, storage) {
         });
         messageInput.addEventListener("blur", () => {
             clearChatTyping();
+        });
+        messageInput.addEventListener("keydown", (e) => {
+            if (e.key !== "Enter" || e.isComposing) return;
+            e.preventDefault();
+            if (sendButton && !sendButton.disabled) {
+                sendButton.click();
+            }
         });
     }
 
@@ -8193,7 +8228,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
             userLink.innerHTML = `
             <div class="avatar avatar-lg me-2">
-                <img src="${user.profileImage}" class="rounded-circle" alt="image" />
+                ${innerHtmlForAvatarSlot(user.profileImage)}
             </div>
             <div class="chat-user-info">
                 <div class="chat-user-msg">
@@ -8409,7 +8444,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
             userLink.innerHTML = `
                     <div class="avatar avatar-lg me-2">
-                        <img src="${profileImage}" class="rounded-circle" alt="image" />
+                        ${innerHtmlForAvatarSlot(profileImage)}
                     </div>
                     <div class="chat-user-info">
                         <div class="chat-user-msg">
@@ -8630,7 +8665,7 @@ initializeFirebase(function (app, auth, database, storage) {
             <div class="chat-list" data-user-id="${user.userId}">
                 <a href="#" class="chat-user-list" spellcheck="false">
                     <div class="avatar avatar-lg me-2">
-                        <img src="${profileImage}" class="rounded-circle" alt="image" />
+                        ${innerHtmlForAvatarSlot(profileImage)}
                     </div>
                     <div class="chat-user-info">
                         <div class="chat-user-msg">
@@ -8842,7 +8877,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
                     userLink.innerHTML = `
                             <div class="avatar avatar-lg me-2">
-                                <img src="${profileImage}" class="rounded-circle" alt="image" />
+                                ${innerHtmlForAvatarSlot(profileImage)}
                             </div>
                             <div class="chat-user-info">
                                 <div class="chat-user-msg">
@@ -10471,6 +10506,50 @@ initializeFirebase(function (app, auth, database, storage) {
     async function resolveCallUserAvatarUrl(userId, userData, contactData) {
         const { imageUrl } = await resolveCallUserAvatarAndDisplayName(userId, userData, contactData, null);
         return imageUrl;
+    }
+
+    /**
+     * Match Laravel User::public_display_name (Settings: full name vs username) for sidebar + header consistency.
+     */
+    async function resolveSidebarPeerPublicDisplayName(userId, contactData, mapUser) {
+        let userData = {};
+        try {
+            const us = await get(ref(database, `data/users/${userId}`));
+            if (us.exists()) userData = us.val() || {};
+        } catch (e) {
+            /* ignore */
+        }
+        const resolved = await resolveCallUserAvatarAndDisplayName(
+            userId,
+            userData,
+            contactData || {},
+            { includeLaravelDisplayName: true }
+        );
+        let finalName = (resolved.displayName && String(resolved.displayName).trim()) || "";
+        const cd = contactData || {};
+        if (!finalName) {
+            if (cd.firstName) {
+                finalName = `${cd.firstName} ${cd.lastName || ""}`.trim();
+            } else if (cd.mobile_number) {
+                finalName = String(cd.mobile_number).trim();
+            } else if (cd.user_name || cd.userName || cd.username) {
+                finalName = String(cd.user_name || cd.userName || cd.username).trim();
+            } else if (cd.email) {
+                finalName = String(cd.email).trim();
+            } else if (userData.mobile_number) {
+                finalName = String(userData.mobile_number).trim();
+            } else if (userData.userName || userData.username) {
+                finalName = String(userData.userName || userData.username).trim();
+            }
+        }
+        if (!finalName && mapUser && String(mapUser.userName || "").trim()) {
+            finalName = String(mapUser.userName).trim();
+        }
+        if (!finalName || finalName === "Unknown User") {
+            finalName =
+                (mapUser && String(mapUser.userName || "").trim()) || String(userId);
+        }
+        return callDisplayNameFromUsersMap(userId, finalName);
     }
 
     function isGarbageConcatenatedName(s) {

@@ -398,6 +398,14 @@
                                                 <div
                                                     class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
                                                     <div>
+                                                        <h6 class="fs-14">{{ __('Username') }}</h6>
+                                                        <p class="fs-16 " id="profile-info-username">{{ __('Loading...') }}</p>
+                                                    </div>
+                                                    <span><i class="ti ti-at fs-16"></i></span>
+                                                </div>
+                                                <div
+                                                    class="d-flex profile-list justify-content-between align-items-center border-bottom mb-3 pb-3">
+                                                    <div>
                                                         <h6 class="fs-14">{{ __('Role') }}</h6>
                                                         <p class="fs-16" id="profile-info-role">{{ __('Loading...') }}</p>
                                                     </div>
@@ -780,19 +788,33 @@
                                                                                 <span id="lastName_error" class="error-message text-danger"></span>
                                                                             </div>
                                                                         </div>
-                                                                        @if(Auth::check() && Auth::user()->isKycVerified())
                                                                         <div class="col-lg-12">
-                                                                            <label class="form-label">{{ __('Display name on profile') }}</label>
+                                                                            <label class="form-label mb-1" for="user_name">{{ __('Username') }}</label>
+                                                                            <div
+                                                                                class="input-icon mb-1 position-relative">
+                                                                                <input type="text" value=""
+                                                                                    class="form-control"
+                                                                                    placeholder="{{ __('Username') }}"
+                                                                                    id="user_name"
+                                                                                    autocomplete="username">
+                                                                                <span class="icon-addon">
+                                                                                    <i class="ti ti-at"></i>
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        @auth
+                                                                        <div class="col-lg-12">
+                                                                            <label class="form-label" for="profile_display_name">{{ __('Display name in chat and profile') }}</label>
                                                                             <div class="input-icon mb-1 position-relative">
                                                                                 <select class="form-control" id="profile_display_name" name="profile_display_name">
                                                                                     <option value="full_name">{{ __('Full name') }}</option>
                                                                                     <option value="username">{{ __('Username') }}</option>
                                                                                 </select>
                                                                                 <span class="icon-addon"><i class="ti ti-user"></i></span>
-                                                                                <small class="text-muted">{{ __('Verified users can show username instead of full name for privacy.') }}</small>
+                                                                                <small class="text-muted">{{ __('This name is shown to others in chat lists, headers, and messages.') }}</small>
                                                                             </div>
                                                                         </div>
-                                                                        @endif
+                                                                        @endauth
                                                                         <div class="col-lg-12">
                                                                             <div class="input-icon mb-1 position-relative">
                                                                                 <select class="form-control" id="gender">
@@ -833,18 +855,6 @@
                                                                                     <i class="ti ti-mail-heart"></i>
                                                                                 </span>
                                                                                 <span id="email_error" class="error-message text-danger"></span>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="col-lg-12">
-                                                                            <div
-                                                                                class="input-icon mb-1 position-relative">
-                                                                                <input type="text" value=""
-                                                                                    class="form-control"
-                                                                                    placeholder="{{ __('User Name')}}"
-                                                                                    id="user_name">
-                                                                                <span class="icon-addon">
-                                                                                    <i class="ti ti-user-star"></i>
-                                                                                </span>
                                                                             </div>
                                                                         </div>
                                                                         <div class="col-lg-12">
