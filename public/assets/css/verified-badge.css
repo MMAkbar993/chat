@@ -1,0 +1,145 @@
+/**
+ * Verified badge – single design everywhere.
+ * White background, pill shape, vibrant green border and text.
+ */
+.verified-badge,
+.badge.verified-badge,
+.contact-kyc-badge.verified-badge,
+.contact-social-verified.verified-badge {
+  --verified-green: #10b981;
+  background-color: #fff !important;
+  color: var(--verified-green) !important;
+  border: 1.5px solid var(--verified-green) !important;
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  padding: 4px 12px !important;
+  display: inline-flex !important;
+  align-items: center;
+}
+.verified-badge:hover,
+.badge.verified-badge:hover {
+  background-color: #fff !important;
+  color: var(--verified-green) !important;
+  border-color: var(--verified-green) !important;
+}
+.badge.verified-badge.badge-xs {
+  padding: 2px 8px !important;
+  font-size: 10px;
+}
+.badge.verified-badge.badge-sm {
+  padding: 4px 10px !important;
+  font-size: 11px;
+}
+.badge.verified-badge.badge-lg {
+  padding: 6px 12px !important;
+  font-size: 13px;
+}
+.verified-badge .ti,
+.verified-badge i {
+  color: inherit;
+}
+
+/* Optional: same green for standalone verified icons (e.g. next to links) */
+.verified-icon {
+  color: var(--verified-green, #10b981) !important;
+}
+
+/* Apply same design to KYC and social verified badges (no extra class needed) */
+.kyc-badge,
+.contact-kyc-badge,
+.contact-social-verified {
+  --verified-green: #10b981;
+  background-color: #fff !important;
+  color: var(--verified-green) !important;
+  border: 1.5px solid var(--verified-green) !important;
+  border-radius: 50px !important;
+  font-weight: 600 !important;
+  padding: 4px 10px !important;
+  display: inline-flex !important;
+  align-items: center;
+}
+.contact-kyc-badge.badge-xs,
+.contact-social-verified.badge-xs,
+.kyc-badge.badge-xs {
+  padding: 2px 8px !important;
+  font-size: 10px;
+}
+.contact-kyc-badge .ti,
+.contact-kyc-badge i,
+.contact-social-verified .ti,
+.contact-social-verified i,
+.kyc-badge .ti,
+.kyc-badge i {
+  color: inherit;
+}
+
+/* Google Meet logo icon in buttons */
+.google-meet-icon {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  display: inline-block;
+}
+.btn-sm .google-meet-icon {
+  width: 15px;
+  height: 15px;
+}
+.btn-lg .google-meet-icon,
+.action-circle .google-meet-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* LinkedIn info tooltip icon */
+.linkedin-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  border: 1.5px solid #d1d5db;
+  border-radius: 50%;
+  cursor: help;
+  margin-left: 4px;
+  font-style: normal;
+  line-height: 1;
+}
+.linkedin-info-icon:hover {
+  color: #374151;
+  border-color: #9ca3af;
+}
+
+/* Social Profiles (settings sidebar): same height & weight as Bootstrap btn-sm */
+.social-profile-action .social-connect-btn,
+.social-profile-action .social-disconnect-btn,
+.social-profile-action .verified-badge {
+  box-sizing: border-box;
+  min-height: 2.125rem;
+  padding: 0.25rem 0.75rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  line-height: 1.25 !important;
+  border-radius: 0.25rem !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.social-profile-action .social-disconnect-btn {
+  min-width: 2.125rem;
+  padding-left: 0.25rem !important;
+  padding-right: 0.25rem !important;
+}
+
+.social-profile-action .social-disconnect-btn .ti,
+.social-profile-action .social-disconnect-btn i {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.social-profile-action .verified-badge {
+  border-width: 1px !important;
+}

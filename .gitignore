@@ -1,0 +1,67 @@
+/.phpunit.cache
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/vendor
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+
+# IDE files
+/.fleet
+/.idea
+/.vscode
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Laravel specific
+/bootstrap/cache/*.php
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/views/*.php
+/storage/logs/*.log
+
+# Compiled assets
+/public/mix-manifest.json
+/public/css/app.css
+/public/js/app.js
+
+# Database backups (may contain sensitive data)
+/database/backup/*.sql
+
+# Deployment docs with credentials
+/docs/VPS_DEPLOYMENT_GUIDE.md
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Firebase credentials (contains secrets)
+/config/firebase_credentials.json
+/storage/firebase/firebase_credentials.json
+
+# Composer
+composer.phar
+
+# Testing
+/coverage
+/.phpunit.cache
+
+storage/firebase/firebase_credentials.json
+.env

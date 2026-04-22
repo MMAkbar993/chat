@@ -1,0 +1,10 @@
+includes:
+    - ./vendor/nunomaduro/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+    level: 5 # Change this to adjust the strictness level (0-8)
+    ignoreErrors: [] # Add patterns to ignore specific errors, if needed
+    treatPhpDocTypesAsCertain: false
+

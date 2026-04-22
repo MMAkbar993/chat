@@ -1,0 +1,23 @@
+/**
+ * SPA / global modals: full-viewport dim must sit above .main-wrapper and .sidebar-menu.
+ * Do NOT raise .main-wrapper above .modal-backdrop — that keeps sidebars bright while the
+ * backdrop sits underneath (see debug: mainWrapperZ 1060 vs backdropZ 1050).
+ * Lift backdrop + .modal above app chrome (.sidebar-menu uses z-index 999).
+ */
+.modal-backdrop {
+  z-index: 2000 !important;
+}
+
+.modal-backdrop.show {
+  opacity: 0.45 !important;
+}
+
+.modal {
+  z-index: 2005 !important;
+}
+
+/* Keep modal fully interactive to avoid "black stuck" states. */
+body.modal-open .modal.show,
+body.modal-open .modal.show .modal-dialog {
+  pointer-events: auto !important;
+}

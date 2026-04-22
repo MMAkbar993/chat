@@ -1,0 +1,35 @@
+{
+    "language": {
+        "Rk7xIiHA1thXlLRa86ZmFC8MSBB2": {
+            "French": {
+                "Settings": {
+                    "Profile Info": "Informations sur le profil",
+                    "Search Settings": "Search Settings"
+                },
+                "call": {
+                    "video": "vid\u00e9o",
+                    "video call": "video call"
+                },
+                "chat": {
+                    "chat": "chat"
+                },
+                "common page": {
+                    "Dreams chat": "Dreams chat"
+                },
+                "login": {
+                    "login": "login"
+                },
+                "register": {
+                    "register": "register"
+                },
+                "reset password": {
+                    "reset password": "r\u00e9initialiser le mot de passe"
+                },
+                "settings": {
+                    "Account": "Compte",
+                    "Profile Info": "Informations sur le profil"
+                }
+            }
+        }
+    }
+}
