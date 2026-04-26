@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 class UserSearchController extends Controller
 {
     /**
-     * Search users by username or email.
+     * Search users by username, name, or email.
      * GET /api/users/search?q=xxx
      */
     public function search(Request $request)
@@ -21,7 +21,7 @@ class UserSearchController extends Controller
                 'q' => 'required|string|min:4|max:100',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json(['users' => [], 'message' => 'Enter at least 4 characters with exact spelling.'], 422);
+            return response()->json(['users' => [], 'message' => 'Enter at least 4 characters to search users.'], 422);
         }
 
         $query = trim($request->input('q'));
@@ -34,18 +34,21 @@ class UserSearchController extends Controller
                 $hasFirebaseUid = Schema::hasColumn($userTable, 'firebase_uid');
                 $selectColumns = [
                     'id', 'first_name', 'last_name', 'full_name', 'user_name',
-                    'company_name', 'primary_role', 'country', 'profile_image', 'kyc_verified_at',
+                    'email', 'company_name', 'primary_role', 'country', 'profile_image', 'kyc_verified_at',
                     'profile_display_name',
                 ];
                 if ($hasFirebaseUid) {
                     $selectColumns[] = 'firebase_uid';
                 }
 
-                return User::where(function ($q) use ($queryLower) {
-                    $q->whereRaw('LOWER(user_name) = ?', [$queryLower])
-                        ->orWhereRaw('LOWER(first_name) = ?', [$queryLower])
-                        ->orWhereRaw('LOWER(last_name) = ?', [$queryLower])
-                        ->orWhereRaw('LOWER(full_name) = ?', [$queryLower]);
+                $queryLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $queryLower) . '%';
+
+                return User::where(function ($q) use ($queryLike) {
+                    $q->whereRaw('LOWER(user_name) LIKE ?', [$queryLike])
+                        ->orWhereRaw('LOWER(first_name) LIKE ?', [$queryLike])
+                        ->orWhereRaw('LOWER(last_name) LIKE ?', [$queryLike])
+                        ->orWhereRaw('LOWER(full_name) LIKE ?', [$queryLike])
+                        ->orWhereRaw('LOWER(email) LIKE ?', [$queryLike]);
                 })
                     ->select($selectColumns)
                     ->limit(20)
@@ -57,6 +60,7 @@ class UserSearchController extends Controller
                             'last_name' => $user->last_name,
                             'full_name' => $user->full_name,
                             'user_name' => $user->user_name,
+                            'email' => $user->email,
                             'display_name' => $user->public_display_name,
                             'company_name' => $user->company_name,
                             'primary_role' => $user->primary_role,

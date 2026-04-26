@@ -6,6 +6,7 @@ import {
     onAuthStateChanged,
     sendPasswordResetEmail,
     signInWithCustomToken,
+    signOut,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import {
     getDatabase,
@@ -146,7 +147,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     });
                 }
             })
-            .catch(function () {});
+            .catch(function () { });
     }, 1500);
 
     // Initialize Firebase Database reference
@@ -369,131 +370,76 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
-    function displayUsers(searchTerm = '') {
-        const uid = currentUserId || (typeof getCurrentFirebaseUid === 'function' ? getCurrentFirebaseUid() : null);
-        if (!uid) return;
-        const contactsRef = ref(database, `data/contacts/${uid}`);
-        get(contactsRef).then(async snapshot => {
-            if (snapshot.exists()) {
-                const contacts = snapshot.val(); // Get all contacts
-                const contactIds = Object.keys(contacts); // Get the contact user IDs
-    
-                const usersArrayRaw = await Promise.all(
-                    contactIds.map(async (userId) => {
-                        const contact = contacts[userId] || {}; // Get contact data safely
-                        try {
-                            const userRef = ref(database, `data/users/${userId}`); // Correct Firebase reference
-                            const snapshot = await get(userRef); // Fetch user details
-                            let userData = {};
-                            if (snapshot.exists()) {
-                                userData = snapshot.val(); // Get user details
-                            }
-                            const rawAvatar =
-                                contact.profile_image ||
-                                userData.profile_image ||
-                                userData.image ||
-                                userData.profileImage ||
-                                userData.photoURL ||
-                                userData.avatar ||
-                                "";
-                            const prKey =
-                                (contact.primary_role && String(contact.primary_role).trim()) ||
-                                (userData.primary_role && String(userData.primary_role).trim()) ||
-                                "";
-                            const prCustom =
-                                (contact.other_role_text && String(contact.other_role_text).trim()) ||
-                                (userData.other_role_text && String(userData.other_role_text).trim()) ||
-                                "";
-                            const PRmap = typeof PRIMARY_ROLES !== "undefined" ? PRIMARY_ROLES : {};
-                            let prLocal = "";
-                            if (prKey) {
-                                if (prKey === "other") prLocal = prCustom || PRmap.other || prKey;
-                                else prLocal = PRmap[prKey] || prKey;
-                            }
-                            return {
-                                uid: userId,
-                                firstName: contact.firstName || userData.firstName || "",
-                                lastName: contact.lastName || userData.lastName ||  "",
-                                userName: userData.username || userData.userName || userData.profileName || contact.user_name || "",
-                                image: resolveProfileImageUrl(rawAvatar),
-                                _needsLaravelAvatar: !rawAvatar,
-                                primaryRole: prLocal,
-                                mobile_number: contact.mobile_number || userData.mobile_number ||  "",
-                                email: contact.email || userData.email ||  "",
-                            };
-                        } catch (error) {
-                            console.error(`Error fetching user data for ${userId}:`, error);
-                            return null;
-                        }
-                    })
-                );
-                let usersArray = usersArrayRaw.filter(function (user) { return user != null; });
-                await enrichContactListAvatarsFromLaravel(usersArray);
+    let displayUsersInFlight = false;
+    let displayUsersPermissionCooldownUntil = 0;
+    let contactPermissionDeniedNoticeShown = false;
+    let contactRestoreInFlight = null;
 
-                // Sort users alphabetically by first name; "Others" = anyone without both first and last name (so no one is dropped)
-                const validUsersArray = usersArray.filter(user => user.firstName && user.lastName);
-                const othersArray = usersArray.filter(user => !(user.firstName && user.lastName));
-                // Sort valid users alphabetically by first name
-                validUsersArray.sort((a, b) => a.firstName.localeCompare(b.firstName));
-    
-                const searchLower = searchTerm.toLowerCase();
-                const filteredUsersArray = validUsersArray.filter(user =>
-                    (user.firstName && user.firstName.toLowerCase().includes(searchLower)) ||
-                    (user.lastName && user.lastName.toLowerCase().includes(searchLower)) ||
-                    (user.userName && user.userName.toLowerCase().includes(searchLower))
-                );
-                const filteredOthersArray = othersArray.filter(user =>
-                    !searchLower ||
-                    (user.email && user.email.toLowerCase().includes(searchLower)) ||
-                    (user.userName && user.userName.toLowerCase().includes(searchLower)) ||
-                    (user.firstName && user.firstName.toLowerCase().includes(searchLower)) ||
-                    (user.lastName && user.lastName.toLowerCase().includes(searchLower))
-                );
-    
-                // Group users by the first letter of their first name
-                const groupedUsers = filteredUsersArray.reduce((groups, user) => {
-                    const firstLetter = user.firstName.charAt(0).toUpperCase();
-                    if (!groups[firstLetter]) {
-                        groups[firstLetter] = [];
-                    }
-                    groups[firstLetter].push(user);
-                    return groups;
-                }, {});
-    
-                // Include the 'Others' category (includes pending contacts)
-                if (filteredOthersArray.length > 0) {
-                    groupedUsers['Others'] = filteredOthersArray;
-                }
-    
-                const containers = getContactListContainers();
-                if (containers.length === 0) return;
-                containers.forEach(function (c) { c.innerHTML = ''; });
+    function renderContactsList(usersArray, contactsMap, searchTerm) {
+        const safeUsers = Array.isArray(usersArray) ? usersArray : [];
+        const safeContacts = contactsMap || {};
+        const safeSearch = String(searchTerm || "").toLowerCase();
+        const validUsersArray = safeUsers.filter(user => user && user.firstName && user.lastName);
+        const othersArray = safeUsers.filter(user => !(user && user.firstName && user.lastName));
+        validUsersArray.sort((a, b) => String(a.firstName || "").localeCompare(String(b.firstName || "")));
 
-                // Build the full HTML once
-                let fullHtml = '';
-                Object.keys(groupedUsers).forEach(letter => {
-                    const group = groupedUsers[letter];
-                    let groupHtml = `
+        const filteredUsersArray = validUsersArray.filter(user =>
+            (user.firstName && user.firstName.toLowerCase().includes(safeSearch)) ||
+            (user.lastName && user.lastName.toLowerCase().includes(safeSearch)) ||
+            (user.userName && user.userName.toLowerCase().includes(safeSearch))
+        );
+        const filteredOthersArray = othersArray.filter(user =>
+            !safeSearch ||
+            (user.email && user.email.toLowerCase().includes(safeSearch)) ||
+            (user.userName && user.userName.toLowerCase().includes(safeSearch)) ||
+            (user.firstName && user.firstName.toLowerCase().includes(safeSearch)) ||
+            (user.lastName && user.lastName.toLowerCase().includes(safeSearch))
+        );
+
+        const groupedUsers = filteredUsersArray.reduce((groups, user) => {
+            const firstLetter = String(user.firstName || "").charAt(0).toUpperCase();
+            if (!groups[firstLetter]) {
+                groups[firstLetter] = [];
+            }
+            groups[firstLetter].push(user);
+            return groups;
+        }, {});
+        if (filteredOthersArray.length > 0) {
+            groupedUsers["Others"] = filteredOthersArray;
+        }
+
+        const containers = getContactListContainers();
+        if (containers.length === 0) return;
+        containers.forEach(function (c) { c.innerHTML = ""; });
+        if (Object.keys(groupedUsers).length === 0) {
+            containers.forEach(function (el) { el.innerHTML = '<p id="no-message">No Contacts Found!</p>'; });
+            return;
+        }
+
+        let fullHtml = "";
+        Object.keys(groupedUsers).forEach(letter => {
+            const group = groupedUsers[letter];
+            let groupHtml = `
                     <div class="mb-4">
                         <h6 class="mb-2">${letter}</h6>
                         <div class="chat-list">
                     `;
-                    group.forEach(user => {
-                        const contact = contacts[user.uid] || {};
-                        const fallbackLine = (contact.firstName || user.firstName || user.userName || user.mobile_number || user.email) + ' ' + (contact.lastName || user.lastName || '').trim();
-                        const listLabel =
-                            (user.laravelPublicDisplayName && String(user.laravelPublicDisplayName).trim()) ||
-                            fallbackLine.trim() ||
-                            user.email ||
-                            user.userName ||
-                            "Unknown";
-                        const roleEsc = user.primaryRole
-                            ? String(user.primaryRole).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
-                            : "";
-                        const roleLine = roleEsc ? `<p class="text-muted small mb-0">${roleEsc}</p>` : "";
-                        groupHtml += `
+            group.forEach(user => {
+                const contact = safeContacts[user.uid] || {};
+                const fallbackLine = (contact.firstName || user.firstName || user.userName || user.mobile_number || user.email) + " " + (contact.lastName || user.lastName || "").trim();
+                const listLabel =
+                    (user.laravelPublicDisplayName && String(user.laravelPublicDisplayName).trim()) ||
+                    fallbackLine.trim() ||
+                    user.email ||
+                    user.userName ||
+                    "Unknown";
+                const roleEsc = user.primaryRole
+                    ? String(user.primaryRole).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
+                    : "";
+                const roleLine = roleEsc ? `<p class="text-muted small mb-0">${roleEsc}</p>` : "";
+                groupHtml += `
                         <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#contact-details" class="chat-user-list"
-                            data-user-id="${user.uid}" data-username="${(user.userName || '').replace(/"/g, '&quot;')}">
+                            data-user-id="${user.uid}" data-username="${(user.userName || "").replace(/"/g, "&quot;")}">
                             <div class="avatar avatar-lg me-2">
                                 ${contactAvatarInnerHtml(user.image || "")}
                             </div>
@@ -505,36 +451,170 @@ initializeFirebase(function (app, auth, database, storage) {
                             </div>
                         </a>
                     `;
-                    });
-                    groupHtml += '</div></div>';
-                    fullHtml += groupHtml;
+            });
+            groupHtml += "</div></div>";
+            fullHtml += groupHtml;
+        });
+        containers.forEach(function (c) { c.innerHTML = fullHtml; });
+        containers.forEach(function (c) {
+            c.querySelectorAll(".chat-user-list").forEach(function (item) {
+                item.addEventListener("click", function () {
+                    const row = this.closest(".chat-list");
+                    const userId = this.getAttribute("data-user-id") || (row ? row.getAttribute("data-user-id") : null);
+                    const modal = getContactDetailsModalEl();
+                    const modalInput = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : null;
+                    if (modalInput) modalInput.value = userId || "";
+                    fetchUserData(userId);
                 });
+            });
+        });
+    }
 
-                containers.forEach(function (c) { c.innerHTML = fullHtml; });
-
-                // Bind only inside contact list containers — not document-wide (All Chats rows also use .chat-user-list with data-user-id on .chat-list parent).
-                containers.forEach(function (c) {
-                    c.querySelectorAll('.chat-user-list').forEach(function (item) {
-                        item.addEventListener('click', function () {
-                            const row = this.closest('.chat-list');
-                            const userId = this.getAttribute('data-user-id') || (row ? row.getAttribute('data-user-id') : null);
-                            const modal = getContactDetailsModalEl();
-                            const modalInput = modal ? modal.querySelector('input[id="contact-detail-user-id"]') : null;
-                            if (modalInput) modalInput.value = userId || '';
-                            fetchUserData(userId);
-                        });
-                    });
+    function loadContactsFromLaravel(searchTerm) {
+        return fetch("/contacts", {
+            method: "GET",
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+        })
+            .then(function (r) {
+                return r.json().catch(function () { return []; }).then(function (data) {
+                    return { ok: r.ok, data: Array.isArray(data) ? data : [] };
                 });
-            } else {
-                const msg = '<p id="no-message">No Contacts Found!</p>';
-                getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
+            })
+            .then(async function (result) {
+                if (!result.ok) throw new Error("LARAVEL_CONTACTS_FETCH_FAILED");
+                const usersArray = result.data
+                    .map(function (c) {
+                        const uid = String(c.firebase_uid || c.uid || c.user_id || "").trim();
+                        if (!uid) return null;
+                        return {
+                            uid: uid,
+                            firstName: c.firstName || "",
+                            lastName: c.lastName || "",
+                            userName: c.userName || "",
+                            image: resolveProfileImageUrl(c.image || ""),
+                            _needsLaravelAvatar: !(c.image && String(c.image).trim()),
+                            primaryRole: c.primary_role_label || c.primary_role || "",
+                            mobile_number: c.mobile_number || "",
+                            email: c.email || "",
+                        };
+                    })
+                    .filter(function (u) { return !!u; });
+                await enrichContactListAvatarsFromLaravel(usersArray);
+                renderContactsList(usersArray, {}, searchTerm);
+            });
+    }
+
+    function displayUsers(searchTerm = '', retriedAfterRestore = false) {
+        if (displayUsersInFlight) return;
+        if (Date.now() < displayUsersPermissionCooldownUntil) return;
+        const uid = currentUserId || (typeof getCurrentFirebaseUid === 'function' ? getCurrentFirebaseUid() : null);
+        if (!uid) return;
+        displayUsersInFlight = true;
+        const contactsRef = ref(database, `data/contacts/${uid}`);
+        get(contactsRef).then(async snapshot => {
+            let listedFromFirebase = false;
+            if (snapshot.exists()) {
+                const contacts = snapshot.val(); // Get all contacts
+                const contactIds = Object.keys(contacts); // Get the contact user IDs
+
+                if (contactIds.length > 0) {
+                    const usersArrayRaw = await Promise.all(
+                        contactIds.map(async (userId) => {
+                            const contact = contacts[userId] || {}; // Get contact data safely
+                            try {
+                                const userRef = ref(database, `data/users/${userId}`); // Correct Firebase reference
+                                const snapshot = await get(userRef); // Fetch user details
+                                let userData = {};
+                                if (snapshot.exists()) {
+                                    userData = snapshot.val(); // Get user details
+                                }
+                                const rawAvatar =
+                                    contact.profile_image ||
+                                    userData.profile_image ||
+                                    userData.image ||
+                                    userData.profileImage ||
+                                    userData.photoURL ||
+                                    userData.avatar ||
+                                    "";
+                                const prKey =
+                                    (contact.primary_role && String(contact.primary_role).trim()) ||
+                                    (userData.primary_role && String(userData.primary_role).trim()) ||
+                                    "";
+                                const prCustom =
+                                    (contact.other_role_text && String(contact.other_role_text).trim()) ||
+                                    (userData.other_role_text && String(userData.other_role_text).trim()) ||
+                                    "";
+                                const PRmap = typeof PRIMARY_ROLES !== "undefined" ? PRIMARY_ROLES : {};
+                                let prLocal = "";
+                                if (prKey) {
+                                    if (prKey === "other") prLocal = prCustom || PRmap.other || prKey;
+                                    else prLocal = PRmap[prKey] || prKey;
+                                }
+                                return {
+                                    uid: userId,
+                                    firstName: contact.firstName || userData.firstName || "",
+                                    lastName: contact.lastName || userData.lastName || "",
+                                    userName: userData.username || userData.userName || userData.profileName || contact.user_name || "",
+                                    image: resolveProfileImageUrl(rawAvatar),
+                                    _needsLaravelAvatar: !rawAvatar,
+                                    primaryRole: prLocal,
+                                    mobile_number: contact.mobile_number || userData.mobile_number || "",
+                                    email: contact.email || userData.email || "",
+                                };
+                            } catch (error) {
+                                console.error(`Error fetching user data for ${userId}:`, error);
+                                return null;
+                            }
+                        })
+                    );
+                    let usersArray = usersArrayRaw.filter(function (user) { return user != null; });
+                    await enrichContactListAvatarsFromLaravel(usersArray);
+                    if (usersArray.length > 0) {
+                        renderContactsList(usersArray, contacts, searchTerm);
+                        listedFromFirebase = true;
+                    }
+                }
+            }
+            if (!listedFromFirebase) {
+                try {
+                    await loadContactsFromLaravel(searchTerm);
+                } catch (e) {
+                    const msg = '<p id="no-message">No Contacts Found!</p>';
+                    getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
+                }
             }
         }).catch(error => {
+            if (hasPermissionDeniedError(error) && !retriedAfterRestore) {
+                displayUsersPermissionCooldownUntil = Date.now() + 2000;
+                tryRestoreChatSessionToken()
+                    .then(function () {
+                        setTimeout(function () {
+                            displayUsersPermissionCooldownUntil = 0;
+                            displayUsers(searchTerm, true);
+                        }, 700);
+                    })
+                    .catch(function () {
+                        showChatSessionInactiveMessage();
+                    });
+                return;
+            }
+            if (hasPermissionDeniedError(error) && retriedAfterRestore) {
+                loadContactsFromLaravel(searchTerm).catch(function () {
+                    const msg = '<p id="no-message">Contacts are temporarily unavailable.</p>';
+                    try {
+                        getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
+                    } catch (e) { /* ignore */ }
+                });
+                return;
+            }
             console.error("Error fetching contacts: ", error);
             const msg = '<p id="no-message">No Contacts Found!</p>';
             try {
                 getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
             } catch (e) { console.error(e); }
+        }).finally(function () {
+            displayUsersInFlight = false;
         });
     }
 
@@ -550,7 +630,7 @@ initializeFirebase(function (app, auth, database, storage) {
             return true;
         });
     }
-    
+
     function contactDetailValuePresent(val) {
         if (val === null || val === undefined) return false;
         const s = String(val).trim();
@@ -626,6 +706,117 @@ initializeFirebase(function (app, auth, database, storage) {
             el.textContent = "";
             el.style.display = "none";
         }
+    }
+
+    function loadContactDetailFromLaravel(uid, fetchGen) {
+        return fetch("/contacts", {
+            method: "GET",
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+        })
+            .then(function (r) { return r.json().catch(function () { return []; }); })
+            .then(function (rows) {
+                if (fetchGen !== contactDetailFetchGeneration) return;
+                if (!Array.isArray(rows)) return;
+                const target = rows.find(function (c) {
+                    return (
+                        String(c.firebase_uid || "").trim() === String(uid || "").trim() ||
+                        String(c.uid || "").trim() === String(uid || "").trim() ||
+                        String(c.user_id || "").trim() === String(uid || "").trim()
+                    );
+                });
+                if (!target) return;
+                const detailModal = getContactDetailsModalEl();
+                const modalInput = detailModal?.querySelector('input[id="contact-detail-user-id"]');
+                if (modalInput) modalInput.value = String(uid || "");
+
+                const name = [target.firstName || "", target.lastName || ""].filter(Boolean).join(" ").trim() || target.email || "—";
+                const nameEl =
+                    (detailModal && detailModal.querySelector("#contact-detail-name")) ||
+                    document.getElementById("contact-detail-name");
+                if (nameEl) nameEl.textContent = name;
+                const roleEl = document.getElementById("contact-detail-title");
+                const roleLabel = String(target.primary_role_label || "").trim();
+                if (roleEl) {
+                    roleEl.textContent = roleLabel;
+                    roleEl.style.display = roleLabel ? "" : "none";
+                }
+                const avatarImgEl =
+                    (detailModal && detailModal.querySelector(".avatar img")) ||
+                    document.querySelector("#contact-details .avatar img");
+                if (avatarImgEl) {
+                    avatarImgEl.src = resolveProfileImageUrl(target.image || "");
+                }
+                const phoneEl = detailModal?.querySelector('.fw-medium.fs-14.mb-2[data-field="phone"]');
+                if (phoneEl) phoneEl.textContent = target.mobile_number || "N/A";
+                const emailEl = detailModal?.querySelector('.fw-medium.fs-14.mb-2[data-field="email"]');
+                if (emailEl) emailEl.textContent = target.email || "N/A";
+                const now = new Date();
+                const localTimeStr =
+                    now.getHours() +
+                    ":" +
+                    (now.getMinutes() < 10 ? "0" : "") +
+                    now.getMinutes() +
+                    " " +
+                    (now.getHours() >= 12 ? "PM" : "AM");
+                setContactDetailRow("local_time", localTimeStr);
+                setContactDetailRow("dob", "");
+                setContactDetailRow("bio", "");
+                setContactDetailRow("location", "");
+                setContactDetailRow("join_date", "");
+                setContactDetailRow("website", "");
+                ["facebook", "twitter", "instagram", "linkedin", "youtube", "kick", "twitch"].forEach(function (k) {
+                    setContactDetailRow(k, "");
+                });
+                updateContactSocialCardVisibility();
+
+                const applyPubProfile = function (pub) {
+                    if (fetchGen !== contactDetailFetchGeneration) return;
+                    if (!pub || pub.profile_loaded !== true) return;
+                    const h6El = document.getElementById("contact-detail-name");
+                    if (pub.display_name && h6El) h6El.textContent = String(pub.display_name);
+                    const subEl = document.getElementById("contact-detail-title");
+                    if (subEl) {
+                        const r = primaryRoleDisplayFromSources(pub, null, null);
+                        subEl.textContent = r || "";
+                        subEl.style.display = r ? "" : "none";
+                    }
+                    setContactDetailRowIfPresent("dob", pub.dob);
+                    setContactDetailRowIfPresent("bio", pub.bio);
+                    setContactDetailRowIfPresent("location", pub.location);
+                    setContactDetailRowIfPresent("join_date", pub.join_date);
+                    if (pub.websites && pub.websites.length > 0 && pub.websites[0].url) {
+                        setContactDetailRow("website", pub.websites[0].url, true);
+                    }
+                    const socialKeys = ["facebook", "twitter", "instagram", "linkedin", "youtube", "kick", "twitch"];
+                    if (pub.social_links) {
+                        socialKeys.forEach(function (k) {
+                            const v = pub.social_links[k];
+                            if (v && String(v).trim()) setContactDetailRow(k, v, true);
+                        });
+                    }
+                    if (pub.profile_image_url || pub.profile_image) {
+                        const img = resolveProfileImageUrl(pub.profile_image_url || pub.profile_image);
+                        if (avatarImgEl && img) avatarImgEl.src = img;
+                    }
+                    updateContactSocialCardVisibility();
+                };
+
+                const tEmail = String(target.email || "").trim();
+                const tUid = String(target.firebase_uid || target.uid || "").trim();
+                if (tEmail) {
+                    fetch("/api/public-profile-by-email?email=" + encodeURIComponent(tEmail))
+                        .then(function (r) { return r.json(); })
+                        .then(applyPubProfile)
+                        .catch(function () { });
+                } else if (tUid) {
+                    fetch("/api/public-profile-by-firebase-uid?uid=" + encodeURIComponent(tUid))
+                        .then(function (r) { return r.json(); })
+                        .then(applyPubProfile)
+                        .catch(function () { });
+                }
+            })
+            .catch(function () { });
     }
 
     // Fetch user data from Firebase using user ID and display it in the modal
@@ -878,7 +1069,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         if (!pub) return;
                         applyPubProfileToModal(pub, gen, uid);
                     })
-                    .catch(function () {});
+                    .catch(function () { });
             } else if (contactUsername && String(contactUsername).trim() !== "") {
                 fetch("/api/public-profile-by-username?username=" + encodeURIComponent(contactUsername))
                     .then(function (r) {
@@ -888,7 +1079,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         if (!pub) return;
                         applyPubProfileToModal(pub, gen, uid);
                     })
-                    .catch(function () {});
+                    .catch(function () { });
             } else {
                 fetch("/api/public-profile-by-firebase-uid?uid=" + encodeURIComponent(uid))
                     .then(function (r) {
@@ -898,13 +1089,17 @@ initializeFirebase(function (app, auth, database, storage) {
                         if (!pub) return;
                         applyPubProfileToModal(pub, gen, uid);
                     })
-                    .catch(function () {});
+                    .catch(function () { });
             }
         }).catch(error => {
-            // Handle errors
+            // Do not show a blocking popup behind the details modal for Firebase rule denials.
+            if (hasPermissionDeniedError(error)) {
+                loadContactDetailFromLaravel(uid, gen);
+                return;
+            }
             Swal.fire({
                 title: "Error",
-                text: error.message,
+                text: error && error.message ? error.message : "Failed to load contact details.",
                 icon: "error",
             });
         });
@@ -957,7 +1152,7 @@ initializeFirebase(function (app, auth, database, storage) {
         }
         const callBtn = document.getElementById('audio-call-btn') || document.getElementById('audio-new-btn-group');
         if (callBtn) {
-            try { localStorage.setItem('selectedUserId', userId); } catch (e) {}
+            try { localStorage.setItem('selectedUserId', userId); } catch (e) { }
             callBtn.click();
         } else {
             const baseUrl = chatAppBaseUrl();
@@ -978,7 +1173,7 @@ initializeFirebase(function (app, auth, database, storage) {
         }
         const callBtn = document.getElementById('video-call-new-btn') || document.getElementById('video-call-new-btn-group');
         if (callBtn) {
-            try { localStorage.setItem('selectedUserId', userId); } catch (e) {}
+            try { localStorage.setItem('selectedUserId', userId); } catch (e) { }
             callBtn.click();
         } else {
             const baseUrl = chatAppBaseUrl();
@@ -1016,13 +1211,13 @@ initializeFirebase(function (app, auth, database, storage) {
             const m = bootstrap.Modal.getInstance(modalEl);
             if (m) m.hide();
         }
-        try { localStorage.setItem('selectedUserId', userId); } catch (e) {}
-        try { sessionStorage.setItem('dreamchat_active_peer', String(userId)); } catch (e) {}
+        try { localStorage.setItem('selectedUserId', userId); } catch (e) { }
+        try { sessionStorage.setItem('dreamchat_active_peer', String(userId)); } catch (e) { }
         // Navigate immediately — a blocking RTDB get() here could hang (rules/network) and never assign location.href.
         window.location.href = baseUrl + '/chat?user=' + encodeURIComponent(userId);
     }
-    
-    
+
+
 
     // Load contacts on page load and when auth state is ready
     function initContactList() {
@@ -1038,29 +1233,29 @@ initializeFirebase(function (app, auth, database, storage) {
     function handleRegisterFormSubmit(event) {
         event.preventDefault();
         event.stopPropagation();
-    
+
         // Disable the submit button and change the text
         const submitButton = document.getElementById("submit-contact-button"); // Ensure you have an ID for your button
         submitButton.disabled = true;
         submitButton.textContent = "Processing...";
-    
+
         const firstName = document.getElementById("first_name").value;
         const lastName = document.getElementById("last_name").value;
         const email_new = document.getElementById("email_new").value;
         const mobileNumber = document.getElementById("mobile_number_new").value;
         const password = 'tempPassword123';  // Password can be set dynamically
-    
+
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    
+
         // Reset any previous error messages
         document.getElementById("firstNameError").textContent = "";
         document.getElementById("lastNameError").textContent = "";
         document.getElementById("emailError").textContent = "";
         document.getElementById("mobileNumberError").textContent = "";
-    
+
         // Perform validation
         let valid = true;
-    
+
         // Validate firstName
         if (!firstName.trim()) {
             document.getElementById('firstNameError').textContent = 'First Name is required.';
@@ -1088,7 +1283,7 @@ initializeFirebase(function (app, auth, database, storage) {
             document.getElementById('last_name').classList.remove('is-invalid');
             document.getElementById('last_name').classList.add('is-valid');
         }
-    
+
         const emailPattern = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
         if (!email_new) {
             document.getElementById('emailError').textContent = 'Email is required.';
@@ -1117,7 +1312,7 @@ initializeFirebase(function (app, auth, database, storage) {
         } else {
             document.getElementById("mobile_number_new").classList.add("is-valid");
         }
-    
+
         // If validation fails, re-enable button and exit function
         if (!valid) {
             submitButton.disabled = false;
@@ -1136,14 +1331,14 @@ initializeFirebase(function (app, auth, database, storage) {
 
         const loggedInUserId = auth.currentUser.uid;
         const usersRef = ref(database, 'data/users');
-    
+
         // Check if the email already exists in Firebase
         const emailQuery = query(usersRef, orderByChild('email'), equalTo(email_new));
         get(emailQuery).then((snapshot) => {
             if (snapshot.exists()) {
                 const existingUserData = Object.values(snapshot.val())[0];
                 const existingUserId = existingUserData.id;
-                if(loggedInUserId == existingUserId){
+                if (loggedInUserId == existingUserId) {
                     Swal.fire({
                         title: "",
                         width: 400,
@@ -1156,7 +1351,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     submitButton.disabled = false;
                     submitButton.textContent = "Add Contact"; // Change back to original text
                     return false;
-                            } 
+                }
                 // Check if the contact is already in the user's contact list
                 const loggedInUserContactsRef = ref(database, `data/contacts/${loggedInUserId}/${existingUserId}`);
                 get(loggedInUserContactsRef).then((contactSnapshot) => {
@@ -1179,16 +1374,16 @@ initializeFirebase(function (app, auth, database, storage) {
                             mobile_number: existingUserData.mobile_number,
                         });
 
-                       
-                         // Retrieve the logged-in user's details from the users collection
-                         const loggedInUserRef = ref(
+
+                        // Retrieve the logged-in user's details from the users collection
+                        const loggedInUserRef = ref(
                             database,
                             `data/users/${loggedInUserId}`
                         );
                         get(loggedInUserRef)
                             .then((loggedInUserSnapshot) => {
                                 if (loggedInUserSnapshot.exists()) {
-                                     console.log("if");
+                                    console.log("if");
                                     const loggedInUserData =
                                         loggedInUserSnapshot.val();
 
@@ -1204,9 +1399,9 @@ initializeFirebase(function (app, auth, database, storage) {
                                         firstName: loggedInUserData.firstName || "",
                                         lastName: loggedInUserData.lastName || "",
                                     });
-                                        
+
                                 } else {
-                                     console.log("else");
+                                    console.log("else");
                                     console.error(
                                         "Logged-in user data not found in the users collection"
                                     );
@@ -1235,7 +1430,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     submitButton.disabled = false;
                     submitButton.textContent = "Add Contact"; // Change back to original text
                 }).catch((error) => {
-                    
+
                 });
             } else {
                 // Add new user to the logged-in user's contact list
@@ -1327,7 +1522,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                         <br><small class="text-muted">@${(u.user_name || "").replace(/</g, "&lt;")}</small>
                                     </div>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${safe(u.firebase_uid)}" data-name="${safe(displayName)}" data-username="${safe(u.user_name)}" data-first-name="${safe(u.first_name)}" data-last-name="${safe(u.last_name)}" data-profile-image="${profileEnc}" data-primary-role="${roleEnc}">Add</button>
+                                <button type="button" class="btn btn-sm btn-primary add-contact-from-search" data-uid="${safe(u.firebase_uid)}" data-name="${safe(displayName)}" data-username="${safe(u.user_name)}" data-email="${safe(u.email || '')}" data-first-name="${safe(u.first_name)}" data-last-name="${safe(u.last_name)}" data-profile-image="${profileEnc}" data-primary-role="${roleEnc}">Add</button>
                             `;
                             addContactSearchResults.appendChild(div);
                         });
@@ -1346,64 +1541,191 @@ initializeFirebase(function (app, auth, database, storage) {
         return auth.currentUser?.uid || currentUserId;
     }
 
-    function ensureSignedInThenAdd(btn, retryCount) {
+    function hasPermissionDeniedError(err) {
+        if (!err) return false;
+        const code = String(err.code || "").toLowerCase();
+        const msg = String(err.message || "").toLowerCase();
+        return code.indexOf("permission-denied") >= 0 || msg.indexOf("permission denied") >= 0;
+    }
+
+    function waitForFirebaseAuthUser(timeoutMs) {
+        const existing = auth.currentUser?.uid || currentUserId;
+        if (existing) return Promise.resolve(existing);
+        const maxWait = Number(timeoutMs || 4500);
+        return new Promise(function (resolve, reject) {
+            let done = false;
+            const unsub = onAuthStateChanged(auth, function (user) {
+                if (done) return;
+                if (user && user.uid) {
+                    done = true;
+                    try { unsub(); } catch (e) { }
+                    resolve(user.uid);
+                }
+            });
+            setTimeout(function () {
+                if (done) return;
+                done = true;
+                try { unsub(); } catch (e) { }
+                reject(new Error("AUTH_NOT_READY"));
+            }, maxWait);
+        });
+    }
+
+    function ensureContactsReadAccess(uid) {
+        if (!uid) return Promise.reject(new Error("Missing Firebase user."));
+        return get(ref(database, `data/contacts/${uid}`)).then(() => uid);
+    }
+
+    function addContactViaLaravel(payload) {
+        const tokenEl = typeof document !== "undefined"
+            ? document.querySelector('meta[name="csrf-token"]')
+            : null;
+        const csrf = tokenEl ? tokenEl.getAttribute("content") : "";
+        return fetch("/contacts", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "X-CSRF-TOKEN": csrf || "",
+            },
+            body: JSON.stringify({
+                first_name: payload.first_name || "",
+                last_name: payload.last_name || "",
+                email: payload.email || "",
+                mobile_number: payload.mobile_number || "",
+            }),
+        }).then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (data) {
+                return { ok: r.ok, status: r.status, data: data };
+            });
+        });
+    }
+
+    function sendInviteViaLaravel(email, message) {
+        const tokenEl = typeof document !== "undefined"
+            ? document.querySelector('meta[name="csrf-token"]')
+            : null;
+        const csrf = tokenEl ? tokenEl.getAttribute("content") : "";
+        return fetch("/invite/send", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "X-CSRF-TOKEN": csrf || "",
+            },
+            body: JSON.stringify({
+                email: email || "",
+                message: message || "",
+            }),
+        }).then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (data) {
+                return { ok: r.ok, status: r.status, data: data };
+            });
+        });
+    }
+
+    function tryRestoreChatSessionToken() {
+        if (contactRestoreInFlight) return contactRestoreInFlight;
+        const baseUrl = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
+        contactRestoreInFlight = fetch(baseUrl + "/api/restore-chat-session", { method: "GET", credentials: "include" })
+            .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+            .then(function (result) {
+                if (result.ok && result.data && result.data.firebase_custom_token) {
+                    // Force-clear any stale Firebase Auth session before applying a fresh custom token.
+                    return signOut(auth)
+                        .catch(function () { })
+                        .then(function () {
+                            return signInWithCustomToken(auth, result.data.firebase_custom_token);
+                        })
+                        .then(function () {
+                            return waitForFirebaseAuthUser(5000);
+                        });
+                }
+                throw new Error("NO_RESTORE_TOKEN");
+            })
+            .finally(function () {
+                contactRestoreInFlight = null;
+            });
+        return contactRestoreInFlight;
+    }
+
+    function ensureSignedInThenAdd(btn, retryCount, restoreRetryCount) {
         retryCount = retryCount || 0;
+        restoreRetryCount = restoreRetryCount || 0;
         const uid = getCurrentFirebaseUid();
         if (uid) {
-            let dataUid = (btn.getAttribute("data-uid") || "").trim();
-            const name = (btn.getAttribute("data-name") || "").trim();
-            const username = (btn.getAttribute("data-username") || "").trim();
-            const email = (btn.getAttribute("data-email") || "").trim();
-            const firstNameFromApi = (btn.getAttribute("data-first-name") || "").trim();
-            const lastNameFromApi = (btn.getAttribute("data-last-name") || "").trim();
-            let profileImageFromSearch = "";
-            try {
-                const enc = btn.getAttribute("data-profile-image") || "";
-                if (enc) profileImageFromSearch = decodeURIComponent(enc);
-            } catch (e) { profileImageFromSearch = btn.getAttribute("data-profile-image") || ""; }
-            let primaryRoleFromSearch = "";
-            try {
-                const re = btn.getAttribute("data-primary-role") || "";
-                if (re) primaryRoleFromSearch = decodeURIComponent(re);
-            } catch (e2) { primaryRoleFromSearch = btn.getAttribute("data-primary-role") || ""; }
-            if (!dataUid && !email && !username && !name) {
-                if (typeof Swal !== "undefined") Swal.fire({ text: "Cannot add: no user info.", icon: "info", width: 400 });
-                return;
-            }
-            (dataUid ? Promise.resolve(dataUid) : resolveEmailOrUsernameToFirebaseUid(email, username))
-                .then(resolvedUid => {
-                    if (resolvedUid === uid) {
-                        Swal.fire({ text: "You can't add yourself to contacts.", icon: "info", width: 400 });
+            Promise.resolve()
+                .then(function () {
+                    let dataUid = (btn.getAttribute("data-uid") || "").trim();
+                    const name = (btn.getAttribute("data-name") || "").trim();
+                    const username = (btn.getAttribute("data-username") || "").trim();
+                    const email = (btn.getAttribute("data-email") || "").trim();
+                    const firstNameFromApi = (btn.getAttribute("data-first-name") || "").trim();
+                    const lastNameFromApi = (btn.getAttribute("data-last-name") || "").trim();
+                    let profileImageFromSearch = "";
+                    try {
+                        const enc = btn.getAttribute("data-profile-image") || "";
+                        if (enc) profileImageFromSearch = decodeURIComponent(enc);
+                    } catch (e) { profileImageFromSearch = btn.getAttribute("data-profile-image") || ""; }
+                    let primaryRoleFromSearch = "";
+                    try {
+                        const re = btn.getAttribute("data-primary-role") || "";
+                        if (re) primaryRoleFromSearch = decodeURIComponent(re);
+                    } catch (e2) { primaryRoleFromSearch = btn.getAttribute("data-primary-role") || ""; }
+                    const activeUid = getCurrentFirebaseUid();
+                    if (!activeUid) throw new Error("SESSION_RESTORE_FAILED");
+                    if (!dataUid && !email && !username && !name) {
+                        if (typeof Swal !== "undefined") Swal.fire({ text: "Cannot add: no user info.", icon: "info", width: 400 });
                         return;
                     }
-                    if (resolvedUid) {
-                        addContactFromSearch(resolvedUid, name, username, email, firstNameFromApi, lastNameFromApi, profileImageFromSearch, primaryRoleFromSearch);
-                    } else {
-                        addPendingContact(email, username, name, profileImageFromSearch, primaryRoleFromSearch);
-                    }
+                    return (dataUid ? Promise.resolve(dataUid) : resolveEmailOrUsernameToFirebaseUid(email, username))
+                        .then(function (resolvedUid) {
+                            if (resolvedUid === activeUid) {
+                                Swal.fire({ text: "You can't add yourself to contacts.", icon: "info", width: 400 });
+                                return;
+                            }
+                            if (resolvedUid) {
+                                return addContactFromSearch(resolvedUid, name, username, email, firstNameFromApi, lastNameFromApi, profileImageFromSearch, primaryRoleFromSearch);
+                            }
+                            return addPendingContact(email, username, name, profileImageFromSearch, primaryRoleFromSearch);
+                        });
                 })
-                .catch(err => {
+                .catch(function (err) {
+                    const isSessionIssue =
+                        hasPermissionDeniedError(err) ||
+                        String(err && err.message || "") === "SESSION_RESTORE_FAILED";
+                    if (isSessionIssue) {
+                        if (restoreRetryCount < 1) {
+                            tryRestoreChatSessionToken()
+                                .then(function () {
+                                    setTimeout(function () {
+                                        ensureSignedInThenAdd(btn, 0, restoreRetryCount + 1);
+                                    }, 450);
+                                })
+                                .catch(function () {
+                                    showChatSessionInactiveMessage();
+                                });
+                            return;
+                        }
+                        showChatSessionInactiveMessage();
+                        return;
+                    }
                     if (typeof Swal !== "undefined") Swal.fire({ text: err && err.message ? err.message : "Could not add contact.", icon: "error", width: 400 });
                     else alert("Could not add contact.");
                 });
             return;
         }
         if (retryCount < 2) {
-            setTimeout(function () { ensureSignedInThenAdd(btn, retryCount + 1); }, 600);
+            setTimeout(function () { ensureSignedInThenAdd(btn, retryCount + 1, restoreRetryCount); }, 600);
             return;
         }
         // Try to restore Firebase session from Laravel (no re-login)
-        const baseUrl = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "";
-        fetch(baseUrl + "/api/restore-chat-session", { method: "GET", credentials: "include" })
-            .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-            .then(function (result) {
-                if (result.ok && result.data && result.data.firebase_custom_token) {
-                    return signInWithCustomToken(auth, result.data.firebase_custom_token).then(function () {
-                        // Auth state will update; retry add once
-                        setTimeout(function () { ensureSignedInThenAdd(btn, 0); }, 800);
-                    });
-                }
-                showChatSessionInactiveMessage();
+        tryRestoreChatSessionToken()
+            .then(function () {
+                // Auth state will update; retry add once
+                setTimeout(function () { ensureSignedInThenAdd(btn, 0, restoreRetryCount + 1); }, 800);
             })
             .catch(function () {
                 showChatSessionInactiveMessage();
@@ -1483,101 +1805,105 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     /** Add a contact when we have no Firebase UID (pending contact). They appear in the list; chat works once they sign in. */
-    function addPendingContact(email, username, displayName, profileImageUrl, primaryRole) {
-        const loggedInUserId = getCurrentFirebaseUid();
-        if (!loggedInUserId) {
-            if (typeof Swal !== "undefined") Swal.fire({ text: "Your chat session is not active. Please sign out and sign in again from the login page.", icon: "warning", width: 420 });
-            return;
+    function addPendingContact(email, username, displayName, profileImageUrl, primaryRole, retriedAfterRestore) {
+        retriedAfterRestore = !!retriedAfterRestore;
+        const inviteEmail = String(email || "").trim();
+        if (!inviteEmail) {
+            Swal.fire({ text: "No email found for this user.", icon: "info", width: 400 });
+            return Promise.resolve();
         }
-        const emailOrUsername = (email || username || (displayName || "").trim() || "").trim() || "unknown";
-        const keySuffix = typeof btoa !== "undefined"
-            ? btoa(emailOrUsername).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "").substring(0, 100)
-            : "pending_" + emailOrUsername.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 80);
-        const syntheticKey = "pending_" + keySuffix;
-        const contactRef = ref(database, `data/contacts/${loggedInUserId}/${syntheticKey}`);
-        const contactsRef = ref(database, `data/contacts/${loggedInUserId}`);
-        get(contactsRef).then(snap => {
-            if (snap.exists()) {
-                const contacts = snap.val();
-                const already = Object.keys(contacts).some(k => {
-                    const c = contacts[k] || {};
-                    const cEmail = (c.email || "").toLowerCase().trim();
-                    const cUser = (c.user_name || "").toLowerCase().trim();
-                    const e = (email || "").toLowerCase().trim();
-                    const u = (username || "").toLowerCase().trim();
-                    return (e && cEmail === e) || (u && cUser === u);
-                });
-                if (already) {
+        const inviteMsg = (displayName || username)
+            ? `Hi ${(displayName || username).trim()}, join me on Connect.`
+            : "";
+        return sendInviteViaLaravel(inviteEmail, inviteMsg)
+            .then(function (result) {
+                if (result.ok) {
                     closeAddContactModalAndClearSearch();
-                    Swal.fire({ text: "Contact already in your list!", icon: "info", width: 400 });
+                    Swal.fire({
+                        text: "Invitation sent. They can be added after they sign up.",
+                        icon: "success",
+                        width: 420
+                    });
                     return;
                 }
-            }
-            const pendingFirstName = (displayName || username || email || "Pending").trim();
-            const pendingPayload = {
-                contact_id: syntheticKey,
-                email: (email || "").trim(),
-                user_name: (username || "").trim(),
-                pending: true,
-                firstName: pendingFirstName,
-                lastName: "",
-            };
-            if (profileImageUrl && String(profileImageUrl).trim()) {
-                pendingPayload.profile_image = String(profileImageUrl).trim();
-            }
-            if (primaryRole && String(primaryRole).trim()) {
-                pendingPayload.primary_role = String(primaryRole).trim();
-            }
-            set(contactRef, pendingPayload).then(() => {
-                closeAddContactModalAndClearSearch();
-                displayUsers();
-                Swal.fire({ text: "Contact added! They will appear in your list; you can chat once they sign in to the app.", icon: "success", width: 420 });
-            }).catch(err => Swal.fire({ text: err.message || "Failed to add", icon: "error", width: 400 }));
-        });
+                const message = (result.data && (result.data.message || result.data.error)) || "Could not send invitation.";
+                Swal.fire({ text: String(message), icon: "error", width: 420 });
+            })
+            .catch(function () {
+                if (!retriedAfterRestore) {
+                    return tryRestoreChatSessionToken()
+                        .then(function () {
+                            return addPendingContact(
+                                email,
+                                username,
+                                displayName,
+                                profileImageUrl,
+                                primaryRole,
+                                true
+                            );
+                        })
+                        .catch(function () {
+                            showChatSessionInactiveMessage();
+                        });
+                }
+                showChatSessionInactiveMessage();
+            });
     }
 
-    function addContactFromSearch(firebaseUid, displayName, username, emailFromApi, firstNameFromApi, lastNameFromApi, profileImageFromLaravel, primaryRoleFromLaravel) {
+    function addContactFromSearch(firebaseUid, displayName, username, emailFromApi, firstNameFromApi, lastNameFromApi, profileImageFromLaravel, primaryRoleFromLaravel, retriedAfterRestore) {
+        retriedAfterRestore = !!retriedAfterRestore;
         const loggedInUserId = getCurrentFirebaseUid();
         if (!loggedInUserId) {
             if (typeof Swal !== "undefined") Swal.fire({ text: "Your chat session is not active. Please sign out and sign in again from the login page.", icon: "warning", width: 420 });
-            return;
+            return Promise.resolve();
         }
-        if (!firebaseUid) return;
-        const contactRef = ref(database, `data/contacts/${loggedInUserId}/${firebaseUid}`);
-        get(contactRef).then(snap => {
-            if (snap.exists()) {
+        const email = String(emailFromApi || "").trim();
+        if (!email) {
+            Swal.fire({ text: "No email found for this contact.", icon: "info", width: 400 });
+            return Promise.resolve();
+        }
+        const parsed = parseDisplayName(displayName || "");
+        const firstName = (firstNameFromApi && firstNameFromApi.trim()) || parsed.firstName || "Contact";
+        const lastName = (lastNameFromApi && lastNameFromApi.trim()) || parsed.lastName || ".";
+        return addContactViaLaravel({
+            first_name: firstName,
+            last_name: lastName,
+            email: email,
+            mobile_number: "",
+        }).then(function (result) {
+            const message = (result.data && (result.data.message || result.data.error)) || "";
+            if (result.ok) {
                 closeAddContactModalAndClearSearch();
-                Swal.fire({ text: "Contact already in your list!", icon: "info", width: 400 });
+                Swal.fire({ text: "Contact added!", icon: "success", width: 400 });
                 return;
             }
-            get(ref(database, `data/users/${firebaseUid}`)).then(userSnap => {
-                const userData = userSnap.exists() ? userSnap.val() : {};
-                const email = userData.email || emailFromApi || "";
-                const parsed = parseDisplayName(displayName);
-                const firstName = (firstNameFromApi && firstNameFromApi.trim()) || (userData.firstName && userData.firstName.trim()) || parsed.firstName || "";
-                const lastName = (lastNameFromApi && lastNameFromApi.trim()) || (userData.lastName && userData.lastName.trim()) || parsed.lastName || "";
-                const contactPayload = {
-                    contact_id: firebaseUid,
-                    email: email,
-                    firstName: firstName,
-                    lastName: lastName,
-                    mobile_number: userData.mobile_number || "",
-                };
-                const laravelImg = (profileImageFromLaravel && String(profileImageFromLaravel).trim()) ? String(profileImageFromLaravel).trim() : "";
-                const firebaseImg = userData.image || userData.profile_image || userData.profileImage || userData.photoURL || "";
-                if (laravelImg) {
-                    contactPayload.profile_image = laravelImg;
-                } else if (firebaseImg) {
-                    contactPayload.profile_image = firebaseImg;
-                }
-                const pr = primaryRoleFromLaravel && String(primaryRoleFromLaravel).trim() ? String(primaryRoleFromLaravel).trim() : "";
-                if (pr) contactPayload.primary_role = pr;
-                set(contactRef, contactPayload).then(() => {
-                    closeAddContactModalAndClearSearch();
-                    displayUsers();
-                    Swal.fire({ text: "Contact added!", icon: "success", width: 400 });
-                }).catch(err => Swal.fire({ text: err.message || "Failed to add", icon: "error", width: 400 }));
-            });
+            if (result.status === 422 && /already/i.test(String(message))) {
+                closeAddContactModalAndClearSearch();
+                Swal.fire({ text: String(message), icon: "info", width: 400 });
+                return;
+            }
+            Swal.fire({ text: String(message || "Failed to add"), icon: "error", width: 400 });
+        }).catch(function () {
+            if (!retriedAfterRestore) {
+                return tryRestoreChatSessionToken()
+                    .then(function () {
+                        return addContactFromSearch(
+                            firebaseUid,
+                            displayName,
+                            username,
+                            emailFromApi,
+                            firstNameFromApi,
+                            lastNameFromApi,
+                            profileImageFromLaravel,
+                            primaryRoleFromLaravel,
+                            true
+                        );
+                    })
+                    .catch(function () {
+                        showChatSessionInactiveMessage();
+                    });
+            }
+            showChatSessionInactiveMessage();
         });
     }
 
@@ -1666,21 +1992,21 @@ initializeFirebase(function (app, auth, database, storage) {
     // Fetch user data from Firebase for edit modal
     function fetchUserDataForEdit(userId) {
         const contactRef = ref(database, `data/contacts/${currentUserId}/${userId}`);
-            // Fetch user data
-            get(contactRef).then(snapshot => {
-                const userData = snapshot.val();
-                if (userData) {
-                    // Update form fields
-                    document.getElementById('edit-first-name').value = userData.firstName;
-                    document.getElementById('edit-last-name').value = userData.lastName;
-                    document.getElementById('edit-email').value = userData.email ?? '';
-                    document.getElementById('edit-phone').value = userData.mobile_number ?? '';
-                }
-            }).catch(error => {
+        // Fetch user data
+        get(contactRef).then(snapshot => {
+            const userData = snapshot.val();
+            if (userData) {
+                // Update form fields
+                document.getElementById('edit-first-name').value = userData.firstName;
+                document.getElementById('edit-last-name').value = userData.lastName;
+                document.getElementById('edit-email').value = userData.email ?? '';
+                document.getElementById('edit-phone').value = userData.mobile_number ?? '';
+            }
+        }).catch(error => {
 
-            });
+        });
 
-      
+
     }
 
     // Add event listener to edit modal trigger button
@@ -1710,35 +2036,35 @@ initializeFirebase(function (app, auth, database, storage) {
             if (snapshot.exists()) {
                 const mobileQuery = query(usersRef, orderByChild('mobile_number'), equalTo(phone_edit));
                 get(mobileQuery).then((snapshot) => {
-                   
-                        update(userRef, {
-                            firstName: firstName,
-                            lastName: lastName,
-                            email: email_edit,
-                            mobile_number: phone_edit,
-                        }).then(() => {
-                            $('#edit-contact').modal('hide'); // Close the edit modal
-                            Swal.fire({
-                                title: "",
-                                width: 400,
-                                text: "User updated successfully!",
-                                icon: "success"
-                            }).then((result) => {
-                                if (result.isConfirmed) {
-                                    // Redirect to the desired page
-                                    displayUsers();
-                                }
-                            });
 
-                        }).catch((error) => {
-                            Swal.fire({
-                                title: "",
-                                width: 400,
-                                text: error.message,
-                                icon: "error",
-                            });
+                    update(userRef, {
+                        firstName: firstName,
+                        lastName: lastName,
+                        email: email_edit,
+                        mobile_number: phone_edit,
+                    }).then(() => {
+                        $('#edit-contact').modal('hide'); // Close the edit modal
+                        Swal.fire({
+                            title: "",
+                            width: 400,
+                            text: "User updated successfully!",
+                            icon: "success"
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                // Redirect to the desired page
+                                displayUsers();
+                            }
                         });
-                   
+
+                    }).catch((error) => {
+                        Swal.fire({
+                            title: "",
+                            width: 400,
+                            text: error.message,
+                            icon: "error",
+                        });
+                    });
+
                 });
             }
             else {
@@ -1796,18 +2122,18 @@ initializeFirebase(function (app, auth, database, storage) {
     if (contactSearchEl) contactSearchEl.addEventListener("input", function () {
         const searchValue = this.value.toLowerCase(); // Get the search value in lowercase
         const sections = document.querySelectorAll("#chatContainer .mb-4"); // Select all sections (letter groups)
-    
+
         let anyVisible = false; // Track if any user is visible
-    
+
         sections.forEach(section => {
             const userDivs = section.querySelectorAll(".chat-user-list"); // Get all user elements in the section
             let sectionVisible = false; // Track if the current section has any visible users
-    
+
             userDivs.forEach(userDiv => {
                 const userNameElement = userDiv.querySelector(".chat-user-msg h6"); // Get the displayed name
                 const displayedName = (userNameElement?.textContent || '').toLowerCase();
                 const username = (userDiv.getAttribute('data-username') || '').toLowerCase();
-    
+
                 // Show or hide the user based on the search value (search by displayed name or username)
                 if (displayedName.includes(searchValue) || (username && username.includes(searchValue))) {
                     userDiv.style.display = ""; // Show user
@@ -1816,16 +2142,16 @@ initializeFirebase(function (app, auth, database, storage) {
                     userDiv.style.display = "none"; // Hide user
                 }
             });
-    
+
             // Show or hide the section based on whether it contains visible users
             section.style.display = sectionVisible ? "" : "none";
             if (sectionVisible) anyVisible = true; // If any section is visible, mark anyVisible as true
         });
-    
+
         // Show or hide the "no matches" message and "no-message"
         const noMatchesMessage = document.getElementById('noMatchesMessage');
         const noMessage = document.getElementById('no-message');
-    
+
         if (searchValue.trim() === "") {
             // If the input field is empty, hide both messages
             if (noMatchesMessage) noMatchesMessage.style.display = "none";
@@ -1835,7 +2161,7 @@ initializeFirebase(function (app, auth, database, storage) {
             if (noMatchesMessage) noMatchesMessage.style.display = anyVisible ? "none" : "block";
             if (noMessage) noMessage.style.display = "none"; // Show noMessage if no matches
         }
-    });     
+    });
 
     // Function to block the user in Firebase
     function blockUser(otherUserId) {
@@ -1907,7 +2233,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 // Close the block modal explicitly
                 const unblockModal = bootstrap.Modal.getInstance(document.getElementById("unblock-contact-user"));
                 if (unblockModal) unblockModal.hide();
-                
+
             })
             .catch(error => {
 
@@ -1978,7 +2304,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 timestamp: Date.now(),
                 deleted: true,
             });
-        }).catch(() => {});
+        }).catch(() => { });
     }
 
     function clearThreadForCurrentUser(contactId) {
@@ -2021,8 +2347,8 @@ initializeFirebase(function (app, auth, database, storage) {
         return Promise.all([
             applyClearForRoom(canonicalRoomRef),
             applyClearForRoom(mirrorRoomRef),
-            remove(ref(database, `data/users/${currentUserId}/marked_unread/${contactId}`)).catch(() => {}),
-        ]).then(() => {}).catch(() => {});
+            remove(ref(database, `data/users/${currentUserId}/marked_unread/${contactId}`)).catch(() => { }),
+        ]).then(() => { }).catch(() => { });
     }
 
 
@@ -2059,8 +2385,8 @@ initializeFirebase(function (app, auth, database, storage) {
                     position: "right",
                     backgroundColor: "#28a745",
                 }).showToast();
-               
-                $('#delete-contact').modal('hide'); 
+
+                $('#delete-contact').modal('hide');
                 displayUsers();
             })
             .catch((error) => {

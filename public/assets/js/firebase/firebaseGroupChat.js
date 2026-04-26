@@ -32,10 +32,14 @@ let displayGroupUsersGeneration = 0; // Ignore stale async renders when fetchGro
 let laravelGroupPickerGeneration = 0;
 
 function dreamchatWebBase() {
+    // Always prefer current browser origin to avoid cross-origin/CORS issues in local dev (127.0.0.1).
+    if (typeof window !== "undefined" && window.location && window.location.origin) {
+        return String(window.location.origin).replace(/\/$/, "");
+    }
     if (typeof APP_URL !== "undefined" && APP_URL) {
         return String(APP_URL).replace(/\/$/, "");
     }
-    return typeof window !== "undefined" && window.location ? window.location.origin : "";
+    return "";
 }
 
 function refetchGroupPickerIfModalOpen() {
@@ -263,12 +267,7 @@ async function enrichGroupMembersWithLaravelBatch(members) {
         ),
     ];
     if (uids.length === 0) return members;
-    const baseUrl =
-        typeof APP_URL !== "undefined" && APP_URL
-            ? String(APP_URL).replace(/\/$/, "")
-            : typeof window !== "undefined" && window.location
-              ? window.location.origin
-              : "";
+    const baseUrl = dreamchatWebBase();
     if (!baseUrl) return members;
     const csrfMeta =
         typeof document !== "undefined"
@@ -4655,8 +4654,8 @@ function clearGroupMessages(selectedGroupId) {
                     }
                 });
 
-                // Apply updates to the database
-                return update(ref(database), updates);
+                // Rules forbid writes at `/`; keys are paths under `data`.
+                return update(ref(database, "data"), updates);
             }
         })
         .then(() => {
@@ -6260,7 +6259,7 @@ function clearGroupMessagesWithUI(gid) {
                 updates[`chats/${gid}/${messageId}/clearedFor`] = [...clearedFor, currentUserId];
             }
         });
-        return update(ref(database), updates);
+        return update(ref(database, "data"), updates);
     }).then(() => {
         const chatBox = document.getElementById("chat-messages");
         if (chatBox) chatBox.innerHTML = "";

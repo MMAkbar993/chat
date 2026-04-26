@@ -4,6 +4,8 @@ import {
     getAuth,
     onAuthStateChanged,
     sendPasswordResetEmail,
+    signInWithCustomToken,
+    signOut,
     setPersistence,
     browserLocalPersistence,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
@@ -44,6 +46,25 @@ initializeFirebase(function (app, auth, database, storage) {
     const secretKey =
         "89def69f0bdddc995078037539dc6ef4f0bdbdd3fa04ef2d11eea30779d72ac6";
 
+    /** `database.rules.json` sets .write:false on `/`; never use update(ref(database), …). */
+    function updateUnderData(relativePaths) {
+        // #region agent log
+        fetch('http://127.0.0.1:7729/ingest/01ce1245-1aa3-4118-bc1c-e47d7b45fe8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'394d88'},body:JSON.stringify({sessionId:'394d88',runId:'initial',hypothesisId:'H1',location:'firebaseChat.js:updateUnderData',message:'updateUnderData called',data:{authUid:auth&&auth.currentUser?auth.currentUser.uid:null,keyCount:relativePaths?Object.keys(relativePaths).length:0,sampleKeys:relativePaths?Object.keys(relativePaths).slice(0,3):[]},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        return update(ref(database, "data"), relativePaths);
+    }
+    function updateUnderDataStripDataPrefix(keyedWithDataPrefix) {
+        const rel = {};
+        Object.keys(keyedWithDataPrefix).forEach((k) => {
+            const rk = k.startsWith("data/") ? k.slice(5) : k;
+            rel[rk] = keyedWithDataPrefix[k];
+        });
+        // #region agent log
+        fetch('http://127.0.0.1:7729/ingest/01ce1245-1aa3-4118-bc1c-e47d7b45fe8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'394d88'},body:JSON.stringify({sessionId:'394d88',runId:'initial',hypothesisId:'H2',location:'firebaseChat.js:updateUnderDataStripDataPrefix',message:'updateUnderDataStripDataPrefix called',data:{authUid:auth&&auth.currentUser?auth.currentUser.uid:null,keyCount:Object.keys(rel).length,sampleKeys:Object.keys(rel).slice(0,3)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        return update(ref(database, "data"), rel);
+    }
+
     let currentUser = null; // Define the current user here
     let selectedUserId = null; // Store the selected user ID
     function getAudioCallTriggerEl() {
@@ -68,25 +89,58 @@ initializeFirebase(function (app, auth, database, storage) {
             return null;
         }
     }
+    /** Resolve 1:1 recipient for sends when in-memory selection is briefly stale. */
+    function resolveOneOnOneRecipientId() {
+        if (selectedUserId && String(selectedUserId).trim()) {
+            return String(selectedUserId).trim();
+        }
+        try {
+            const q = new URLSearchParams(window.location.search || "").get("user");
+            if (q && String(q).trim()) {
+                return String(q).trim();
+            }
+        } catch (e) {
+            /* ignore */
+        }
+        try {
+            const v = localStorage.getItem("selectedUserId");
+            if (v && String(v).trim()) {
+                return String(v).trim();
+            }
+        } catch (e) {
+            /* ignore */
+        }
+        return null;
+    }
     let currentUserId = null;
     /** Same-tab only: restores open chat after refresh. Do not use localStorage for panel visibility (stale after SPA / no selection). */
     const CHAT_ACTIVE_PEER_SESSION_KEY = "dreamchat_active_peer";
 
     let typingIdleTimer = null;
+    let presenceConnectedUnsub = null;
     function clearChatTyping() {
         if (typingIdleTimer) {
             clearTimeout(typingIdleTimer);
             typingIdleTimer = null;
         }
-        if (!currentUser || !currentUser.uid) return;
-        update(ref(database, `data/users/${currentUser.uid}`), {
-            typing: "",
+        // RTDB rules use `auth`; never use stale `currentUser` after signOut() (e.g. session restore gap).
+        const uid =
+            typeof auth !== "undefined" && auth && auth.currentUser
+                ? auth.currentUser.uid
+                : null;
+        if (!uid) return;
+        updateUnderData({
+            [`users/${uid}/typing`]: "",
         }).catch(() => {});
     }
     function pulseChatTyping(recipientId) {
-        if (!currentUser || !currentUser.uid || !recipientId) return;
-        update(ref(database, `data/users/${currentUser.uid}`), {
-            typing: recipientId,
+        const uid =
+            typeof auth !== "undefined" && auth && auth.currentUser
+                ? auth.currentUser.uid
+                : null;
+        if (!uid || !recipientId) return;
+        updateUnderData({
+            [`users/${uid}/typing`]: recipientId,
         }).catch(() => {});
         if (typingIdleTimer) clearTimeout(typingIdleTimer);
         typingIdleTimer = setTimeout(clearChatTyping, 3000);
@@ -124,6 +178,7 @@ initializeFirebase(function (app, auth, database, storage) {
             currentUser.uid,
             selectedUserId
         );
+        if (!canonicalRoomId) return;
         const roomRef = ref(database, `data/chats/${canonicalRoomId}`);
         mediaPanelRoomUnsub = onValue(roomRef, () => {
             if (mediaPanelRefreshTimer) clearTimeout(mediaPanelRefreshTimer);
@@ -158,6 +213,9 @@ initializeFirebase(function (app, auth, database, storage) {
         .then(() => {
             // Auth state listener
             onAuthStateChanged(auth, (user) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7729/ingest/01ce1245-1aa3-4118-bc1c-e47d7b45fe8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'394d88'},body:JSON.stringify({sessionId:'394d88',runId:'initial',hypothesisId:'H3',location:'firebaseChat.js:onAuthStateChanged',message:'auth state changed',data:{userPresent:!!user,userUid:user?user.uid:null,currentAuthUid:auth&&auth.currentUser?auth.currentUser.uid:null,path:window.location&&window.location.pathname?window.location.pathname:''},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 if (user) {
                     currentUser = user;
                     currentUserId = user.uid;
@@ -281,38 +339,20 @@ initializeFirebase(function (app, auth, database, storage) {
                         setTimeout(ensureChatPageVisible, 1000);
                     }
 
-                    // Set the user's online status
-                    const userStatusRef = ref(
-                        database,
-                        `data/users/${user.uid}/status`
-                    );
-                    set(userStatusRef, "online");
-                    onDisconnect(userStatusRef).set("offline");
-
-                    const typingDisconnectRef = ref(
-                        database,
-                        `data/users/${user.uid}/typing`
-                    );
-                    onDisconnect(typingDisconnectRef).set("");
-
-                    // Real-time listener for connectivity
-                    const connectedRef = ref(database, ".info/connected");
-                    onValue(connectedRef, (snapshot) => {
-                        if (snapshot.val() === true) {
-                            set(userStatusRef, "online");
-                        }
-                    });
+                    syncPresenceForUser(user.uid);
 
                     // Load other user data
                     loadUserList();
                 } else {
+                    currentUser = null;
+                    currentUserId = null;
                     firebaseChatSidebarListenersAttached = false;
                     if (window.location.pathname !== "/login") {
                         // Redirect to login if trying to access any other route
                         // window.location.href = "/login";
                     }
-                    document.getElementById("user-id").innerText =
-                        "No user logged in";
+                    const uidEl = document.getElementById("user-id");
+                    if (uidEl) uidEl.innerText = "No user logged in";
                 }
             });
         })
@@ -797,6 +837,29 @@ initializeFirebase(function (app, auth, database, storage) {
                             } catch (e) {
                                 /* ignore */
                             }
+                            // selectUser updates URL + localStorage before assigning
+                            // selectedUserId; a displayUsers refresh in that window still
+                            // sees the previous selectedUserId and would wrongly reset the shell.
+                            try {
+                                if (!keepChatOpen) {
+                                    const qPeer2 = new URLSearchParams(
+                                        window.location.search || ""
+                                    ).get("user");
+                                    const lsPeer2 = localStorage.getItem(
+                                        "selectedUserId"
+                                    );
+                                    if (
+                                        qPeer2 &&
+                                        lsPeer2 &&
+                                        String(qPeer2).trim() ===
+                                            String(lsPeer2).trim()
+                                    ) {
+                                        keepChatOpen = true;
+                                    }
+                                }
+                            } catch (e) {
+                                /* ignore */
+                            }
                             if (!keepChatOpen) {
                                 resetChatShellToWelcome();
                             }
@@ -984,16 +1047,10 @@ initializeFirebase(function (app, auth, database, storage) {
                                 message.recipientId === currentUserId &&
                                 !message.seen
                             ) {
-                                // Update the message status to seen
-                                update(
-                                    ref(
-                                        database,
-                                        `data/chats/${chatRoomId}/${messageKey}`
-                                    ),
-                                    {
-                                        seen: true,
-                                    }
-                                ).catch((error) => {
+                                // Update the message status to seen (same room as chatRef)
+                                update(child(chatRef, messageKey), {
+                                    seen: true,
+                                }).catch((error) => {
                                     console.error(
                                         "Error marking message as seen:",
                                         error
@@ -1163,14 +1220,11 @@ initializeFirebase(function (app, auth, database, storage) {
                                         !message.seen
                                     ) {
                                         update(
-                                            ref(
-                                                database,
-                                                `${chatRef}/${childSnapshot.key}`
-                                            ),
+                                            child(chatRef, childSnapshot.key),
                                             {
                                                 seen: true,
                                             }
-                                        );
+                                        ).catch(() => {});
                                     }
                                 });
                             }
@@ -1577,7 +1631,9 @@ initializeFirebase(function (app, auth, database, storage) {
             currentUserId,
             userId
         );
-        const chatRoomRef = ref(database, `data/chats/${roomIdForRow}`);
+        const chatRoomRef = roomIdForRow
+            ? ref(database, `data/chats/${roomIdForRow}`)
+            : null;
         const markedUnreadRef = ref(
             database,
             `data/users/${currentUser.uid}/marked_unread/${userId}`
@@ -1648,7 +1704,7 @@ initializeFirebase(function (app, auth, database, storage) {
         /** Avoids stale sidebar text/time when an older onValue async pass finishes after a newer one. */
         let lastSidebarPreviewAppliedTs = 0;
 
-        onValue(chatRoomRef, async (snapshot) => {
+        if (chatRoomRef) onValue(chatRoomRef, async (snapshot) => {
             const viewerUid = currentUser?.uid || currentUserId;
 
             if (!snapshot.exists()) {
@@ -1764,6 +1820,7 @@ initializeFirebase(function (app, auth, database, storage) {
             messageCountSpan.style.display = "none";
             messageCountSpan.textContent = "";
 
+            if (!roomIdForRow) return;
             const chatRef = ref(database, `data/chats/${roomIdForRow}`);
             get(chatRef).then((snap) => {
                 if (!snap.exists()) return;
@@ -1897,10 +1954,18 @@ initializeFirebase(function (app, auth, database, storage) {
     function getDeterministicChatRoomId(userIdA, userIdB) {
         const a = String(userIdA ?? "").trim();
         const b = String(userIdB ?? "").trim();
+        if (!a || !b) {
+            return null;
+        }
         if (a === b) {
             return `${a}-${b}`;
         }
-        return a < b ? `${a}-${b}` : `${b}-${a}`;
+        const id = a < b ? `${a}-${b}` : `${b}-${a}`;
+        // Legacy bug produced `${""}-${uid}` → "-uid…" which is not a valid 1:1 room id.
+        if (id.startsWith("-")) {
+            return null;
+        }
+        return id;
     }
 
     /** RTDB often returns "arrays" as objects; normalize to string uid list. */
@@ -1928,6 +1993,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
     /** Same pairing as sendMessage mirror path (forward vs reverse room id). */
     function chatMirrorRoomId(chatRoomId, userA, userB) {
+        if (!chatRoomId || !userA || !userB) return null;
         const idA = `${userA}-${userB}`;
         const idB = `${userB}-${userA}`;
         return chatRoomId === idA ? idB : idA;
@@ -2068,6 +2134,29 @@ initializeFirebase(function (app, auth, database, storage) {
             return;
         }
 
+        const loggedInUserId = currentUserId;
+        if (!loggedInUserId || !getDeterministicChatRoomId(loggedInUserId, userId)) {
+            highlightActiveUser("");
+            try {
+                if (typeof ensureChatPageVisible === "function") {
+                    ensureChatPageVisible();
+                }
+            } catch (e) { /* ignore */ }
+            Toastify({
+                text: "Cannot open chat: session or participant is invalid. Please refresh and sign in again.",
+                duration: 5000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#dc3545",
+                stopOnFocus: true,
+            }).showToast();
+            return;
+        }
+
+        // Set in-memory selection before URL/localStorage/DOM so displayUsers() cannot run in between
+        // and treat a stale selectedUserId as "not in sidebar" and call resetChatShellToWelcome().
+        selectedUserId = userId;
+
         // Persist selection for other modules only (not used to restore on navigation/reload).
         try { localStorage.setItem("selectedUserId", String(userId)); } catch (e) { }
         try {
@@ -2084,8 +2173,6 @@ initializeFirebase(function (app, auth, database, storage) {
         if (document.body) document.body.setAttribute("data-chat-panel", "visible");
         if (welcomeContainer) welcomeContainer.style.setProperty("display", "none", "important");
 
-        const loggedInUserId = currentUserId;
-        selectedUserId = userId; // Set the selected user ID
         // Reset media accordion state so fresh data loads for the new contact
         document.querySelectorAll(".media-collapse-content").forEach(colEl => {
             delete colEl.dataset.mediaLoaded;
@@ -2139,7 +2226,7 @@ initializeFirebase(function (app, auth, database, storage) {
         if (_chatInitialLoadTimer) clearTimeout(_chatInitialLoadTimer);
         _showChatSpinner();
 
-        // Generate chatRoomId deterministically (A-B)
+        // Generate chatRoomId deterministically (A-B) — validated before selection above.
         const chatRoomId = getDeterministicChatRoomId(loggedInUserId, selectedUserId);
 
         // Start listening for messages with the selected user
@@ -2449,12 +2536,21 @@ initializeFirebase(function (app, auth, database, storage) {
         fileUrl = null,
         tempKey = null
     ) {
-        if (!currentUser) {
+        toUserId = toUserId || resolveOneOnOneRecipientId();
+        if (!auth?.currentUser?.uid) {
+            Toastify({
+                text: "Chat session is not ready. Wait a moment or refresh the page.",
+                duration: 4000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "#dc3545",
+                stopOnFocus: true,
+            }).showToast();
             return;
         }
 
         // Check if the user is blocked
-        isUserBlocked(currentUser.uid, toUserId).then((isBlocked) => {
+        isUserBlocked(auth.currentUser.uid, toUserId).then((isBlocked) => {
             if (isBlocked) {
                 Toastify({
                     text: "You have blocked this user. Unblock to send a message.",
@@ -2466,7 +2562,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 }).showToast();
                 return; // Exit the function if the user is blocked
             }
-            isUserBlocked(toUserId, currentUser.uid).then(async (isBlocked) => {
+            isUserBlocked(toUserId, auth.currentUser.uid).then(async (isBlocked) => {
                 if (isBlocked) {
                     Toastify({
                         text: "You have blocked by this user. Unable to send a message",
@@ -2479,11 +2575,35 @@ initializeFirebase(function (app, auth, database, storage) {
                     return; // Exit the function if the user is blocked
                 }
 
+                const me = auth.currentUser.uid;
+                if (!me || !toUserId) {
+                    Toastify({
+                        text: "Cannot send: not signed in or no recipient selected.",
+                        duration: 4000,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "#dc3545",
+                        stopOnFocus: true,
+                    }).showToast();
+                    return;
+                }
+
                 // Create a sanitized chatRoomId
-                const chatRoomId = getDeterministicChatRoomId(toUserId, currentUser.uid);
+                const chatRoomId = getDeterministicChatRoomId(toUserId, me);
+                if (!chatRoomId) {
+                    Toastify({
+                        text: "Cannot send: invalid chat participant.",
+                        duration: 4000,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "#dc3545",
+                        stopOnFocus: true,
+                    }).showToast();
+                    return;
+                }
                 const sanitizedChatRoomId = chatRoomId;
-                const chatRoomIdA = `${currentUser.uid}-${toUserId}`;
-                const chatRoomIdB = `${toUserId}-${currentUser.uid}`;
+                const chatRoomIdA = `${me}-${toUserId}`;
+                const chatRoomIdB = `${toUserId}-${me}`;
                 const mirrorChatRoomId = sanitizedChatRoomId === chatRoomIdA ? chatRoomIdB : chatRoomIdA;
                 let message;
                 if (messageType == 6) {
@@ -2497,8 +2617,8 @@ initializeFirebase(function (app, auth, database, storage) {
                         readMsg: false,
                         blocked: false,
                         replyId: "0",
-                        senderId: currentUser.uid,
-                        id: currentUser.uid,
+                        senderId: me,
+                        id: me,
                         recipientId: toUserId,
                         delete: "",
                         tempKey: tempKey,
@@ -2514,8 +2634,8 @@ initializeFirebase(function (app, auth, database, storage) {
                         readMsg: false,
                         blocked: false,
                         replyId: "0",
-                        senderId: currentUser.uid,
-                        id: currentUser.uid,
+                        senderId: me,
+                        id: me,
                         recipientId: toUserId,
                         delete: "",
                         tempKey: tempKey,
@@ -2604,6 +2724,9 @@ initializeFirebase(function (app, auth, database, storage) {
                         ...message, // Spread the original message properties
                         id: newKey, // Add the generated key as the id
                     };
+                    // #region agent log
+                    fetch('http://127.0.0.1:7729/ingest/01ce1245-1aa3-4118-bc1c-e47d7b45fe8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'394d88'},body:JSON.stringify({sessionId:'394d88',runId:'initial',hypothesisId:'H4',location:'firebaseChat.js:sendMessage:set(newMessageRef)',message:'attempting primary message write',data:{me:me,toUserId:toUserId,authUid:auth&&auth.currentUser?auth.currentUser.uid:null,sanitizedChatRoomId:sanitizedChatRoomId,mirrorChatRoomId:mirrorChatRoomId,newKey:newKey,messageType:messageType},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
                     // Only type 6 stores libsodium ciphertext in `body`. Attachments use `attachment`;
                     // calling /decrypt with undefined or a non-ciphertext string causes HTTP 400.
                     let msg = "New message";
@@ -2630,15 +2753,27 @@ initializeFirebase(function (app, auth, database, storage) {
                         msg =
                             labels[messageType] || "Sent an attachment";
                     }
-                    const userMsgRef = ref(
-                        database,
-                        `data/users/${message.id}`
-                    );
+                    // Own profile only (message.id becomes the message push key after persist).
+                    let senderPhoneForNotify = "";
+                    try {
+                        const selfProfileSnap = await get(
+                            ref(database, `data/users/${me}/mobile_number`)
+                        );
+                        if (selfProfileSnap.exists() && selfProfileSnap.val() != null) {
+                            senderPhoneForNotify = String(selfProfileSnap.val());
+                        }
+                    } catch (e) {
+                        /* ignore — do not block send on read/notification helper */
+                    }
 
-                    const snapshot = await get(userMsgRef);
-                    const excludedUsers = snapshot.val() || [];
-
-                    sendCallNotification(message.recipientId, msg, excludedUsers.mobile_number, message.senderId, message.senderId, "")
+                    sendCallNotification(
+                        message.recipientId,
+                        msg,
+                        senderPhoneForNotify,
+                        message.senderId,
+                        message.senderId,
+                        ""
+                    )
 
                     set(newMessageRef, messageWithId)
                         .then(() => {
@@ -2653,6 +2788,9 @@ initializeFirebase(function (app, auth, database, storage) {
                             document.getElementById("message-input").value = "";
                         })
                         .catch((error) => {
+                            // #region agent log
+                            fetch('http://127.0.0.1:7729/ingest/01ce1245-1aa3-4118-bc1c-e47d7b45fe8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'394d88'},body:JSON.stringify({sessionId:'394d88',runId:'initial',hypothesisId:'H5',location:'firebaseChat.js:sendMessage:catch',message:'message write failed',data:{code:error&&error.code?error.code:null,message:error&&error.message?error.message:String(error),me:me,toUserId:toUserId,authUid:auth&&auth.currentUser?auth.currentUser.uid:null,sanitizedChatRoomId:sanitizedChatRoomId},timestamp:Date.now()})}).catch(()=>{});
+                            // #endregion
                             console.error("Error sending message:", error);
                         });
                 }
@@ -3227,11 +3365,180 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
+    let fetchUsersInFlight = false;
+    let fetchUsersRestoreInFlight = null;
+    let fetchUsersPermissionDeniedUntil = 0;
+    let presenceSyncDisabled = false;
+    let fetchUsersLastRestoreAttemptAt = 0;
+    let fetchUsersLastRestoreSuccessAt = 0;
+    const FETCH_USERS_RESTORE_COOLDOWN_MS = 30000;
+
+    function isPermissionDeniedError(err) {
+        if (!err) return false;
+        const code = String(err.code || "").toLowerCase();
+        const msg = String(err.message || "").toLowerCase();
+        return (
+            code.indexOf("permission-denied") >= 0 ||
+            msg.indexOf("permission denied") >= 0
+        );
+    }
+
+    function restoreChatSessionForFetchUsers() {
+        if (fetchUsersRestoreInFlight) return fetchUsersRestoreInFlight;
+        const now = Date.now();
+        if (
+            fetchUsersLastRestoreAttemptAt &&
+            now - fetchUsersLastRestoreAttemptAt < FETCH_USERS_RESTORE_COOLDOWN_MS
+        ) {
+            if (auth && auth.currentUser && auth.currentUser.uid) {
+                return Promise.resolve({ user: auth.currentUser, bypassedCooldown: true });
+            }
+            return Promise.reject(new Error("SESSION_RESTORE_COOLDOWN"));
+        }
+        fetchUsersLastRestoreAttemptAt = now;
+        const baseUrl =
+            typeof window !== "undefined" && window.location && window.location.origin
+                ? window.location.origin
+                : "";
+        fetchUsersRestoreInFlight = fetch(baseUrl + "/api/restore-chat-session", {
+            method: "GET",
+            credentials: "include",
+        })
+            .then(function (r) {
+                return r
+                    .json()
+                    .then(function (data) {
+                        return { ok: r.ok, data: data };
+                    })
+                    .catch(function () {
+                        return { ok: false, data: null };
+                    });
+            })
+            .then(function (result) {
+                if (
+                    result.ok &&
+                    result.data &&
+                    result.data.firebase_custom_token
+                ) {
+                    // Force-clear stale Firebase Auth state before restoring custom token session.
+                    return signOut(auth)
+                        .catch(function () {})
+                        .then(function () {
+                            return signInWithCustomToken(
+                                auth,
+                                result.data.firebase_custom_token
+                            );
+                        })
+                        .then(function (signedInUserCredential) {
+                            fetchUsersLastRestoreSuccessAt = Date.now();
+                            fetchUsersPermissionDeniedUntil =
+                                Date.now() + FETCH_USERS_RESTORE_COOLDOWN_MS;
+                            return signedInUserCredential;
+                        });
+                }
+                throw new Error("SESSION_RESTORE_FAILED");
+            })
+            .catch(function (error) {
+                throw error;
+            })
+            .finally(function () {
+                fetchUsersRestoreInFlight = null;
+            });
+        return fetchUsersRestoreInFlight;
+    }
+
+    function runPresenceSafely(promiseFactory) {
+        if (presenceSyncDisabled) return;
+        try {
+            const p = promiseFactory();
+            if (p && typeof p.catch === "function") {
+                p.catch(function (error) {
+                    if (isPermissionDeniedError(error)) {
+                        presenceSyncDisabled = true;
+                        restoreChatSessionForFetchUsers()
+                            .then(function () {
+                                presenceSyncDisabled = false;
+                            })
+                            .catch(function () {
+                                // keep disabled until next auth/session restore
+                            });
+                        return;
+                    }
+                    console.warn("Presence sync failed:", error);
+                });
+            }
+        } catch (error) {
+            if (!isPermissionDeniedError(error)) {
+                console.warn("Presence sync failed:", error);
+            }
+        }
+    }
+
+    function syncPresenceForUser(uid) {
+        if (!uid) return;
+        if (typeof presenceConnectedUnsub === "function") {
+            try {
+                presenceConnectedUnsub();
+            } catch (e) {
+                /* ignore */
+            }
+            presenceConnectedUnsub = null;
+        }
+        const probeRef = ref(database, `data/users/${uid}`);
+        get(probeRef)
+            .then(function () {
+                const userStatusRef = ref(database, `data/users/${uid}/status`);
+                const typingDisconnectRef = ref(database, `data/users/${uid}/typing`);
+                runPresenceSafely(function () {
+                    return set(userStatusRef, "online");
+                });
+                runPresenceSafely(function () {
+                    return onDisconnect(userStatusRef).set("offline");
+                });
+                runPresenceSafely(function () {
+                    return onDisconnect(typingDisconnectRef).set("");
+                });
+                const connectedRef = ref(database, ".info/connected");
+                presenceConnectedUnsub = onValue(connectedRef, (snapshot) => {
+                    if (snapshot.val() === true) {
+                        runPresenceSafely(function () {
+                            return set(userStatusRef, "online");
+                        });
+                    }
+                });
+            })
+            .catch(function (error) {
+                if (!isPermissionDeniedError(error)) {
+                    console.warn("Presence probe failed:", error);
+                    return;
+                }
+                presenceSyncDisabled = true;
+                restoreChatSessionForFetchUsers()
+                    .then(function () {
+                        presenceSyncDisabled = false;
+                        setTimeout(function () {
+                            syncPresenceForUser(uid);
+                        }, 700);
+                    })
+                    .catch(function () {
+                        // Keep silent and disabled while session is not active.
+                    });
+            });
+    }
+
+    function ensureContactsAccessForCurrentUser(uid) {
+        if (!uid) return Promise.reject(new Error("Missing Firebase user."));
+        return get(ref(database, `data/contacts/${uid}`)).then(() => uid);
+    }
+
     function fetchUsers() {
+        if (fetchUsersInFlight) return;
+        if (Date.now() < fetchUsersPermissionDeniedUntil) return;
         const loggedInUserId = auth.currentUser?.uid;
         if (!loggedInUserId) {
             return;
         }
+        fetchUsersInFlight = true;
         fillUsersMapFromFirebase(loggedInUserId)
             .then(() => enrichChatListUsersMapFromLaravel())
             .then(() => {
@@ -3247,7 +3554,24 @@ initializeFirebase(function (app, auth, database, storage) {
                 displayUsers(usersMap);
             })
             .catch((error) => {
-                console.error("Error fetching users: ", error);
+                if (!isPermissionDeniedError(error)) {
+                    console.error("Error fetching users: ", error);
+                    return;
+                }
+                fetchUsersPermissionDeniedUntil = Date.now() + 2000;
+                restoreChatSessionForFetchUsers()
+                    .then(function () {
+                        setTimeout(function () {
+                            fetchUsersPermissionDeniedUntil = 0;
+                            fetchUsers();
+                        }, 700);
+                    })
+                    .catch(function () {
+                        // Keep quiet; repeated permission errors are expected until user reauthenticates.
+                    });
+            })
+            .finally(() => {
+                fetchUsersInFlight = false;
             });
     }
 
@@ -3323,6 +3647,17 @@ initializeFirebase(function (app, auth, database, storage) {
             return;
         }
         const viewerUid = currentUser?.uid || currentUserId;
+        const myUid =
+            (typeof auth !== "undefined" &&
+                auth &&
+                auth.currentUser &&
+                auth.currentUser.uid) ||
+            currentUser?.uid ||
+            currentUserId;
+        if (!myUid) {
+            console.warn("displayMessage: no signed-in uid");
+            return;
+        }
         if (uidIncludedInFirebaseList(message.clearedFor, viewerUid)) {
             return;
         }
@@ -3356,12 +3691,22 @@ initializeFirebase(function (app, auth, database, storage) {
                 : "6";
         }
 
-        const userId = message.senderId;
+        const userId =
+            message.senderId != null ? String(message.senderId).trim() : "";
+        if (!userId) {
+            console.warn("displayMessage: missing senderId", message);
+            return;
+        }
         const contactsRef = ref(
             database,
-            `data/contacts/${currentUser.uid}/${userId}`
+            `data/contacts/${myUid}/${userId}`
         );
         const userRef = ref(database, `data/users/${userId}`); // Use message.from to get the correct user
+
+        const emptySnap = {
+            exists: () => false,
+            val: () => null,
+        };
 
         let senderName = ""; // Initialize with an empty string
         let profileImage = resolveCallProfileImageUrl("");
@@ -3369,8 +3714,9 @@ initializeFirebase(function (app, auth, database, storage) {
         let contactData = null;
         // First, check if the sender is in the current user's contacts
         get(contactsRef)
+            .catch(() => null)
             .then((contactsSnapshot) => {
-                if (contactsSnapshot.exists()) {
+                if (contactsSnapshot && contactsSnapshot.exists()) {
                     contactData = contactsSnapshot.val();
                     const contactFirstName =
                         contactData.firstName || contactData.mobile_number;
@@ -3380,7 +3726,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
 
                 // Regardless of contact status, fetch the user data for profile image and fallback name
-                return get(userRef);
+                return get(userRef).catch(() => emptySnap);
             })
             .then(async (userSnapshot) => {
                 const userData = userSnapshot.exists()
@@ -3388,7 +3734,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     : null;
                 let raw = rawAvatarFromFirebaseAndContact(userData, contactData);
                 if (
-                    message.senderId === currentUser.uid &&
+                    message.senderId === myUid &&
                     typeof window !== "undefined" &&
                     window.LARAVEL_USER
                 ) {
@@ -3558,61 +3904,46 @@ initializeFirebase(function (app, auth, database, storage) {
                                 decodedReply
                             );
                         } else {
-                        // Generate both possible chat room IDs
-                        const chatRoomId1 = `${currentUser.uid}-${selectedUserId}`; // A-B
-                        const chatRoomId2 = `${selectedUserId}-${currentUser.uid}`; // B-A
+                        const peer = selectedUserId;
+                        const canonical =
+                            peer && myUid
+                                ? getDeterministicChatRoomId(myUid, peer)
+                                : null;
+                        const mirror =
+                            canonical && peer && myUid
+                                ? chatMirrorRoomId(canonical, myUid, peer)
+                                : null;
 
-                        let originalMessageRef = null;
-                        let messageSnapshot = null;
-
-                        // Try fetching from the first possible ID
-                        originalMessageRef = ref(
-                            database,
-                            `data/chats/${chatRoomId1}/${message.replyId}`
-                        );
-                        messageSnapshot = await get(originalMessageRef).catch(
-                            () => null
-                        );
-
-                        if (!messageSnapshot?.exists()) {
-                            // If not found, try the reverse ID
-                            originalMessageRef = ref(
+                        let snapshot = null;
+                        if (
+                            canonical &&
+                            message.replyId &&
+                            String(message.replyId) !== "0"
+                        ) {
+                            const r1 = ref(
                                 database,
-                                `data/chats/${chatRoomId2}/${message.replyId}`
+                                `data/chats/${canonical}/${message.replyId}`
                             );
-                            messageSnapshot = await get(
-                                originalMessageRef
-                            ).catch(() => null);
+                            snapshot = await get(r1).catch(() => null);
+                            if (!snapshot?.exists() && mirror) {
+                                const r2 = ref(
+                                    database,
+                                    `data/chats/${mirror}/${message.replyId}`
+                                );
+                                snapshot = await get(r2).catch(() => null);
+                            }
                         }
 
-                        if (messageSnapshot?.exists()) {
-                            console.log(
-                                "Message found in:",
-                                originalMessageRef.path
-                            );
-                            // originalMessageRef now contains the correct reference
-                            // messageSnapshot contains the data
-                        } else {
-                            console.error(
-                                "Message not found in either chat room ID!"
-                            );
-                            originalMessageRef = null; // or handle error case
-                        }
-
-                        // 2. Fetch the original message from the database
-                        const snapshot = await get(originalMessageRef);
-
-                        let contentToDecrypt;
-
-                        // 3. Check if the message exists and get its encrypted body
-                        if (snapshot.exists()) {
+                        let contentToDecrypt = "[Original message not found]";
+                        if (snapshot && snapshot.exists()) {
                             const originalMessageData = snapshot.val();
-                            contentToDecrypt = originalMessageData.body; // Use the body of the fetched message
-                        } else {
-                            contentToDecrypt = "[Original message not found]";
+                            contentToDecrypt =
+                                originalMessageData &&
+                                originalMessageData.body != null
+                                    ? originalMessageData.body
+                                    : "[Original message not found]";
                         }
 
-                        // 4. Decrypt the fetched message body
                         const originalReplyMessage =
                             await decryptlibsodiumMessage(contentToDecrypt);
                         const decryptedReplyContent =
@@ -3621,10 +3952,12 @@ initializeFirebase(function (app, auth, database, storage) {
                         const sanitizedReplyContent =
                             decryptedReplyContent.trim();
 
-                        // 5. Use the original message's type for correct rendering
-                        const originalMessageType = snapshot.exists()
-                            ? snapshot.val().attachmentType.toString()
-                            : "6";
+                        const originalMessageType =
+                            snapshot && snapshot.exists() && snapshot.val()
+                                ? String(
+                                      snapshot.val().attachmentType || "6"
+                                  )
+                                : "6";
 
                         replyContent = renderReplyContent(
                             originalMessageType,
@@ -3644,7 +3977,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 const formattedTime = formatTimestamp(message.timestamp);
 
                 let statusIcon = "";
-                if (message.senderId === currentUserId) {
+                if (message.senderId === myUid) {
                     if (message.isOptimistic) {
                         // Use a clock icon for the "sending" state.
                         // Make sure your icon library (e.g., Tabler Icons) has 'ti-clock'.
@@ -3666,7 +3999,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 );
                 const reactionPickerMarkup = buildReactionPickerMarkup();
 
-                if (message.senderId === currentUser.uid) {
+                if (message.senderId === myUid) {
                     messageElement.classList.add("chats-right"); // Align message to the right
                     messageElement.innerHTML = `
                         <div class="chat-content">
@@ -4818,7 +5151,15 @@ initializeFirebase(function (app, auth, database, storage) {
         // produced duplicate bubbles after refresh. Listen only on the canonical room; still merge flags
         // from the mirror via get() below. (Legacy data only under the mirror path would need a one-off migration.)
         const canonicalRoomId = getDeterministicChatRoomId(fromUserId, toUserId);
+        if (!canonicalRoomId) {
+            console.warn("listenForMessages: invalid peer ids", fromUserId, toUserId);
+            return;
+        }
         const mirrorRoomId = chatMirrorRoomId(canonicalRoomId, fromUserId, toUserId);
+        if (!mirrorRoomId) {
+            console.warn("listenForMessages: could not resolve mirror room");
+            return;
+        }
 
         const messageRef = ref(database, `data/chats/${canonicalRoomId}`);
 
@@ -5087,7 +5428,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
     if (messageInput) {
         messageInput.addEventListener("input", () => {
-            if (!selectedUserId || !currentUser) return;
+            if (!selectedUserId || !auth?.currentUser?.uid) return;
             if (messageInput.value.trim().length > 0) {
                 pulseChatTyping(selectedUserId);
             } else {
@@ -5421,6 +5762,23 @@ initializeFirebase(function (app, auth, database, storage) {
                 return;
             }
 
+            const resolvedRecipientId = resolveOneOnOneRecipientId();
+            if (!resolvedRecipientId) {
+                Toastify({
+                    text: "Select a contact before sending a message.",
+                    duration: 4000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ff3d00",
+                    stopOnFocus: true,
+                }).showToast();
+                sendButton.disabled = false;
+                return;
+            }
+            if (String(selectedUserId || "") !== String(resolvedRecipientId)) {
+                selectUser(String(resolvedRecipientId));
+            }
+
             if (messageText) {
                 // 1. Generate a unique temporary key for the optimistic message
                 const tempKey = `temp_${Date.now()}_${Math.random()}`;
@@ -5460,7 +5818,13 @@ initializeFirebase(function (app, auth, database, storage) {
                     const ciphertext = await encryptMessage(messageText);
                     if (ciphertext) {
                         // Pass the tempKey to sendMessage
-                        sendMessage(selectedUserId, ciphertext, 6, null, tempKey);
+                        sendMessage(
+                            resolvedRecipientId,
+                            ciphertext,
+                            6,
+                            null,
+                            tempKey
+                        );
                     } else {
                         console.error("Failed to encrypt message.");
                         // Optional: Find the optimistic message and show a "failed" icon
@@ -5488,7 +5852,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         case "video": messageType = 1; break;
                         default: messageType = 5; break;
                     }
-                    sendMessage(selectedUserId, attachment, messageType);
+                    sendMessage(resolvedRecipientId, attachment, messageType);
                     clearChatTyping();
 
                     // Clear file preview
@@ -6251,7 +6615,9 @@ initializeFirebase(function (app, auth, database, storage) {
             return Promise.resolve();
         }
         const canonical = getDeterministicChatRoomId(me, peerUserId);
+        if (!canonical) return Promise.resolve();
         const mirror = chatMirrorRoomId(canonical, me, peerUserId);
+        if (!mirror) return Promise.resolve();
 
         function applyForRoom(roomId) {
             const messagesRef = ref(database, `data/chats/${roomId}`);
@@ -6425,7 +6791,9 @@ initializeFirebase(function (app, auth, database, storage) {
         if (!peerUserId || !currentUser?.uid) return Promise.resolve();
         const me = currentUser.uid;
         const canonical = getDeterministicChatRoomId(me, peerUserId);
+        if (!canonical) return Promise.resolve();
         const mirror = chatMirrorRoomId(canonical, me, peerUserId);
+        if (!mirror) return Promise.resolve();
 
         function deleteStorageFilesFromMessages(roomId) {
             const messagesRef = ref(database, `data/chats/${roomId}`);
@@ -6461,7 +6829,7 @@ initializeFirebase(function (app, auth, database, storage) {
             updates[`data/chats/${mirror}`] = null;
             updates[`data/users/${me}/favourite_messages/${peerUserId}`] = null;
             updates[`data/users/${me}/marked_unread/${peerUserId}`] = null;
-            return update(ref(database), updates);
+            return updateUnderDataStripDataPrefix(updates);
         })
         .then(() => {
             const listCleanups = [];
@@ -6714,6 +7082,10 @@ initializeFirebase(function (app, auth, database, storage) {
                 currentUser.uid,
                 selectedUserId
             );
+            if (!canonicalRoomId) {
+                if (loadingEl) loadingEl.classList.add("d-none");
+                return;
+            }
             let messages = [];
             try {
                 const snap = await get(
@@ -9703,6 +10075,7 @@ initializeFirebase(function (app, auth, database, storage) {
             currentUser.uid,
             selectedUserId
         );
+        if (!chatRoomId) return;
         const { refPri, refMir } = getChatMessageRefsBothPaths(
             messageKey,
             chatRoomId,
@@ -10320,8 +10693,25 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
     // Example of calling displayContactsInModal inside your modal
-    const openNewChatModal = async () => {
-        if (!currentUser || !currentUser.uid) {
+    const openNewChatModal = async (retriedAfterRestore = false) => {
+        const activeUser =
+            (auth && auth.currentUser && auth.currentUser.uid
+                ? auth.currentUser
+                : currentUser) || null;
+        if (!activeUser || !activeUser.uid) {
+            if (!retriedAfterRestore) {
+                restoreChatSessionForFetchUsers()
+                    .then(function () {
+                        return openNewChatModal(true);
+                    })
+                    .catch(function () {
+                        const mainContainer = document.getElementById("main-container");
+                        if (mainContainer) {
+                            mainContainer.innerHTML =
+                                '<p class="text-warning text-center py-3">Session loading. Please open New Chat again.</p>';
+                        }
+                    });
+            }
             console.warn("New Chat: user not signed in yet.");
             return;
         }
@@ -10333,7 +10723,7 @@ initializeFirebase(function (app, auth, database, storage) {
             // Reference to the contacts of the current user
             const contactsRef = ref(
                 database,
-                "data/contacts/" + currentUser.uid
+                "data/contacts/" + activeUser.uid
             );
             const contactsSnapshot = await get(contactsRef);
 
@@ -10342,7 +10732,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 const contactIds = Object.keys(contacts);
                 /** Include pending_* / contact-only peers (same as sidebar), not only IDs present in data/users. */
                 const validContacts = contactIds
-                    .filter((id) => id && id !== currentUser.uid)
+                    .filter((id) => id && id !== activeUser.uid)
                     .reduce((result, contactId) => {
                         result[contactId] = contacts[contactId];
                         return result;
@@ -10363,6 +10753,16 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (mainContainer) mainContainer.innerHTML = "<p class=\"text-muted text-center py-3\">No contacts yet. Use Invite Others to add contacts.</p>";
             }
         } catch (error) {
+            if (isPermissionDeniedError(error) && !retriedAfterRestore) {
+                restoreChatSessionForFetchUsers()
+                    .then(function () {
+                        return openNewChatModal(true);
+                    })
+                    .catch(function (restoreError) {
+                        if (mainContainer) mainContainer.innerHTML = "<p class=\"text-warning text-center py-3\">Session expired. Please sign out and sign in again.</p>";
+                    });
+                return;
+            }
             console.error("Error fetching contacts or users:", error);
             if (mainContainer) mainContainer.innerHTML = "<p class=\"text-danger text-center py-3\">Failed to load contacts.</p>";
         }
@@ -10708,13 +11108,11 @@ initializeFirebase(function (app, auth, database, storage) {
             });
 
             const incomingCallString = `user_type=onetoone&call_type=audio&channelname=${channelName}&caller=${callerMobile}&receiver=${receiverMobile}&group=&currentuser=${callerMobile}`;
-            await update(child(usersRef, callerId), {
-                incomingcall: incomingCallString,
-                call_status: false
-            });
-            await update(child(usersRef, receiverId), {
-                incomingcall: incomingCallString,
-                call_status: false
+            await updateUnderData({
+                [`users/${callerId}/incomingcall`]: incomingCallString,
+                [`users/${callerId}/call_status`]: false,
+                [`users/${receiverId}/incomingcall`]: incomingCallString,
+                [`users/${receiverId}/call_status`]: false,
             });
             sendCallNotification(receiverId, callerMobile, "Audio call", channelName, callerId, callerName);
 
@@ -10778,7 +11176,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 duration: finalDuration,
             };
 
-            await update(ref(database), updates);
+            await updateUnderDataStripDataPrefix(updates);
 
 
             // 2. Immediately clean up local state (don't wait for the listener)
@@ -10791,7 +11189,7 @@ initializeFirebase(function (app, auth, database, storage) {
             userUpdates[`data/users/${otherUserId}/incomingcall`] = "";
             userUpdates[`data/users/${otherUserId}/call_status`] = true;
 
-            await update(ref(database), userUpdates);
+            await updateUnderDataStripDataPrefix(userUpdates);
         };
     }
 
@@ -10829,7 +11227,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 duration: finalDuration,
             };
 
-            await update(ref(database), updates);
+            await updateUnderDataStripDataPrefix(updates);
 
 
             // 2. Immediately clean up local state (don't wait for the listener)
@@ -10842,7 +11240,7 @@ initializeFirebase(function (app, auth, database, storage) {
             userUpdates[`data/users/${otherUserId}/incomingcall`] = "";
             userUpdates[`data/users/${otherUserId}/call_status`] = true;
 
-            await update(ref(database), userUpdates);
+            await updateUnderDataStripDataPrefix(userUpdates);
         };
     }
 
@@ -11026,9 +11424,9 @@ initializeFirebase(function (app, auth, database, storage) {
         // Clear any pending call status in Firebase
         const currentUser = auth.currentUser;
         if (currentUser) {
-            update(ref(database, `data/users/${currentUser.uid}`), {
-                incomingcall: "",
-                call_status: true
+            updateUnderData({
+                [`users/${currentUser.uid}/incomingcall`]: "",
+                [`users/${currentUser.uid}/call_status`]: true,
             }).catch(console.error);
         }
     }
@@ -11163,7 +11561,9 @@ initializeFirebase(function (app, auth, database, storage) {
                 })
             });
         } catch (error) {
-            console.error('Error sending notification:', error);
+            if (!isPermissionDeniedError(error)) {
+                console.error("Error sending notification:", error);
+            }
         }
     }
 
@@ -11393,7 +11793,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 userId: receiverId, // The owner of this record is the receiver
             };
 
-            await update(ref(database), updates);
+            await updateUnderDataStripDataPrefix(updates);
 
             // Send notification
             sendCallNotification(receiverId, callerData.mobile_number, "Video call", channelName, callerId, callerName);
@@ -11423,7 +11823,7 @@ initializeFirebase(function (app, auth, database, storage) {
             updates[`data/calls/${currentUser.uid}/${currentVideoCallId}/duration`] = "00:00:00";
             updates[`data/calls/${otherUserId}/${currentVideoCallId}/duration`] = "00:00:00";
 
-            await update(ref(database), updates);
+            await updateUnderDataStripDataPrefix(updates);
         };
     }
 
@@ -11462,7 +11862,7 @@ initializeFirebase(function (app, auth, database, storage) {
         updates[`data/users/${otherUserId}/incomingcall`] = "";
         updates[`data/users/${otherUserId}/call_status`] = true;
 
-        await update(ref(database), updates);
+        await updateUnderDataStripDataPrefix(updates);
 
         // The `onValue` listener on both clients will see the change and trigger cleanUpVideoLocalState().
         // We can call it here immediately for the current user for faster UI response.
@@ -12142,7 +12542,24 @@ initializeFirebase(function (app, auth, database, storage) {
             );
         } else {
             const urlPeerTrim = urlPeer && String(urlPeer).trim();
-            hasSelectedUser = !!(urlPeerTrim || selectedUserId);
+            let lsPeerTrim = "";
+            if (path === "/chat" || path === "/index") {
+                try {
+                    const rawLs = localStorage.getItem("selectedUserId");
+                    if (rawLs && String(rawLs).trim()) {
+                        lsPeerTrim = String(rawLs).trim();
+                    }
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+            // SPA navigation clears in-memory selectedUserId and may push /chat without ?user=;
+            // keep the message panel if localStorage still reflects an open 1:1 thread.
+            hasSelectedUser = !!(
+                urlPeerTrim ||
+                selectedUserId ||
+                lsPeerTrim
+            );
         }
         if (spaContent) {
             spaContent.style.setProperty("display", "flex", "important");
@@ -12302,6 +12719,14 @@ initializeFirebase(function (app, auth, database, storage) {
         } else {
             const urlUser = gUrl && String(gUrl).trim();
             if (urlUser || selectedUserId) return;
+            if (path === "/chat" || path === "/index") {
+                try {
+                    const ls = localStorage.getItem("selectedUserId");
+                    if (ls && String(ls).trim()) return;
+                } catch (e) {
+                    /* ignore */
+                }
+            }
         }
         const welcomeEl = document.getElementById("welcome-container");
         if (!welcomeEl) return;

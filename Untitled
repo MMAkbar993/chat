@@ -1,0 +1,33 @@
+<?php
+require __DIR__.'/vendor/autoload.php';
+$app = require __DIR__.'/bootstrap/app.php';
+$app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+
+try {
+    $pdo = DB::connection()->getPdo();
+    echo "DB Connected: " . DB::connection()->getDatabaseName() . "\n";
+    
+    $tables = DB::select('SHOW TABLES');
+    echo "Tables:\n";
+    foreach($tables as $t) {
+        $t = (array)$t;
+        echo " - " . reset($t) . "\n";
+    }
+    
+    $count = DB::table('users')->count();
+    echo "User count: $count\n";
+    
+    if($count > 0) {
+        $cols = DB::select('SHOW COLUMNS FROM users');
+        echo "User columns: ";
+        foreach($cols as $c) echo $c->Field . ", ";
+        echo "\n";
+        
+        $users = DB::table('users')->select('id','email','firebase_uid')->get();
+        foreach($users as $u) {
+            echo "ID:{$u->id} | {$u->email} | firebase_uid:" . ($u->firebase_uid ?? 'NULL') . "\n";
+        }
+    }
+} catch(Exception $e) {
+    echo "ERROR: " . $e->getMessage() . "\n";
+}

@@ -12,23 +12,34 @@ use Illuminate\Support\Facades\Schema;
 class FirebaseAdminController extends Controller
 {
     protected $auth;
+    protected $firebaseAuthReady = false;
+    protected $firebaseInitError = null;
 
     /** @var string|null Set when credentials project_id does not match FIREBASE_PROJECT_ID (causes 400 on signInWithCustomToken) */
     protected $credentialsProjectMismatch = null;
 
     public function __construct()
     {
-        $credentialsPath = storage_path('firebase/firebase_credentials.json');
-        $expectedProjectId = config('firebase.frontend.project_id') ?? env('FIREBASE_PROJECT_ID');
-        if ($expectedProjectId && is_file($credentialsPath)) {
-            $credentials = json_decode(File::get($credentialsPath), true);
-            $credProjectId = $credentials['project_id'] ?? null;
-            if ($credProjectId !== null && $credProjectId !== $expectedProjectId) {
-                $this->credentialsProjectMismatch = "Credentials are for project \"{$credProjectId}\" but .env FIREBASE_PROJECT_ID is \"{$expectedProjectId}\". Replace storage/firebase/firebase_credentials.json with the service account key for {$expectedProjectId} (Firebase Console → Project Settings → Service accounts).";
+        try {
+            $credentialsPath = storage_path('firebase/firebase_credentials.json');
+            $expectedProjectId = config('firebase.frontend.project_id') ?? env('FIREBASE_PROJECT_ID');
+            if ($expectedProjectId && is_file($credentialsPath)) {
+                $credentials = json_decode(File::get($credentialsPath), true);
+                $credProjectId = $credentials['project_id'] ?? null;
+                if ($credProjectId !== null && $credProjectId !== $expectedProjectId) {
+                    $this->credentialsProjectMismatch = "Credentials are for project \"{$credProjectId}\" but .env FIREBASE_PROJECT_ID is \"{$expectedProjectId}\". Replace storage/firebase/firebase_credentials.json with the service account key for {$expectedProjectId} (Firebase Console → Project Settings → Service accounts).";
+                }
             }
+            $firebase = (new Factory)->withServiceAccount($credentialsPath);
+            $this->auth = $firebase->createAuth();
+            $this->firebaseAuthReady = true;
+        } catch (\Throwable $e) {
+            $this->firebaseAuthReady = false;
+            $this->firebaseInitError = $e->getMessage();
+            \Log::warning('Firebase auth unavailable in FirebaseAdminController', [
+                'message' => $e->getMessage(),
+            ]);
         }
-        $firebase = (new Factory)->withServiceAccount($credentialsPath);
-        $this->auth = $firebase->createAuth();
     }
 
     public function createUser(Request $request)
@@ -146,6 +157,13 @@ class FirebaseAdminController extends Controller
      */
     public function restoreChatSession(Request $request)
     {
+        if (!$this->firebaseAuthReady) {
+            return response()->json([
+                'error' => 'firebase_unavailable',
+                'message' => 'Firebase credentials are missing or unreadable. Set storage/firebase/firebase_credentials.json and retry.',
+                'details' => $this->firebaseInitError,
+            ], 503);
+        }
         if ($this->credentialsProjectMismatch !== null) {
             return response()->json([
                 'error' => 'firebase_project_mismatch',

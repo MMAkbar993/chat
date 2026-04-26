@@ -682,6 +682,8 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
                       var modal = bootstrap.Modal.getInstance(modalEl);
                       if (modal) modal.hide();
                   }
+                  // Refresh the contacts list so the new contact appears
+                  window.dispatchEvent(new CustomEvent('contacts-changed'));
               } else {
                   showToast(result.data.message || 'Could not add contact.', true);
               }

@@ -22,6 +22,7 @@ use App\Services\EncryptionService;
 use App\Services\FirebaseSyncService;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\WelcomeEmail;
+use Spatie\Permission\Models\Role;
 
 class RegisteredUserController extends Controller
 {
@@ -289,6 +290,7 @@ class RegisteredUserController extends Controller
             'subscription_status' => 'pending_payment',
         ]);
 
+        Role::firstOrCreate(['name' => 'user', 'guard_name' => 'web']);
         $user->assignRole('user');
 
         // Create Firebase user and set firebase_uid so chat session works (MySQL + Firebase in sync)

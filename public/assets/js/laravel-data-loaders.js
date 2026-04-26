@@ -328,6 +328,8 @@
             html += '<div class="user-details"><h6 class="user-title mb-0">' + escapeHtml(item.name) + '</h6></div></div>';
         });
         mainContainer.innerHTML = html;
+        mainContainer.setAttribute('data-contacts-source', 'laravel');
+        mainContainer.setAttribute('data-contacts-count', String(list.length));
         mainContainer.querySelectorAll('.contact-user[data-user-id]').forEach(function (el) {
             el.addEventListener('click', function () {
                 var uid = this.getAttribute('data-user-id');
@@ -629,6 +631,14 @@
         var pathname = (e && e.detail && e.detail.pathname) ? e.detail.pathname : getPathname(window.location.href);
         runForPathname(pathname);
     });
+
+    // Force-reload contacts when a contact is added/changed from any code path
+    function forceReloadContacts() {
+        lastRunPath = ''; // Reset so runForPathname doesn't skip
+        loadContacts();
+    }
+    window.__reloadLaravelContacts = forceReloadContacts;
+    window.addEventListener('contacts-changed', forceReloadContacts);
 
     // Contact Detail Chat button: delegated handler so it works even when modal was opened without list-click binding
     document.addEventListener('click', function (e) {

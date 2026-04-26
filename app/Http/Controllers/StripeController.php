@@ -24,6 +24,7 @@ class StripeController extends Controller
     public function checkout(Request $request)
     {
         $user = Auth::user() ?? User::find($request->session()->get('registered_user_id'));
+
         if (!$user) {
             if ($request->wantsJson()) {
                 return response()->json(['message' => 'Please register first.'], 422);

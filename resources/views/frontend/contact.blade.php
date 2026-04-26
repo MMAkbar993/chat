@@ -32,12 +32,12 @@
                 <div class="mb-3">
                     <label class="form-label">{{ __('Search by Username or Name') }}</label>
                     <div class="input-group">
-                        <input type="text" id="add-contact-username-search" class="form-control" placeholder="{{ __('Type at least 4 characters (exact spelling)...') }}" minlength="4">
+                        <input type="text" id="add-contact-username-search" class="form-control" placeholder="{{ __('Type at least 4 characters...') }}" minlength="4">
                         <span class="input-group-text"><i class="ti ti-search"></i></span>
                     </div>
                     <div id="add-contact-search-results" class="mt-2" style="display:none; max-height:150px; overflow-y:auto;"></div>
                 </div>
-                <p class="text-muted small mb-0">{{ __('Enter at least 4 characters with exact spelling to find people by name or username.') }}</p>
+                <p class="text-muted small mb-0">{{ __('Enter at least 4 characters to find people by name, username, or email.') }}</p>
             </div>
         </div>
     </div>

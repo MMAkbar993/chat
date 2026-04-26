@@ -119,6 +119,16 @@ Route::post('api/users/contact-avatars', [UserSearchController::class, 'contactA
     ->name('api.users.contact-avatars')
     ->middleware('auth');
 
+// Local/dev fallback for profile avatars when public/storage symlink is missing.
+Route::get('storage/image/profile/{filename}', function ($filename) {
+    $safeFilename = basename((string) $filename);
+    $path = storage_path('app/public/image/profile/' . $safeFilename);
+    if (!\Illuminate\Support\Facades\File::exists($path)) {
+        abort(404);
+    }
+    return response()->file($path);
+})->where('filename', '.*');
+
 // Registration flow status polling (used by the signup page AJAX flow)
 Route::get('api/registration-status', function (\Illuminate\Http\Request $request) {
     $user = \Illuminate\Support\Facades\Auth::user()
