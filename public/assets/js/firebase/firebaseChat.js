@@ -5,7 +5,6 @@ import {
     onAuthStateChanged,
     sendPasswordResetEmail,
     signInWithCustomToken,
-    signOut,
     setPersistence,
     browserLocalPersistence,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
@@ -48,9 +47,9 @@ initializeFirebase(function (app, auth, database, storage) {
 
     /** `database.rules.json` sets .write:false on `/`; never use update(ref(database), …). */
     function updateUnderData(relativePaths) {
-        // #region agent log
-        fetch('http://127.0.0.1:7729/ingest/01ce1245-1aa3-4118-bc1c-e47d7b45fe8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'394d88'},body:JSON.stringify({sessionId:'394d88',runId:'initial',hypothesisId:'H1',location:'firebaseChat.js:updateUnderData',message:'updateUnderData called',data:{authUid:auth&&auth.currentUser?auth.currentUser.uid:null,keyCount:relativePaths?Object.keys(relativePaths).length:0,sampleKeys:relativePaths?Object.keys(relativePaths).slice(0,3):[]},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
+        if (!auth || !auth.currentUser || !auth.currentUser.uid) {
+            return Promise.reject(new Error("AUTH_NOT_READY"));
+        }
         return update(ref(database, "data"), relativePaths);
     }
     function updateUnderDataStripDataPrefix(keyedWithDataPrefix) {
@@ -59,9 +58,9 @@ initializeFirebase(function (app, auth, database, storage) {
             const rk = k.startsWith("data/") ? k.slice(5) : k;
             rel[rk] = keyedWithDataPrefix[k];
         });
-        // #region agent log
-        fetch('http://127.0.0.1:7729/ingest/01ce1245-1aa3-4118-bc1c-e47d7b45fe8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'394d88'},body:JSON.stringify({sessionId:'394d88',runId:'initial',hypothesisId:'H2',location:'firebaseChat.js:updateUnderDataStripDataPrefix',message:'updateUnderDataStripDataPrefix called',data:{authUid:auth&&auth.currentUser?auth.currentUser.uid:null,keyCount:Object.keys(rel).length,sampleKeys:Object.keys(rel).slice(0,3)},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
+        if (!auth || !auth.currentUser || !auth.currentUser.uid) {
+            return Promise.reject(new Error("AUTH_NOT_READY"));
+        }
         return update(ref(database, "data"), rel);
     }
 
@@ -213,9 +212,6 @@ initializeFirebase(function (app, auth, database, storage) {
         .then(() => {
             // Auth state listener
             onAuthStateChanged(auth, (user) => {
-                // #region agent log
-                fetch('http://127.0.0.1:7729/ingest/01ce1245-1aa3-4118-bc1c-e47d7b45fe8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'394d88'},body:JSON.stringify({sessionId:'394d88',runId:'initial',hypothesisId:'H3',location:'firebaseChat.js:onAuthStateChanged',message:'auth state changed',data:{userPresent:!!user,userUid:user?user.uid:null,currentAuthUid:auth&&auth.currentUser?auth.currentUser.uid:null,path:window.location&&window.location.pathname?window.location.pathname:''},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 if (user) {
                     currentUser = user;
                     currentUserId = user.uid;
@@ -2724,9 +2720,6 @@ initializeFirebase(function (app, auth, database, storage) {
                         ...message, // Spread the original message properties
                         id: newKey, // Add the generated key as the id
                     };
-                    // #region agent log
-                    fetch('http://127.0.0.1:7729/ingest/01ce1245-1aa3-4118-bc1c-e47d7b45fe8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'394d88'},body:JSON.stringify({sessionId:'394d88',runId:'initial',hypothesisId:'H4',location:'firebaseChat.js:sendMessage:set(newMessageRef)',message:'attempting primary message write',data:{me:me,toUserId:toUserId,authUid:auth&&auth.currentUser?auth.currentUser.uid:null,sanitizedChatRoomId:sanitizedChatRoomId,mirrorChatRoomId:mirrorChatRoomId,newKey:newKey,messageType:messageType},timestamp:Date.now()})}).catch(()=>{});
-                    // #endregion
                     // Only type 6 stores libsodium ciphertext in `body`. Attachments use `attachment`;
                     // calling /decrypt with undefined or a non-ciphertext string causes HTTP 400.
                     let msg = "New message";
@@ -2788,9 +2781,6 @@ initializeFirebase(function (app, auth, database, storage) {
                             document.getElementById("message-input").value = "";
                         })
                         .catch((error) => {
-                            // #region agent log
-                            fetch('http://127.0.0.1:7729/ingest/01ce1245-1aa3-4118-bc1c-e47d7b45fe8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'394d88'},body:JSON.stringify({sessionId:'394d88',runId:'initial',hypothesisId:'H5',location:'firebaseChat.js:sendMessage:catch',message:'message write failed',data:{code:error&&error.code?error.code:null,message:error&&error.message?error.message:String(error),me:me,toUserId:toUserId,authUid:auth&&auth.currentUser?auth.currentUser.uid:null,sanitizedChatRoomId:sanitizedChatRoomId},timestamp:Date.now()})}).catch(()=>{});
-                            // #endregion
                             console.error("Error sending message:", error);
                         });
                 }
@@ -3420,15 +3410,11 @@ initializeFirebase(function (app, auth, database, storage) {
                     result.data &&
                     result.data.firebase_custom_token
                 ) {
-                    // Force-clear stale Firebase Auth state before restoring custom token session.
-                    return signOut(auth)
-                        .catch(function () {})
-                        .then(function () {
-                            return signInWithCustomToken(
+                    // Avoid forced signOut() here; it creates auth=null gaps and RTDB permission races.
+                    return signInWithCustomToken(
                                 auth,
                                 result.data.firebase_custom_token
-                            );
-                        })
+                            )
                         .then(function (signedInUserCredential) {
                             fetchUsersLastRestoreSuccessAt = Date.now();
                             fetchUsersPermissionDeniedUntil =
@@ -3476,6 +3462,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
     function syncPresenceForUser(uid) {
         if (!uid) return;
+        if (!auth || !auth.currentUser || auth.currentUser.uid !== uid) return;
         if (typeof presenceConnectedUnsub === "function") {
             try {
                 presenceConnectedUnsub();
