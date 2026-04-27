@@ -64,6 +64,18 @@ initializeFirebase(function (app, auth, database, storage) {
         return update(ref(database, "data"), rel);
     }
 
+    /** After awaits in send flows, refresh ID token so RTDB uses current auth (avoids permission_denied races). */
+    async function ensureFirebaseUserForRtdbWrite(expectedUid) {
+        const u = auth && auth.currentUser ? auth.currentUser : null;
+        if (!u || !u.uid) {
+            throw new Error("AUTH_NOT_READY");
+        }
+        if (expectedUid && String(u.uid) !== String(expectedUid)) {
+            throw new Error("AUTH_UID_MISMATCH");
+        }
+        await u.getIdToken(false);
+    }
+
     let currentUser = null; // Define the current user here
     let selectedUserId = null; // Store the selected user ID
     function getAudioCallTriggerEl() {
@@ -2665,6 +2677,20 @@ initializeFirebase(function (app, auth, database, storage) {
                         replyContent
                     ); // Declare it in a higher scope
 
+                    try {
+                        await ensureFirebaseUserForRtdbWrite(me);
+                    } catch (e) {
+                        Toastify({
+                            text: "Chat session is not ready. Wait a moment or refresh the page.",
+                            duration: 4000,
+                            gravity: "top",
+                            position: "right",
+                            backgroundColor: "#dc3545",
+                            stopOnFocus: true,
+                        }).showToast();
+                        return;
+                    }
+
                     // Prepare the new reply message
                     const replyMessage = {
                         ...message, // Include the original message data
@@ -2757,6 +2783,20 @@ initializeFirebase(function (app, auth, database, storage) {
                         }
                     } catch (e) {
                         /* ignore — do not block send on read/notification helper */
+                    }
+
+                    try {
+                        await ensureFirebaseUserForRtdbWrite(me);
+                    } catch (e) {
+                        Toastify({
+                            text: "Chat session is not ready. Wait a moment or refresh the page.",
+                            duration: 4000,
+                            gravity: "top",
+                            position: "right",
+                            backgroundColor: "#dc3545",
+                            stopOnFocus: true,
+                        }).showToast();
+                        return;
                     }
 
                     sendCallNotification(

@@ -6,7 +6,6 @@ import {
     onAuthStateChanged,
     sendPasswordResetEmail,
     signInWithCustomToken,
-    signOut,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import {
     getDatabase,
@@ -1633,12 +1632,8 @@ initializeFirebase(function (app, auth, database, storage) {
             .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
             .then(function (result) {
                 if (result.ok && result.data && result.data.firebase_custom_token) {
-                    // Force-clear any stale Firebase Auth session before applying a fresh custom token.
-                    return signOut(auth)
-                        .catch(function () { })
-                        .then(function () {
-                            return signInWithCustomToken(auth, result.data.firebase_custom_token);
-                        })
+                    // Do not signOut first — it clears auth and races with chat/contact RTDB writes.
+                    return signInWithCustomToken(auth, result.data.firebase_custom_token)
                         .then(function () {
                             return waitForFirebaseAuthUser(5000);
                         });
