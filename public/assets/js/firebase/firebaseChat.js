@@ -65,7 +65,7 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     /** After awaits in send flows, refresh ID token so RTDB uses current auth (avoids permission_denied races). */
-    async function ensureFirebaseUserForRtdbWrite(expectedUid) {
+    async function ensureFirebaseUserForRtdbWrite(expectedUid, forceRefresh) {
         const u = auth && auth.currentUser ? auth.currentUser : null;
         if (!u || !u.uid) {
             throw new Error("AUTH_NOT_READY");
@@ -73,7 +73,45 @@ initializeFirebase(function (app, auth, database, storage) {
         if (expectedUid && String(u.uid) !== String(expectedUid)) {
             throw new Error("AUTH_UID_MISMATCH");
         }
-        await u.getIdToken(false);
+        await u.getIdToken(!!forceRefresh);
+    }
+
+    /**
+     * Primary + mirror chat writes; on permission_denied restore Firebase session once and retry.
+     * Same rules on host vs local — denial here almost always means RTDB did not see auth on the wire yet.
+     */
+    async function persistChatMessagePairWithRetry(
+        primaryRef,
+        mirrorRoomId,
+        messageKey,
+        payload,
+        expectedUid
+    ) {
+        const writePair = async () => {
+            await set(primaryRef, payload);
+            const mirrorRef = ref(
+                database,
+                `data/chats/${mirrorRoomId}/${messageKey}`
+            );
+            await set(mirrorRef, payload).catch(() => {});
+        };
+        try {
+            await ensureFirebaseUserForRtdbWrite(expectedUid, false);
+            await writePair();
+        } catch (err) {
+            if (!isPermissionDeniedError(err)) {
+                throw err;
+            }
+            console.warn("Permission denied on first write attempt. Attempting session restore...");
+            try {
+                await restoreChatSessionForFetchUsers();
+                await ensureFirebaseUserForRtdbWrite(expectedUid, true);
+                await writePair();
+            } catch (retryErr) {
+                console.error("Write failed even after session restore:", retryErr);
+                throw retryErr;
+            }
+        }
     }
 
     let currentUser = null; // Define the current user here
@@ -2711,16 +2749,13 @@ initializeFirebase(function (app, auth, database, storage) {
                     const newReplyRef = push(messageRefPrimary);
                     const newReplyKey = newReplyRef.key;
 
-                    set(newReplyRef, replyMessage)
-                        .then(() => {
-                            const mirrorReplyRef = ref(
-                                database,
-                                `data/chats/${mirrorChatRoomId}/${newReplyKey}`
-                            );
-                            return set(mirrorReplyRef, replyMessage).catch(
-                                () => {}
-                            );
-                        })
+                    persistChatMessagePairWithRetry(
+                        newReplyRef,
+                        mirrorChatRoomId,
+                        newReplyKey,
+                        replyMessage,
+                        me
+                    )
                         .then(() => afterOutgoingMessagePersisted(toUserId))
                         .then(() => {
                             closeReplyBox();
@@ -2808,14 +2843,13 @@ initializeFirebase(function (app, auth, database, storage) {
                         ""
                     )
 
-                    set(newMessageRef, messageWithId)
-                        .then(() => {
-                            const mirrorRef = ref(
-                                database,
-                                `data/chats/${mirrorChatRoomId}/${newKey}`
-                            );
-                            return set(mirrorRef, messageWithId).catch(() => {});
-                        })
+                    persistChatMessagePairWithRetry(
+                        newMessageRef,
+                        mirrorChatRoomId,
+                        newKey,
+                        messageWithId,
+                        me
+                    )
                         .then(() => afterOutgoingMessagePersisted(toUserId))
                         .then(() => {
                             document.getElementById("message-input").value = "";
