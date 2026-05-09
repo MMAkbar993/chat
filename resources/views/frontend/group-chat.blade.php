@@ -76,6 +76,13 @@
 #group-area #chat-messages {
     justify-content: flex-start;
 }
+/* ⋮ menu above following message rows (stacking / transform on .chats) */
+#chat-messages .chats {
+    position: relative;
+}
+#chat-messages .chats:has(.dropdown-menu.show) {
+    z-index: 1060;
+}
 /* Header overlapping member avatars */
 #header-member-avatars-wrap {
     margin-left: auto;

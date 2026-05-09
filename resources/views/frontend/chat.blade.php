@@ -21,6 +21,13 @@
     from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+/* ⋮ menu: sibling messages stack above overlapping dropdowns (transform on .chats creates stacking contexts) */
+#chat-box .chats {
+    position: relative;
+}
+#chat-box .chats:has(.dropdown-menu.show) {
+    z-index: 1060;
+}
 </style>
 <!-- content -->
 <div class="content main_content">

@@ -760,7 +760,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
     setTimeout(bindLogout, 500);
 })();
 </script>
-{{-- Laravel chat: when on /chat with selectedUserId (localStorage or ?user=), show chat panel and load messages --}}
+{{-- Laravel chat (Firebase disabled): open message panel only when ?user= is present (welcome on refresh / return to Chat) --}}
 <script>
 (function() {
     if (typeof window.FIREBASE_DISABLED === 'undefined' || !window.FIREBASE_DISABLED) return;
@@ -779,11 +779,8 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
     function run(attempt) {
         attempt = attempt || 0;
         var currentUserId = typeof window.LARAVEL_USER !== 'undefined' && window.LARAVEL_USER ? window.LARAVEL_USER.id : null;
-        var selectedId = null;
-        try { selectedId = localStorage.getItem('selectedUserId'); } catch (e) {}
         var params = typeof URLSearchParams !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-        var userFromUrl = params ? params.get('user') : null;
-        if (userFromUrl) selectedId = userFromUrl;
+        var selectedId = params && params.get('user') ? String(params.get('user')).trim() : '';
 
         if (!selectedId || !currentUserId) {
             if (selectedId && !currentUserId && attempt < 5) {

@@ -296,6 +296,16 @@ initializeFirebase(function (app, auth, database, storage) {
                         } catch (e) {
                             /* ignore */
                         }
+                        try {
+                            localStorage.removeItem("selectedUserId");
+                        } catch (e) {
+                            /* ignore */
+                        }
+                        try {
+                            selectedUserId = null;
+                        } catch (e) {
+                            /* ignore */
+                        }
                         if (typeof history !== "undefined" && history.replaceState) {
                             const cleanUrl = new URL(window.location.href);
                             cleanUrl.searchParams.delete("user");
@@ -872,40 +882,10 @@ initializeFirebase(function (app, auth, database, storage) {
                             } catch (e) {
                                 /* ignore */
                             }
-                            try {
-                                if (
-                                    !keepChatOpen &&
-                                    localStorage.getItem("selectedUserId") ===
-                                        String(selectedUserId)
-                                ) {
-                                    keepChatOpen = true;
-                                }
-                            } catch (e) {
-                                /* ignore */
-                            }
+                            // Do not keep the thread open based on localStorage alone (welcome on refresh / return to /chat).
                             // selectUser updates URL + localStorage before assigning
                             // selectedUserId; a displayUsers refresh in that window still
                             // sees the previous selectedUserId and would wrongly reset the shell.
-                            try {
-                                if (!keepChatOpen) {
-                                    const qPeer2 = new URLSearchParams(
-                                        window.location.search || ""
-                                    ).get("user");
-                                    const lsPeer2 = localStorage.getItem(
-                                        "selectedUserId"
-                                    );
-                                    if (
-                                        qPeer2 &&
-                                        lsPeer2 &&
-                                        String(qPeer2).trim() ===
-                                            String(lsPeer2).trim()
-                                    ) {
-                                        keepChatOpen = true;
-                                    }
-                                }
-                            } catch (e) {
-                                /* ignore */
-                            }
                             if (!keepChatOpen) {
                                 resetChatShellToWelcome();
                             }
@@ -4087,11 +4067,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                         <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
                                         <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
                                         <li><a class="dropdown-item copy-btn" href="#"><i class="ti ti-copy me-2"></i>Copy</a></li>
-                                        <li><a class="dropdown-item favourite-message-btn" href="#"><i class="ti ti-bookmark me-2"></i>Add to Favorites</a></li>
                                         <li><a class="dropdown-item delete-btn" href="#" id="delete-btn" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
-                                        <li><a class="dropdown-item mark-unread-chat-btn" href="#"><i class="ti ti-check me-2"></i>Mark as Unread</a></li>
-                                        <li><a class="dropdown-item archive-chat-btn" href="#"><i class="ti ti-box-align-right me-2"></i>Archive Chat</a></li>
-                                        <li><a class="dropdown-item pin-chat-btn" href="#"><i class="ti ti-pinned me-2"></i>Pin Chat</a></li>
                                     </ul>
                                 </div>   
                                 <div class="message-bubble-wrap">
@@ -4150,11 +4126,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                         <li><a class="dropdown-item reply-btn" href="#"><i class="ti ti-corner-up-left me-2"></i>Reply</a></li>
                                         <li><a class="dropdown-item forward-btn" href="#"><i class="ti ti-arrow-forward-up me-2"></i>Forward</a></li>
                                         <li><a class="dropdown-item copy-btn" href="#"><i class="ti ti-copy me-2"></i>Copy</a></li>
-                                        <li><a class="dropdown-item favourite-message-btn" href="#"><i class="ti ti-bookmark me-2"></i>Add to Favorites</a></li>
                                         <li><a class="dropdown-item delete-btn" href="#" id="delete-btn" data-bs-toggle="modal" data-bs-target="#message-delete"><i class="ti ti-trash me-2"></i>Delete</a></li>
-                                        <li><a class="dropdown-item mark-unread-chat-btn" href="#"><i class="ti ti-check me-2"></i>Mark as Unread</a></li>
-                                        <li><a class="dropdown-item archive-chat-btn" href="#"><i class="ti ti-box-align-right me-2"></i>Archive Chat</a></li>
-                                        <li><a class="dropdown-item pin-chat-btn" href="#"><i class="ti ti-pinned me-2"></i>Pin Chat</a></li>
                                     </ul>
                                 </div> 
                             </div>
@@ -4755,59 +4727,10 @@ initializeFirebase(function (app, auth, database, storage) {
     });
 
     document.addEventListener("click", (e) => {
-        const msgFav = e.target.closest(".favourite-message-btn");
-        if (msgFav) {
-            e.preventDefault();
-            const row = msgFav.closest(".chats");
-            if (!row || !selectedUserId) return;
-            const messageKey = row.dataset.messageKey;
-            if (!messageKey) return;
-            const type = row.dataset.messageType || "6";
-            const textEl = row.querySelector(".message-content-text");
-            let preview = textEl
-                ? String(textEl.textContent || "")
-                      .trim()
-                      .replace(/\s+/g, " ")
-                : "";
-            if (!preview) {
-                const map = {
-                    "1": "Video",
-                    "2": "Photo",
-                    "3": "Audio",
-                    "5": "File",
-                    "4": "Location",
-                    "8": "Audio",
-                };
-                preview = map[String(type)] || "Message";
-            }
-            favouriteMessageForPeer(selectedUserId, messageKey, preview, type);
-            return;
-        }
         const favBtn = e.target.closest(".favourite-chat-btn");
         if (!favBtn) return;
         e.preventDefault();
         if (selectedUserId) favouriteChat(selectedUserId);
-    });
-
-    document.addEventListener("click", (e) => {
-        const unreadBtn = e.target.closest(".mark-unread-chat-btn");
-        if (!unreadBtn) return;
-        e.preventDefault();
-        if (selectedUserId) markChatAsUnread(selectedUserId);
-    });
-
-    document.addEventListener("click", (e) => {
-        const archiveBtn = e.target.closest(".archive-chat-btn");
-        if (!archiveBtn) return;
-        e.preventDefault();
-        if (selectedUserId) archiveChat(selectedUserId);
-    });
-
-    document.addEventListener("click", (e) => {
-        const pinBtn = e.target.closest(".pin-chat-btn");
-        if (!pinBtn) return;
-        e.preventDefault();
-        if (selectedUserId) pinChat(selectedUserId);
     });
 
     // Delete message for the current user
@@ -6445,54 +6368,6 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    /** Saved messages for one 1:1 peer (Contact Info → Favorites). */
-    function favouriteMessageForPeer(peerUserId, messageKey, preview, attachmentType) {
-        if (!currentUser?.uid || !peerUserId || !messageKey) return;
-        const msgRef = ref(
-            database,
-            `data/users/${currentUser.uid}/favourite_messages/${peerUserId}/${messageKey}`
-        );
-        get(msgRef)
-            .then((snap) => {
-                if (snap.exists()) {
-                    Toastify({
-                        text: "Message already in Favorites",
-                        duration: 3000,
-                        gravity: "top",
-                        position: "right",
-                        backgroundColor: "#dc3545",
-                    }).showToast();
-                    return Promise.resolve(null);
-                }
-                return set(msgRef, {
-                    savedAt: Date.now(),
-                    preview: String(preview || "").slice(0, 500),
-                    attachmentType:
-                        attachmentType != null ? String(attachmentType) : "6",
-                });
-            })
-            .then((written) => {
-                if (written === null) return;
-                Toastify({
-                    text: "Message saved to Favorites",
-                    duration: 3000,
-                    gravity: "top",
-                    position: "right",
-                    backgroundColor: "#28a745",
-                }).showToast();
-                const col = document.getElementById("others-collapse-favourites");
-                if (col?.classList.contains("show")) {
-                    if (typeof window.__dreamchatLoadOthersFavourites === "function") {
-                        window.__dreamchatLoadOthersFavourites(col);
-                    }
-                } else if (col) {
-                    delete col.dataset.othersLoaded;
-                }
-                refreshContactFavouritesBadgeCount();
-            })
-            .catch(() => {});
-    }
-
     function scrollChatToSavedMessage(messageKey) {
         if (!messageKey) return;
         const esc =
@@ -7824,31 +7699,41 @@ initializeFirebase(function (app, auth, database, storage) {
             return null;
         }
 
+        /** Same-tab navigation for contact social icons (avoid opening a separate browser tab). */
+        function setContactSocialAnchor(el, rawUrl) {
+            if (!el) return;
+            const s = String(rawUrl ?? "").trim();
+            if (!s) {
+                el.href = "javascript:void(0);";
+                el.removeAttribute("target");
+                el.removeAttribute("rel");
+                return;
+            }
+            let url = s;
+            if (!/^https?:\/\//i.test(url))
+                url = "https://" + url.replace(/^\/+/, "");
+            el.href = url;
+            el.setAttribute("target", "_self");
+            el.removeAttribute("rel");
+        }
+
         function applySocialFromMerged(merged) {
-            const fb = document.getElementById("facebook-link");
-            const tw = document.getElementById("twitter-link");
-            const ig = document.getElementById("instagram-link");
-            const li = document.getElementById("linkedin-link");
-            const hrefOrVoid = function (u) {
-                const s = String(u || "").trim();
-                return s || "javascript:void(0);";
-            };
-            if (fb)
-                fb.href = hrefOrVoid(
-                    merged.facebook_link || merged.facebook
-                );
-            if (tw)
-                tw.href = hrefOrVoid(
-                    merged.twitter_link || merged.twitter
-                );
-            if (ig)
-                ig.href = hrefOrVoid(
-                    merged.instagram_link || merged.instagram
-                );
-            if (li)
-                li.href = hrefOrVoid(
-                    merged.linkedin_link || merged.linkedin
-                );
+            setContactSocialAnchor(
+                document.getElementById("facebook-link"),
+                merged.facebook_link || merged.facebook
+            );
+            setContactSocialAnchor(
+                document.getElementById("twitter-link"),
+                merged.twitter_link || merged.twitter
+            );
+            setContactSocialAnchor(
+                document.getElementById("instagram-link"),
+                merged.instagram_link || merged.instagram
+            );
+            setContactSocialAnchor(
+                document.getElementById("linkedin-link"),
+                merged.linkedin_link || merged.linkedin
+            );
         }
 
         if (!uid) {
@@ -8116,20 +8001,24 @@ initializeFirebase(function (app, auth, database, storage) {
                     }
                 }
 
-                const fb = document.getElementById("facebook-link");
-                const tw = document.getElementById("twitter-link");
-                const ig = document.getElementById("instagram-link");
-                const li = document.getElementById("linkedin-link");
                 const sl = pub && pub.social_links;
-                const hrefOrVoid = function (u) {
-                    const s = String(u || "").trim();
-                    return s || "javascript:void(0);";
-                };
                 if (sl) {
-                    if (fb) fb.href = hrefOrVoid(sl.facebook);
-                    if (tw) tw.href = hrefOrVoid(sl.twitter || sl.x);
-                    if (ig) ig.href = hrefOrVoid(sl.instagram);
-                    if (li) li.href = hrefOrVoid(sl.linkedin);
+                    setContactSocialAnchor(
+                        document.getElementById("facebook-link"),
+                        sl.facebook
+                    );
+                    setContactSocialAnchor(
+                        document.getElementById("twitter-link"),
+                        sl.twitter || sl.x
+                    );
+                    setContactSocialAnchor(
+                        document.getElementById("instagram-link"),
+                        sl.instagram
+                    );
+                    setContactSocialAnchor(
+                        document.getElementById("linkedin-link"),
+                        sl.linkedin
+                    );
                 } else {
                     applySocialFromMerged(merged);
                 }
@@ -9475,6 +9364,35 @@ initializeFirebase(function (app, auth, database, storage) {
 
     window.addEventListener("spa-logo-chat-home", function () {
         resetChatShellToWelcome();
+    });
+
+    window.addEventListener("spa-page-applied", function (e) {
+        try {
+            const raw =
+                e && e.detail && e.detail.pathname
+                    ? String(e.detail.pathname)
+                    : "";
+            const norm = raw.replace(/\/+$/, "").toLowerCase();
+            const isChatHome =
+                norm === "/chat" ||
+                norm === "/index" ||
+                norm.endsWith("/chat") ||
+                norm.endsWith("/index");
+            if (!isChatHome) return;
+            let hasUserParam = false;
+            try {
+                hasUserParam = !!(
+                    new URL(window.location.href).searchParams.get("user") || ""
+                ).trim();
+            } catch (err) {
+                /* ignore */
+            }
+            if (!hasUserParam) {
+                resetChatShellToWelcome();
+            }
+        } catch (_err) {
+            /* ignore */
+        }
     });
 
     const closeChatBtn = document.getElementById("close-chat-btn");
@@ -11703,11 +11621,17 @@ initializeFirebase(function (app, auth, database, storage) {
         else if (ringingCall) {
             console.log("Ringing call found:", ringingCall);
             currentCallId = ringingCall.id;
-            // The other user is the caller if this is an incoming call
-            const otherUserId = ringingCall.inOrOut === 'IN'
-                ? ringingCall.callerId[0]
-                : ringingCall.userId;
-            const nameFromCall = ringingCall.inOrOut === 'IN' ? ringingCall.callerName : (ringingCall.receiverName || undefined);
+            // Rows under data/calls/{currentUser.uid}: callerId[0] is always the peer (incoming = caller_id, outgoing = callee_id).
+            const otherUserId =
+                Array.isArray(ringingCall.callerId) && ringingCall.callerId[0]
+                    ? ringingCall.callerId[0]
+                    : typeof resolveOutboundCallPeerId === "function"
+                      ? resolveOutboundCallPeerId()
+                      : selectedUserId;
+            const nameFromCall =
+                ringingCall.inOrOut === 'IN'
+                    ? ringingCall.callerName
+                    : ringingCall.receiverName || undefined;
             updateModalUserDetails(otherUserId, nameFromCall);
             $('#voice-attend-new').modal('hide');
             
@@ -12603,24 +12527,9 @@ initializeFirebase(function (app, auth, database, storage) {
             );
         } else {
             const urlPeerTrim = urlPeer && String(urlPeer).trim();
-            let lsPeerTrim = "";
-            if (path === "/chat" || path === "/index") {
-                try {
-                    const rawLs = localStorage.getItem("selectedUserId");
-                    if (rawLs && String(rawLs).trim()) {
-                        lsPeerTrim = String(rawLs).trim();
-                    }
-                } catch (e) {
-                    /* ignore */
-                }
-            }
-            // SPA navigation clears in-memory selectedUserId and may push /chat without ?user=;
-            // keep the message panel if localStorage still reflects an open 1:1 thread.
-            hasSelectedUser = !!(
-                urlPeerTrim ||
-                selectedUserId ||
-                lsPeerTrim
-            );
+            // Only URL ?user= or current in-session selection decides welcome vs chat panel.
+            // Omit localStorage so refresh / SPA return to /chat shows welcome until a peer is clicked.
+            hasSelectedUser = !!(urlPeerTrim || selectedUserId);
         }
         if (spaContent) {
             spaContent.style.setProperty("display", "flex", "important");
