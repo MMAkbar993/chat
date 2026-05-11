@@ -133,6 +133,10 @@
     "Mute Notifications": "Mute Notifications",
     "You blocked this contact. Tap to unblock.": "You blocked this contact. Tap to unblock.",
     "You unblocked this contact.": "You unblocked this contact.",
+    "You blocked this contact.": "You blocked this contact.",
+    "Unblock": "Unblock",
+    "Unblock User": "Unblock User",
+    "Are you sure you want to unblock this user?": "Are you sure you want to unblock this user?",
     "Favourites": "Favourites",
     "Mark all Unfavourite": "Mark all Unfavourite",
     "Mute": "Mute",
@@ -223,5 +227,13 @@
     "Terms are set by the site administrator.": "Terms are set by the site administrator.",
     "Privacy policy is set by the site administrator.": "Privacy policy is set by the site administrator.",
     "For your reference. Set by the site administrator.": "For your reference. Set by the site administrator.",
-    "Something went wrong. Please try again.": "Something went wrong. Please try again."
+    "Something went wrong. Please try again.": "Something went wrong. Please try again.",
+    "Report Users": "Report Users",
+    "We will report this user for review when you tap Report below.": "We will report this user for review when you tap Report below.",
+    "We will report this user.": "We will report this user.",
+    "We will report this group for review when you tap Report below.": "We will report this group for review when you tap Report below.",
+    "We will report this group.": "We will report this group.",
+    "Could not submit report.": "Could not submit report.",
+    "Report Group": "Report Group",
+    "Report Users List": "Report Users List"
 }

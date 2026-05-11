@@ -109,7 +109,7 @@
                                             class="ti ti-thumb-down me-2"></i>{{ __('Report') }}</a></li>
                                 <li><a href="javascript:void(0);" class="dropdown-item" data-bs-toggle="modal"
                                         data-bs-target="#block-user" id="blockUserDropdownBtn"><i
-                                            class="ti ti-ban me-2"></i>{{ __('Block') }}</a></li>
+                                            class="ti ti-ban me-2"></i><span id="chat-header-block-menu-label">{{ __('Block') }}</span></a></li>
                             </ul>
                         </li>
                     </ul>
@@ -499,7 +499,7 @@
                                 </a>
                                 <div class="collapse others-collapse-content" id="others-collapse-report">
                                     <div class="pb-3 pt-1">
-                                        <p class="text-muted small mb-3">{{ __('If you block this contact and clear the chat, all messages, images, videos and documents will be permanently deleted.') }}</p>
+                                        <p class="text-muted small mb-3">{{ __('We will report this user for review when you tap Report below.') }}</p>
                                         <div class="form-check mb-3">
                                             <input class="form-check-input" type="checkbox" id="others-report-check">
                                             <label class="form-check-label small" for="others-report-check">{{ __('Report User') }}</label>
@@ -787,7 +787,7 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <form action="{{ route('chat') }}">
+                    <form action="{{ route('chat') }}" onsubmit="return false;">
                         <div class="block-wrap text-center mb-3">
                             <span class="user-icon mb-3 mx-auto bg-transparent-info">
                                 <i class="ti ti-user-off text-info"></i>
@@ -802,7 +802,7 @@
                                     aria-label="Close">{{ __('Cancel') }}</a>
                             </div>
                             <div class="col-6">
-                                <button type="submit" class="btn btn-primary w-100"
+                                <button type="button" class="btn btn-primary w-100"
                                     id="confirmBlockUserBtn">{{ __('Block') }}</button>
                             </div>
                         </div>
@@ -821,7 +821,7 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <form>
+                    <form onsubmit="return false;">
                         <div class="block-wrap text-center mb-3">
                             <span class="user-icon mb-3 mx-auto bg-transparent-info">
                                 <i class="ti ti-user-off text-info"></i>
@@ -836,7 +836,7 @@
                                     aria-label="Close">{{ __('Cancel') }}</a>
                             </div>
                             <div class="col-6">
-                                <button type="submit" class="btn btn-primary w-100"
+                                <button type="button" class="btn btn-primary w-100"
                                     id="confirmBlockedUserBtn">{{ __('Block') }}</button>
                             </div>
                         </div>
@@ -887,7 +887,7 @@
                     <form action="{{ route('chat') }}">
                         <div class="block-wrap mb-3">
                             <p class="text-grya-9 mb-3">
-                                {{ __('If you block this contact and clear the chat, all messages, images, videos and documents will be permanently deleted from Connect.') }}
+                                {{ __('We will report this user for review when you tap Report below.') }}
                             </p>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="mute" id="report">

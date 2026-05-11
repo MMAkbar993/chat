@@ -12497,9 +12497,15 @@ Form help
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
+  position: relative;
 }
 .chats.chats-right .chat-info .message-bubble-wrap {
   align-items: flex-end;
+}
+/* Extra space below the whole message row — do NOT put margin on .message-bubble-wrap
+   when using absolute reaction chips, or .chat-info grows and centers ⋮/avatar lower. */
+.chat .chat-body .messages .chats:has(.message-reaction-summary) {
+  margin-bottom: 48px;
 }
 .chats .chat-info .message-reaction-picker {
   position: absolute;
@@ -12567,12 +12573,20 @@ Form help
   display: grid;
 }
 .chats .chat-info .message-reaction-summary {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  margin-bottom: 0;
+  padding: 0 4px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: -2px;
-  margin-bottom: 6px;
-  padding: 0 4px;
+  z-index: 2;
+}
+.chats.chats-right .chat-info .message-reaction-summary {
+  left: auto;
+  right: 0;
 }
 .chats .chat-info .message-reaction-chip {
   display: inline-flex;

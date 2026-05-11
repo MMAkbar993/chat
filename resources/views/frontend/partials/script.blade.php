@@ -96,6 +96,17 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
     const PRIMARY_ROLES = @json($primaryRoles);
     window.__FIREBASE_CONFIG__ = @json(config('firebase.frontend'));
     window.FIREBASE_DISABLED = !window.__FIREBASE_CONFIG__ || !window.__FIREBASE_CONFIG__.api_key;
+    window.__REPORT_USER_TOAST__ = @json(__('We will report this user.'));
+    window.__REPORT_GROUP_TOAST__ = @json(__('We will report this group.'));
+    window.__REPORT_SUBMIT_ERROR__ = @json(__('Could not submit report.'));
+    window.__I18N_BLOCK__ = @json(__('Block'));
+    window.__I18N_UNBLOCK__ = @json(__('Unblock'));
+    window.__I18N_BLOCK_USERS__ = @json(__('Block Users'));
+    window.__I18N_UNBLOCK_USER__ = @json(__('Unblock User'));
+    window.__USER_BLOCKED_TOAST__ = @json(__('You blocked this contact.'));
+    window.__USER_UNBLOCKED_TOAST__ = @json(__('You unblocked this contact.'));
+    window.__OTHERS_BLOCK_DESC__ = @json(__('Blocked contacts will no longer be able to call you or send you messages.'));
+    window.__OTHERS_UNBLOCK_DESC__ = @json(__('Are you sure you want to unblock this user?'));
     @if(Auth::check() && Auth::user())
     @php
         $laravelUserJson = 'null';

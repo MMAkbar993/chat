@@ -7,7 +7,7 @@
             <!-- Page Header -->
             <div class="d-md-flex d-block align-items-center justify-content-between mb-4">
                 <div class="my-auto mb-2 mb-md-0">
-                    <h4 class="page-title mb-1">Report Users</h4>
+                    <h4 class="page-title mb-1">{{ __('Report Users') }}</h4>
                     <nav>
                         <ol class="breadcrumb mb-0">
                             <li class="breadcrumb-item">
@@ -16,7 +16,7 @@
                             <li class="breadcrumb-item">
                                 <a href="javascript:void(0);">Users</a>
                             </li>
-                            <li class="breadcrumb-item active" aria-current="page">Report Users</li>
+                            <li class="breadcrumb-item active" aria-current="page">{{ __('Report Users') }}</li>
                         </ol>
                     </nav>
                 </div>
@@ -45,7 +45,7 @@
             <!-- User List -->
             <div class="card">
                 <div class="card-header d-flex align-items-center justify-content-between flex-wrap pb-0">
-                    <h6 class="mb-3">Report Users List<span>200</span> </h6>
+                    <h6 class="mb-3">{{ __('Report Users List') }}<span>200</span> </h6>
                     <div class="d-flex align-items-center flex-wrap">
                         <div class="input-icon-start mb-3 me-2 position-relative">
                             <span class="icon-addon">

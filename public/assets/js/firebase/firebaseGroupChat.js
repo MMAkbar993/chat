@@ -6287,11 +6287,19 @@ if (reportGroupForm) {
                 timestamp: Date.now(),
                 blockAndClear: reportGroupForm.querySelector('input[type="checkbox"]')?.checked || false
             });
-            Toastify({ text: "Group reported.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
+            const okMsg =
+                typeof window !== "undefined" && window.__REPORT_GROUP_TOAST__
+                    ? window.__REPORT_GROUP_TOAST__
+                    : "We will report this group.";
+            Toastify({ text: okMsg, duration: 2500, gravity: "top", position: "right", backgroundColor: "#22c55e" }).showToast();
             forceCloseBootstrapModal("report-group");
         } catch (err) {
             console.error("Report error:", err);
-            Toastify({ text: "Could not submit report.", duration: 2500, gravity: "top", position: "right", backgroundColor: "#ef4444" }).showToast();
+            const errMsg =
+                typeof window !== "undefined" && window.__REPORT_SUBMIT_ERROR__
+                    ? window.__REPORT_SUBMIT_ERROR__
+                    : "Could not submit report.";
+            Toastify({ text: errMsg, duration: 2500, gravity: "top", position: "right", backgroundColor: "#ef4444" }).showToast();
         }
     });
 }

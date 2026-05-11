@@ -413,10 +413,10 @@
                         <div class="card contact-info-card border-0">
                             <div class="card-body py-3">
                                 <div class="social-icon d-flex align-items-center flex-wrap gap-3 justify-content-start">
-                                    <a href="javascript:void(0);" class="contact-social-link" aria-label="Facebook"><i class="ti ti-brand-facebook"></i></a>
-                                    <a href="javascript:void(0);" class="contact-social-link" aria-label="Twitter"><i class="ti ti-brand-twitter"></i></a>
-                                    <a href="javascript:void(0);" class="contact-social-link" aria-label="Instagram"><i class="ti ti-brand-instagram"></i></a>
-                                    <a href="javascript:void(0);" class="contact-social-link" aria-label="LinkedIn"><i class="ti ti-brand-linkedin"></i></a>
+                                    <a id="facebook-link" href="javascript:void(0);" class="contact-social-link" aria-label="Facebook"><i class="ti ti-brand-facebook"></i></a>
+                                    <a id="twitter-link" href="javascript:void(0);" class="contact-social-link" aria-label="Twitter"><i class="ti ti-brand-twitter"></i></a>
+                                    <a id="instagram-link" href="javascript:void(0);" class="contact-social-link" aria-label="Instagram"><i class="ti ti-brand-instagram"></i></a>
+                                    <a id="linkedin-link" href="javascript:void(0);" class="contact-social-link" aria-label="LinkedIn"><i class="ti ti-brand-linkedin"></i></a>
                                 </div>
                             </div>
                         </div>
@@ -622,7 +622,7 @@
 
                 </div>
 
-                {{-- Bottom actions: Exit Group & Report User --}}
+                {{-- Bottom actions: Exit Group & Report Group --}}
                 <div class="content-wrapper other-info mb-0 px-3 pb-3">
                     <div class="card contact-info-card border-0 mb-0">
                         <div class="card-body list-group profile-item p-0">
@@ -636,7 +636,7 @@
                             <a href="javascript:void(0);" class="list-group-item list-group-item-action border-0 px-0 py-3 d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#report-group">
                                 <div class="d-flex align-items-center gap-2">
                                     <i class="ti ti-flag text-danger"></i>
-                                    <span class="fw-medium">{{ __('Report User')}}</span>
+                                    <span class="fw-medium">{{ __('Report Group') }}</span>
                                 </div>
                                 <span class="link-icon"><i class="ti ti-chevron-right"></i></span>
                             </a>
@@ -722,12 +722,12 @@
 </div>
 <!-- /Block Group -->
 
-<!-- Report User -->
+<!-- Report User (legacy modal; copy aligned with Report flow) -->
 <div class="modal fade" id="report-user">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title">Report User</h4>
+                <h4 class="modal-title">{{ __('Report User') }}</h4>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
                     <i class="ti ti-x"></i>
                 </button>
@@ -735,18 +735,18 @@
             <div class="modal-body">
                 <form action="{{ route('chat')}}">
                     <div class="block-wrap mb-3">
-                        <p class="text-grya-9 mb-3">If you block this contact and clear the chat, all messages, images, videos and documents will be permanently deleted from Connect.</p>
+                        <p class="text-grya-9 mb-3">{{ __('We will report this user for review when you tap Report below.') }}</p>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="mute" id="report">
-                            <label class="form-check-label" for="report">Report User</label>
+                            <label class="form-check-label" for="report">{{ __('Report User') }}</label>
                         </div>
                     </div>
                     <div class="row g-3">
                         <div class="col-6">
-                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">Cancel</a>
+                            <a href="#" class="btn btn-outline-primary w-100" data-bs-dismiss="modal" aria-label="Close">{{ __('Cancel') }}</a>
                         </div>
                         <div class="col-6">
-                            <button type="submit" class="btn btn-primary w-100">Report</button>
+                            <button type="submit" class="btn btn-primary w-100">{{ __('Report') }}</button>
                         </div>
                     </div>
                 </form>
@@ -1220,7 +1220,7 @@
                         </span>
                         <div class="d-flex justify-content-center align-items-center mb-3">
                             <p class="text-gray-9">
-                                {{ __('If you block this group and clear the chat, all messages, images, videos and documents will be permanently deleted.') }}
+                                {{ __('We will report this group for review when you tap Report below.') }}
                             </p>
                         </div>
                         <div class="d-flex align-items-center">

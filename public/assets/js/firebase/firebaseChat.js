@@ -161,6 +161,9 @@ initializeFirebase(function (app, auth, database, storage) {
         }
         return null;
     }
+    /** Contact “Others” / unblock modal + UI mirror of blocked state (must exist before early selectUser from auth). */
+    let otherblockUserId = "";
+    let isUserInfoBlocked = false;
     let currentUserId = null;
     /** Same-tab only: restores open chat after refresh. Do not use localStorage for panel visibility (stale after SPA / no selection). */
     const CHAT_ACTIVE_PEER_SESSION_KEY = "dreamchat_active_peer";
@@ -2260,6 +2263,11 @@ initializeFirebase(function (app, auth, database, storage) {
         detachMediaPanelRoomListener();
         attachMediaPanelRoomListener();
         refreshContactFavouritesBadgeCount();
+        try {
+            await refreshBlockActionUiForPeer(userId);
+        } catch (e) {
+            /* ignore */
+        }
 
         if (chatHeaderStatusUnsub) {
             chatHeaderStatusUnsub();
@@ -4957,6 +4965,92 @@ initializeFirebase(function (app, auth, database, storage) {
             });
     }
 
+    function emitBlockActionToast(kind) {
+        const blockedMsg =
+            typeof window !== "undefined" && window.__USER_BLOCKED_TOAST__
+                ? window.__USER_BLOCKED_TOAST__
+                : "You blocked this contact.";
+        const unblockedMsg =
+            typeof window !== "undefined" && window.__USER_UNBLOCKED_TOAST__
+                ? window.__USER_UNBLOCKED_TOAST__
+                : "You unblocked this contact.";
+        const text = kind === "unblocked" ? unblockedMsg : blockedMsg;
+        if (typeof Toastify !== "undefined") {
+            Toastify({
+                text,
+                duration: 2800,
+                gravity: "top",
+                position: "right",
+            }).showToast();
+        }
+    }
+
+    /** Sync header ⋮ menu, Contact “Others” row, and inline confirm for the active peer (Firebase is source of truth). */
+    async function refreshBlockActionUiForPeer(peerId) {
+        const uid = auth?.currentUser?.uid;
+        if (!uid || !peerId || !String(peerId).trim()) return;
+        let blocked = false;
+        try {
+            blocked = await isUserBlocked(uid, String(peerId).trim());
+        } catch (e) {
+            blocked = false;
+        }
+        isUserInfoBlocked = blocked;
+        try {
+            localStorage.setItem("isUserInfoBlocked", blocked ? "true" : "false");
+        } catch (e) {
+            /* ignore */
+        }
+        const blk =
+            typeof window !== "undefined" && window.__I18N_BLOCK__
+                ? window.__I18N_BLOCK__
+                : "Block";
+        const unblk =
+            typeof window !== "undefined" && window.__I18N_UNBLOCK__
+                ? window.__I18N_UNBLOCK__
+                : "Unblock";
+        const blockUsers =
+            typeof window !== "undefined" && window.__I18N_BLOCK_USERS__
+                ? window.__I18N_BLOCK_USERS__
+                : "Block Users";
+        const unblockUserLbl =
+            typeof window !== "undefined" && window.__I18N_UNBLOCK_USER__
+                ? window.__I18N_UNBLOCK_USER__
+                : "Unblock User";
+
+        const headerLink = document.getElementById("blockUserDropdownBtn");
+        const headerLabel = document.getElementById("chat-header-block-menu-label");
+        if (headerLink) {
+            headerLink.setAttribute(
+                "data-bs-target",
+                blocked ? "#unblock-user" : "#block-user"
+            );
+        }
+        if (headerLabel) {
+            headerLabel.textContent = blocked ? unblk : blk;
+        }
+        const rowLbl = document.getElementById("blockUserLabel");
+        if (rowLbl) {
+            rowLbl.textContent = blocked ? unblockUserLbl : blockUsers;
+        }
+        const othersBtn = document.getElementById("others-block-confirm-btn");
+        if (othersBtn) {
+            othersBtn.textContent = blocked ? unblk : blk;
+        }
+        const othersDesc = document.getElementById("others-block-desc");
+        if (othersDesc) {
+            const blockDesc =
+                typeof window !== "undefined" && window.__OTHERS_BLOCK_DESC__
+                    ? window.__OTHERS_BLOCK_DESC__
+                    : "Blocked contacts will no longer be able to call you or send you messages.";
+            const unblockDesc =
+                typeof window !== "undefined" && window.__OTHERS_UNBLOCK_DESC__
+                    ? window.__OTHERS_UNBLOCK_DESC__
+                    : "Are you sure you want to unblock this user?";
+            othersDesc.textContent = blocked ? unblockDesc : blockDesc;
+        }
+    }
+
     async function decryptMessage(encryptedText, secretKey) {
         const originalMessage = await decryptlibsodiumMessage(encryptedText);
         return originalMessage; // Return the decrypted message
@@ -6072,13 +6166,6 @@ initializeFirebase(function (app, auth, database, storage) {
 
     let otherUserId = "";
 
-    const blockUserDropdownBtn = document.getElementById("blockUserDropdownBtn");
-    if (blockUserDropdownBtn) {
-        blockUserDropdownBtn.addEventListener("click", function (event) {
-            otherUserId = selectedUserId;
-        });
-    }
-
     // Function to block the user in Firebase
     function blockUser(otherUserId) {
         const currentUser = auth.currentUser; // Get the current user
@@ -6104,25 +6191,97 @@ initializeFirebase(function (app, auth, database, storage) {
                 get(ref(database, `data/blocked_users/${currentUserId}`)).then(
                     (snapshot) => { }
                 );
+                emitBlockActionToast("blocked");
+                refreshBlockActionUiForPeer(otherUserId);
+                const blockModalEl = document.getElementById("block-user");
+                if (
+                    blockModalEl &&
+                    typeof bootstrap !== "undefined" &&
+                    bootstrap.Modal
+                ) {
+                    const inst = bootstrap.Modal.getInstance(blockModalEl);
+                    if (inst) inst.hide();
+                }
             })
             .catch((error) => { });
     }
 
-    // Add an event listener to the 'Block' button in the modal
-    const confirmBlockUserBtn = document.getElementById("confirmBlockUserBtn");
-    if (confirmBlockUserBtn) {
-        confirmBlockUserBtn.addEventListener("click", function () {
-            if (otherUserId) {
-                blockUser(otherUserId);
-                // Close the modal after blocking
-                const blockModal = new bootstrap.Modal(
-                    document.getElementById("block-user")
-                );
-                blockModal.hide();
-            } else {
+    /** Header + block modal live inside #spa-page-content; SPA swaps replace nodes so direct listeners die. */
+    document.addEventListener(
+        "click",
+        function (event) {
+            const closeChatEl = event.target.closest("#close-chat-btn");
+            if (closeChatEl) {
+                event.preventDefault();
+                event.stopPropagation();
+                try {
+                    const menu = closeChatEl.closest("ul.chat-header-more-dropdown");
+                    const toggler = menu && menu.previousElementSibling;
+                    if (
+                        toggler &&
+                        typeof bootstrap !== "undefined" &&
+                        bootstrap.Dropdown
+                    ) {
+                        const ddi = bootstrap.Dropdown.getInstance(toggler);
+                        if (ddi) ddi.hide();
+                    }
+                } catch (e) {
+                    /* ignore */
+                }
+                resetChatShellToWelcome();
+                return;
             }
-        });
-    }
+            const blockMenuEl = event.target.closest("#blockUserDropdownBtn");
+            if (blockMenuEl) {
+                const pid =
+                    resolveOneOnOneRecipientId() ||
+                    (selectedUserId && String(selectedUserId).trim()) ||
+                    "";
+                otherUserId = pid;
+                otherblockUserId = pid;
+                return;
+            }
+            const confirmBlockEl = event.target.closest("#confirmBlockUserBtn");
+            if (confirmBlockEl) {
+                event.preventDefault();
+                event.stopPropagation();
+                const targetId =
+                    resolveOneOnOneRecipientId() ||
+                    (otherUserId && String(otherUserId).trim()) ||
+                    "";
+                if (!targetId) return;
+                blockUser(targetId);
+                return;
+            }
+            const confirmBlockedEl = event.target.closest("#confirmBlockedUserBtn");
+            if (confirmBlockedEl) {
+                event.preventDefault();
+                event.stopPropagation();
+                const targetId =
+                    resolveOneOnOneRecipientId() ||
+                    (otherblockUserId && String(otherblockUserId).trim()) ||
+                    (selectedUserId && String(selectedUserId).trim()) ||
+                    "";
+                if (!targetId) return;
+                blockedUser(targetId);
+                return;
+            }
+            const confirmUnblockEl = event.target.closest("#confirmUnblockUserBtn");
+            if (confirmUnblockEl) {
+                event.preventDefault();
+                event.stopPropagation();
+                const targetId =
+                    resolveOneOnOneRecipientId() ||
+                    (otherblockUserId && String(otherblockUserId).trim()) ||
+                    (selectedUserId && String(selectedUserId).trim()) ||
+                    "";
+                if (!targetId) return;
+                unblockUser(targetId);
+                return;
+            }
+        },
+        true
+    );
 
     const chatSearchInput = document.getElementById("chatSearchInput");
     if (chatSearchInput) {
@@ -7285,18 +7444,9 @@ initializeFirebase(function (app, auth, database, storage) {
                         collapseEl.dataset.othersLoaded = "1";
                         loadOthersFavourites(collapseEl);
                     }
-                    // Update block label & button on open
-                    if (id === "blockedUserDropdownBtn") {
+                    if (id === "blockedUserDropdownBtn" && selectedUserId) {
                         otherblockUserId = selectedUserId;
-                        const btn = document.getElementById("others-block-confirm-btn");
-                        const desc = document.getElementById("others-block-desc");
-                        if (isUserInfoBlocked) {
-                            if (btn) btn.textContent = "Unblock";
-                            if (desc) desc.textContent = "Are you sure you want to unblock this user?";
-                        } else {
-                            if (btn) btn.textContent = "Block";
-                            if (desc) desc.textContent = "Blocked contacts will no longer be able to call you or send you messages.";
-                        }
+                        void refreshBlockActionUiForPeer(selectedUserId);
                     }
                 }
             });
@@ -7431,7 +7581,13 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (inst) inst.hide();
                 const ch = document.getElementById("others-row-report")?.querySelector(".others-chevron i");
                 if (ch) { ch.classList.remove("ti-chevron-up"); ch.classList.add("ti-chevron-right"); }
-                if (typeof Toastify !== "undefined") Toastify({ text: "User reported.", duration: 2500 }).showToast();
+                if (typeof Toastify !== "undefined") {
+                    const msg =
+                        typeof window !== "undefined" && window.__REPORT_USER_TOAST__
+                            ? window.__REPORT_USER_TOAST__
+                            : "We will report this user.";
+                    Toastify({ text: msg, duration: 2500 }).showToast();
+                }
             });
         }
 
@@ -7699,7 +7855,7 @@ initializeFirebase(function (app, auth, database, storage) {
             return null;
         }
 
-        /** Same-tab navigation for contact social icons (avoid opening a separate browser tab). */
+        /** Open contact social profile URLs in a new browser tab. */
         function setContactSocialAnchor(el, rawUrl) {
             if (!el) return;
             const s = String(rawUrl ?? "").trim();
@@ -7713,8 +7869,8 @@ initializeFirebase(function (app, auth, database, storage) {
             if (!/^https?:\/\//i.test(url))
                 url = "https://" + url.replace(/^\/+/, "");
             el.href = url;
-            el.setAttribute("target", "_self");
-            el.removeAttribute("rel");
+            el.setAttribute("target", "_blank");
+            el.setAttribute("rel", "noopener noreferrer");
         }
 
         function applySocialFromMerged(merged) {
@@ -8251,37 +8407,30 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    let otherblockUserId = "";
-    let isUserInfoBlocked = false; // Track if the user is blocked
-
-    // Get the block status from localStorage when the page loads
+    // Get the block status from localStorage when the page loads (refreshed from Firebase when a peer is selected).
     isUserInfoBlocked = localStorage.getItem("isUserInfoBlocked") === "true";
 
-    // Update the label based on the blocked status
     const blockUserLabel = document.getElementById("blockUserLabel");
     if (blockUserLabel) {
-        /* Label only: row icon lives in chat.blade.php next to this span (avoid duplicate icons). */
-        blockUserLabel.textContent = isUserInfoBlocked ? "Unblock User" : "Block Users";
+        const blk =
+            typeof window !== "undefined" && window.__I18N_BLOCK_USERS__
+                ? window.__I18N_BLOCK_USERS__
+                : "Block Users";
+        const unblk =
+            typeof window !== "undefined" && window.__I18N_UNBLOCK_USER__
+                ? window.__I18N_UNBLOCK_USER__
+                : "Unblock User";
+        blockUserLabel.textContent = isUserInfoBlocked ? unblk : blk;
     }
 
-    // Event listener for dropdown button to open the correct modal
+    /** Contact “Block Users” row: keep peer id in sync (accordion wiring opens inline confirm). */
     const blockedUserDropdownBtn = document.getElementById("blockedUserDropdownBtn");
     if (blockedUserDropdownBtn) {
-        blockedUserDropdownBtn.addEventListener("click", function (event) {
-            otherblockUserId = selectedUserId; // Replace with actual user ID logic
-
-            if (isUserInfoBlocked) {
-                // Show the unblock modal only if the user is blocked
-                const unblockModal = new bootstrap.Modal(
-                    document.getElementById("unblock-user")
-                );
-                unblockModal.show();
-            } else {
-                // Show the block modal only if the user is not blocked
-                const blockModal = new bootstrap.Modal(
-                    document.getElementById("blocked-user")
-                );
-                blockModal.show();
+        blockedUserDropdownBtn.addEventListener("click", function () {
+            otherblockUserId =
+                selectedUserId || resolveOneOnOneRecipientId() || "";
+            if (otherblockUserId) {
+                void refreshBlockActionUiForPeer(otherblockUserId);
             }
         });
     }
@@ -8302,11 +8451,8 @@ initializeFirebase(function (app, auth, database, storage) {
 
         update(blockedUserRef, blockedUserData)
             .then(() => {
-                const el = document.getElementById("blockUserLabel");
-                if (el) el.textContent = "Unblock User";
-                isUserInfoBlocked = true;
-                localStorage.setItem("isUserInfoBlocked", "true");
-                // Close the block modal explicitly
+                emitBlockActionToast("blocked");
+                refreshBlockActionUiForPeer(otherblockUserId);
                 const blockModal = bootstrap.Modal.getInstance(
                     document.getElementById("blocked-user")
                 );
@@ -8330,58 +8476,14 @@ initializeFirebase(function (app, auth, database, storage) {
 
         remove(blockedUserRef)
             .then(() => {
-                const el = document.getElementById("blockUserLabel");
-                if (el) el.textContent = "Block Users";
-                isUserInfoBlocked = false;
-                localStorage.setItem("isUserInfoBlocked", "false");
-                // Close the unblock modal explicitly
+                emitBlockActionToast("unblocked");
+                refreshBlockActionUiForPeer(otherblockUserId);
                 const unblockModal = bootstrap.Modal.getInstance(
                     document.getElementById("unblock-user")
                 );
                 if (unblockModal) unblockModal.hide();
             })
             .catch((error) => { });
-    }
-
-    // Event listener for 'Block' button
-    function removeBackdrop() {
-        const backdrop = document.querySelector(".modal-backdrop");
-        if (backdrop) {
-            backdrop.parentNode.removeChild(backdrop);
-        }
-    }
-
-    // Call this function after hiding each modal
-    const confirmBlockedUserBtn = document.getElementById("confirmBlockedUserBtn");
-    if (confirmBlockedUserBtn) {
-        confirmBlockedUserBtn.addEventListener("click", function () {
-            if (otherblockUserId) {
-                blockedUser(otherblockUserId);
-                const blockModalInstance = bootstrap.Modal.getInstance(
-                    document.getElementById("blocked-user")
-                );
-                if (blockModalInstance) {
-                    blockModalInstance.hide();
-                    removeBackdrop(); // Remove any lingering backdrop
-                }
-            }
-        });
-    }
-
-    const confirmUnblockUserBtn = document.getElementById("confirmUnblockUserBtn");
-    if (confirmUnblockUserBtn) {
-        confirmUnblockUserBtn.addEventListener("click", function () {
-            if (otherblockUserId) {
-                unblockUser(otherblockUserId);
-                const unblockModalInstance = bootstrap.Modal.getInstance(
-                    document.getElementById("unblock-user")
-                );
-                if (unblockModalInstance) {
-                    unblockModalInstance.hide();
-                    removeBackdrop(); // Remove any lingering backdrop
-                }
-            }
-        });
     }
 
     function populateUsersMap() {
@@ -8601,7 +8703,11 @@ initializeFirebase(function (app, auth, database, storage) {
         scheduleRefreshChatFilterBadgeCounts();
     }
 
-    function handleUnarchiveClick(event, archivedUsers = []) {
+    function handleUnarchiveClick(event) {
+        if (event && typeof event.preventDefault === "function") {
+            event.preventDefault();
+            event.stopPropagation();
+        }
         const anchor = event.target.closest(".unarchive-chat") || event.currentTarget;
         const chatUserId = anchor?.getAttribute("data-user-id");
 
@@ -8636,11 +8742,13 @@ initializeFirebase(function (app, auth, database, storage) {
                     backgroundColor: "#28a745",
                 }).showToast();
 
-                // Ensure archivedUsers is an array, then filter it
-                const updatedArchivedUsers = Array.isArray(archivedUsers)
-                    ? archivedUsers.filter((user) => user.userId !== chatUserId)
-                    : [];
-                displayArchivedUsers(usersMap, updatedArchivedUsers);
+                /* Rebuild All Chats / Recent — displayUsers filters out archived peers from RTDB. */
+                try {
+                    displayUsers(usersMap);
+                } catch (e) {
+                    /* ignore */
+                }
+                refreshArchivedChatsOnce(currentUser?.uid);
             })
             .catch((error) => {
                 console.error("Error unarchiving user:", error);
@@ -9394,14 +9502,6 @@ initializeFirebase(function (app, auth, database, storage) {
             /* ignore */
         }
     });
-
-    const closeChatBtn = document.getElementById("close-chat-btn");
-    if (closeChatBtn) {
-        closeChatBtn.addEventListener("click", function (event) {
-            event.preventDefault();
-            resetChatShellToWelcome();
-        });
-    }
 
     function requestNotificationPermission() {
         if (Notification.permission === "default") {

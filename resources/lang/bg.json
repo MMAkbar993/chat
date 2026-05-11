@@ -121,6 +121,10 @@
     "Mute Notifications": "Заглушаване на известията",
     "You blocked this contact. Tap to unblock.": "Вие блокирахте този контакт. Докоснете за деблокиране.",
     "You unblocked this contact.": "Вие отблокирахте този контакт.",
+    "You blocked this contact.": "Блокирахте този контакт.",
+    "Unblock": "Отблокиране",
+    "Unblock User": "Отблокиране на потребител",
+    "Are you sure you want to unblock this user?": "Сигурни ли сте, че искате да отблокирате този потребител?",
     "Favourites": "Любими",
     "Mark all Unfavourite": "Маркирайте всички Нелюбими",
     "Mute": "Без звук",
@@ -196,5 +200,13 @@
     "Please confirm by checking the box above.": "Моля, потвърдете, като поставите отметка в квадратчето по-горе.",
      "block": "Блокиране на потребители",
     "unblock": "Деблокиране на потребители",
-    "Clearing or deleting entire chats will only remove messages from this device and your devices on the newer versions of DreamsChat." : "Изчистването или изтриването на цели чатове ще премахне само съобщения от това устройство и вашите устройства в по-новите версии на DreamsChat."
+    "Clearing or deleting entire chats will only remove messages from this device and your devices on the newer versions of DreamsChat." : "Изчистването или изтриването на цели чатове ще премахне само съобщения от това устройство и вашите устройства в по-новите версии на DreamsChat.",
+    "Report Users": "Докладване на потребители",
+    "We will report this user for review when you tap Report below.": "Ще докладваме този потребител за преглед, когато докоснете Докладвай по-долу.",
+    "We will report this user.": "Ще докладваме този потребител.",
+    "We will report this group for review when you tap Report below.": "Ще докладваме тази група за преглед, когато докоснете Докладвай по-долу.",
+    "We will report this group.": "Ще докладваме тази група.",
+    "Could not submit report.": "Докладът не можа да бъде изпратен.",
+    "Report Group": "Докладване на група",
+    "Report Users List": "Списък с докладвани потребители"
 }
