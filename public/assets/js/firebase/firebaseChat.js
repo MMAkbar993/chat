@@ -93,7 +93,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 database,
                 `data/chats/${mirrorRoomId}/${messageKey}`
             );
-            await set(mirrorRef, payload).catch(() => {});
+            await set(mirrorRef, payload).catch(() => { });
         };
         try {
             await ensureFirebaseUserForRtdbWrite(expectedUid, false);
@@ -183,7 +183,7 @@ initializeFirebase(function (app, auth, database, storage) {
         if (!uid) return;
         updateUnderData({
             [`users/${uid}/typing`]: "",
-        }).catch(() => {});
+        }).catch(() => { });
     }
     function pulseChatTyping(recipientId) {
         const uid =
@@ -193,7 +193,7 @@ initializeFirebase(function (app, auth, database, storage) {
         if (!uid || !recipientId) return;
         updateUnderData({
             [`users/${uid}/typing`]: recipientId,
-        }).catch(() => {});
+        }).catch(() => { });
         if (typingIdleTimer) clearTimeout(typingIdleTimer);
         typingIdleTimer = setTimeout(clearChatTyping, 3000);
     }
@@ -363,7 +363,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                 }
                             }
                         }, 100);
-                        
+
                         // Fallback clear after some time to prevent infinite loop
                         setTimeout(() => clearInterval(checkInterval), 5000);
                         // Ensure panel is shown even if selectUser runs late or DOM was not ready: retry after a short delay
@@ -684,7 +684,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                             }),
                                         ]);
                                     }).then(() => {
-                                        return sendPasswordResetEmail(auth, inviteInput).catch(() => {});
+                                        return sendPasswordResetEmail(auth, inviteInput).catch(() => { });
                                     }).then(() => {
                                         resetInviteForm();
                                         closeInviteModal();
@@ -1253,7 +1253,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                             {
                                                 seen: true,
                                             }
-                                        ).catch(() => {});
+                                        ).catch(() => { });
                                     }
                                 });
                             }
@@ -1446,7 +1446,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
         const rawPhoto =
             hasProfileImageSource(user.profileImage) &&
-            !isPlaceholderProfileImageUrl(user.profileImage)
+                !isPlaceholderProfileImageUrl(user.profileImage)
                 ? user.profileImage
                 : "";
         setAvatarDivImageOrContactIcon(avatarDiv, rawPhoto);
@@ -1845,7 +1845,7 @@ initializeFirebase(function (app, auth, database, storage) {
         userLink.onclick = (e) => {
             e.preventDefault();
             selectUser(userId);
-            remove(markedUnreadRef).catch(() => {});
+            remove(markedUnreadRef).catch(() => { });
             messageCountSpan.style.display = "none";
             messageCountSpan.textContent = "";
 
@@ -1861,7 +1861,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     ) {
                         update(child(chatRef, childSnapshot.key), {
                             seen: true,
-                        }).catch(() => {});
+                        }).catch(() => { });
                     }
                 });
             });
@@ -1947,7 +1947,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
         const rawPhoto =
             hasProfileImageSource(user.profileImage) &&
-            !isPlaceholderProfileImageUrl(user.profileImage)
+                !isPlaceholderProfileImageUrl(user.profileImage)
                 ? user.profileImage
                 : "";
         setAvatarDivImageOrContactIcon(avatarDiv, rawPhoto);
@@ -2245,7 +2245,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     database,
                     `data/users/${currentUser.uid}/marked_unread/${userId}`
                 )
-            ).catch(() => {});
+            ).catch(() => { });
         }
 
         // Clear the chat box and show spinner while messages load
@@ -2360,8 +2360,8 @@ initializeFirebase(function (app, auth, database, storage) {
                 ) {
                     baseName = String(
                         contactData.user_name ||
-                            contactData.userName ||
-                            contactData.username
+                        contactData.userName ||
+                        contactData.username
                     ).trim();
                 } else if (contactData && contactData.email) {
                     baseName = String(contactData.email).trim();
@@ -3042,10 +3042,10 @@ initializeFirebase(function (app, auth, database, storage) {
                         );
                         const fallbackName = String(
                             contactData.userName ||
-                                contactData.user_name ||
-                                contactData.mobile_number ||
-                                contactData.email ||
-                                peerId
+                            contactData.user_name ||
+                            contactData.mobile_number ||
+                            contactData.email ||
+                            peerId
                         ).trim();
                         usersMap[peerId] = {
                             uid: peerId,
@@ -3093,10 +3093,10 @@ initializeFirebase(function (app, auth, database, storage) {
         if (pendingIds.length === 0) return;
         const token =
             typeof document !== "undefined" &&
-            document.querySelector('meta[name="csrf-token"]')
+                document.querySelector('meta[name="csrf-token"]')
                 ? document
-                      .querySelector('meta[name="csrf-token"]')
-                      .getAttribute("content")
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content")
                 : "";
         const origin =
             typeof window !== "undefined" && window.location && window.location.origin
@@ -3160,10 +3160,10 @@ initializeFirebase(function (app, auth, database, storage) {
         );
         const token =
             typeof document !== "undefined" &&
-            document.querySelector('meta[name="csrf-token"]')
+                document.querySelector('meta[name="csrf-token"]')
                 ? document
-                      .querySelector('meta[name="csrf-token"]')
-                      .getAttribute("content")
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content")
                 : "";
         const origin =
             typeof window !== "undefined" && window.location && window.location.origin
@@ -3226,10 +3226,10 @@ initializeFirebase(function (app, auth, database, storage) {
             containerEl || document.getElementById("main-container");
         const token =
             typeof document !== "undefined" &&
-            document.querySelector('meta[name="csrf-token"]')
+                document.querySelector('meta[name="csrf-token"]')
                 ? document
-                      .querySelector('meta[name="csrf-token"]')
-                      .getAttribute("content")
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content")
                 : "";
         const origin =
             typeof window !== "undefined" && window.location && window.location.origin
@@ -3356,10 +3356,10 @@ initializeFirebase(function (app, auth, database, storage) {
         const container = document.querySelector("#forward-modal .user-list");
         const token =
             typeof document !== "undefined" &&
-            document.querySelector('meta[name="csrf-token"]')
+                document.querySelector('meta[name="csrf-token"]')
                 ? document
-                      .querySelector('meta[name="csrf-token"]')
-                      .getAttribute("content")
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content")
                 : "";
         const origin =
             typeof window !== "undefined" && window.location && window.location.origin
@@ -3474,9 +3474,9 @@ initializeFirebase(function (app, auth, database, storage) {
                 ) {
                     // Avoid forced signOut() here; it creates auth=null gaps and RTDB permission races.
                     return signInWithCustomToken(
-                                auth,
-                                result.data.firebase_custom_token
-                            )
+                        auth,
+                        result.data.firebase_custom_token
+                    )
                         .then(function (signedInUserCredential) {
                             fetchUsersLastRestoreSuccessAt = Date.now();
                             fetchUsersPermissionDeniedUntil =
@@ -3675,9 +3675,9 @@ initializeFirebase(function (app, auth, database, storage) {
         return `
             <div class="message-reaction-picker" aria-label="Message reactions">
                 ${REACTION_EMOJIS.map(
-                    (emoji) =>
-                        `<button type="button" class="message-react-option" data-reaction="${emoji}">${emoji}</button>`
-                ).join("")}
+            (emoji) =>
+                `<button type="button" class="message-react-option" data-reaction="${emoji}">${emoji}</button>`
+        ).join("")}
                 <button type="button" class="message-react-more" title="More emojis">+</button>
             </div>
             <div class="message-reaction-picker-extended" aria-label="More reaction emojis"></div>
@@ -3953,65 +3953,65 @@ initializeFirebase(function (app, auth, database, storage) {
                                 decodedReply
                             );
                         } else {
-                        const peer = selectedUserId;
-                        const canonical =
-                            peer && myUid
-                                ? getDeterministicChatRoomId(myUid, peer)
-                                : null;
-                        const mirror =
-                            canonical && peer && myUid
-                                ? chatMirrorRoomId(canonical, myUid, peer)
-                                : null;
+                            const peer = selectedUserId;
+                            const canonical =
+                                peer && myUid
+                                    ? getDeterministicChatRoomId(myUid, peer)
+                                    : null;
+                            const mirror =
+                                canonical && peer && myUid
+                                    ? chatMirrorRoomId(canonical, myUid, peer)
+                                    : null;
 
-                        let snapshot = null;
-                        if (
-                            canonical &&
-                            message.replyId &&
-                            String(message.replyId) !== "0"
-                        ) {
-                            const r1 = ref(
-                                database,
-                                `data/chats/${canonical}/${message.replyId}`
-                            );
-                            snapshot = await get(r1).catch(() => null);
-                            if (!snapshot?.exists() && mirror) {
-                                const r2 = ref(
+                            let snapshot = null;
+                            if (
+                                canonical &&
+                                message.replyId &&
+                                String(message.replyId) !== "0"
+                            ) {
+                                const r1 = ref(
                                     database,
-                                    `data/chats/${mirror}/${message.replyId}`
+                                    `data/chats/${canonical}/${message.replyId}`
                                 );
-                                snapshot = await get(r2).catch(() => null);
+                                snapshot = await get(r1).catch(() => null);
+                                if (!snapshot?.exists() && mirror) {
+                                    const r2 = ref(
+                                        database,
+                                        `data/chats/${mirror}/${message.replyId}`
+                                    );
+                                    snapshot = await get(r2).catch(() => null);
+                                }
                             }
-                        }
 
-                        let contentToDecrypt = "[Original message not found]";
-                        if (snapshot && snapshot.exists()) {
-                            const originalMessageData = snapshot.val();
-                            contentToDecrypt =
-                                originalMessageData &&
-                                originalMessageData.body != null
-                                    ? originalMessageData.body
-                                    : "[Original message not found]";
-                        }
+                            let contentToDecrypt = "[Original message not found]";
+                            if (snapshot && snapshot.exists()) {
+                                const originalMessageData = snapshot.val();
+                                contentToDecrypt =
+                                    originalMessageData &&
+                                        originalMessageData.body != null
+                                        ? originalMessageData.body
+                                        : "[Original message not found]";
+                            }
 
-                        const originalReplyMessage =
-                            await decryptlibsodiumMessage(contentToDecrypt);
-                        const decryptedReplyContent =
-                            originalReplyMessage || "";
+                            const originalReplyMessage =
+                                await decryptlibsodiumMessage(contentToDecrypt);
+                            const decryptedReplyContent =
+                                originalReplyMessage || "";
 
-                        const sanitizedReplyContent =
-                            decryptedReplyContent.trim();
+                            const sanitizedReplyContent =
+                                decryptedReplyContent.trim();
 
-                        const originalMessageType =
-                            snapshot && snapshot.exists() && snapshot.val()
-                                ? String(
-                                      snapshot.val().attachmentType || "6"
-                                  )
-                                : "6";
+                            const originalMessageType =
+                                snapshot && snapshot.exists() && snapshot.val()
+                                    ? String(
+                                        snapshot.val().attachmentType || "6"
+                                    )
+                                    : "6";
 
-                        replyContent = renderReplyContent(
-                            originalMessageType,
-                            sanitizedReplyContent
-                        );
+                            replyContent = renderReplyContent(
+                                originalMessageType,
+                                sanitizedReplyContent
+                            );
                         }
                     } catch (error) {
                         console.error("Error processing reply message:", error);
@@ -4082,9 +4082,9 @@ initializeFirebase(function (app, auth, database, storage) {
                                     <div class="message-content">
                                      ${forwardedLabel} <!-- Forwarded Label -->
                                      ${message.replyId != "0"
-                                ? `<div class="message-reply">${replyContent}</div>`
-                                : ""
-                            } <!-- Reply Content only if it's a reply -->
+                            ? `<div class="message-reply">${replyContent}</div>`
+                            : ""
+                        } <!-- Reply Content only if it's a reply -->
                                         ${messageBody} <!-- Default Message -->
                                     </div>
                                     ${reactionsMarkup}
@@ -4119,9 +4119,9 @@ initializeFirebase(function (app, auth, database, storage) {
                                     <div class="message-content">
                                      ${forwardedLabel} <!-- Forwarded Label -->
                                      ${message.replyId != "0"
-                                ? `<div class="message-reply">${replyContent}</div>`
-                                : ""
-                            } <!-- Reply Content only if it's a reply -->
+                            ? `<div class="message-reply">${replyContent}</div>`
+                            : ""
+                        } <!-- Reply Content only if it's a reply -->
                                         ${messageBody} <!-- Default Message -->
                                     </div>
                                     ${reactionsMarkup}
@@ -4388,44 +4388,139 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             }
 
-            getUsersFromContacts().then((users) => {
-                showForwardModal(users, forwardContent);
-            });
+            getUsersFromContacts()
+                .then((users) => {
+                    showForwardModal(users, forwardContent);
+                })
+                .catch(() => {
+                    showForwardModal([], forwardContent);
+                });
         }
     });
 
-    // Function to fetch users from contacts (Firebase example)
-    function getUsersFromContacts() {
-        return new Promise((resolve, reject) => {
-            const usersRef = ref(database, `data/contacts/${currentUser.uid}/`);
-            get(usersRef)
-                .then((snapshot) => {
-                    const users = [];
-                    if (!snapshot.exists()) {
-                        resolve(users);
-                        return;
-                    }
-                    snapshot.forEach((childSnapshot) => {
-                        const userData = childSnapshot.val() || {};
-                        const rawAv = rawAvatarFromFirebaseAndContact(
-                            {},
-                            userData
-                        );
-                        users.push({
-                            id: childSnapshot.key,
-                            firstName: userData.firstName,
-                            lastName: userData.lastName,
-                            userName: userData.userName || userData.user_name,
-                            user_name: userData.user_name,
-                            mobile_number: userData.mobile_number,
-                            email: userData.email,
-                            avatar: resolveCallProfileImageUrl(rawAv || ""),
-                        });
+    /**
+     * Recipients for “Forward message”: Firebase data/contacts/{me} plus Laravel /contacts
+     * (MySQL-only contact lists otherwise show an empty modal). Peer id prefers contact_id
+     * when RTDB rows use push keys.
+     */
+    async function getUsersFromContacts() {
+        const me = currentUser?.uid;
+        if (!me) return [];
+
+        const byId = new Map();
+        const origin =
+            typeof window !== "undefined" && window.location && window.location.origin
+                ? window.location.origin
+                : "";
+
+        try {
+            const usersRef = ref(database, `data/contacts/${me}/`);
+            const snapshot = await get(usersRef);
+            if (snapshot.exists()) {
+                snapshot.forEach((childSnapshot) => {
+                    const userData = childSnapshot.val() || {};
+                    const peerId = String(
+                        userData.contact_id ||
+                        userData.uid ||
+                        userData.id ||
+                        childSnapshot.key ||
+                        ""
+                    ).trim();
+                    if (!peerId || peerId === me) return;
+                    if (String(peerId).indexOf("pending_") === 0) return;
+                    const rawAv = rawAvatarFromFirebaseAndContact({}, userData);
+                    byId.set(peerId, {
+                        id: peerId,
+                        firstName: userData.firstName,
+                        lastName: userData.lastName,
+                        userName: userData.userName || userData.user_name,
+                        user_name: userData.user_name,
+                        mobile_number: userData.mobile_number,
+                        email: userData.email,
+                        avatar: resolveCallProfileImageUrl(rawAv || ""),
                     });
-                    resolve(users);
-                })
-                .catch((error) => reject(error));
-        });
+                });
+            }
+        } catch (e) {
+            /* ignore RTDB errors; Laravel may still have contacts */
+        }
+
+        if (origin) {
+            try {
+                const r = await fetch(origin + "/contacts", {
+                    method: "GET",
+                    headers: {
+                        Accept: "application/json",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                    credentials: "same-origin",
+                });
+                if (r.ok) {
+                    const contacts = await r.json();
+                    if (Array.isArray(contacts)) {
+                        contacts.forEach((c) => {
+                            const fb = String(
+                                c.firebase_uid || c.firebaseUid || ""
+                            ).trim();
+                            if (!fb || fb === me) return;
+                            const first = String(c.firstName || "").trim();
+                            const last = String(c.lastName || "").trim();
+                            const img = resolveCallProfileImageUrl(c.image || "");
+                            const row = byId.get(fb);
+                            if (row) {
+                                if (!row.avatar && img) row.avatar = img;
+                                if (!String(row.firstName || "").trim() && first) {
+                                    row.firstName = first;
+                                }
+                                if (!String(row.lastName || "").trim() && last) {
+                                    row.lastName = last;
+                                }
+                                if (
+                                    !String(
+                                        row.userName || row.user_name || ""
+                                    ).trim() &&
+                                    c.userName
+                                ) {
+                                    row.userName = c.userName;
+                                }
+                                if (!String(row.email || "").trim() && c.email) {
+                                    row.email = c.email;
+                                }
+                                if (
+                                    !String(row.mobile_number || "").trim() &&
+                                    c.mobile_number
+                                ) {
+                                    row.mobile_number = c.mobile_number;
+                                }
+                            } else {
+                                byId.set(fb, {
+                                    id: fb,
+                                    firstName: first,
+                                    lastName: last,
+                                    userName: c.userName || "",
+                                    user_name: c.userName || "",
+                                    mobile_number: c.mobile_number || "",
+                                    email: c.email || "",
+                                    avatar: img,
+                                });
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        const list = Array.from(byId.values());
+        list.sort((a, b) =>
+            forwardRecipientLabel(a).localeCompare(
+                forwardRecipientLabel(b),
+                undefined,
+                { sensitivity: "base" }
+            )
+        );
+        return list;
     }
 
     function forwardRecipientLabel(user) {
@@ -4457,7 +4552,7 @@ initializeFirebase(function (app, auth, database, storage) {
             typeof bootstrap.Modal.getOrCreateInstance === "function"
                 ? bootstrap.Modal.getOrCreateInstance(forwardModalEl)
                 : bootstrap.Modal.getInstance(forwardModalEl) ||
-                  new bootstrap.Modal(forwardModalEl);
+                new bootstrap.Modal(forwardModalEl);
 
         if (!forwardModalEl.dataset.forwardBackdropCleanup) {
             forwardModalEl.dataset.forwardBackdropCleanup = "1";
@@ -4479,45 +4574,89 @@ initializeFirebase(function (app, auth, database, storage) {
         if (!userListContainer) {
             return;
         }
+
+        const searchInput = forwardModalEl.querySelector(
+            "#forward-contact-search"
+        );
+        if (searchInput) {
+            searchInput.value = "";
+            searchInput.style.display = users.length ? "" : "none";
+            if (!users.length) {
+                searchInput.oninput = null;
+            }
+        }
+
         userListContainer.innerHTML = "";
+
+        if (!users.length) {
+            userListContainer.innerHTML =
+                '<p class="text-muted text-center py-4 px-2 mb-0">No contacts with chat yet. Add people from <strong>Contacts</strong> so they appear here.</p>';
+        }
 
         users.forEach((user) => {
             const userItem = document.createElement("div");
-            userItem.classList.add("user-item");
+            userItem.className =
+                "forward-contact-row user-item d-flex align-items-stretch rounded-2 border bg-white shadow-sm";
             userItem.setAttribute("data-forward-peer", user.id);
 
             const label = forwardRecipientLabel(user);
+            userItem.setAttribute("data-forward-label", label);
 
             const cb = document.createElement("input");
             cb.type = "checkbox";
-            cb.classList.add("user-checkbox");
+            cb.className =
+                "form-check-input user-checkbox flex-shrink-0 ms-1 align-self-center";
             cb.setAttribute("data-user-id", user.id);
 
             const avWrap = document.createElement("div");
             avWrap.className =
-                "user-avatar forward-user-avatar avatar avatar-sm flex-shrink-0";
-            avWrap.style.width = "30px";
-            avWrap.style.height = "30px";
+                "user-avatar forward-user-avatar avatar avatar-sm flex-shrink-0 align-self-center";
+            avWrap.style.width = "36px";
+            avWrap.style.height = "36px";
             setAvatarDivImageOrContactIcon(avWrap, user.avatar || "");
 
             const span = document.createElement("span");
+            span.className =
+                "text-truncate small fw-semibold text-body flex-grow-1 me-2 align-self-center";
             span.textContent = label;
 
-            userItem.appendChild(cb);
-            userItem.appendChild(avWrap);
-            userItem.appendChild(span);
+            const lab = document.createElement("label");
+            lab.className =
+                "d-flex align-items-center gap-2 flex-grow-1 mb-0 py-2 ps-1 pe-2";
+            lab.style.cursor = "pointer";
+            lab.appendChild(cb);
+            lab.appendChild(avWrap);
+            lab.appendChild(span);
+            userItem.appendChild(lab);
             userListContainer.appendChild(userItem);
         });
 
+        if (searchInput && users.length) {
+            searchInput.oninput = () => {
+                const q = searchInput.value.trim().toLowerCase();
+                forwardModalEl
+                    .querySelectorAll(".forward-contact-row")
+                    .forEach((row) => {
+                        const t = (
+                            row.getAttribute("data-forward-label") || ""
+                        ).toLowerCase();
+                        row.classList.toggle(
+                            "d-none",
+                            q.length > 0 && t.indexOf(q) === -1
+                        );
+                    });
+            };
+        }
+
         enrichForwardModalAvatarsFromLaravel(users.map((u) => u.id)).catch(
-            () => {}
+            () => { }
         );
 
         modalContainer.show();
 
         const sendForwardBtn = document.getElementById("send-forward");
         if (sendForwardBtn) {
-            sendForwardBtn.onclick = () => {
+            sendForwardBtn.onclick = async () => {
                 const selectedUsers = [];
                 const checkboxes = forwardModalEl.querySelectorAll(
                     ".user-checkbox:checked"
@@ -4527,25 +4666,37 @@ initializeFirebase(function (app, auth, database, storage) {
                     selectedUsers.push(checkbox.getAttribute("data-user-id"));
                 });
 
-                if (selectedUsers.length > 0 && forwardContent) {
-                    selectedUsers.forEach((userId) => {
-                        sendForwardMessage(
-                            userId,
-                            forwardContent.body,
-                            forwardContent.media
-                                ? forwardContent.media.attachmentType
-                                : 6,
-                            forwardContent.key
-                        );
-                    });
-                    forwardContent = null;
-                }
-
                 modalContainer.hide();
+
+                if (selectedUsers.length > 0 && forwardContent) {
+                    const fc = forwardContent;
+                    forwardContent = null;
+                    let peerToOpen = null;
+                    for (let i = 0; i < selectedUsers.length; i++) {
+                        const userId = selectedUsers[i];
+                        const ok = await sendForwardMessage(
+                            userId,
+                            fc.body,
+                            fc.media ? fc.media.attachmentType : 6,
+                            fc.key
+                        );
+                        if (ok) {
+                            peerToOpen = userId;
+                        }
+                    }
+                    if (peerToOpen) {
+                        try {
+                            await selectUser(peerToOpen);
+                        } catch (e) {
+                            /* ignore */
+                        }
+                    }
+                }
             };
         }
     }
 
+    /** @returns {Promise<boolean>} true if the message was written to Firebase */
     function sendForwardMessage(
         toUserId,
         forwardText,
@@ -4553,12 +4704,13 @@ initializeFirebase(function (app, auth, database, storage) {
         originalMessageKey = null
     ) {
         if (!currentUser) {
-            return;
+            return Promise.resolve(false);
         }
 
-        isUserBlocked(currentUser.uid, toUserId)
-            .then((isBlocked) => {
-                if (isBlocked) {
+        return (async () => {
+            const me = currentUser.uid;
+            try {
+                if (await isUserBlocked(me, toUserId)) {
                     Toastify({
                         text: "You have blocked this user. Unblock to send a message.",
                         duration: 3000,
@@ -4567,71 +4719,58 @@ initializeFirebase(function (app, auth, database, storage) {
                         backgroundColor: "#ff3d00",
                         stopOnFocus: true,
                     }).showToast();
-                    return;
+                    return false;
                 }
 
-                isUserBlocked(toUserId, currentUser.uid).then(
-                    async (isBlocked) => {
-                        if (isBlocked) {
-                            Toastify({
-                                text: "You have blocked by this user. Unable to send a message",
-                                duration: 3000,
-                                gravity: "top",
-                                position: "right",
-                                backgroundColor: "#ff3d00",
-                                stopOnFocus: true,
-                            }).showToast();
-                            return; // Exit the function if the user is blocked
-                        }
+                if (await isUserBlocked(toUserId, me)) {
+                    Toastify({
+                        text: "You have blocked by this user. Unable to send a message",
+                        duration: 3000,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "#ff3d00",
+                        stopOnFocus: true,
+                    }).showToast();
+                    return false;
+                }
 
-                        const chatRoomId = [currentUser.uid, toUserId]
-                            .sort()
-                            .join("-");
+                const chatRoomId = [me, toUserId].sort().join("-");
 
-                        const message = {
-                            attachmentType: messageType, // Dynamically set attachmentType
-                            timestamp: Date.now(),
-                            date: Date.now(),
-                            delivered: false,
-                            readMsg: false,
-                            blocked: false,
-                            replyId: "0",
-                            senderId: currentUser.uid,
-                            recipientId: toUserId,
-                            delete: "",
-                            isForward: true,
-                            originalMessageKey: originalMessageKey,
-                        };
+                const message = {
+                    attachmentType: messageType,
+                    timestamp: Date.now(),
+                    date: Date.now(),
+                    delivered: false,
+                    readMsg: false,
+                    blocked: false,
+                    replyId: "0",
+                    senderId: me,
+                    recipientId: toUserId,
+                    delete: "",
+                    isForward: true,
+                    originalMessageKey: originalMessageKey,
+                };
 
-                        if (messageType === 6) {
-                            const encryptedForwardText = await encryptMessage(
-                                forwardText
-                            );
-                            message.body = encryptedForwardText;
-                        } else {
-                            message.attachment = forwardText;
-                        }
+                if (messageType === 6) {
+                    const encryptedForwardText = await encryptMessage(
+                        forwardText
+                    );
+                    message.body = encryptedForwardText;
+                } else {
+                    message.attachment = forwardText;
+                }
 
-                        const messageRef = ref(
-                            database,
-                            `data/chats/${chatRoomId}`
-                        );
-                        push(messageRef, message)
-                            .then((newMessageRef) => {
-                                // Message forwarded successfully
-                            })
-                            .catch((error) => {
-                                console.error(
-                                    "Error forwarding message:",
-                                    error
-                                );
-                            });
-                    }
+                const messageRef = ref(database, `data/chats/${chatRoomId}`);
+                await push(messageRef, message);
+                return true;
+            } catch (error) {
+                console.error(
+                    "Error forwarding message or checking block status:",
+                    error
                 );
-            })
-            .catch((error) => {
-                console.error("Error checking if user is blocked:", error);
-            });
+                return false;
+            }
+        })();
     }
 
     document.addEventListener("click", (e) => {
@@ -4666,12 +4805,12 @@ initializeFirebase(function (app, auth, database, storage) {
                     const message = snapPri.exists()
                         ? snapMir.exists()
                             ? {
-                                  ...snapPri.val(),
-                                  deletedFor: mergeFirebaseUidLists(
-                                      snapPri.val().deletedFor,
-                                      snapMir.val().deletedFor
-                                  ),
-                              }
+                                ...snapPri.val(),
+                                deletedFor: mergeFirebaseUidLists(
+                                    snapPri.val().deletedFor,
+                                    snapMir.val().deletedFor
+                                ),
+                            }
                             : snapPri.val()
                         : snapMir.val();
                     if (message.senderId == currentUserId) {
@@ -5111,13 +5250,13 @@ initializeFirebase(function (app, auth, database, storage) {
 
     function playMessageSentSound() {
         if (readMessageNotificationSoundEnabled()) {
-            messagenotificationSound.play().catch(() => {});
+            messagenotificationSound.play().catch(() => { });
         }
     }
 
     function playMessageReceivedSound() {
         if (readMessageNotificationSoundEnabled()) {
-            messagenotificationSound.play().catch(() => {});
+            messagenotificationSound.play().catch(() => { });
         }
     }
 
@@ -5764,7 +5903,7 @@ initializeFirebase(function (app, auth, database, storage) {
             { once: true }
         );
 
-        video.play().catch(() => {});
+        video.play().catch(() => { });
     }
 
     if (sendButton) {
@@ -6372,9 +6511,9 @@ initializeFirebase(function (app, auth, database, storage) {
     const logoutButton = document.getElementById("logout-button");
     if (logoutButton) {
         logoutButton.addEventListener("click", function (event) {
-        event.preventDefault(); // Prevent default action (if any)
-        logoutUser(); // Call the logoutUser function
-    });
+            event.preventDefault(); // Prevent default action (if any)
+            logoutUser(); // Call the logoutUser function
+        });
     }
 
     function logoutUser() {
@@ -6613,7 +6752,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     backgroundColor: "#28a745",
                 }).showToast();
             })
-            .catch(() => {});
+            .catch(() => { });
     }
 
     function pinChat(userId) {
@@ -6739,7 +6878,7 @@ initializeFirebase(function (app, auth, database, storage) {
         return Promise.all([
             applyForRoom(canonical),
             applyForRoom(mirror),
-        ]).then(() => {});
+        ]).then(() => { });
     }
 
     /** Delete-chat keeps rows under delete_chats; displayUsers skips those peers until removed. */
@@ -6774,7 +6913,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (tasks.length === 0) return;
                 return Promise.all(tasks);
             })
-            .catch(() => {});
+            .catch(() => { });
     }
 
     function afterOutgoingMessagePersisted(peerUserId) {
@@ -6802,7 +6941,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     backgroundColor: "#dc3545", // Red for error
                 }).showToast();
                 applyClearedForEntireThread(userId)
-                    .catch(() => {})
+                    .catch(() => { })
                     .then(() => {
                         removeUserFromUI(userId);
                         if (String(selectedUserId) === String(userId)) {
@@ -6818,7 +6957,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     deleted: true,
                 })
                     .then(() => applyClearedForEntireThread(userId))
-                    .catch(() => {})
+                    .catch(() => { })
                     .then(() => {
                         removeUserFromUI(userId);
                         if (String(selectedUserId) === String(userId)) {
@@ -6856,7 +6995,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     backgroundColor: "#28a745",
                 }).showToast();
             })
-            .catch(() => {});
+            .catch(() => { });
     }
 
     function removeUserFromUI(userId) {
@@ -6906,146 +7045,146 @@ initializeFirebase(function (app, auth, database, storage) {
                     if (url && typeof url === "string" && url.includes("firebasestorage.googleapis.com")) {
                         try {
                             const fileRef = storageRef(storage, url);
-                            deletePromises.push(deleteObject(fileRef).catch(() => {}));
+                            deletePromises.push(deleteObject(fileRef).catch(() => { }));
                         } catch (e) { /* ignore invalid refs */ }
                     }
                 });
                 return Promise.all(deletePromises);
-            }).catch(() => {});
+            }).catch(() => { });
         }
 
         return Promise.all([
             deleteStorageFilesFromMessages(canonical),
             deleteStorageFilesFromMessages(mirror),
         ])
-        .then(() => {
-            const updates = {};
-            updates[`data/chats/${canonical}`] = null;
-            updates[`data/chats/${mirror}`] = null;
-            updates[`data/users/${me}/favourite_messages/${peerUserId}`] = null;
-            updates[`data/users/${me}/marked_unread/${peerUserId}`] = null;
-            return updateUnderDataStripDataPrefix(updates);
-        })
-        .then(() => {
-            const listCleanups = [];
+            .then(() => {
+                const updates = {};
+                updates[`data/chats/${canonical}`] = null;
+                updates[`data/chats/${mirror}`] = null;
+                updates[`data/users/${me}/favourite_messages/${peerUserId}`] = null;
+                updates[`data/users/${me}/marked_unread/${peerUserId}`] = null;
+                return updateUnderDataStripDataPrefix(updates);
+            })
+            .then(() => {
+                const listCleanups = [];
 
-            // Remove from archiveUserId (array of user IDs)
-            const archiveRef = ref(database, `data/users/${me}/archiveUserId`);
-            listCleanups.push(
-                get(archiveRef).then((snap) => {
-                    if (!snap.exists()) return;
-                    const arr = snap.val();
-                    if (Array.isArray(arr) && arr.includes(peerUserId)) {
-                        return set(archiveRef, arr.filter((id) => id !== peerUserId));
-                    }
-                }).catch(() => {})
-            );
-
-            // Remove from pinnedUserId (array of user IDs)
-            const pinnedRef = ref(database, `data/users/${me}/pinnedUserId`);
-            listCleanups.push(
-                get(pinnedRef).then((snap) => {
-                    if (!snap.exists()) return;
-                    const arr = snap.val();
-                    if (Array.isArray(arr) && arr.includes(peerUserId)) {
-                        return set(pinnedRef, arr.filter((id) => id !== peerUserId));
-                    }
-                }).catch(() => {})
-            );
-
-            // Remove from favourite_chats (object keyed by push-ID)
-            const favRef = ref(database, `data/users/${me}/favourite_chats`);
-            listCleanups.push(
-                get(favRef).then((snap) => {
-                    if (!snap.exists()) return;
-                    const favs = snap.val();
-                    const removeOps = [];
-                    for (const key in favs) {
-                        if (favs[key]?.userId === peerUserId) {
-                            removeOps.push(remove(ref(database, `data/users/${me}/favourite_chats/${key}`)));
+                // Remove from archiveUserId (array of user IDs)
+                const archiveRef = ref(database, `data/users/${me}/archiveUserId`);
+                listCleanups.push(
+                    get(archiveRef).then((snap) => {
+                        if (!snap.exists()) return;
+                        const arr = snap.val();
+                        if (Array.isArray(arr) && arr.includes(peerUserId)) {
+                            return set(archiveRef, arr.filter((id) => id !== peerUserId));
                         }
-                    }
-                    return Promise.all(removeOps);
-                }).catch(() => {})
-            );
+                    }).catch(() => { })
+                );
 
-            // Remove from delete_chats (object keyed by push-ID)
-            const trashRef = ref(database, `data/users/${me}/delete_chats`);
-            listCleanups.push(
-                get(trashRef).then((snap) => {
-                    if (!snap.exists()) return;
-                    const trashData = snap.val();
-                    const removeOps = [];
-                    for (const key in trashData) {
-                        if (trashData[key]?.userId === peerUserId) {
-                            removeOps.push(remove(ref(database, `data/users/${me}/delete_chats/${key}`)));
+                // Remove from pinnedUserId (array of user IDs)
+                const pinnedRef = ref(database, `data/users/${me}/pinnedUserId`);
+                listCleanups.push(
+                    get(pinnedRef).then((snap) => {
+                        if (!snap.exists()) return;
+                        const arr = snap.val();
+                        if (Array.isArray(arr) && arr.includes(peerUserId)) {
+                            return set(pinnedRef, arr.filter((id) => id !== peerUserId));
                         }
-                    }
-                    return Promise.all(removeOps);
-                }).catch(() => {})
-            );
+                    }).catch(() => { })
+                );
 
-            return Promise.all(listCleanups);
-        })
-        .then(() => {
-            removeUserFromUI(peerUserId);
-            if (String(selectedUserId) === String(peerUserId)) {
-                // Clear all media panel content before resetting
-                document.querySelectorAll(".media-collapse-content").forEach(colEl => {
-                    delete colEl.dataset.mediaLoaded;
-                    if (typeof bootstrap !== "undefined") {
-                        const inst = bootstrap.Collapse.getInstance(colEl);
-                        if (inst) inst.hide(); else colEl.classList.remove("show");
-                    } else {
-                        colEl.classList.remove("show");
+                // Remove from favourite_chats (object keyed by push-ID)
+                const favRef = ref(database, `data/users/${me}/favourite_chats`);
+                listCleanups.push(
+                    get(favRef).then((snap) => {
+                        if (!snap.exists()) return;
+                        const favs = snap.val();
+                        const removeOps = [];
+                        for (const key in favs) {
+                            if (favs[key]?.userId === peerUserId) {
+                                removeOps.push(remove(ref(database, `data/users/${me}/favourite_chats/${key}`)));
+                            }
+                        }
+                        return Promise.all(removeOps);
+                    }).catch(() => { })
+                );
+
+                // Remove from delete_chats (object keyed by push-ID)
+                const trashRef = ref(database, `data/users/${me}/delete_chats`);
+                listCleanups.push(
+                    get(trashRef).then((snap) => {
+                        if (!snap.exists()) return;
+                        const trashData = snap.val();
+                        const removeOps = [];
+                        for (const key in trashData) {
+                            if (trashData[key]?.userId === peerUserId) {
+                                removeOps.push(remove(ref(database, `data/users/${me}/delete_chats/${key}`)));
+                            }
+                        }
+                        return Promise.all(removeOps);
+                    }).catch(() => { })
+                );
+
+                return Promise.all(listCleanups);
+            })
+            .then(() => {
+                removeUserFromUI(peerUserId);
+                if (String(selectedUserId) === String(peerUserId)) {
+                    // Clear all media panel content before resetting
+                    document.querySelectorAll(".media-collapse-content").forEach(colEl => {
+                        delete colEl.dataset.mediaLoaded;
+                        if (typeof bootstrap !== "undefined") {
+                            const inst = bootstrap.Collapse.getInstance(colEl);
+                            if (inst) inst.hide(); else colEl.classList.remove("show");
+                        } else {
+                            colEl.classList.remove("show");
+                        }
+                        colEl.querySelectorAll(".media-photos-grid,.media-videos-grid,.media-links-list,.media-docs-list").forEach(c => { c.innerHTML = ""; });
+                        colEl.querySelectorAll(".media-empty").forEach(e => e.classList.add("d-none"));
+                        colEl.querySelectorAll(".media-loading").forEach(e => e.classList.add("d-none"));
+                    });
+                    document.querySelectorAll(".media-chevron i").forEach(i => {
+                        i.classList.remove("ti-chevron-up");
+                        i.classList.add("ti-chevron-right");
+                    });
+                    // Clear Others accordion (favourites, mute, delete, etc.)
+                    document.querySelectorAll(".others-collapse-content").forEach(colEl => {
+                        delete colEl.dataset.othersLoaded;
+                        if (typeof bootstrap !== "undefined") {
+                            const inst = bootstrap.Collapse.getInstance(colEl);
+                            if (inst) inst.hide(); else colEl.classList.remove("show");
+                        } else {
+                            colEl.classList.remove("show");
+                        }
+                        const favList = document.getElementById("others-favourites-list");
+                        if (favList) favList.innerHTML = "";
+                    });
+                    // Close the Contact Info offcanvas panel
+                    const contactProfileEl = document.getElementById("contact-profile");
+                    if (contactProfileEl && typeof bootstrap !== "undefined") {
+                        const offcanvasInst = bootstrap.Offcanvas.getInstance(contactProfileEl);
+                        if (offcanvasInst) offcanvasInst.hide();
                     }
-                    colEl.querySelectorAll(".media-photos-grid,.media-videos-grid,.media-links-list,.media-docs-list").forEach(c => { c.innerHTML = ""; });
-                    colEl.querySelectorAll(".media-empty").forEach(e => e.classList.add("d-none"));
-                    colEl.querySelectorAll(".media-loading").forEach(e => e.classList.add("d-none"));
-                });
-                document.querySelectorAll(".media-chevron i").forEach(i => {
-                    i.classList.remove("ti-chevron-up");
-                    i.classList.add("ti-chevron-right");
-                });
-                // Clear Others accordion (favourites, mute, delete, etc.)
-                document.querySelectorAll(".others-collapse-content").forEach(colEl => {
-                    delete colEl.dataset.othersLoaded;
-                    if (typeof bootstrap !== "undefined") {
-                        const inst = bootstrap.Collapse.getInstance(colEl);
-                        if (inst) inst.hide(); else colEl.classList.remove("show");
-                    } else {
-                        colEl.classList.remove("show");
-                    }
-                    const favList = document.getElementById("others-favourites-list");
-                    if (favList) favList.innerHTML = "";
-                });
-                // Close the Contact Info offcanvas panel
-                const contactProfileEl = document.getElementById("contact-profile");
-                if (contactProfileEl && typeof bootstrap !== "undefined") {
-                    const offcanvasInst = bootstrap.Offcanvas.getInstance(contactProfileEl);
-                    if (offcanvasInst) offcanvasInst.hide();
+                    resetChatShellToWelcome();
                 }
-                resetChatShellToWelcome();
-            }
-            scheduleRefreshChatFilterBadgeCounts();
-            Toastify({
-                text: "Chat permanently deleted!",
-                duration: 3000,
-                gravity: "top",
-                position: "right",
-                backgroundColor: "#28a745",
-            }).showToast();
-        })
-        .catch((error) => {
-            console.error("Error permanently deleting chat:", error);
-            Toastify({
-                text: "Failed to delete chat permanently.",
-                duration: 3000,
-                gravity: "top",
-                position: "right",
-                backgroundColor: "#dc3545",
-            }).showToast();
-        });
+                scheduleRefreshChatFilterBadgeCounts();
+                Toastify({
+                    text: "Chat permanently deleted!",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#28a745",
+                }).showToast();
+            })
+            .catch((error) => {
+                console.error("Error permanently deleting chat:", error);
+                Toastify({
+                    text: "Failed to delete chat permanently.",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#dc3545",
+                }).showToast();
+            });
     }
 
     function displayLastSeen(userId) {
@@ -7103,7 +7242,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     badge.classList.add("d-none");
                 }
             })
-            .catch(() => {});
+            .catch(() => { });
     }
 
     const contactInfoButton = document.getElementById("contactInfoButton");
@@ -7157,19 +7296,19 @@ initializeFirebase(function (app, auth, database, storage) {
         const mediaAccordionMap = {
             "contact-media-photos": { collapseId: "media-collapse-photos", type: "photos", attachmentTypes: [2] },
             "contact-media-videos": { collapseId: "media-collapse-videos", type: "videos", attachmentTypes: [1] },
-            "contact-media-links":  { collapseId: "media-collapse-links",  type: "links",  attachmentTypes: [6] },
-            "contact-media-docs":   { collapseId: "media-collapse-docs",   type: "docs",   attachmentTypes: [5] },
+            "contact-media-links": { collapseId: "media-collapse-links", type: "links", attachmentTypes: [6] },
+            "contact-media-docs": { collapseId: "media-collapse-docs", type: "docs", attachmentTypes: [5] },
         };
 
         async function loadMediaAccordion(collapseEl, mediaType) {
             if (!currentUser || !selectedUserId) return;
             const loadingEl = collapseEl.querySelector(".media-loading");
-            const emptyEl   = collapseEl.querySelector(".media-empty");
-            const gridEl    = collapseEl.querySelector(".media-photos-grid, .media-videos-grid");
-            const listEl    = collapseEl.querySelector(".media-links-list, .media-docs-list");
+            const emptyEl = collapseEl.querySelector(".media-empty");
+            const gridEl = collapseEl.querySelector(".media-photos-grid, .media-videos-grid");
+            const listEl = collapseEl.querySelector(".media-links-list, .media-docs-list");
 
             if (loadingEl) loadingEl.classList.remove("d-none");
-            if (emptyEl)   emptyEl.classList.add("d-none");
+            if (emptyEl) emptyEl.classList.add("d-none");
             if (gridEl) gridEl.innerHTML = "";
             if (listEl) listEl.innerHTML = "";
 
@@ -7316,7 +7455,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (!filtered.length) { if (emptyEl) emptyEl.classList.remove("d-none"); return; }
                 for (const msg of filtered) {
                     let url = msg.attachment && msg.attachment.url ? msg.attachment.url : msg.attachment;
-                    if (!url) { try { url = await decryptlibsodiumMessage(msg.body); } catch(e) {} }
+                    if (!url) { try { url = await decryptlibsodiumMessage(msg.body); } catch (e) { } }
                     url = normalizeChatMediaUrl(url);
                     const name = (msg.attachment && msg.attachment.name) || (url && url.split("/").pop()) || "File";
                     const item = document.createElement("a");
@@ -7395,10 +7534,10 @@ initializeFirebase(function (app, auth, database, storage) {
         // ── Others accordion ──────────────────────────────────────────
         const othersAccordionMap = {
             "contact-open-favourites": "others-collapse-favourites",
-            "others-row-mute":         "others-collapse-mute",
-            "blockedUserDropdownBtn":  "others-collapse-block",
-            "others-row-report":       "others-collapse-report",
-            "others-row-delete":       "others-collapse-delete",
+            "others-row-mute": "others-collapse-mute",
+            "blockedUserDropdownBtn": "others-collapse-block",
+            "others-row-report": "others-collapse-report",
+            "others-row-delete": "others-collapse-delete",
         };
 
         function closeAllOthers(exceptId) {
@@ -7472,8 +7611,8 @@ initializeFirebase(function (app, auth, database, storage) {
         // Favourites: saved messages for the open 1:1 chat only (peer = selectedUserId)
         async function loadOthersFavourites(collapseEl) {
             const loadingEl = collapseEl.querySelector(".others-loading");
-            const emptyEl   = collapseEl.querySelector(".others-empty");
-            const listEl    = document.getElementById("others-favourites-list");
+            const emptyEl = collapseEl.querySelector(".others-empty");
+            const listEl = document.getElementById("others-favourites-list");
             if (!currentUser || !listEl) return;
             listEl.innerHTML = "";
             if (!selectedUserId) {
@@ -7821,31 +7960,31 @@ initializeFirebase(function (app, auth, database, storage) {
                     (contactData.userName ||
                         contactData.username ||
                         contactData.user_name)) ||
-                    merged.userName ||
-                    merged.username ||
-                    merged.user_name ||
-                    merged.mobile_number ||
-                    ""
+                merged.userName ||
+                merged.username ||
+                merged.user_name ||
+                merged.mobile_number ||
+                ""
             ).trim();
             try {
                 if (em) {
                     const r = await fetch(
                         "/api/public-profile-by-email?email=" +
-                            encodeURIComponent(em)
+                        encodeURIComponent(em)
                     );
                     return await r.json();
                 }
                 if (un) {
                     const r = await fetch(
                         "/api/public-profile-by-username?username=" +
-                            encodeURIComponent(un)
+                        encodeURIComponent(un)
                     );
                     return await r.json();
                 }
                 if (uid) {
                     const r = await fetch(
                         "/api/public-profile-by-firebase-uid?uid=" +
-                            encodeURIComponent(uid)
+                        encodeURIComponent(uid)
                     );
                     return await r.json();
                 }
@@ -7949,8 +8088,8 @@ initializeFirebase(function (app, auth, database, storage) {
             ),
             curUid
                 ? get(ref(database, `data/contacts/${curUid}/${uid}`)).then((s) =>
-                      s.exists() ? s.val() : null
-                  )
+                    s.exists() ? s.val() : null
+                )
                 : Promise.resolve(null),
             get(ref(database, `data/users/${uid}/status`))
                 .then((s) => (s.exists() ? s.val() : null))
@@ -8022,8 +8161,8 @@ initializeFirebase(function (app, auth, database, storage) {
                 const defaultSiteRaw =
                     firstWebsiteFromFirebase(
                         (firebaseUser && firebaseUser.websites) ||
-                            (contactData && contactData.websites) ||
-                            merged.websites
+                        (contactData && contactData.websites) ||
+                        merged.websites
                     ) ||
                     merged.website_url ||
                     merged.website_link ||
@@ -9103,9 +9242,8 @@ initializeFirebase(function (app, auth, database, storage) {
                             <p></p>
                         </div>
                         <div class="chat-user-time">
-                            <time class="time" spellcheck="false" translate="no"${
-                                favTimeIso ? ` datetime="${favTimeIso}"` : ""
-                            }>${formatedTimestamp(user.timestamp)}</time>
+                            <time class="time" spellcheck="false" translate="no"${favTimeIso ? ` datetime="${favTimeIso}"` : ""
+                }>${formatedTimestamp(user.timestamp)}</time>
                         </div>
                     </div>
                 </a>
@@ -9162,7 +9300,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             position: "right",
                             backgroundColor: "#28a745",
                         }).showToast();
-                    }).catch(() => {});
+                    }).catch(() => { });
                 });
             }
             const delBtn = userElement.querySelector(".permanent-delete-chat");
@@ -10464,8 +10602,8 @@ initializeFirebase(function (app, auth, database, storage) {
                 const ext = blobType.includes("webm")
                     ? "webm"
                     : blobType.includes("mp4") || blobType.includes("m4a")
-                      ? "m4a"
-                      : "webm";
+                        ? "m4a"
+                        : "webm";
                 const blobFile = new File(
                     [lastVoiceBlob],
                     "voice-" + Date.now() + "." + ext,
@@ -10826,7 +10964,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     displayContactsInModal(validContacts);
                     enrichNewChatModalAvatarsFromLaravel(
                         Object.keys(validContacts)
-                    ).catch(() => {});
+                    ).catch(() => { });
                 }
             } else {
                 if (mainContainer) mainContainer.innerHTML = "<p class=\"text-muted text-center py-3\">No contacts yet. Use Invite Others to add contacts.</p>";
@@ -11070,7 +11208,7 @@ initializeFirebase(function (app, auth, database, storage) {
             try {
                 incomingCallRingAudio.pause();
                 incomingCallRingAudio.currentTime = 0;
-            } catch (e) {}
+            } catch (e) { }
         }
     }
 
@@ -11086,7 +11224,7 @@ initializeFirebase(function (app, auth, database, storage) {
             incomingCallRingAudio = new Audio("assets/sounds/notification_sound.mp3");
             incomingCallRingAudio.loop = true;
         }
-        incomingCallRingAudio.play().catch(() => {});
+        incomingCallRingAudio.play().catch(() => { });
     }
 
     if (typeof window !== "undefined") {
@@ -11726,15 +11864,15 @@ initializeFirebase(function (app, auth, database, storage) {
                 Array.isArray(ringingCall.callerId) && ringingCall.callerId[0]
                     ? ringingCall.callerId[0]
                     : typeof resolveOutboundCallPeerId === "function"
-                      ? resolveOutboundCallPeerId()
-                      : selectedUserId;
+                        ? resolveOutboundCallPeerId()
+                        : selectedUserId;
             const nameFromCall =
                 ringingCall.inOrOut === 'IN'
                     ? ringingCall.callerName
                     : ringingCall.receiverName || undefined;
             updateModalUserDetails(otherUserId, nameFromCall);
             $('#voice-attend-new').modal('hide');
-            
+
             // Outgoing: red end only. Incoming: green answer + red decline.
             // jQuery .hide() loses to Bootstrap .d-flex { display:flex !important } on the same element.
             const joinAudioEl = document.getElementById('join-audio-call');
@@ -11753,7 +11891,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
                 $('#audio-call-modal .modal-title').text('Incoming audio call');
             }
-            
+
             $('#audio-call-modal').modal('show');
             if (ringingCall.inOrOut === 'IN') {
                 ensureIncomingCallRing(ringingCall.id);
