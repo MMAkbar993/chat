@@ -1863,11 +1863,24 @@ initializeFirebase(function (app, auth, database, storage) {
                                 ? `<video width="200" controls src="${attUrl}"></video>`
                                 : '<span class="text-muted small">Video unavailable</span>';
                             break;
-                        case 5:
+                        case 5: {
+                            // Prefer the sender-provided filename so the download saves with the
+                            // original name (otherwise the browser falls back to the random
+                            // upload path from the URL).
+                            const fileDisplayName =
+                                (messageData.attachment && messageData.attachment.name) ||
+                                messageData.fileName ||
+                                "File";
+                            const safeFileName = String(fileDisplayName)
+                                .replace(/&/g, "&amp;")
+                                .replace(/"/g, "&quot;")
+                                .replace(/</g, "&lt;")
+                                .replace(/>/g, "&gt;");
                             messageContent = attUrl
-                                ? `<a href="${attUrl}" target="_blank" download>Download ${messageData.fileName || "File"}</a>`
+                                ? `<a href="${attUrl}" target="_blank" download="${safeFileName}"><i class="ti ti-file-download me-1"></i>${safeFileName}</a>`
                                 : '<span class="text-muted small">File unavailable</span>';
                             break;
+                        }
                         default:
                             messageContent = "Unsupported message type.";
                     }

@@ -77,6 +77,20 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     /**
+     * Escape a value so it can be safely injected inside an HTML attribute. Used for things
+     * like the `download="..."` filename on chat attachments, which arrives from the sender's
+     * device and may contain quotes or angle brackets.
+     */
+    function escapeAttr(value) {
+        return String(value == null ? "" : value)
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+    }
+
+    /**
      * Primary + mirror chat writes; on permission_denied restore Firebase session once and retry.
      * Same rules on host vs local — denial here almost always means RTDB did not see auth on the wire yet.
      */
@@ -272,6 +286,9 @@ initializeFirebase(function (app, auth, database, storage) {
                         // Redirect to chat if they try to visit the login page while logged in
                         window.location.href = "/chat";
                     }
+                    // Paint shimmer placeholders right away so the user sees structure
+                    // instead of an empty pane while Firebase resolves the chat list.
+                    renderChatListSkeletons();
                     // fetchUsers creates the usersMap asynchronously.
                     // We need to wait for it before calling selectUser.
                     populateUsersMap(); // archived/pinned/etc. + usersMap merged with contacts
@@ -745,62 +762,73 @@ initializeFirebase(function (app, auth, database, storage) {
                         return null;
                     }
 
-                    // Check if messages exist in either chat path
-                    const chatRef1 = ref(
-                        database,
-                        `data/chats/${currentUserId}-${userId}`
+                    // Fast path: ask only the canonical room for the latest message.
+                    // sendMessage() mirrors every modern write to both rooms with the same
+                    // key, so the canonical query covers ~all data. Only when it comes back
+                    // empty do we fall back to the mirror (handles legacy pre-mirror chats
+                    // and one-sided rooms). This halves the number of Firebase round-trips
+                    // on the initial chat-list paint.
+                    const canonicalRoomId = getDeterministicChatRoomId(
+                        currentUserId,
+                        userId
                     );
-                    const chatRef2 = ref(
-                        database,
-                        `data/chats/${userId}-${currentUserId}`
-                    );
-                    const chatQuery1 = query(
-                        chatRef1,
-                        orderByChild("timestamp"),
-                        limitToLast(1)
-                    );
-                    const chatQuery2 = query(
-                        chatRef2,
-                        orderByChild("timestamp"),
-                        limitToLast(1)
+                    const mirrorRoomId = canonicalRoomId
+                        ? chatMirrorRoomId(canonicalRoomId, currentUserId, userId)
+                        : `${userId}-${currentUserId}`;
+
+                    const readLastTimestamp = (snapshot) => {
+                        let latest = 0;
+                        if (snapshot && snapshot.exists()) {
+                            snapshot.forEach((childSnapshot) => {
+                                const message = childSnapshot.val();
+                                latest = Math.max(
+                                    latest,
+                                    (message && message.timestamp) || 0
+                                );
+                            });
+                        }
+                        return latest;
+                    };
+
+                    const buildLatestQuery = (roomId) =>
+                        query(
+                            ref(database, `data/chats/${roomId}`),
+                            orderByChild("timestamp"),
+                            limitToLast(1)
+                        );
+
+                    const canonicalRef = buildLatestQuery(
+                        canonicalRoomId || `${currentUserId}-${userId}`
                     );
 
-                    return Promise.all([get(chatQuery1), get(chatQuery2)]).then(
-                        ([snapshot1, snapshot2]) => {
-                            let lastMessageTimestamp = 0;
-
-                            // Helper function to process a snapshot and determine if messages exist
-                            const processSnapshot = (snapshot) => {
-                                if (snapshot.exists()) {
-                                    snapshot.forEach((childSnapshot) => {
-                                        const message = childSnapshot.val();
-                                        lastMessageTimestamp = Math.max(
-                                            lastMessageTimestamp,
-                                            message.timestamp || 0
-                                        );
-                                    });
-                                }
-                            };
-
-                            processSnapshot(snapshot1);
-                            processSnapshot(snapshot2);
-
-                            // Only include users with messages
+                    return get(canonicalRef)
+                        .then((snap) => {
+                            const t = readLastTimestamp(snap);
+                            if (t > 0) {
+                                return t;
+                            }
+                            // Canonical empty — try the mirror for legacy data.
+                            return get(buildLatestQuery(mirrorRoomId))
+                                .then(readLastTimestamp)
+                                .catch(() => 0);
+                        })
+                        .catch(() =>
+                            // Canonical errored (rules / network) — still try the mirror so
+                            // we don't accidentally drop a real conversation from the list.
+                            get(buildLatestQuery(mirrorRoomId))
+                                .then(readLastTimestamp)
+                                .catch(() => 0)
+                        )
+                        .then((lastMessageTimestamp) => {
                             if (lastMessageTimestamp > 0) {
                                 return { userId, user, lastMessageTimestamp };
                             }
-
-                            return null; // Exclude users without messages
-                        }
-                    );
+                            return null;
+                        });
                 });
 
                 Promise.all(fetchUserPromises).then((fetchedUsers) => {
                     const validUsers = fetchedUsers.filter(Boolean); // Filter out null values
-
-                    // Clear the user list and swiper list before rendering
-                    usersList.innerHTML = "";
-                    swiperList.innerHTML = "";
 
                     if (validUsers.length === 0) {
                         // No valid users, display the 'No Chat' message
@@ -813,11 +841,24 @@ initializeFirebase(function (app, auth, database, storage) {
                                 b.lastMessageTimestamp - a.lastMessageTimestamp
                         );
 
+                        // Build all rows off-DOM first to avoid the "flash empty,
+                        // then fill in" flicker that the previous innerHTML="" + per-row
+                        // appendChild caused. We swap the prepared fragment into the live
+                        // list in a single mutation, then trigger the staggered fade-in.
+                        const newRowsFragment = document.createDocumentFragment();
+                        const builtRows = [];
                         validUsers.forEach(({ userId, user }) => {
-                            /* Always build fresh rows after innerHTML clear; reusing old nodes left them detached. */
                             const newUserDiv = createUserElement(user, userId);
-                            usersList.appendChild(newUserDiv);
+                            newRowsFragment.appendChild(newUserDiv);
+                            builtRows.push({ userId, user });
+                        });
 
+                        usersList.innerHTML = "";
+                        usersList.appendChild(newRowsFragment);
+
+                        // Recent-chats carousel: rebuild after status resolves per user.
+                        swiperList.innerHTML = "";
+                        builtRows.forEach(({ userId, user }) => {
                             const userStatusRef = ref(
                                 database,
                                 `data/users/${userId}/status`
@@ -833,6 +874,13 @@ initializeFirebase(function (app, auth, database, storage) {
                                 );
                             });
                         });
+
+                        // Smooth cascade reveal — only on the first paint to avoid
+                        // re-animating on every silent background refresh.
+                        if (!chatListInitiallyPopulated) {
+                            playChatListRevealAnimation();
+                        }
+                        chatListInitiallyPopulated = true;
                     }
 
                     // Reinitialize swiper to update the UI
@@ -917,6 +965,127 @@ initializeFirebase(function (app, auth, database, storage) {
         }, 120);
     }
 
+    // Track whether the chat list has been populated at least once so refreshes
+    // (which can briefly clear the wrap during a re-render) don't flash skeletons
+    // again and cause visible jank.
+    let chatListInitiallyPopulated = false;
+
+    /**
+     * Inject lightweight shimmer placeholders into the chat list and recent-chats
+     * carousel while Firebase resolves the first batch of conversations. The
+     * placeholders are removed automatically when `displayUsers()` swaps in the
+     * real rows.
+     */
+    function renderChatListSkeletons(count = 6) {
+        if (typeof document === "undefined") return;
+        if (chatListInitiallyPopulated) return;
+        const usersList = document.getElementById("chat-users-wrap");
+        if (!usersList) return;
+        // Don't paint over real content (e.g. cached rows from a previous render).
+        if (
+            usersList.querySelector(".chat-list[data-user-id]") ||
+            usersList.querySelector(".chat-list-skeleton")
+        ) {
+            return;
+        }
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < count; i++) {
+            const row = document.createElement("div");
+            row.className = "chat-list-skeleton";
+            row.setAttribute("aria-hidden", "true");
+            row.innerHTML = `
+                <div class="skeleton-avatar"></div>
+                <div class="skeleton-body">
+                    <div class="skeleton-line skeleton-line-title"></div>
+                    <div class="skeleton-line skeleton-line-msg"></div>
+                </div>
+                <div class="skeleton-line skeleton-meta"></div>
+            `;
+            frag.appendChild(row);
+        }
+        usersList.innerHTML = "";
+        usersList.appendChild(frag);
+
+        const swiperList = document.querySelector(".swiper-wrapper");
+        if (swiperList && !swiperList.querySelector(".chat-list-skeleton")) {
+            const sfrag = document.createDocumentFragment();
+            for (let i = 0; i < Math.min(4, count); i++) {
+                const s = document.createElement("div");
+                s.className = "swiper-slide";
+                s.innerHTML = `
+                    <div class="chat-list-skeleton" style="padding:4px;flex-direction:column;align-items:center;gap:6px;">
+                        <div class="skeleton-avatar" style="width:40px;height:40px;"></div>
+                        <div class="skeleton-line" style="height:8px;width:36px;"></div>
+                    </div>
+                `;
+                sfrag.appendChild(s);
+            }
+            swiperList.innerHTML = "";
+            swiperList.appendChild(sfrag);
+        }
+    }
+
+    // Paint skeletons immediately when this module evaluates (modules are deferred,
+    // so the DOM is already parsed) — this is the earliest possible visual feedback,
+    // before Firebase auth even resolves.
+    try {
+        if (typeof document !== "undefined") {
+            if (document.readyState === "loading") {
+                document.addEventListener(
+                    "DOMContentLoaded",
+                    () => renderChatListSkeletons(),
+                    { once: true }
+                );
+            } else {
+                renderChatListSkeletons();
+            }
+        }
+    } catch (e) {
+        /* non-fatal */
+    }
+
+    /**
+     * Add the staggered fade-in animation class to the wrap, then remove it after
+     * the animations complete so future row insertions (e.g. a brand-new contact)
+     * don't replay the cascade.
+     */
+    function playChatListRevealAnimation() {
+        if (typeof document === "undefined") return;
+        const usersList = document.getElementById("chat-users-wrap");
+        const swiperList = document.querySelector(".swiper-wrapper");
+        if (usersList) {
+            usersList.classList.add("chat-list-revealing");
+            window.setTimeout(() => {
+                usersList.classList.remove("chat-list-revealing");
+            }, 600);
+        }
+        if (swiperList) {
+            swiperList.classList.add("recent-chats-revealing");
+            window.setTimeout(() => {
+                swiperList.classList.remove("recent-chats-revealing");
+            }, 600);
+        }
+    }
+
+    /**
+     * Render the unread counter on the left-rail "Chats" nav icon. We cap at 99+ so the
+     * pill stays compact, and clear `textContent` when zero so screen readers don't
+     * announce a stale "0".
+     */
+    function setSidebarNavChatBadge(count) {
+        if (typeof document === "undefined") return;
+        const badge = document.getElementById("sidebar-nav-chat-unread");
+        if (!badge) return;
+        const n = Number(count) || 0;
+        if (n > 0) {
+            badge.textContent = n > 99 ? "99+" : String(n);
+            badge.classList.remove("d-none");
+        } else {
+            badge.textContent = "";
+            badge.classList.add("d-none");
+        }
+    }
+
     function sumUnreadInChatListContainer(root) {
         if (!root) return 0;
         let sum = 0;
@@ -959,7 +1128,19 @@ initializeFirebase(function (app, auth, database, storage) {
     function refreshChatFilterBadgeCounts() {
         if (typeof document === "undefined") return;
         const chatMenu = document.getElementById("chat-menu");
-        if (!chatMenu) return;
+        // The left-rail nav badge lives on the shared sidebar partial, so it is present on
+        // every frontend page (Chats/Contacts/Groups/Calls/Profile/Settings). #chat-menu is
+        // also rendered on each of those pages — it is just hidden as an inactive tab-pane
+        // on non-chat routes, so the per-row `count-message` spans are still populated and
+        // can be summed for the badge total.
+        const sidebarNavBadge = document.getElementById(
+            "sidebar-nav-chat-unread"
+        );
+        if (!chatMenu) {
+            // Pages without the chat sidebar (admin/installer) — clear any stale badge.
+            if (sidebarNavBadge) setSidebarNavChatBadge(0);
+            return;
+        }
 
         const allEl = chatMenu.querySelector("#chat-filter-count-all");
         const favEl = chatMenu.querySelector("#chat-filter-count-favourite");
@@ -973,7 +1154,8 @@ initializeFirebase(function (app, auth, database, storage) {
             !pinEl &&
             !archEl &&
             !trashEl &&
-            !headerBadge
+            !headerBadge &&
+            !sidebarNavBadge
         )
             return;
 
@@ -1010,6 +1192,7 @@ initializeFirebase(function (app, auth, database, storage) {
         setUnreadBadge(allEl, allUnread);
         setUnreadBadge(favEl, favUnread);
         setUnreadBadge(pinEl, pinUnread);
+        setSidebarNavChatBadge(allUnread);
 
         function tabPaneActive(pane) {
             return (
@@ -2568,8 +2751,13 @@ initializeFirebase(function (app, auth, database, storage) {
         messageText,
         messageType = "text",
         fileUrl = null,
-        tempKey = null
+        tempKey = null,
+        replyToOverride = null
     ) {
+        // Callers that close the reply UI before awaiting (e.g. optimistic text/location sends)
+        // null out the module-level `replyToMessage` before we get here, so always prefer an
+        // explicit snapshot passed in by the caller.
+        const replyContext = replyToOverride || replyToMessage;
         toUserId = toUserId || resolveOneOnOneRecipientId();
         if (!auth?.currentUser?.uid) {
             Toastify({
@@ -2677,14 +2865,14 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
 
                 // Check if this is a reply to another message
-                if (replyToMessage) {
+                if (replyContext) {
                     const replyType =
-                        replyToMessage.attachmentType || "unknown"; // Use the extracted type
+                        replyContext.attachmentType || "unknown"; // Use the extracted type
                     let replyContent;
                     // Handle different types of reply content
                     switch (replyType) {
                         case "6":
-                            replyContent = replyToMessage.body || "No content";
+                            replyContent = replyContext.body || "No content";
                             break;
                         case "2":
                         case "3":
@@ -2692,7 +2880,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         case "5":
                         case "8":
                             replyContent =
-                                replyToMessage.body ||
+                                replyContext.body ||
                                 `${replyType} content missing`;
                             break;
                         default:
@@ -2717,18 +2905,6 @@ initializeFirebase(function (app, auth, database, storage) {
                         return;
                     }
 
-                    // Prepare the new reply message
-                    const replyMessage = {
-                        ...message, // Include the original message data
-                        replyId: replyToMessage.key || "0",
-                        isReply: true,
-                        replyContent: encryptedReplyContent, // Encrypted reply content
-                        replyUser: replyToMessage.senderId || "unknown", // The user who sent the original message
-                        replyType, // The type of the original message
-                        replyTimestamp: replyToMessage.timestamp || Date.now(), // Timestamp of the original message
-                        originalMessage: replyContent, // Original message content
-                    };
-
                     // Push the reply message as a new message (primary), then mirror with the same key
                     const messageRefPrimary = ref(
                         database,
@@ -2736,6 +2912,19 @@ initializeFirebase(function (app, auth, database, storage) {
                     );
                     const newReplyRef = push(messageRefPrimary);
                     const newReplyKey = newReplyRef.key;
+
+                    // Prepare the new reply message
+                    const replyMessage = {
+                        ...message, // Include the original message data
+                        id: newReplyKey,
+                        replyId: replyContext.key || "0",
+                        isReply: true,
+                        replyContent: encryptedReplyContent, // Encrypted reply content
+                        replyUser: replyContext.senderId || "unknown", // The user who sent the original message
+                        replyType, // The type of the original message
+                        replyTimestamp: replyContext.timestamp || Date.now(), // Timestamp of the original message
+                        originalMessage: replyContent, // Original message content
+                    };
 
                     persistChatMessagePairWithRetry(
                         newReplyRef,
@@ -3886,8 +4075,15 @@ initializeFirebase(function (app, auth, database, storage) {
                                 // If wrapped with link (map), let the anchor handle the click; else open preview
                                 const hasAnchor = !!imageContainer.querySelector('a');
                                 if (!hasAnchor) {
+                                    const downloadName =
+                                        (message.attachment &&
+                                            message.attachment.name) ||
+                                        "";
                                     imageContainer.addEventListener("click", () =>
-                                        openImagePreview(originalMessageChat)
+                                        openImagePreview(
+                                            originalMessageChat,
+                                            downloadName
+                                        )
                                     );
                                 }
                             }
@@ -3902,9 +4098,19 @@ initializeFirebase(function (app, auth, database, storage) {
                     case 1:
                         messageContent = `<video controls width="200" src="${originalMessageChat}"></video>`;
                         break;
-                    case 5:
-                        messageContent = `<a href="${originalMessageChat}" target="_blank" download>Download File</a>`;
+                    case 5: {
+                        // Use the original filename in the `download` attribute so legacy
+                        // uploads (whose URL still ends in a Laravel hash) also save with the
+                        // human-readable name on the receiver's side.
+                        const downloadName = escapeAttr(
+                            (message.attachment && message.attachment.name) || ""
+                        );
+                        const fileLabel = downloadName
+                            ? downloadName
+                            : "Download File";
+                        messageContent = `<a href="${originalMessageChat}" target="_blank" download="${downloadName}"><i class="ti ti-file-download me-1"></i>${fileLabel}</a>`;
                         break;
+                    }
                     default:
                         messageContent = originalMessageChat;
                 }
@@ -5057,7 +5263,7 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    function openImagePreview(imageUrl) {
+    function openImagePreview(imageUrl, downloadName = "") {
         // Remove any existing modal if it's open
         let existingModal = document.getElementById("image-preview-modal");
         if (existingModal) {
@@ -5069,11 +5275,14 @@ initializeFirebase(function (app, auth, database, storage) {
         modal.id = "image-preview-modal";
         modal.classList.add("image-preview-modal");
 
+        const safeDownloadName = escapeAttr(downloadName || "");
+
         // Add modal content (image, close button, and download button)
         modal.innerHTML = `
         <div class="image-modal-content">
             <img src="${imageUrl}" alt="Image Preview">
             <div class="image-modal-header">
+                <a class="image-download-btn" href="${imageUrl}" download="${safeDownloadName}" rel="noopener" title="Download"><i class="ti ti-download"></i></a>
                 <span class="image-close-btn">✖</span>
             </div>
         </div>
@@ -5997,6 +6206,12 @@ initializeFirebase(function (app, auth, database, storage) {
             }
 
             if (messageText) {
+                // Snapshot the reply context up front. `closeReplyBox()` below nulls out
+                // `replyToMessage`, and `sendMessage` runs after an async encrypt step — without
+                // this snapshot the persisted message would lose its reply metadata and the
+                // recipient would see a plain bubble instead of a quoted reply.
+                const replyContextSnapshot = replyToMessage;
+
                 // 1. Generate a unique temporary key for the optimistic message
                 const tempKey = `temp_${Date.now()}_${Math.random()}`;
 
@@ -6010,12 +6225,12 @@ initializeFirebase(function (app, auth, database, storage) {
                     isOptimistic: true, // Flag to prevent decryption
                     delivered: false,
                     readMsg: false,
-                    replyId: replyToMessage ? replyToMessage.key : "0",
+                    replyId: replyContextSnapshot ? replyContextSnapshot.key : "0",
                     // Add reply content if needed for the optimistic display
-                    ...(replyToMessage && {
-                        replyContent: replyToMessage.body,
-                        replyUser: replyToMessage.senderId,
-                        replyType: replyToMessage.attachmentType
+                    ...(replyContextSnapshot && {
+                        replyContent: replyContextSnapshot.body,
+                        replyUser: replyContextSnapshot.senderId,
+                        replyType: replyContextSnapshot.attachmentType
                     })
                 };
 
@@ -6034,13 +6249,14 @@ initializeFirebase(function (app, auth, database, storage) {
                 try {
                     const ciphertext = await encryptMessage(messageText);
                     if (ciphertext) {
-                        // Pass the tempKey to sendMessage
+                        // Pass the tempKey + captured reply context to sendMessage
                         sendMessage(
                             resolvedRecipientId,
                             ciphertext,
                             6,
                             null,
-                            tempKey
+                            tempKey,
+                            replyContextSnapshot
                         );
                     } else {
                         console.error("Failed to encrypt message.");
@@ -6053,6 +6269,8 @@ initializeFirebase(function (app, auth, database, storage) {
 
             if (selectedFile) {
                 try {
+                    // Snapshot reply context before any async work / closeReplyBox calls.
+                    const replyContextSnapshot = replyToMessage;
                     // This logic can also be made optimistic if needed, but we focus on text first.
                     const fileUrl = await uploadFileToFirebase(selectedFile);
                     const fileType = selectedFile.type.split("/")[0];
@@ -6069,7 +6287,17 @@ initializeFirebase(function (app, auth, database, storage) {
                         case "video": messageType = 1; break;
                         default: messageType = 5; break;
                     }
-                    sendMessage(resolvedRecipientId, attachment, messageType);
+                    sendMessage(
+                        resolvedRecipientId,
+                        attachment,
+                        messageType,
+                        null,
+                        null,
+                        replyContextSnapshot
+                    );
+                    if (replyContextSnapshot) {
+                        closeReplyBox();
+                    }
                     clearChatTyping();
 
                     // Clear file preview
@@ -6113,6 +6341,10 @@ initializeFirebase(function (app, auth, database, storage) {
             navigator.geolocation.getCurrentPosition(
                 async (pos) => {
                     try {
+                        // Snapshot the reply context up front — `closeReplyBox()` below nulls
+                        // `replyToMessage` before `sendMessage` reads it, which would otherwise
+                        // drop the reply metadata on the persisted message.
+                        const replyContextSnapshot = replyToMessage;
                         const { latitude, longitude } = pos.coords;
                         const mapsLink = `https://maps.google.com/?q=${latitude},${longitude}`;
                         const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${latitude},${longitude}&zoom=15&size=640x320&scale=2&maptype=roadmap&markers=color:red%7C${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`;
@@ -6128,11 +6360,11 @@ initializeFirebase(function (app, auth, database, storage) {
                             isOptimistic: true,
                             delivered: false,
                             readMsg: false,
-                            replyId: replyToMessage ? replyToMessage.key : "0",
-                            ...(replyToMessage && {
-                                replyContent: replyToMessage.body,
-                                replyUser: replyToMessage.senderId,
-                                replyType: replyToMessage.attachmentType,
+                            replyId: replyContextSnapshot ? replyContextSnapshot.key : "0",
+                            ...(replyContextSnapshot && {
+                                replyContent: replyContextSnapshot.body,
+                                replyUser: replyContextSnapshot.senderId,
+                                replyType: replyContextSnapshot.attachmentType,
                             }),
                         };
                         displayMessage(optimisticMessage);
@@ -6147,7 +6379,14 @@ initializeFirebase(function (app, auth, database, storage) {
                             lat: latitude,
                             lng: longitude,
                         };
-                        sendMessage(selectedUserId, attachment, 4, null, tempKey);
+                        sendMessage(
+                            selectedUserId,
+                            attachment,
+                            4,
+                            null,
+                            tempKey,
+                            replyContextSnapshot
+                        );
                         clearChatTyping();
                     } catch (err) {
                         console.error("Error preparing location message:", err);
@@ -10767,6 +11006,9 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     async function voiceupload(files) {
+        // Snapshot the reply context before any async work so the upload preserves the
+        // quoted-message metadata even if the user closes the reply box mid-upload.
+        const replyContextSnapshot = replyToMessage;
         var fd = new FormData();
         fd.append("file", files);
         var atttype = 3;
@@ -10777,7 +11019,17 @@ initializeFirebase(function (app, auth, database, storage) {
             name: files.name,
             url: fileUrl,
         };
-        sendMessage(selectedUserId, attachment, atttype);
+        sendMessage(
+            selectedUserId,
+            attachment,
+            atttype,
+            null,
+            null,
+            replyContextSnapshot
+        );
+        if (replyContextSnapshot) {
+            closeReplyBox();
+        }
         clearChatTyping();
     }
 

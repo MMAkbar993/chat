@@ -1984,7 +1984,7 @@
                         <div class="modal-header">
                             <h5 class="modal-title" id="forwardModalLabel">Forward Message To</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"><i
-                                    class="ti ti-x me-2"></i></button>
+                                    class="ti ti-x"></i></button>
                         </div>
                         <div class="modal-body pt-2">
                             <input type="search" id="forward-contact-search" class="form-control form-control-sm mb-2"
@@ -1998,7 +1998,7 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"
+                            <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal"
                                 aria-label="Close">Cancel</button>
                             <button type="button" class="btn btn-primary" id="send-forward">Send</button>
                         </div>

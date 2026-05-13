@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ChatController extends Controller
 {
@@ -196,10 +197,26 @@ class ChatController extends Controller
             default => 'files',
         };
 
-        $path = $file->store("chat-uploads/{$subfolder}", 'public');
+        // Keep the original filename so that downloads (and right-click "Save as")
+        // restore the human-readable name instead of a Laravel-generated hash.
+        // Each upload gets its own random sub-directory to avoid collisions.
+        [$safeFilename, $fallbackName] = $this->sanitizeUploadFilename(
+            $file->getClientOriginalName(),
+            $file->getClientOriginalExtension(),
+            $file->getMimeType()
+        );
+
+        $randomDir = Str::random(40);
+        $path = $file->storeAs(
+            "chat-uploads/{$subfolder}/{$randomDir}",
+            $safeFilename,
+            'public'
+        );
+
         // Root-relative URL so the browser always loads from the current host (e.g. 127.0.0.1 vs localhost).
         // A full APP_URL from Storage::url() causes cross-origin audio/video and 0:00 duration when hosts differ.
-        $url = '/storage/' . str_replace('\\', '/', $path);
+        // rawurlencode each segment so filenames with spaces/parens survive in the URL.
+        $url = '/storage/' . implode('/', array_map('rawurlencode', explode('/', str_replace('\\', '/', $path))));
 
         $attachmentType = match ($mimeBase) {
             'image' => 2,
@@ -211,10 +228,59 @@ class ChatController extends Controller
         return response()->json([
             'url' => $url,
             'path' => $path,
-            'name' => $file->getClientOriginalName(),
+            'name' => $fallbackName,
             'size' => $file->getSize(),
             'mime' => $file->getMimeType(),
             'attachmentType' => $attachmentType,
         ]);
+    }
+
+    /**
+     * Strip filesystem-unsafe characters from the uploaded filename while keeping it
+     * recognizable (preserving spaces, dashes, parens, unicode letters). Falls back to
+     * a timestamped name if the input has no usable basename.
+     *
+     * @return array{0:string,1:string} [storedFilename, displayName]
+     */
+    private function sanitizeUploadFilename(string $original, string $extension, string $mime): array
+    {
+        $original = trim($original);
+        $basename = pathinfo($original, PATHINFO_FILENAME);
+        // Disallow filesystem path separators / wildcards / control chars; keep the rest.
+        $clean = preg_replace('/[\/\\\\:*?"<>|\x00-\x1F]/u', '_', $basename ?? '');
+        $clean = trim($clean ?? '', " \t\n\r\0\x0B.");
+        if ($clean === '' || $clean === '_') {
+            $clean = 'file_' . now()->format('YmdHis');
+        }
+        if (mb_strlen($clean) > 80) {
+            $clean = mb_substr($clean, 0, 80);
+        }
+
+        $ext = strtolower($extension ?: '');
+        if ($ext === '') {
+            // Common mime → extension fallback so the file is still openable from the URL.
+            $ext = match ($mime) {
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/gif' => 'gif',
+                'image/webp' => 'webp',
+                'video/mp4' => 'mp4',
+                'video/webm' => 'webm',
+                'video/quicktime' => 'mov',
+                'audio/mpeg' => 'mp3',
+                'audio/ogg' => 'ogg',
+                'audio/wav' => 'wav',
+                'audio/webm' => 'weba',
+                'application/pdf' => 'pdf',
+                'text/plain' => 'txt',
+                default => '',
+            };
+        }
+        $ext = preg_replace('/[^A-Za-z0-9]/', '', $ext);
+
+        $stored = $clean . ($ext ? '.' . $ext : '');
+        $display = $stored;
+
+        return [$stored, $display];
     }
 }

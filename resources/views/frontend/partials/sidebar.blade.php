@@ -11,6 +11,8 @@
                                 <a href="{{ route('chat') }}"
                                     class="{{ request()->routeIs('chat', 'index') ? 'active' : '' }}">
                                     <i class="ti ti-message-2-heart"></i>
+                                    <span id="sidebar-nav-chat-unread"
+                                        class="sidebar-nav-unread-badge d-none">0</span>
                                 </a>
                             </li>
                             <li data-bs-toggle="tooltip" data-bs-placement="right" data-bs-original-title="Contacts"
