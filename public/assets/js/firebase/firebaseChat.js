@@ -11486,33 +11486,147 @@ initializeFirebase(function (app, auth, database, storage) {
         };
     }
 
-    const audioCallButton = getAudioCallTriggerEl();
+    // Bootstrap occasionally leaves an orphan `.modal-backdrop` behind when call modals are
+    // shown/hidden in quick succession (ringing → active → cleanup). The orphan backdrop
+    // becomes a transparent (or dark) click shield that swallows every subsequent click,
+    // forcing users to refresh. Run this once no real modal remains visible to recover.
+    function dreamchatCleanupStuckCallBackdrops() {
+        try {
+            if (document.querySelector('.modal.show')) return;
+            document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        } catch (e) { /* ignore */ }
+    }
+
+    // Read the currently-selected chat peer name/avatar synchronously from the chat header
+    // so the outgoing-call popup can be rendered instantly instead of waiting for Firebase.
+    function readSelectedChatPeerName() {
+        try {
+            const el = document.querySelector('.chat-header .user-details .ms-2 h6');
+            const name = el ? String(el.textContent || '').trim() : '';
+            if (name && name !== 'Loading...' && name.toLowerCase() !== 'unknown user') return name;
+        } catch (e) { /* ignore */ }
+        return '';
+    }
+    function readSelectedChatPeerAvatarSrc() {
+        try {
+            const wrap = document.getElementById('chat-header-avatar');
+            if (wrap) {
+                const img = wrap.querySelector('img');
+                if (img && img.getAttribute('src')) return img.getAttribute('src');
+            }
+        } catch (e) { /* ignore */ }
+        return '';
+    }
+    function placeholderPeerNameForOutboundCall(peerId) {
+        const fromHeader = readSelectedChatPeerName();
+        if (fromHeader) return fromHeader;
+        if (peerId && usersMap && usersMap[peerId]) {
+            const m = usersMap[peerId];
+            const fullName = `${m.firstName || ''} ${m.lastName || ''}`.trim();
+            if (fullName) return fullName;
+            if (m.userName) return String(m.userName).trim();
+        }
+        return '';
+    }
+
+    // Render the outgoing audio ringing modal NOW (before Firebase round-trips) so the user
+    // gets instant visual feedback. The existing `onValue` listener will overwrite name/avatar
+    // with definitive data once the call record propagates.
+    function showOptimisticOutgoingAudioRingingModal(peerId) {
+        try {
+            // Hide active call modal in case a stale one is still visible from a prior call.
+            $('#voice-attend-new').modal('hide');
+            const $modal = $('#audio-call-modal');
+            if (!$modal.length) return;
+            $modal.find('.modal-title').first().text('Calling…');
+            const ringStatus = document.getElementById('audio-call-ring-status');
+            if (ringStatus) ringStatus.textContent = 'Ringing…';
+            // Outgoing: green answer hidden, red decline = cancel.
+            const joinBtn = document.getElementById('join-audio-call');
+            if (joinBtn) {
+                joinBtn.classList.add('d-none');
+                joinBtn.classList.remove('d-flex');
+                joinBtn.style.removeProperty('display');
+            }
+            const placeholderName = placeholderPeerNameForOutboundCall(peerId);
+            $('.audio-name').text(placeholderName || '');
+            const placeholderAvatar = readSelectedChatPeerAvatarSrc();
+            if (placeholderAvatar) {
+                applyDreamChatCallAvatar(document.querySelector('#audio-call-modal .avatar-audio'), placeholderAvatar);
+            }
+            dreamchatCleanupStuckCallBackdrops();
+            $modal.modal('show');
+        } catch (e) { /* ignore */ }
+    }
+
+    // Same idea for outgoing video ring UI.
+    function showOptimisticOutgoingVideoRingingModal(peerId) {
+        try {
+            const $modal = $('#video-call');
+            if (!$modal.length) return;
+            $modal.addClass('video-call-ring-outgoing');
+            const placeholderName = placeholderPeerNameForOutboundCall(peerId);
+            $modal.find('#video-call-ring-title').text(placeholderName ? `Calling ${placeholderName}…` : 'Calling…');
+            $modal.find('.video-call-ring-name').text('');
+            const statusEl = document.getElementById('video-call-ring-status');
+            if (statusEl) statusEl.textContent = 'Ringing…';
+            const joinBtn = document.getElementById('join-video-call');
+            if (joinBtn) {
+                joinBtn.classList.add('d-none');
+                joinBtn.classList.remove('d-flex');
+                joinBtn.style.removeProperty('display');
+            }
+            const placeholderAvatar = readSelectedChatPeerAvatarSrc();
+            if (placeholderAvatar) {
+                applyDreamChatCallAvatar($modal.find('.video-call-ring-avatar-wrap').get(0), placeholderAvatar);
+            }
+            dreamchatCleanupStuckCallBackdrops();
+            $modal.modal('show');
+        } catch (e) { /* ignore */ }
+    }
+
     const joinCallButton = document.getElementById('join-audio-call');
     const endCallButton = document.getElementById("end-audio-call");
     const muteButton = document.getElementById("mute-btn");
     const declineButton = document.getElementById("decline-audio-call");
 
+    // Guard so a rapid double-click cannot kick off two parallel outbound calls
+    // (was a source of "stuck" state where two ringing rows fought each other).
+    let outboundAudioCallInFlight = false;
+
     // 1. INITIATE A CALL
-    if (audioCallButton) {
-        audioCallButton.onclick = async (e) => {
-            e.preventDefault();
+    // Event delegation (instead of binding `.onclick` to whichever button existed at script
+    // load time) so the handler survives SPA navigation and works for both the chat-header
+    // trigger and the hidden `audio-call-btn-spa` fallback used on /calls.
+    async function initiateOutboundAudioCall(e) {
+        if (e && typeof e.preventDefault === "function") e.preventDefault();
+        if (outboundAudioCallInFlight) return;
+        if (currentCallId) return; // already in a call — ignore new attempts until cleanup
 
-            const receiverId = resolveOutboundCallPeerId();
-            if (!receiverId) {
-                console.error("No user selected for the call.");
-                return;
-            }
-            const currentUser = auth.currentUser;
-            if (!currentUser) {
-                console.error("User not authenticated.");
-                return;
-            }
+        const receiverId = resolveOutboundCallPeerId();
+        if (!receiverId) {
+            console.error("No user selected for the call.");
+            return;
+        }
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            console.error("User not authenticated.");
+            return;
+        }
 
+        outboundAudioCallInFlight = true;
+        // Show the ringing popup immediately — before any Firebase round-trip — so the click
+        // feels responsive. The realtime listener will refine name/avatar shortly after.
+        showOptimisticOutgoingAudioRingingModal(receiverId);
+
+        try {
             const callerId = currentUser.uid;
             const newCallId = push(callRef).key;
             const channelName = newCallId;
 
-            // Fetch details for both users to construct the incomingcall string
             const [callerSnapshot, receiverSnapshot] = await Promise.all([
                 get(child(usersRef, callerId)),
                 get(child(usersRef, receiverId))
@@ -11584,10 +11698,23 @@ initializeFirebase(function (app, auth, database, storage) {
                 [`users/${receiverId}/call_status`]: false,
             });
             sendCallNotification(receiverId, callerMobile, "Audio call", channelName, callerId, callerName);
-
-        };
+        } catch (err) {
+            console.error("Error initiating outbound audio call:", err);
+            // Roll back the optimistic modal if the Firebase write failed.
+            try { $('#audio-call-modal').modal('hide'); } catch (e) { /* ignore */ }
+            setTimeout(dreamchatCleanupStuckCallBackdrops, 300);
+        } finally {
+            outboundAudioCallInFlight = false;
+        }
     }
 
+    document.addEventListener("click", function (e) {
+        const t = e.target;
+        if (!t || typeof t.closest !== "function") return;
+        if (t.closest("#audio-call-btn, #audio-call-btn-spa")) {
+            initiateOutboundAudioCall(e);
+        }
+    });
 
 
     // 3. ACCEPT A CALL
@@ -11889,6 +12016,9 @@ initializeFirebase(function (app, auth, database, storage) {
 
         // Reset call tracking
         currentCallId = null;
+        outboundAudioCallInFlight = false;
+        // Run after Bootstrap's hide animation so we only remove backdrops that truly leaked.
+        setTimeout(dreamchatCleanupStuckCallBackdrops, 350);
 
         // Clear any pending call status in Firebase
         const currentUser = auth.currentUser;
@@ -12178,29 +12308,41 @@ initializeFirebase(function (app, auth, database, storage) {
     let lastVideoCallerDeclineToastId = null;
 
     // Video call UI elements
-    const videoCallButton = getVideoCallTriggerEl();
     const joinVideoCallButton = document.getElementById("join-video-call");
     const endVideoCallButton = document.getElementById("leave-video-call");
     const muteVideoAudioButton = document.getElementById("mute-call");
     const muteVideoButton = document.getElementById("video-mute-call");
     const declineVideoButton = document.getElementById("decline-video-call");
 
-    // 1. INITIATE A VIDEO CALL (No major changes needed here, logic is sound)
-    if (videoCallButton) {
-        videoCallButton.onclick = async (e) => {
-            e.preventDefault();
+    let outboundVideoCallInFlight = false;
 
-            const receiverId = resolveOutboundCallPeerId();
-            if (!receiverId) {
-                console.error("No user selected for the call.");
-                return;
-            }
-            const currentUser = auth.currentUser;
-            if (!currentUser) {
-                console.error("User not authenticated.");
-                return;
-            }
+    // 1. INITIATE A VIDEO CALL — show ringing modal optimistically then write to Firebase.
+    // Event delegation replaces the previous direct `.onclick` binding so the handler
+    // works regardless of when the trigger element joins the DOM (chat-header rebuilds,
+    // SPA fallbacks on /calls, etc.).
+    async function initiateOutboundVideoCall(e) {
+        if (e && typeof e.preventDefault === "function") e.preventDefault();
+        if (outboundVideoCallInFlight) return;
+        if (currentVideoCallId) return; // already engaged in a video call
 
+        const receiverId = resolveOutboundCallPeerId();
+        if (!receiverId) {
+            console.error("No user selected for the call.");
+            return;
+        }
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            console.error("User not authenticated.");
+            return;
+        }
+
+        outboundVideoCallInFlight = true;
+        // Instant feedback — render the outgoing ring popup before any await so the click
+        // does not feel laggy on slow connections. The realtime listener will then refine
+        // the name/avatar in-place once the call record has propagated.
+        showOptimisticOutgoingVideoRingingModal(receiverId);
+
+        try {
             const callerId = currentUser.uid;
             const newCallId = push(callRef).key;
             const channelName = newCallId;
@@ -12272,8 +12414,22 @@ initializeFirebase(function (app, auth, database, storage) {
 
             // Send notification
             sendCallNotification(receiverId, callerData.mobile_number, "Video call", channelName, callerId, callerName);
-        };
+        } catch (err) {
+            console.error("Error initiating outbound video call:", err);
+            try { $('#video-call').modal('hide'); } catch (e) { /* ignore */ }
+            setTimeout(dreamchatCleanupStuckCallBackdrops, 300);
+        } finally {
+            outboundVideoCallInFlight = false;
+        }
     }
+
+    document.addEventListener("click", function (e) {
+        const t = e.target;
+        if (!t || typeof t.closest !== "function") return;
+        if (t.closest("#video-call-new-btn, #video-call-new-btn-spa")) {
+            initiateOutboundVideoCall(e);
+        }
+    });
 
     // 2. ACCEPT A VIDEO CALL
     if (joinVideoCallButton) {
@@ -12702,6 +12858,10 @@ initializeFirebase(function (app, auth, database, storage) {
         if (videoRingModal) videoRingModal.classList.remove('video-call-ring-outgoing');
 
         currentVideoCallId = null;
+        outboundVideoCallInFlight = false;
+        // Recover from any orphan backdrop left over after rapid show/hide transitions
+        // (ringing → active container → cleanup) so the next interaction is not blocked.
+        setTimeout(dreamchatCleanupStuckCallBackdrops, 350);
     }
 
     // Mute/unmute audio in video call
