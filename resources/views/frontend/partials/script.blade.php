@@ -612,10 +612,10 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
             }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }).catch(function() { return { ok: false, data: { message: 'Request failed' } }; }); })
               .then(function(result) {
                   if (btn) { btn.disabled = false; btn.textContent = '{{ __("Send Invitation") }}'; }
-                  if (result.ok && result.data && result.data.message) {
+                  if (result.ok) {
                       if (typeof Toastify !== 'undefined') {
-                          Toastify({ text: result.data.message, duration: 3000, gravity: 'top', position: 'right', style: { background: '#28a745' } }).showToast();
-                      } else { alert(result.data.message); }
+                          Toastify({ text: 'An email has been sent.', duration: 3000, gravity: 'top', position: 'right', style: { background: '#28a745' } }).showToast();
+                      } else { alert('An email has been sent.'); }
                       e.target.reset();
                       var modalEl = document.getElementById('invite-contact');
                       if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {

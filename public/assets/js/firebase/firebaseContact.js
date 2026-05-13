@@ -1815,7 +1815,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (result.ok) {
                     closeAddContactModalAndClearSearch();
                     Swal.fire({
-                        text: "Invitation sent. They can be added after they sign up.",
+                        text: "An email has been sent.",
                         icon: "success",
                         width: 420
                     });

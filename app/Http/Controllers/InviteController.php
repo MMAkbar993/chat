@@ -54,7 +54,7 @@ class InviteController extends Controller
         }
 
         return response()->json([
-            'message' => __('Invitation sent successfully to :email.', ['email' => $email]),
+            'message' => __('An email has been sent.'),
         ], 200);
     }
 }

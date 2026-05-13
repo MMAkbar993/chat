@@ -643,7 +643,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                     ]).then(() => {
                                         resetInviteForm();
                                         closeInviteModal();
-                                        Swal.fire({ title: "", width: 400, text: "User added to contacts!", icon: "success" });
+                                        Swal.fire({ text: "An email has been sent.", icon: "success", width: 400 });
                                     });
                                 }
                             });
@@ -705,7 +705,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                     }).then(() => {
                                         resetInviteForm();
                                         closeInviteModal();
-                                        Swal.fire({ title: "", width: 400, text: "User invited successfully! A password reset email has been sent.", icon: "success" });
+                                        Swal.fire({ text: "An email has been sent.", icon: "success", width: 400 });
                                     });
                                 });
                         }
