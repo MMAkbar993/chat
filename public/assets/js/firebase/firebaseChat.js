@@ -42,6 +42,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js"; // Use this URL for Firestore
 
 initializeFirebase(function (app, auth, database, storage) {
+    /** Sidebar list: set early so onAuth + displayUsers share one binding (was declared below displayUsers). */
+    let chatListInitiallyPopulated = false;
+
     const secretKey =
         "89def69f0bdddc995078037539dc6ef4f0bdbdd3fa04ef2d11eea30779d72ac6";
 
@@ -291,7 +294,9 @@ initializeFirebase(function (app, auth, database, storage) {
                     renderChatListSkeletons();
                     // fetchUsers creates the usersMap asynchronously.
                     // We need to wait for it before calling selectUser.
-                    populateUsersMap(); // archived/pinned/etc. + usersMap merged with contacts
+                    // NOTE: populateUsersMap no longer calls fillUsersMapFromFirebase independently.
+                    // fetchUsers owns the single fillUsersMapFromFirebase call and triggers
+                    // sidebar listener setup (archived/pinned/etc.) after it completes.
                     fetchUsers();
 
                     // On hard refresh, always show welcome (do not auto-restore the last open chat).
@@ -403,7 +408,14 @@ initializeFirebase(function (app, auth, database, storage) {
                     // Only clear the container if displayUsers hasn't already rendered real rows.
                     // Without this guard, a second onAuthStateChanged fire (e.g. from session
                     // restore signInWithCustomToken) would wipe the chat list that was just painted.
-                    if (chatUsersWrap && !chatListInitiallyPopulated) chatUsersWrap.innerHTML = "";
+                    // Also skip if the DOM still shows peers — the flag can lag async displayUsers.
+                    if (
+                        chatUsersWrap &&
+                        !chatListInitiallyPopulated &&
+                        !chatUsersWrap.querySelector(".chat-list[data-user-id]")
+                    ) {
+                        chatUsersWrap.innerHTML = "";
+                    }
                     const userIdEl = document.getElementById("user-id");
                     if (userIdEl) userIdEl.innerText = `Logged in as: ${user.id}`;
 
@@ -729,24 +741,45 @@ initializeFirebase(function (app, auth, database, storage) {
         return string.charAt(0).toUpperCase() + string.slice(1);
     }
 
+    /** Only one displayUsers paint at a time; overlapping runs caused duplicate RTDB bursts and empty results that overwrote a good list. */
+    let displayUsersPaintInFlight = false;
+    let displayUsersQueuedUsers = null;
+
     function displayUsers(users) {
+        /** Snapshot for this paint — globals can be cleared mid-flight (e.g. brief auth=null) which otherwise yields bogus room ids and an empty list. */
+        const viewerUid =
+            (currentUser && currentUser.uid) ||
+            currentUserId ||
+            (typeof auth !== "undefined" &&
+                auth &&
+                auth.currentUser &&
+                auth.currentUser.uid) ||
+            "";
+        if (!viewerUid) return;
+
+        if (displayUsersPaintInFlight) {
+            displayUsersQueuedUsers = users;
+            return;
+        }
+        displayUsersPaintInFlight = true;
+
         const usersList = document.getElementById("chat-users-wrap");
         const swiperList = document.querySelector(".swiper-wrapper"); // Swiper wrapper element for recent chats
 
         const archiveChatsRef = ref(
             database,
-            `data/users/${currentUser.uid}/archiveUserId`
+            `data/users/${viewerUid}/archiveUserId`
         );
         const deleteChatsRef = ref(
             database,
-            `data/users/${currentUser.uid}/delete_chats`
+            `data/users/${viewerUid}/delete_chats`
         );
 
-        get(archiveChatsRef).then((archiveSnapshot) => {
+        return get(archiveChatsRef).then((archiveSnapshot) => {
             const archivedChats = archiveSnapshot.exists()
                 ? archiveSnapshot.val()
                 : [];
-            get(deleteChatsRef).then((deleteSnapshot) => {
+            return get(deleteChatsRef).then((deleteSnapshot) => {
                 const deletedChats = deleteSnapshot.exists()
                     ? deleteSnapshot.val()
                     : {};
@@ -756,7 +789,7 @@ initializeFirebase(function (app, auth, database, storage) {
 
                     // Skip the current user, deleted, or archived users
                     if (
-                        userId === currentUserId ||
+                        userId === viewerUid ||
                         archivedChats.includes(userId) || // Check if the user is in the archived list
                         Object.values(deletedChats).some(
                             (chat) => chat.userId === userId && chat.deleted
@@ -765,19 +798,17 @@ initializeFirebase(function (app, auth, database, storage) {
                         return null;
                     }
 
-                    // Fast path: ask only the canonical room for the latest message.
-                    // sendMessage() mirrors every modern write to both rooms with the same
-                    // key, so the canonical query covers ~all data. Only when it comes back
-                    // empty do we fall back to the mirror (handles legacy pre-mirror chats
-                    // and one-sided rooms). This halves the number of Firebase round-trips
-                    // on the initial chat-list paint.
+                    // Load latest message timestamp per peer. We use a plain `get` on the
+                    // room (no orderByChild) so rules do not require a `.indexOn` on every
+                    // `data/chats/{roomId}` path — ordered queries can fail silently in the
+                    // client until indexes exist, which produced an empty sidebar on first login.
                     const canonicalRoomId = getDeterministicChatRoomId(
-                        currentUserId,
+                        viewerUid,
                         userId
                     );
                     const mirrorRoomId = canonicalRoomId
-                        ? chatMirrorRoomId(canonicalRoomId, currentUserId, userId)
-                        : `${userId}-${currentUserId}`;
+                        ? chatMirrorRoomId(canonicalRoomId, viewerUid, userId)
+                        : `${userId}-${viewerUid}`;
 
                     const readLastTimestamp = (snapshot) => {
                         let latest = 0;
@@ -793,32 +824,27 @@ initializeFirebase(function (app, auth, database, storage) {
                         return latest;
                     };
 
-                    const buildLatestQuery = (roomId) =>
-                        query(
-                            ref(database, `data/chats/${roomId}`),
-                            orderByChild("timestamp"),
-                            limitToLast(1)
-                        );
+                    const chatRoomRef = (roomId) =>
+                        ref(database, `data/chats/${roomId}`);
 
-                    const canonicalRef = buildLatestQuery(
-                        canonicalRoomId || `${currentUserId}-${userId}`
-                    );
+                    const canonicalPath =
+                        canonicalRoomId || `${viewerUid}-${userId}`;
 
-                    return get(canonicalRef)
+                    return get(chatRoomRef(canonicalPath))
                         .then((snap) => {
                             const t = readLastTimestamp(snap);
                             if (t > 0) {
                                 return t;
                             }
                             // Canonical empty — try the mirror for legacy data.
-                            return get(buildLatestQuery(mirrorRoomId))
+                            return get(chatRoomRef(mirrorRoomId))
                                 .then(readLastTimestamp)
                                 .catch(() => 0);
                         })
                         .catch(() =>
                             // Canonical errored (rules / network) — still try the mirror so
                             // we don't accidentally drop a real conversation from the list.
-                            get(buildLatestQuery(mirrorRoomId))
+                            get(chatRoomRef(mirrorRoomId))
                                 .then(readLastTimestamp)
                                 .catch(() => 0)
                         )
@@ -830,14 +856,36 @@ initializeFirebase(function (app, auth, database, storage) {
                         });
                 });
 
-                Promise.all(fetchUserPromises).then((fetchedUsers) => {
+                return Promise.all(fetchUserPromises).then((fetchedUsers) => {
                     const validUsers = fetchedUsers.filter(Boolean); // Filter out null values
-
+                    const peerKeyCount = Object.keys(users).filter(
+                        (id) => id && String(id) !== String(viewerUid)
+                    ).length;
                     if (validUsers.length === 0) {
-                        // No valid users, display the 'No Chat' message
-                        usersList.innerHTML = `<p>No Chat here ...</p>`;
-                        swiperList.innerHTML = `<p>No recent chats</p>`;
+                        const hadRenderedRows = !!(
+                            (usersList &&
+                                usersList.querySelector(
+                                    ".chat-list[data-user-id]"
+                                )) ||
+                            (typeof document !== "undefined" &&
+                                document
+                                    .getElementById("chat-users-wrap")
+                                    ?.querySelector(".chat-list[data-user-id]"))
+                        );
+                        if (
+                            peerKeyCount > 0 &&
+                            (chatListInitiallyPopulated || hadRenderedRows)
+                        ) {
+                            listenForNewMessages(users);
+                            return;
+                        }
+                        if (usersList)
+                            usersList.innerHTML = `<p>No Chat here ...</p>`;
+                        if (swiperList)
+                            swiperList.innerHTML = `<p>No recent chats</p>`;
                     } else {
+                        const firstChatListPaint = !chatListInitiallyPopulated;
+                        chatListInitiallyPopulated = true;
                         // Render users in sorted order
                         validUsers.sort(
                             (a, b) =>
@@ -880,10 +928,9 @@ initializeFirebase(function (app, auth, database, storage) {
 
                         // Smooth cascade reveal — only on the first paint to avoid
                         // re-animating on every silent background refresh.
-                        if (!chatListInitiallyPopulated) {
+                        if (firstChatListPaint) {
                             playChatListRevealAnimation();
                         }
-                        chatListInitiallyPopulated = true;
                     }
 
                     // Reinitialize swiper to update the UI
@@ -945,12 +992,17 @@ initializeFirebase(function (app, auth, database, storage) {
                             }
                         }
                     }
+                    listenForNewMessages(users);
                 });
-
-                // Listen for new messages dynamically and update the UI
-                listenForNewMessages(users);
             });
-        });
+        })
+            .catch(function () {})
+            .finally(function () {
+                displayUsersPaintInFlight = false;
+                var nextUsers = displayUsersQueuedUsers;
+                displayUsersQueuedUsers = null;
+                if (nextUsers) displayUsers(nextUsers);
+            });
     }
 
     // Sidebar rows use per-room onValue listeners for unread counts; avoid duplicating badge updates here.
@@ -967,11 +1019,6 @@ initializeFirebase(function (app, auth, database, storage) {
             refreshChatFilterBadgeCounts();
         }, 120);
     }
-
-    // Track whether the chat list has been populated at least once so refreshes
-    // (which can briefly clear the wrap during a re-render) don't flash skeletons
-    // again and cause visible jank.
-    let chatListInitiallyPopulated = false;
 
     /**
      * Inject lightweight shimmer placeholders into the chat list and recent-chats
@@ -3791,8 +3838,12 @@ initializeFirebase(function (app, auth, database, storage) {
     }
 
     function fetchUsers() {
-        if (fetchUsersInFlight) return;
-        if (Date.now() < fetchUsersPermissionDeniedUntil) return;
+        if (fetchUsersInFlight) {
+            return;
+        }
+        if (Date.now() < fetchUsersPermissionDeniedUntil) {
+            return;
+        }
         const loggedInUserId = auth.currentUser?.uid;
         if (!loggedInUserId) {
             return;
@@ -3810,7 +3861,72 @@ initializeFirebase(function (app, auth, database, storage) {
                         swiperList.innerHTML = `<p>No recent chats</p>`;
                     return;
                 }
-                displayUsers(usersMap);
+                const authUser = auth && auth.currentUser;
+                const idTokenReady =
+                    authUser &&
+                    typeof authUser.getIdToken === "function"
+                        ? authUser
+                              .getIdToken(true)
+                              .catch(function () {
+                                  return authUser.getIdToken(false);
+                              })
+                              .catch(function () {})
+                        : Promise.resolve();
+                return idTokenReady.then(function () {
+                    function runSidebarPaint() {
+                        displayUsers(usersMap);
+                        attachSidebarChatListeners(loggedInUserId);
+                    }
+                    /** RTDB can report `.info/connected` before the wire picks up the latest ID token; refresh once more then paint. */
+                    function refreshTokenThenPaint() {
+                        var au = auth && auth.currentUser;
+                        if (!au || typeof au.getIdToken !== "function") {
+                            runSidebarPaint();
+                            return Promise.resolve();
+                        }
+                        return au
+                            .getIdToken(true)
+                            .catch(function () {
+                                return au.getIdToken(false);
+                            })
+                            .catch(function () {})
+                            .then(function () {
+                                runSidebarPaint();
+                            });
+                    }
+                    var connectedRef = ref(database, ".info/connected");
+                    return get(connectedRef)
+                        .catch(function () {
+                            return { val: function () { return false; } };
+                        })
+                        .then(function (snap) {
+                            var connectedNow = false;
+                            try {
+                                connectedNow =
+                                    snap && snap.val && snap.val() === true;
+                            } catch (e) {
+                                connectedNow = false;
+                            }
+                            if (connectedNow) {
+                                return refreshTokenThenPaint();
+                            }
+                            return new Promise(function (resolve) {
+                                var unsub = onValue(connectedRef, function (s) {
+                                    var ok = false;
+                                    try {
+                                        ok = s.val() === true;
+                                    } catch (e3) {
+                                        ok = false;
+                                    }
+                                    if (!ok) return;
+                                    try {
+                                        unsub();
+                                    } catch (e4) {}
+                                    refreshTokenThenPaint().then(resolve);
+                                });
+                            });
+                        });
+                });
             })
             .catch((error) => {
                 if (!isPermissionDeniedError(error)) {
@@ -8918,26 +9034,32 @@ initializeFirebase(function (app, auth, database, storage) {
             .catch((error) => { });
     }
 
-    function populateUsersMap() {
-        const uid = auth.currentUser?.uid || currentUserId;
-        fillUsersMapFromFirebase(uid || "")
-            .then(() => {
-                if (!uid) return;
-                if (firebaseChatSidebarListenersAttached) return;
-                firebaseChatSidebarListenersAttached = true;
-                fetchArchivedChats(uid);
-                fetchPinnedChats(uid);
-                fetchFavouriteChats(uid);
-                fetchTrashChats(uid);
-            })
-            .catch(() => { });
+    /**
+     * Attach sidebar filter listeners (archived / pinned / favourite / trash).
+     * Called by fetchUsers() after usersMap is populated — never calls
+     * fillUsersMapFromFirebase independently so there is no race that could
+     * wipe usersMap and leave the chat list empty on first login.
+     */
+    function attachSidebarChatListeners(uid) {
+        if (!uid) return;
+        if (firebaseChatSidebarListenersAttached) return;
+        firebaseChatSidebarListenersAttached = true;
+        fetchArchivedChats(uid);
+        fetchPinnedChats(uid);
+        fetchFavouriteChats(uid);
+        fetchTrashChats(uid);
     }
 
-    // populateUsersMap() — removed from module level.
-    // Calling it here raced with onAuthStateChanged: fillUsersMapFromFirebase
-    // resets usersMap={} when it resolves, which could wipe the map after
-    // fetchUsers() had already populated it, leaving the chat list empty.
-    // The authoritative calls are inside onAuthStateChanged (lines 294-295).
+    // Legacy populateUsersMap() removed entirely.
+    // It used to call fillUsersMapFromFirebase() which races with fetchUsers():
+    // fillUsersMapFromFirebase resets usersMap={} when it resolves, which could
+    // wipe the map after fetchUsers() had already populated it, leaving the
+    // chat list empty. The sidebar listeners are now attached inside fetchUsers().
+    function populateUsersMap() {
+        // NO-OP: sidebar listeners are now attached by fetchUsers() after
+        // usersMap is safely populated. Kept as a stub in case any other
+        // code path still calls it.
+    }
     function fetchArchivedChats(userId) {
         if (!userId) {
             return;
