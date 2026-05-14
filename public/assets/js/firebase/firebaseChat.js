@@ -1531,9 +1531,14 @@ initializeFirebase(function (app, auth, database, storage) {
                     }
                 }
 
-                if (lastMessage && lastMessage.text) {
-                    const messageType = lastMessage.type || "unknown";
-                    if (messageType === 5) {
+                if (lastMessage) {
+                    // Read the canonical `attachmentType` (the legacy lookup against
+                    // `lastMessage.type` always evaluated to "unknown", which silently overwrote
+                    // every voice/image/video preview with "Unknown message type" any time the
+                    // delivered / readMsg flag flipped). Also drop the gate on `lastMessage.text`,
+                    // which is intentionally null for attachment messages now.
+                    const messageType = lastMessage.attachmentType;
+                    if (messageType === 6) {
                         const originalMessage = await decryptlibsodiumMessage(
                             lastMessage.body
                         );
@@ -1542,17 +1547,18 @@ initializeFirebase(function (app, auth, database, storage) {
                         displayMessage = "File sent";
                     } else if (messageType === 2) {
                         displayMessage = "Image sent";
-                    } else if (messageType === 6) {
-                        displayMessage = "Emoji";
                     } else if (messageType === 3) {
                         displayMessage = "Audio sent";
+                    } else if (messageType === 8) {
+                        displayMessage = "Audio Record sent";
                     } else if (messageType === 1) {
                         displayMessage = "Video sent";
+                    } else if (messageType === 4) {
+                        displayMessage = "Location sent";
                     } else {
-                        displayMessage = "Unknown message type";
+                        displayMessage = "No messages";
                     }
                     applySidebarPreviewRow(displayMessage);
-                    // Update the unseen message count
                 }
             }
         });
@@ -2846,10 +2852,15 @@ initializeFirebase(function (app, auth, database, storage) {
                         tempKey: tempKey,
                     };
                 } else {
+                    // `text` is intentionally null for attachment messages. Older revisions
+                    // mirrored the entire attachment object here, which leaked through to the
+                    // sidebar last-message handler (it checks `lastMessage.text` for truthiness)
+                    // and could produce confusing previews. The attachment payload already lives
+                    // under `attachment`; rendering reads from there exclusively.
                     message = {
                         attachment: messageText || null,
-                        attachmentType: messageType, // Dynamically set attachmentType
-                        text: messageText || null,
+                        attachmentType: messageType,
+                        text: null,
                         timestamp: Date.now(),
                         date: Date.now(),
                         delivered: false,
@@ -2866,8 +2877,15 @@ initializeFirebase(function (app, auth, database, storage) {
 
                 // Check if this is a reply to another message
                 if (replyContext) {
-                    const replyType =
-                        replyContext.attachmentType || "unknown"; // Use the extracted type
+                    // Normalize to a string — Firebase stores `attachmentType` as a number, but
+                    // the switch below was written against string cases (`"3"`, `"8"`, ...). Without
+                    // the String() coercion every voice/image/video reply silently fell into the
+                    // `default` branch and persisted "Unsupported message type" as the quoted text.
+                    const replyType = String(
+                        replyContext.attachmentType != null
+                            ? replyContext.attachmentType
+                            : "unknown"
+                    );
                     let replyContent;
                     // Handle different types of reply content
                     switch (replyType) {
@@ -4090,14 +4108,42 @@ initializeFirebase(function (app, auth, database, storage) {
                         }, 0);
                         break;
                     case 3:
-                        messageContent = `<audio controls preload="metadata" width="240" src="${originalMessageChat}"></audio>`;
+                    case 8: {
+                        // Be defensive about the URL: older forwarded messages, partially-written
+                        // mirror rows, and legacy data may surface `attachment` without `url`. In
+                        // that case render a clear text fallback instead of a broken <audio>
+                        // control (which would render as a tiny "error" icon and confuse the
+                        // receiver). The `onerror` handler swaps the broken player with the same
+                        // text label when the file 404s (e.g. the sender's host doesn't expose
+                        // /storage to this device). Double quotes inside the JS string are emitted
+                        // as `&quot;` so they survive the surrounding `onerror="..."` attribute.
+                        const audioSrcRaw =
+                            originalMessageChat == null
+                                ? ""
+                                : String(originalMessageChat).trim();
+                        const audioSrc = escapeAttr(audioSrcRaw);
+                        const audioUnavailableMarkup =
+                            '<span class="text-muted small"><i class="ti ti-microphone me-1"></i>Audio unavailable</span>';
+                        const audioUnavailableForAttr = audioUnavailableMarkup.replace(/"/g, "&quot;");
+                        messageContent = audioSrcRaw
+                            ? `<audio controls preload="metadata" width="240" src="${audioSrc}" onerror="this.outerHTML='${audioUnavailableForAttr}'"></audio>`
+                            : audioUnavailableMarkup;
                         break;
-                    case 8:
-                        messageContent = `<audio controls preload="metadata" width="240" src="${originalMessageChat}"></audio>`;
+                    }
+                    case 1: {
+                        const videoSrcRaw =
+                            originalMessageChat == null
+                                ? ""
+                                : String(originalMessageChat).trim();
+                        const videoSrc = escapeAttr(videoSrcRaw);
+                        const videoUnavailableMarkup =
+                            '<span class="text-muted small"><i class="ti ti-video me-1"></i>Video unavailable</span>';
+                        const videoUnavailableForAttr = videoUnavailableMarkup.replace(/"/g, "&quot;");
+                        messageContent = videoSrcRaw
+                            ? `<video controls width="200" src="${videoSrc}" onerror="this.outerHTML='${videoUnavailableForAttr}'"></video>`
+                            : videoUnavailableMarkup;
                         break;
-                    case 1:
-                        messageContent = `<video controls width="200" src="${originalMessageChat}"></video>`;
-                        break;
+                    }
                     case 5: {
                         // Use the original filename in the `download` attribute so legacy
                         // uploads (whose URL still ends in a Laravel hash) also save with the
