@@ -400,7 +400,10 @@ initializeFirebase(function (app, auth, database, storage) {
                         // localStorage.removeItem("selectedUserId"); // keep this if you want it to persist during refresh
                     }
                     const chatUsersWrap = document.getElementById("chat-users-wrap");
-                    if (chatUsersWrap) chatUsersWrap.innerHTML = "";
+                    // Only clear the container if displayUsers hasn't already rendered real rows.
+                    // Without this guard, a second onAuthStateChanged fire (e.g. from session
+                    // restore signInWithCustomToken) would wipe the chat list that was just painted.
+                    if (chatUsersWrap && !chatListInitiallyPopulated) chatUsersWrap.innerHTML = "";
                     const userIdEl = document.getElementById("user-id");
                     if (userIdEl) userIdEl.innerText = `Logged in as: ${user.id}`;
 
@@ -3823,7 +3826,12 @@ initializeFirebase(function (app, auth, database, storage) {
                         }, 700);
                     })
                     .catch(function () {
-                        // Keep quiet; repeated permission errors are expected until user reauthenticates.
+                        // Session restore failed — still retry fetchUsers after a delay
+                        // so the chat list loads once RTDB auth propagates.
+                        setTimeout(function () {
+                            fetchUsersPermissionDeniedUntil = 0;
+                            fetchUsers();
+                        }, 2500);
                     });
             })
             .finally(() => {
@@ -8925,7 +8933,11 @@ initializeFirebase(function (app, auth, database, storage) {
             .catch(() => { });
     }
 
-    populateUsersMap();
+    // populateUsersMap() — removed from module level.
+    // Calling it here raced with onAuthStateChanged: fillUsersMapFromFirebase
+    // resets usersMap={} when it resolves, which could wipe the map after
+    // fetchUsers() had already populated it, leaving the chat list empty.
+    // The authoritative calls are inside onAuthStateChanged (lines 294-295).
     function fetchArchivedChats(userId) {
         if (!userId) {
             return;
