@@ -12394,7 +12394,10 @@ initializeFirebase(function (app, auth, database, storage) {
                         break;
                     }
 
-                    if (call.duration === "Ringing") {
+                    if (
+                        call.duration === "Ringing" &&
+                        !dreamchatOneToOneRingingLooksStale(call)
+                    ) {
                         ringingCall = call;
                     }
                 }
@@ -12454,7 +12457,9 @@ initializeFirebase(function (app, auth, database, storage) {
                 $('#audio-call-modal .modal-title').text('Incoming audio call');
             }
 
-            $('#audio-call-modal').modal('show');
+            if (!dreamchatAudioCallRingModalIsOpen()) {
+                $('#audio-call-modal').modal('show');
+            }
             if (ringingCall.inOrOut === 'IN') {
                 ensureIncomingCallRing(ringingCall.id);
             }
@@ -13230,6 +13235,24 @@ initializeFirebase(function (app, auth, database, storage) {
         }
     }
 
+    /** Bootstrap ring modal — jQuery :visible is wrong when the tab was backgrounded or during transitions. */
+    function dreamchatVideoCallRingModalIsOpen() {
+        const el = document.getElementById("video-call");
+        return !!(el && el.classList.contains("show"));
+    }
+
+    function dreamchatAudioCallRingModalIsOpen() {
+        const el = document.getElementById("audio-call-modal");
+        return !!(el && el.classList.contains("show"));
+    }
+
+    /** Zombie "Ringing" rows can linger in RTDB and replay on reconnect after a tab nap. */
+    function dreamchatOneToOneRingingLooksStale(callRow) {
+        if (!callRow || callRow.duration !== "Ringing") return false;
+        const ts = Number(callRow.currentMills);
+        if (!ts || !Number.isFinite(ts)) return false;
+        return Date.now() - ts > 120000;
+    }
 
     // =================================================================
     // REALTIME DATABASE LISTENER - THE CORE LOGIC (CORRECTED)
@@ -13257,7 +13280,10 @@ initializeFirebase(function (app, auth, database, storage) {
 
             // Priority 2: If no call was just accepted, find a ringing call.
             const ringingCall = Object.values(userCalls).find(
-                (c) => isOneToOneVideo(c) && c.duration === "Ringing"
+                (c) =>
+                    isOneToOneVideo(c) &&
+                    c.duration === "Ringing" &&
+                    !dreamchatOneToOneRingingLooksStale(c)
             );
 
             // An accepted call takes precedence over a ringing one.
@@ -13298,14 +13324,14 @@ initializeFirebase(function (app, auth, database, storage) {
             else if (callToProcess.duration === "Ringing") {
                 // If it's an INCOMING call for me, show the ringing modal.
                 if (callToProcess.inOrOut === "IN") {
-                    if (!$('#video-call').is(':visible')) {
+                    if (!dreamchatVideoCallRingModalIsOpen()) {
                         updateRingingModalDetails(callToProcess);
                         $('#video-call').modal('show');
                     }
                     ensureIncomingCallRing(callToProcess.id);
                 }
                 // If it's an OUTGOING call I started, show the "calling..." screen.
-                else if (callToProcess.inOrOut === "OUT" && !$('#video-call').is(':visible')) {
+                else if (callToProcess.inOrOut === "OUT" && !dreamchatVideoCallRingModalIsOpen()) {
                     stopIncomingCallRing();
                     showOutgoingCallUI(callToProcess);
                 }
@@ -13417,6 +13443,7 @@ initializeFirebase(function (app, auth, database, storage) {
     // Re-open 1:1 thread after tab sleep / bfcache / races that cleared listeners or showed welcome
     // while the sidebar still shows a conversation.
     let dreamchatEverDocumentHidden = false;
+    let dreamchatLastVisibleAt = 0;
     let dreamchatResyncChatTimer = null;
     function dreamchatResolveStoredOneOnOnePeerId() {
         // Only restore from the currently active in-memory selection or explicit ?user= param.
@@ -13427,27 +13454,6 @@ initializeFirebase(function (app, auth, database, storage) {
             /* ignore */
         }
         return selectedUserId || null;
-    }
-    function dreamchatOneOnOneUiMissingOpenThread() {
-        const wel = document.getElementById("welcome-container");
-        const mid = document.getElementById("middle");
-        if (!mid) return false;
-        if (wel) {
-            const w = window.getComputedStyle(wel);
-            if (
-                w.display !== "none" &&
-                w.visibility !== "hidden" &&
-                parseFloat(w.opacity || "1") > 0.05
-            ) {
-                return true;
-            }
-        }
-        const m = window.getComputedStyle(mid);
-        if (m.display === "none") return true;
-        if (typeof messageListener !== "function" || !messageListener) {
-            return true;
-        }
-        return false;
     }
     function dreamchatResyncOneOnOneChatNow() {
         const path =
@@ -13460,7 +13466,19 @@ initializeFirebase(function (app, auth, database, storage) {
             selectUser(peer);
             return;
         }
-        if (dreamchatOneOnOneUiMissingOpenThread()) {
+        const wel = document.getElementById("welcome-container");
+        const mid = document.getElementById("middle");
+        let welcomeBlocking = false;
+        if (wel) {
+            const w = window.getComputedStyle(wel);
+            welcomeBlocking =
+                w.display !== "none" &&
+                w.visibility !== "hidden" &&
+                parseFloat(w.opacity || "1") > 0.05;
+        }
+        const middleHidden =
+            !mid || window.getComputedStyle(mid).display === "none";
+        if (welcomeBlocking || middleHidden) {
             selectUser(peer);
             return;
         }
@@ -13483,6 +13501,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 document.visibilityState === "visible" &&
                 dreamchatEverDocumentHidden
             ) {
+                dreamchatLastVisibleAt = Date.now();
                 dreamchatScheduleResyncOneOnOneChat();
             }
         });
@@ -13496,6 +13515,12 @@ initializeFirebase(function (app, auth, database, storage) {
         window.addEventListener("focus", function () {
             if (!dreamchatEverDocumentHidden) return;
             if (document.visibilityState !== "visible") return;
+            if (
+                dreamchatLastVisibleAt > 0 &&
+                Date.now() - dreamchatLastVisibleAt < 800
+            ) {
+                return;
+            }
             dreamchatScheduleResyncOneOnOneChat();
         });
     }

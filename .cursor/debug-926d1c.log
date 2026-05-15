@@ -1,0 +1,2 @@
+{"sessionId":"926d1c","runId":"post-fix","hypothesisId":"H9","location":"firebaseChat.js:fetchUsers:rtdbConnected","message":"RTDB socket ready before sidebar paint","data":{"waited":true},"timestamp":1778793889704}
+{"sessionId":"926d1c","runId":"post-fix","hypothesisId":"H4","location":"firebaseChat.js:displayUsers:resolved","message":"paint pass outcome","data":{"validCount":3,"inputPeers":53,"viewerUidLen":28,"globalsClearedMidPaint":false,"chatListInitFlag":true},"timestamp":1778793891263}
