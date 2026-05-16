@@ -399,7 +399,7 @@
                                         capture="environment">
                                 </div>
                                 <div>
-                                    <button class="btn btn-primary" id="send-button" type="submit">
+                                    <button class="btn btn-primary" id="send-button" type="button">
                                         <i class="ti ti-send"></i>
                                     </button>
                                 </div>

@@ -6042,6 +6042,22 @@ initializeFirebase(function (app, auth, database, storage) {
             }
         });
     }
+    // SPA fallback: when chat DOM is mounted after this script initializes, the
+    // direct `messageInput` listener above is absent. Keep Enter from submitting
+    // the form/reloading by handling it via event delegation as well.
+    document.addEventListener("keydown", (e) => {
+        const target = e && e.target;
+        if (!target || typeof target.closest !== "function") return;
+        const input = target.closest("#message-input");
+        if (!input) return;
+        if (e.key !== "Enter" || e.isComposing) return;
+        e.preventDefault();
+        const liveSendButton =
+            document.getElementById("send-button") || sendButton;
+        if (liveSendButton && !liveSendButton.disabled) {
+            liveSendButton.click();
+        }
+    });
 
     // File preview: reuse static #message-preview from the Blade footer when present (chat + group-chat).
     let messagePreview = document.getElementById("message-preview");
@@ -6285,18 +6301,25 @@ initializeFirebase(function (app, auth, database, storage) {
         video.play().catch(() => { });
     }
 
-    if (sendButton) {
-        sendButton.onclick = async function (e) {
+    async function handleSendButtonClick(e) {
             e.preventDefault(); // Prevent page reload
+            const activeSendButton =
+                (e && e.currentTarget && e.currentTarget.id === "send-button")
+                    ? e.currentTarget
+                    : (document.getElementById("send-button") || sendButton);
+            const activeMessageInput =
+                document.getElementById("message-input") || messageInput;
+            const activeFileInput = document.getElementById("files") || fileInput;
+            if (!activeSendButton || !activeMessageInput) return;
 
-            const messageText = messageInput?.value.trim();
-            const selectedFile = fileInput?.files[0];
+            const messageText = activeMessageInput?.value.trim();
+            const selectedFile = activeFileInput?.files[0];
 
             if (!messageText && !selectedFile) {
                 return; // Do nothing if there's no message or file
             }
 
-            sendButton.disabled = true;
+            activeSendButton.disabled = true;
 
             const groupId =
                 typeof window !== "undefined" &&
@@ -6317,7 +6340,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                 6
                             );
                         }
-                        messageInput.value = "";
+                        activeMessageInput.value = "";
                     }
                     if (selectedFile) {
                         const fileUrl = await uploadFileToFirebase(selectedFile);
@@ -6347,14 +6370,14 @@ initializeFirebase(function (app, auth, database, storage) {
                             attachment,
                             messageType
                         );
-                        fileInput.value = "";
+                        activeFileInput.value = "";
                         messagePreview.innerHTML = "";
                         clearButton.style.display = "none";
                     }
                 } catch (err) {
                     console.error("Group send:", err);
                 }
-                sendButton.disabled = false;
+                activeSendButton.disabled = false;
                 return;
             }
 
@@ -6368,7 +6391,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     backgroundColor: "#ff3d00",
                     stopOnFocus: true,
                 }).showToast();
-                sendButton.disabled = false;
+                activeSendButton.disabled = false;
                 return;
             }
             if (String(selectedUserId || "") !== String(resolvedRecipientId)) {
@@ -6411,7 +6434,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 displayMessage(optimisticMessage);
 
                 // 4. Clear the input and close the reply box
-                messageInput.value = "";
+                activeMessageInput.value = "";
                 closeReplyBox();
                 clearChatTyping();
 
@@ -6471,7 +6494,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     clearChatTyping();
 
                     // Clear file preview
-                    fileInput.value = "";
+                    activeFileInput.value = "";
                     messagePreview.innerHTML = "";
                     clearButton.style.display = "none";
                 } catch (uploadErr) {
@@ -6486,9 +6509,41 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             }
 
-            sendButton.disabled = false;
-        };
+            activeSendButton.disabled = false;
+        }
+
+    function bindSendButtonHandlerIfNeeded(btn) {
+        if (!btn) return;
+        if (btn.dataset.dreamchatSendBound === "1") return;
+        btn.dataset.dreamchatSendBound = "1";
+        btn.onclick = handleSendButtonClick;
     }
+
+    bindSendButtonHandlerIfNeeded(sendButton);
+
+    // SPA fallback: if a chat footer is mounted after initial load, bind once.
+    document.addEventListener("click", (e) => {
+        const target = e && e.target;
+        if (!target || typeof target.closest !== "function") return;
+        const liveSendButton = target.closest("#send-button");
+        if (!liveSendButton) return;
+        bindSendButtonHandlerIfNeeded(liveSendButton);
+    });
+
+    // Prevent native form submission (page refresh) and route to JS send flow.
+    document.addEventListener("submit", (e) => {
+        const target = e && e.target;
+        if (!target || target.id !== "message-form") return;
+        e.preventDefault();
+        const liveSendButton =
+            target.querySelector("#send-button") ||
+            document.getElementById("send-button") ||
+            sendButton;
+        bindSendButtonHandlerIfNeeded(liveSendButton);
+        if (liveSendButton && !liveSendButton.disabled) {
+            liveSendButton.click();
+        }
+    });
 
     // Handle sending current location as a message
     if (locationButton) {
