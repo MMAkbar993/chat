@@ -7709,15 +7709,25 @@ initializeFirebase(function (app, auth, database, storage) {
             .catch(() => { });
     }
 
+    function handleContactInfoButtonClick() {
+        if (selectedUserId) {
+            showContactInfo(selectedUserId);
+            refreshContactFavouritesBadgeCount();
+        }
+    }
+
     const contactInfoButton = document.getElementById("contactInfoButton");
     if (contactInfoButton) {
-        contactInfoButton.addEventListener("click", () => {
-            if (selectedUserId) {
-                showContactInfo(selectedUserId);
-                refreshContactFavouritesBadgeCount();
-            }
-        });
+        contactInfoButton.addEventListener("click", handleContactInfoButtonClick);
     }
+    // SPA fallback: when header is re-rendered after navigation, keep contact info
+    // panel data wiring alive for newly mounted #contactInfoButton.
+    document.addEventListener("click", (e) => {
+        const t = e && e.target;
+        if (!t || typeof t.closest !== "function") return;
+        if (!t.closest("#contactInfoButton")) return;
+        handleContactInfoButtonClick();
+    });
 
     (function wireContactInfoPanelActions() {
         const audio = document.getElementById("contact-profile-audio-btn");

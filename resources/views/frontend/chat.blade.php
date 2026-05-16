@@ -2056,21 +2056,5 @@
                     });
                 </script>
             @endif
-            <script>
-                document.addEventListener('DOMContentLoaded', function () {
-                    var audioBtn = document.getElementById('contact-profile-audio-btn');
-                    var videoBtn = document.getElementById('contact-profile-video-btn');
-                    if (audioBtn && document.getElementById('audio-call-btn') && !audioBtn.dataset.wired) {
-                        audioBtn.addEventListener('click', function () {
-                            document.getElementById('audio-call-btn').click();
-                        });
-                    }
-                    if (videoBtn && document.getElementById('video-call-new-btn') && !videoBtn.dataset.wired) {
-                        videoBtn.addEventListener('click', function () {
-                            document.getElementById('video-call-new-btn').click();
-                        });
-                    }
-                });
-            </script>
         </div>
 @endsection
