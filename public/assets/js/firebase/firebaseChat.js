@@ -11745,6 +11745,52 @@ initializeFirebase(function (app, auth, database, storage) {
         } catch (e) { /* ignore */ }
     }
 
+    // Defensive fix: call modals are opened/closed from multiple async paths; on some
+    // transition races Bootstrap removes the backdrop even though the modal remains shown.
+    // Ensure a visible backdrop exists whenever a call modal is shown.
+    function ensureBackdropForVisibleCallModal() {
+        try {
+            const activeCallModal = document.querySelector(
+                "#audio-call-modal.show, #video-call.show, #voice-attend-new.show, #start-video-call-container.show, #video-call-new.show, #video-call-new-group.show, #audio-call-new-group.show, #video_group_new.show"
+            );
+            if (!activeCallModal) return;
+            const visibleBackdrop = document.querySelector(".modal-backdrop.show");
+            if (!visibleBackdrop) {
+                const backdrop = document.createElement("div");
+                backdrop.className = "modal-backdrop fade show";
+                backdrop.setAttribute("data-dreamchat-forced-backdrop", "1");
+                document.body.appendChild(backdrop);
+            }
+            document.body.classList.add("modal-open");
+            document.body.style.overflow = "hidden";
+        } catch (e) {
+            /* ignore */
+        }
+    }
+
+    (function wireCallBackdropGuard() {
+        const callModalIds = [
+            "audio-call-modal",
+            "video-call",
+            "voice-attend-new",
+            "start-video-call-container",
+            "video-call-new",
+            "video-call-new-group",
+            "audio-call-new-group",
+            "video_group_new",
+        ];
+        callModalIds.forEach((id) => {
+            const modalEl = document.getElementById(id);
+            if (!modalEl) return;
+            modalEl.addEventListener("shown.bs.modal", () => {
+                setTimeout(ensureBackdropForVisibleCallModal, 0);
+            });
+            modalEl.addEventListener("hidden.bs.modal", () => {
+                setTimeout(dreamchatCleanupStuckCallBackdrops, 50);
+            });
+        });
+    })();
+
     // Read the currently-selected chat peer name/avatar synchronously from the chat header
     // so the outgoing-call popup can be rendered instantly instead of waiting for Firebase.
     function readSelectedChatPeerName() {
