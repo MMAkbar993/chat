@@ -390,22 +390,42 @@ Version      : 2.7.6
 		$('.new-group-add').removeClass('hash-group ');
 	});
 
-	// Chat Search Visible
-
-	$('.chat-search-btn').on('click', function () {
-		$('.chat-search').toggleClass('visible-chat');
-	});
-	$('.close-btn-chat').on('click', function () {
-		$('.chat-search').removeClass('visible-chat');
-	});
-	$(".chat-search .form-control").on("keyup", function () {
-		var value = $(this).val().toLowerCase();	
-		$(".chat .chat-body .messages .chats").filter(function () {
-			// Search only in the message text, not metadata like time
-			var messageText = $(this).find('.message-content').text().toLowerCase();
-			$(this).toggle(messageText.indexOf(value) > -1);
+	// In-conversation message search (#middle only; survives SPA and avoids toggling unrelated .chat-search nodes)
+	$(document)
+		.off('click.dreamchatMsgSearch', '#middle .chat-header .chat-search-btn')
+		.on('click.dreamchatMsgSearch', '#middle .chat-header .chat-search-btn', function (e) {
+			e.preventDefault();
+			var $panel = $('#middle .chat-header .chat-search');
+			if ($panel.hasClass('visible-chat')) {
+				if (typeof window.__dreamchatCloseChatMessageSearch === 'function') {
+					window.__dreamchatCloseChatMessageSearch();
+				} else {
+					$panel.removeClass('visible-chat');
+				}
+			} else if (typeof window.__dreamchatOpenChatMessageSearch === 'function') {
+				window.__dreamchatOpenChatMessageSearch();
+			} else {
+				$panel.addClass('visible-chat');
+			}
 		});
-	});
+	$(document)
+		.off('click.dreamchatMsgSearchClose', '#middle .close-btn-chat')
+		.on('click.dreamchatMsgSearchClose', '#middle .close-btn-chat', function () {
+			if (typeof window.__dreamchatCloseChatMessageSearch === 'function') {
+				window.__dreamchatCloseChatMessageSearch();
+			} else {
+				$('#middle .chat-header .chat-search').removeClass('visible-chat');
+			}
+		});
+	$(document)
+		.off('keyup.dreamchatMsgSearch', '#middle .chat-header .chat-search .form-control')
+		.on('keyup.dreamchatMsgSearch', '#middle .chat-header .chat-search .form-control', function () {
+			var value = $(this).val().toLowerCase();
+			$('#middle .chat-body .messages .chats').filter(function () {
+				var messageText = $(this).find('.message-content').text().toLowerCase();
+				$(this).toggle(messageText.indexOf(value) > -1);
+			});
+		});
 
 	// Chat Search Visible
 

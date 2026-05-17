@@ -1050,6 +1050,12 @@ initializeFirebase(function (app, auth, database, storage) {
             if (path === "/group-chat" || document.getElementById("new-group")) {
                 bindDreamchatGroupCreateUi();
             }
+            if (
+                path === "/group-chat" &&
+                typeof wireGroupInfoPanelActions === "function"
+            ) {
+                wireGroupInfoPanelActions();
+            }
             if (path === "/group-chat" && currentUserId) {
                 applyGroupChatDeepLinkFromUrl();
                 // SPA nav often loads /group-chat without ?group=; do not clear the open group or the
@@ -5787,46 +5793,172 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    // Group Info panel action buttons
-    const groupProfileAudioBtn = document.getElementById("group-profile-audio-btn");
-    const groupProfileVideoBtn = document.getElementById("group-profile-video-btn");
-    const groupProfileChatBtn = document.getElementById("group-profile-chat-btn");
-    const groupProfileSearchBtn = document.getElementById("group-profile-search-btn");
+    function getGroupChatMessageSearchPanel() {
+        const middle = document.getElementById("middle");
+        if (!middle) return null;
+        return middle.querySelector(".chat-header .chat-search");
+    }
 
-    if (groupProfileAudioBtn) {
-        groupProfileAudioBtn.addEventListener("click", function () {
-            const headerBtn = document.getElementById("audio-new-btn-group");
-            if (headerBtn) headerBtn.click();
-        });
+    function closeGroupChatMessageSearch() {
+        if (typeof window.__dreamchatCloseChatMessageSearch === "function") {
+            window.__dreamchatCloseChatMessageSearch();
+            return;
+        }
+        const searchPanel = getGroupChatMessageSearchPanel();
+        if (!searchPanel) return;
+        searchPanel.classList.remove("visible-chat");
     }
-    if (groupProfileVideoBtn) {
-        groupProfileVideoBtn.addEventListener("click", function () {
-            const headerBtn = document.getElementById("video-call-new-btn-group");
-            if (headerBtn) headerBtn.click();
-        });
+
+    function openGroupChatMessageSearch() {
+        if (typeof window.__dreamchatOpenChatMessageSearch === "function") {
+            window.__dreamchatOpenChatMessageSearch();
+            return true;
+        }
+        const middle = document.getElementById("middle");
+        if (middle) {
+            middle.style.setProperty("display", "flex", "important");
+            middle.classList.add("message-panel-visible");
+        }
+        const searchPanel = getGroupChatMessageSearchPanel();
+        if (!searchPanel) return false;
+        const header = searchPanel.closest(".chat-header");
+        searchPanel.classList.add("visible-chat");
+        if (header) header.style.zIndex = "30";
+        searchPanel.style.zIndex = "31";
+        const input = searchPanel.querySelector(
+            "input.form-control, input[type='text']"
+        );
+        if (input) {
+            setTimeout(function () {
+                try {
+                    input.focus();
+                } catch (e) {
+                    /* ignore */
+                }
+            }, 80);
+        }
+        return true;
     }
-    if (groupProfileChatBtn) {
-        groupProfileChatBtn.addEventListener("click", function () {
-            const offcanvasEl = document.getElementById("contact-profile");
-            if (offcanvasEl && typeof bootstrap !== "undefined") {
-                const inst = bootstrap.Offcanvas.getInstance(offcanvasEl);
-                if (inst) inst.hide();
+
+    function openGroupChatMessageSearchFromContactPanel() {
+        const searchPanel = getGroupChatMessageSearchPanel();
+        if (searchPanel && searchPanel.classList.contains("visible-chat")) {
+            closeGroupChatMessageSearch();
+            return;
+        }
+        const oc = document.getElementById("contact-profile");
+        const isOverlay =
+            typeof window !== "undefined" && window.innerWidth < 1200;
+        if (
+            isOverlay &&
+            oc &&
+            oc.classList.contains("show") &&
+            typeof bootstrap !== "undefined"
+        ) {
+            if (typeof window.__dreamchatSuppressCloseSearchOnContactHide === "function") {
+                window.__dreamchatSuppressCloseSearchOnContactHide(true);
             }
-            const msgInput = document.getElementById("message-input");
-            if (msgInput) msgInput.focus();
-        });
+            const runOpen = function () {
+                if (typeof window.__dreamchatSuppressCloseSearchOnContactHide === "function") {
+                    window.__dreamchatSuppressCloseSearchOnContactHide(false);
+                }
+                openGroupChatMessageSearch();
+            };
+            oc.addEventListener("hidden.bs.offcanvas", runOpen, {
+                once: true,
+            });
+            const inst =
+                bootstrap.Offcanvas.getInstance(oc) ||
+                bootstrap.Offcanvas.getOrCreateInstance(oc);
+            inst.hide();
+            return;
+        }
+        openGroupChatMessageSearch();
     }
-    if (groupProfileSearchBtn) {
-        groupProfileSearchBtn.addEventListener("click", function () {
-            const offcanvasEl = document.getElementById("contact-profile");
-            if (offcanvasEl && typeof bootstrap !== "undefined") {
-                const inst = bootstrap.Offcanvas.getInstance(offcanvasEl);
-                if (inst) inst.hide();
-            }
-            const searchBtn = document.querySelector(".chat-search-btn");
-            if (searchBtn) searchBtn.click();
-        });
+
+    function openGroupChatFromContactPanel() {
+        if (typeof window.__dreamchatOpenChatFromContactPanel === "function") {
+            window.__dreamchatOpenChatFromContactPanel();
+            return;
+        }
+        if (typeof window.__dreamchatCloseContactProfilePanel === "function") {
+            window.__dreamchatCloseContactProfilePanel();
+        }
+        const middle = document.getElementById("middle");
+        if (middle) {
+            middle.style.setProperty("display", "flex", "important");
+            middle.classList.add("message-panel-visible");
+        }
+        if (typeof window.__dreamchatEnsureChatPageVisible === "function") {
+            window.__dreamchatEnsureChatPageVisible();
+        }
+        const input = document.getElementById("message-input");
+        if (input) {
+            setTimeout(function () {
+                try {
+                    input.focus();
+                } catch (e) {
+                    /* ignore */
+                }
+            }, 150);
+        }
     }
+
+    document.addEventListener("click", function (e) {
+        const t = e && e.target;
+        if (!t || typeof t.closest !== "function") return;
+        if (t.closest("#group-profile-audio-btn")) {
+            e.preventDefault();
+            document.getElementById("audio-new-btn-group")?.click();
+            return;
+        }
+        if (t.closest("#group-profile-video-btn")) {
+            e.preventDefault();
+            document.getElementById("video-call-new-btn-group")?.click();
+            return;
+        }
+        if (t.closest("#group-profile-chat-btn")) {
+            e.preventDefault();
+            openGroupChatFromContactPanel();
+            return;
+        }
+        if (t.closest("#group-profile-search-btn")) {
+            e.preventDefault();
+            openGroupChatMessageSearchFromContactPanel();
+        }
+    });
+
+    function wireGroupInfoPanelActions() {
+        const groupProfileAudioBtn = document.getElementById("group-profile-audio-btn");
+        const groupProfileVideoBtn = document.getElementById("group-profile-video-btn");
+        const groupProfileChatBtn = document.getElementById("group-profile-chat-btn");
+        const groupProfileSearchBtn = document.getElementById("group-profile-search-btn");
+
+        if (groupProfileAudioBtn && !groupProfileAudioBtn.dataset.wired) {
+            groupProfileAudioBtn.dataset.wired = "1";
+            groupProfileAudioBtn.addEventListener("click", function (ev) {
+                ev.preventDefault();
+                document.getElementById("audio-new-btn-group")?.click();
+            });
+        }
+        if (groupProfileVideoBtn && !groupProfileVideoBtn.dataset.wired) {
+            groupProfileVideoBtn.dataset.wired = "1";
+            groupProfileVideoBtn.addEventListener("click", function (ev) {
+                ev.preventDefault();
+                document.getElementById("video-call-new-btn-group")?.click();
+            });
+        }
+        if (groupProfileChatBtn && !groupProfileChatBtn.dataset.wired) {
+            groupProfileChatBtn.dataset.wired = "1";
+            groupProfileChatBtn.addEventListener("click", function (ev) {
+                ev.preventDefault();
+                hideGroupContactProfileOffcanvas();
+                document.getElementById("message-input")?.focus();
+            });
+        }
+    }
+    wireGroupInfoPanelActions();
+    window.__dreamchatWireGroupInfoPanel = wireGroupInfoPanelActions;
 
     // Member three-dot menu actions
     document.addEventListener("click", function (e) {

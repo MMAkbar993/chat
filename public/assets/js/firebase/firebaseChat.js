@@ -7729,44 +7729,206 @@ initializeFirebase(function (app, auth, database, storage) {
         handleContactInfoButtonClick();
     });
 
-    (function wireContactInfoPanelActions() {
-        const audio = document.getElementById("contact-profile-audio-btn");
-        const video = document.getElementById("contact-profile-video-btn");
-        const chatBtn = document.getElementById("contact-profile-chat-btn");
-        const searchBtn = document.getElementById("contact-profile-search-btn");
-        if (audio && !audio.dataset.wired) {
-            audio.dataset.wired = "1";
-            audio.addEventListener("click", (e) => {
-                e.preventDefault();
-                getAudioCallTriggerEl()?.click();
-            });
+    let suppressCloseSearchOnContactHide = false;
+
+    function getChatMessageSearchPanel() {
+        const middle = document.getElementById("middle");
+        if (!middle) return null;
+        return middle.querySelector(".chat-header .chat-search");
+    }
+
+    function closeChatMessageSearch() {
+        const searchPanel = getChatMessageSearchPanel();
+        if (!searchPanel) return;
+        searchPanel.classList.remove("visible-chat");
+        const header = searchPanel.closest(".chat-header");
+        if (header) header.style.zIndex = "";
+        searchPanel.style.zIndex = "";
+        const input = searchPanel.querySelector(
+            "input.form-control, input[type='text']"
+        );
+        if (input) input.value = "";
+        const chats = document.querySelectorAll(
+            "#middle .chat-body .messages .chats"
+        );
+        chats.forEach(function (el) {
+            el.style.display = "";
+        });
+    }
+
+    function ensureMiddleVisibleForMessageSearch() {
+        const middle = document.getElementById("middle");
+        if (!middle) return;
+        let peer = selectedUserId;
+        if (!peer) {
+            try {
+                peer = (
+                    new URLSearchParams(window.location.search || "").get("user") ||
+                    ""
+                ).trim();
+            } catch (e) {
+                peer = "";
+            }
         }
-        if (video && !video.dataset.wired) {
-            video.dataset.wired = "1";
-            video.addEventListener("click", (e) => {
-                e.preventDefault();
-                getVideoCallTriggerEl()?.click();
-            });
+        if (!peer) return;
+        middle.style.setProperty("display", "flex", "important");
+        middle.classList.add("message-panel-visible");
+        const welcomeEl = document.getElementById("welcome-container");
+        if (welcomeEl) {
+            welcomeEl.style.setProperty("display", "none", "important");
+            welcomeEl.style.setProperty("visibility", "hidden", "important");
         }
-        if (chatBtn && !chatBtn.dataset.wired) {
-            chatBtn.dataset.wired = "1";
-            chatBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                const oc = document.getElementById("contact-profile");
-                if (oc && typeof bootstrap !== "undefined") {
-                    const inst = bootstrap.Offcanvas.getInstance(oc);
-                    if (inst) inst.hide();
+        if (document.body) {
+            document.body.setAttribute("data-chat-panel", "visible");
+        }
+    }
+
+    function openChatMessageSearch() {
+        ensureMiddleVisibleForMessageSearch();
+        const searchPanel = getChatMessageSearchPanel();
+        if (!searchPanel) return false;
+        const header = searchPanel.closest(".chat-header");
+        searchPanel.classList.add("visible-chat");
+        if (header) {
+            header.style.zIndex = "30";
+        }
+        searchPanel.style.zIndex = "31";
+        const input = searchPanel.querySelector(
+            "input.form-control, input[type='text']"
+        );
+        if (input) {
+            setTimeout(function () {
+                try {
+                    input.focus();
+                } catch (e) {
+                    /* ignore */
                 }
-                document.getElementById("message-input")?.focus();
-            });
+            }, 80);
         }
-        if (searchBtn && !searchBtn.dataset.wired) {
-            searchBtn.dataset.wired = "1";
-            searchBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                document.querySelector(".chat-search-btn")?.click();
-            });
+        return true;
+    }
+
+    function toggleChatMessageSearchVisible() {
+        const searchPanel = getChatMessageSearchPanel();
+        if (!searchPanel) return false;
+        searchPanel.classList.toggle("visible-chat");
+        if (searchPanel.classList.contains("visible-chat")) {
+            const input = searchPanel.querySelector(
+                "input.form-control, input[type='text']"
+            );
+            if (input) {
+                setTimeout(function () {
+                    try {
+                        input.focus();
+                    } catch (e) {
+                        /* ignore */
+                    }
+                }, 80);
+            }
         }
+        return true;
+    }
+
+    function closeContactProfilePanel() {
+        const spa = document.getElementById("spa-page-content");
+        if (spa) {
+            spa.classList.remove("contact-profile-dock-open");
+        }
+        const oc = document.getElementById("contact-profile");
+        if (!oc) return;
+        if (typeof bootstrap !== "undefined") {
+            try {
+                const inst =
+                    bootstrap.Offcanvas.getInstance(oc) ||
+                    bootstrap.Offcanvas.getOrCreateInstance(oc);
+                if (oc.classList.contains("show")) {
+                    inst.hide();
+                    return;
+                }
+            } catch (e) {
+                /* ignore */
+            }
+        }
+        oc.classList.remove("show");
+    }
+
+    function openChatFromContactPanel() {
+        closeContactProfilePanel();
+        ensureMiddleVisibleForMessageSearch();
+        if (typeof ensureChatPageVisible === "function") {
+            ensureChatPageVisible();
+        }
+        const input = document.getElementById("message-input");
+        if (input) {
+            setTimeout(function () {
+                try {
+                    input.focus();
+                } catch (e) {
+                    /* ignore */
+                }
+            }, 150);
+        }
+    }
+
+    function openChatMessageSearchFromContactPanel() {
+        const searchPanel = getChatMessageSearchPanel();
+        if (searchPanel && searchPanel.classList.contains("visible-chat")) {
+            closeChatMessageSearch();
+            return;
+        }
+
+        const oc = document.getElementById("contact-profile");
+        const isOverlay =
+            typeof window !== "undefined" && window.innerWidth < 1200;
+        if (
+            isOverlay &&
+            oc &&
+            oc.classList.contains("show") &&
+            typeof bootstrap !== "undefined"
+        ) {
+            suppressCloseSearchOnContactHide = true;
+            const runOpen = function () {
+                suppressCloseSearchOnContactHide = false;
+                openChatMessageSearch();
+            };
+            oc.addEventListener("hidden.bs.offcanvas", runOpen, {
+                once: true,
+            });
+            const inst =
+                bootstrap.Offcanvas.getInstance(oc) ||
+                bootstrap.Offcanvas.getOrCreateInstance(oc);
+            inst.hide();
+            return;
+        }
+        openChatMessageSearch();
+    }
+
+    function handleContactProfilePanelActionClick(e) {
+        const t = e && e.target;
+        if (!t || typeof t.closest !== "function") return;
+        if (t.closest("#contact-profile-audio-btn")) {
+            e.preventDefault();
+            getAudioCallTriggerEl()?.click();
+            return;
+        }
+        if (t.closest("#contact-profile-video-btn")) {
+            e.preventDefault();
+            getVideoCallTriggerEl()?.click();
+            return;
+        }
+        if (t.closest("#contact-profile-chat-btn")) {
+            e.preventDefault();
+            openChatFromContactPanel();
+            return;
+        }
+        if (t.closest("#contact-profile-search-btn")) {
+            e.preventDefault();
+            openChatMessageSearchFromContactPanel();
+        }
+    }
+    document.addEventListener("click", handleContactProfilePanelActionClick);
+
+    function wireContactInfoPanelActions() {
         const mediaAccordionMap = {
             "contact-media-photos": { collapseId: "media-collapse-photos", type: "photos", attachmentTypes: [2] },
             "contact-media-videos": { collapseId: "media-collapse-videos", type: "videos", attachmentTypes: [1] },
@@ -8218,7 +8380,16 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (typeof Toastify !== "undefined" && label) Toastify({ text: `Muted for ${label}.`, duration: 2500 }).showToast();
             });
         }
-    })();
+    }
+    wireContactInfoPanelActions();
+    window.__dreamchatWireContactInfoPanel = wireContactInfoPanelActions;
+    window.__dreamchatCloseChatMessageSearch = closeChatMessageSearch;
+    window.__dreamchatOpenChatMessageSearch = openChatMessageSearch;
+    window.__dreamchatSuppressCloseSearchOnContactHide = function (v) {
+        suppressCloseSearchOnContactHide = !!v;
+    };
+    window.__dreamchatCloseContactProfilePanel = closeContactProfilePanel;
+    window.__dreamchatOpenChatFromContactPanel = openChatFromContactPanel;
 
     /** Desktop dock: toggles `contact-profile-dock-open` on #spa-page-content. Re-run after SPA replaces innerHTML (new #contact-profile node). */
     function rebindContactProfileDockLayout() {
@@ -8235,6 +8406,9 @@ initializeFirebase(function (app, auth, database, storage) {
         });
         panel.addEventListener("hidden.bs.offcanvas", function () {
             setDockOpen(false);
+            if (!suppressCloseSearchOnContactHide) {
+                closeChatMessageSearch();
+            }
         });
         if (panel.classList.contains("show")) {
             setDockOpen(true);
@@ -13689,10 +13863,37 @@ initializeFirebase(function (app, auth, database, storage) {
             }
         }, intervalMs);
     }
-    window.addEventListener("spa-page-applied", function () {
+    window.addEventListener("spa-page-applied", function (e) {
         // Reset selected user on every SPA navigation so the welcome screen shows fresh.
         selectedUserId = null;
         rebindContactProfileDockLayout();
+        if (typeof wireContactInfoPanelActions === "function") {
+            wireContactInfoPanelActions();
+        }
+        try {
+            const raw =
+                e && e.detail && e.detail.pathname
+                    ? String(e.detail.pathname)
+                    : "";
+            const norm = raw.replace(/\/+$/, "").toLowerCase();
+            const isChatHome =
+                norm === "/chat" ||
+                norm === "/index" ||
+                norm.endsWith("/chat") ||
+                norm.endsWith("/index");
+            if (isChatHome && typeof window.jQuery !== "undefined") {
+                window.jQuery("#spa-page-content .close-btn-chat")
+                    .off("click.spaChatSearch")
+                    .on("click.spaChatSearch", function () {
+                        const panel = getChatMessageSearchPanel();
+                        if (panel) {
+                            panel.classList.remove("visible-chat");
+                        }
+                    });
+            }
+        } catch (_err) {
+            /* ignore */
+        }
         [0, 120, 450].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
         startWelcomeGuard(12, 250);
     });
