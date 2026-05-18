@@ -7730,6 +7730,7 @@ initializeFirebase(function (app, auth, database, storage) {
     });
 
     let suppressCloseSearchOnContactHide = false;
+    let lastContactInfoUserId = null;
 
     function getChatMessageSearchPanel() {
         const middle = document.getElementById("middle");
@@ -7829,13 +7830,55 @@ initializeFirebase(function (app, auth, database, storage) {
         return true;
     }
 
-    function closeContactProfilePanel() {
+    function closeContactProfilePanel(options) {
+        const opts = options || {};
+        const immediate = !!opts.immediate;
         const spa = document.getElementById("spa-page-content");
         if (spa) {
             spa.classList.remove("contact-profile-dock-open");
         }
         const oc = document.getElementById("contact-profile");
         if (!oc) return;
+        if (immediate) {
+            const prevTransition = oc.style.transition;
+            try {
+                oc.style.setProperty("transition", "none", "important");
+                oc.classList.remove("show");
+                oc.classList.remove("showing");
+                oc.setAttribute("aria-hidden", "true");
+                oc.style.removeProperty("visibility");
+                const body = document.body;
+                if (body) {
+                    body.classList.remove("offcanvas-open");
+                    body.style.removeProperty("overflow");
+                    body.style.removeProperty("padding-right");
+                }
+                document
+                    .querySelectorAll(".offcanvas-backdrop")
+                    .forEach((el) => el.remove());
+                if (
+                    typeof bootstrap !== "undefined" &&
+                    bootstrap.Offcanvas
+                ) {
+                    const inst = bootstrap.Offcanvas.getInstance(oc);
+                    if (inst) inst.dispose();
+                }
+            } catch (e) {
+                /* ignore */
+            }
+            setTimeout(function () {
+                try {
+                    if (prevTransition) {
+                        oc.style.transition = prevTransition;
+                    } else {
+                        oc.style.removeProperty("transition");
+                    }
+                } catch (e) {
+                    /* ignore */
+                }
+            }, 0);
+            return;
+        }
         if (typeof bootstrap !== "undefined") {
             try {
                 const inst =
@@ -7852,22 +7895,52 @@ initializeFirebase(function (app, auth, database, storage) {
         oc.classList.remove("show");
     }
 
-    function openChatFromContactPanel() {
-        closeContactProfilePanel();
-        ensureMiddleVisibleForMessageSearch();
-        if (typeof ensureChatPageVisible === "function") {
-            ensureChatPageVisible();
+    function resolveContactPanelPeerId() {
+        let urlPeer = "";
+        try {
+            urlPeer = (
+                new URLSearchParams(window.location.search || "").get("user") || ""
+            ).trim();
+        } catch (e) {
+            urlPeer = "";
         }
-        const input = document.getElementById("message-input");
-        if (input) {
-            setTimeout(function () {
+        return (
+            String(selectedUserId || "").trim() ||
+            String(lastContactInfoUserId || "").trim() ||
+            urlPeer ||
+            ""
+        );
+    }
+
+    function openChatFromContactPanel() {
+        const runOpenChat = function () {
+            const peerId = resolveContactPanelPeerId();
+            if (peerId && String(selectedUserId || "") !== String(peerId)) {
                 try {
-                    input.focus();
+                    selectUser(peerId);
                 } catch (e) {
                     /* ignore */
                 }
-            }, 150);
-        }
+            } else {
+                ensureMiddleVisibleForMessageSearch();
+                if (typeof ensureChatPageVisible === "function") {
+                    ensureChatPageVisible();
+                }
+            }
+            const input = document.getElementById("message-input");
+            if (input) {
+                setTimeout(function () {
+                    try {
+                        input.focus();
+                    } catch (e) {
+                        /* ignore */
+                    }
+                }, 150);
+            }
+        };
+
+        closeContactProfilePanel({ immediate: true });
+        runOpenChat();
     }
 
     function openChatMessageSearchFromContactPanel() {
@@ -8447,6 +8520,7 @@ initializeFirebase(function (app, auth, database, storage) {
     // Modified showContactInfo function
     async function showContactInfo(userId) {
         try {
+            lastContactInfoUserId = userId ? String(userId).trim() : null;
             const currentUserId = currentUser?.uid; // Get current user ID
 
             // Fetch excluded users for the profile being viewed

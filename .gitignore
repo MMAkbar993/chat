@@ -65,3 +65,5 @@ composer.phar
 
 storage/firebase/firebase_credentials.json
 .env
+temp_auto_push.bat
+temp_interactive_push.bat
