@@ -601,6 +601,22 @@ initializeFirebase(function (app, auth, database, storage) {
                     $("#invite-contact").modal("hide");
                 }
             }
+            function refreshContactListsAfterInvite() {
+                // Rebuild sidebar/new-chat lists so a newly-added contact appears immediately.
+                try {
+                    fetchUsers();
+                } catch (e) {
+                    /* ignore */
+                }
+                const newChatModalEl = document.getElementById("new-chat");
+                if (
+                    newChatModalEl &&
+                    newChatModalEl.classList.contains("show") &&
+                    typeof openNewChatModal === "function"
+                ) {
+                    Promise.resolve(openNewChatModal()).catch(() => { });
+                }
+            }
 
             if (sendInviteButton) {
                 sendInviteButton.textContent = "Processing...";
@@ -658,6 +674,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                     ]).then(() => {
                                         resetInviteForm();
                                         closeInviteModal();
+                                        refreshContactListsAfterInvite();
                                         Swal.fire({ text: "An email has been sent.", icon: "success", width: 400 });
                                     });
                                 }
@@ -720,6 +737,7 @@ initializeFirebase(function (app, auth, database, storage) {
                                     }).then(() => {
                                         resetInviteForm();
                                         closeInviteModal();
+                                        refreshContactListsAfterInvite();
                                         Swal.fire({ text: "An email has been sent.", icon: "success", width: 400 });
                                     });
                                 });
@@ -849,8 +867,13 @@ initializeFirebase(function (app, auth, database, storage) {
                                 .catch(() => 0)
                         )
                         .then((lastMessageTimestamp) => {
-                            if (lastMessageTimestamp > 0) {
-                                return { userId, user, lastMessageTimestamp };
+                            // Chat sidebar: only peers with at least one message (sent or received).
+                            if (Number(lastMessageTimestamp) > 0) {
+                                return {
+                                    userId,
+                                    user,
+                                    lastMessageTimestamp: Number(lastMessageTimestamp),
+                                };
                             }
                             return null;
                         });
@@ -1990,8 +2013,12 @@ initializeFirebase(function (app, auth, database, storage) {
             let unseen = 0;
 
             snapshot.forEach((childSnapshot) => {
-                const message = childSnapshot.val();
-                if (!message || !message.timestamp) return;
+                const message = normalizeChatMessageFields(
+                    childSnapshot.val(),
+                    childSnapshot.key
+                );
+                const ts = chatMessageTimestamp(message);
+                if (!message || !ts) return;
                 if (uidIncludedInFirebaseList(message.clearedFor, viewerUid)) {
                     return;
                 }
@@ -1999,13 +2026,15 @@ initializeFirebase(function (app, auth, database, storage) {
                     return;
                 }
                 if (
-                    message.recipientId === viewerUid &&
+                    viewerIdentityIds(viewerUid).has(
+                        messageRecipientUid(message)
+                    ) &&
                     !message.seen
                 ) {
                     unseen++;
                 }
-                if (message.timestamp > latestTs) {
-                    latestTs = message.timestamp;
+                if (ts > latestTs) {
+                    latestTs = ts;
                     latestMsg = message;
                 }
             });
@@ -4015,17 +4044,18 @@ initializeFirebase(function (app, auth, database, storage) {
         `;
     }
 
-    async function displayMessage(message, attempt = 0) {
+    async function displayMessage(message, attempt = 0, opts = {}) {
         const chatBox = getChatBoxElement();
         // Retry briefly while DOM settles when opening/switching chats.
         if (!chatBox) {
             if (attempt < 10) {
                 setTimeout(() => {
-                    displayMessage(message, attempt + 1);
+                    displayMessage(message, attempt + 1, opts);
                 }, 100);
             }
             return;
         }
+        message = normalizeChatMessageFields(message, message.key);
         const viewerUid = currentUser?.uid || currentUserId;
         const myUid =
             (typeof auth !== "undefined" &&
@@ -4044,9 +4074,9 @@ initializeFirebase(function (app, auth, database, storage) {
         if (uidIncludedInFirebaseList(message.deletedFor, viewerUid)) {
             return;
         }
-        // Create a unique identifier for the message
-        const messageId = `msg-${message.timestamp}-${message.senderId}`;
+        // Create a unique identifier for the message (legacy rows lacked timestamp)
         const messageKey = message.key;
+        const messageId = `msg-${chatMessageTimestamp(message)}-${messageSenderUid(message) || message.senderId || "unknown"}-${messageKey || "nk"}`;
         const messageType = message.attachmentType;
 
         // Avoid duplicates by checking if message ID already exists in DOM
@@ -4071,8 +4101,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 : "6";
         }
 
-        const userId =
-            message.senderId != null ? String(message.senderId).trim() : "";
+        const userId = messageSenderUid(message);
         if (!userId) {
             console.warn("displayMessage: missing senderId", message);
             return;
@@ -4114,7 +4143,7 @@ initializeFirebase(function (app, auth, database, storage) {
                     : null;
                 let raw = rawAvatarFromFirebaseAndContact(userData, contactData);
                 if (
-                    message.senderId === myUid &&
+                    isMessageFromViewer(message, myUid) &&
                     typeof window !== "undefined" &&
                     window.LARAVEL_USER
                 ) {
@@ -4136,7 +4165,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (message.isOptimistic) {
                     // For optimistic messages, the body is already plain text.
                     originalMessageChat = message.body;
-                } else if ([6].includes(message.attachmentType)) {
+                } else if (chatMessageAttachmentType(message) === 6) {
                     // For real messages, decrypt as before.
                     const decryptedText = await decryptlibsodiumMessage(
                         message.body
@@ -4161,7 +4190,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 let forwardContent = "";
 
                 // Handle original message content
-                switch (message.attachmentType) {
+                switch (chatMessageAttachmentType(message)) {
                     case 6:
                         // If text looks like a Google Maps link, render as clickable link
                         if (typeof originalMessageChat === "string" && /https?:\/\/(maps\.google\.com|goo\.gl)\//.test(originalMessageChat)) {
@@ -4399,10 +4428,12 @@ initializeFirebase(function (app, auth, database, storage) {
                 <div class="message-content-text">${messageContent}</div>`;
 
                 // Build the message element with both original and reply message
-                const formattedTime = formatTimestamp(message.timestamp);
+                const formattedTime = formatTimestamp(
+                    chatMessageTimestamp(message)
+                );
 
                 let statusIcon = "";
-                if (message.senderId === myUid) {
+                if (isMessageFromViewer(message, myUid)) {
                     if (message.isOptimistic) {
                         // Use a clock icon for the "sending" state.
                         // Make sure your icon library (e.g., Tabler Icons) has 'ti-clock'.
@@ -4424,7 +4455,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 );
                 const reactionPickerMarkup = buildReactionPickerMarkup();
 
-                if (message.senderId === myUid) {
+                if (isMessageFromViewer(message, myUid)) {
                     messageElement.classList.add("chats-right"); // Align message to the right
                     messageElement.innerHTML = `
                         <div class="chat-content">
@@ -4520,25 +4551,28 @@ initializeFirebase(function (app, auth, database, storage) {
 
                 // Insert the message in the correct order by timestamp
                 const allMessages = Array.from(chatBox.children);
-                const index = allMessages.findIndex(
-                    (msgElement) =>
-                        parseInt(msgElement.dataset.messageId.split("-")[1]) >
-                        message.timestamp
-                );
+                const msgTs = chatMessageTimestamp(message);
+                const index = allMessages.findIndex((msgElement) => {
+                    const parts = (msgElement.dataset.messageId || "").split(
+                        "-"
+                    );
+                    const existingTs = parseInt(parts[1], 10);
+                    return (
+                        Number.isFinite(existingTs) && existingTs > msgTs
+                    );
+                });
                 if (index !== -1) {
                     chatBox.insertBefore(messageElement, allMessages[index]);
                 } else {
                     chatBox.appendChild(messageElement);
                 }
 
-                if (_chatInitialLoad) {
+                if (_chatInitialLoad && !opts.trackInitialRender) {
                     _chatInitialMsgCount++;
                     _bumpInitialLoadTimer();
-                } else {
+                } else if (!_chatInitialLoad || !opts.trackInitialRender) {
                     messageElement.classList.add("msg-fade-in");
-                    const chatScrollHost =
-                        document.getElementById("chat-area") || chatBox;
-                    chatScrollHost.scrollTop = chatScrollHost.scrollHeight;
+                    _stickChatToBottom();
                 }
             })
             .catch((error) => {
@@ -5696,40 +5730,341 @@ initializeFirebase(function (app, auth, database, storage) {
 
     let _chatInitialLoad = false;
     let _chatInitialLoadTimer = null;
+    let _chatInitialLoadMaxTimer = null;
     let _chatInitialMsgCount = 0;
+    let _chatInitialPendingRenders = 0;
 
+    function ensureChatLoadingSpinner() {
+        const chatArea =
+            document.getElementById("chat-area") ||
+            document.querySelector("#middle .chat-body");
+        let spinner = document.getElementById("chat-loading-spinner");
+        if (!spinner && chatArea) {
+            spinner = document.createElement("div");
+            spinner.id = "chat-loading-spinner";
+            spinner.setAttribute("role", "status");
+            spinner.setAttribute("aria-live", "polite");
+            spinner.setAttribute("aria-busy", "true");
+            spinner.style.cssText =
+                "display:none;position:absolute;inset:0;z-index:5;background:inherit;flex-direction:column;justify-content:center;align-items:center;gap:0.75rem;";
+            spinner.innerHTML =
+                '<div class="spinner-border text-primary" role="status" style="width:2.5rem;height:2.5rem;"><span class="visually-hidden">Loading messages</span></div><p class="text-muted small mb-0">Loading messages...</p>';
+            const chatBox = getChatBoxElement();
+            if (chatBox && chatBox.parentNode === chatArea) {
+                chatArea.insertBefore(spinner, chatBox);
+            } else {
+                chatArea.appendChild(spinner);
+            }
+        }
+        return spinner;
+    }
     function _showChatSpinner() {
-        const spinner = document.getElementById("chat-loading-spinner");
-        const chatBox = document.getElementById("chat-box");
-        if (spinner) spinner.classList.add("active");
+        const spinner = ensureChatLoadingSpinner();
+        const chatBox = getChatBoxElement();
+        if (spinner) {
+            spinner.classList.add("active");
+            spinner.style.display = "flex";
+        }
         if (chatBox) {
             chatBox.classList.add("chat-loading-hidden");
             chatBox.classList.remove("chat-reveal");
+        }
+        // Reset the scroll host to the top while loading so the previous chat's
+        // scroll offset never flashes before the new conversation is revealed
+        // and re-stuck to the latest message.
+        const chatScrollHost =
+            document.getElementById("chat-area") || chatBox;
+        if (chatScrollHost) chatScrollHost.scrollTop = 0;
+        if (_chatInitialLoadMaxTimer) clearTimeout(_chatInitialLoadMaxTimer);
+        _chatInitialLoadMaxTimer = setTimeout(function () {
+            _revealChatMessages();
+        }, 15000);
+    }
+
+    function _scheduleRevealAfterInitialLoad() {
+        if (!_chatInitialLoad) return;
+        if (_chatInitialLoadTimer) clearTimeout(_chatInitialLoadTimer);
+        _chatInitialLoadTimer = setTimeout(function () {
+            if (_chatInitialPendingRenders > 0) {
+                _scheduleRevealAfterInitialLoad();
+                return;
+            }
+            _revealChatMessages();
+        }, 120);
+    }
+
+    function _onInitialMessageRenderDone() {
+        if (!_chatInitialLoad) return;
+        _chatInitialPendingRenders = Math.max(0, _chatInitialPendingRenders - 1);
+        if (_chatInitialPendingRenders <= 0) {
+            _scheduleRevealAfterInitialLoad();
         }
     }
 
     function _revealChatMessages() {
         _chatInitialLoad = false;
-        const spinner = document.getElementById("chat-loading-spinner");
-        const chatBox = document.getElementById("chat-box");
-        if (spinner) spinner.classList.remove("active");
+        _chatInitialPendingRenders = 0;
+        if (_chatInitialLoadTimer) {
+            clearTimeout(_chatInitialLoadTimer);
+            _chatInitialLoadTimer = null;
+        }
+        if (_chatInitialLoadMaxTimer) {
+            clearTimeout(_chatInitialLoadMaxTimer);
+            _chatInitialLoadMaxTimer = null;
+        }
+        const spinner = ensureChatLoadingSpinner();
+        const chatBox = getChatBoxElement();
+        if (spinner) {
+            spinner.classList.remove("active");
+            spinner.style.display = "none";
+        }
         if (chatBox) {
             chatBox.classList.remove("chat-loading-hidden");
             chatBox.classList.add("chat-reveal");
+            // WhatsApp-style reveal: the historical batch is already in the DOM —
+            // show every bubble together (no per-message staircase animation) and
+            // mark them so they won't be re-animated. Only live-arriving messages
+            // (appended via the non-initial branch in displayMessage) keep the
+            // slide-in animation.
             const msgs = chatBox.querySelectorAll(".chats:not(.msg-fade-in)");
-            msgs.forEach((el, i) => {
-                el.style.animationDelay = (i * 0.03) + "s";
+            msgs.forEach((el) => {
+                el.style.animationDelay = "0s";
+                el.style.animation = "none";
                 el.classList.add("msg-fade-in");
             });
         }
+        _stickChatToBottom();
+    }
+
+    // Park the chat viewport at the newest message and keep it there while
+    // late-loading media (images/videos) grow the content. Mirrors how
+    // WhatsApp/Telegram always open a conversation pinned to the last message.
+    function _stickChatToBottom() {
+        const chatBox = document.getElementById("chat-box");
         const chatScrollHost = document.getElementById("chat-area") || chatBox;
-        if (chatScrollHost) chatScrollHost.scrollTop = chatScrollHost.scrollHeight;
+        if (!chatScrollHost) return;
+        const stick = () => {
+            chatScrollHost.scrollTop = chatScrollHost.scrollHeight;
+        };
+        stick();
+        if (typeof requestAnimationFrame === "function") {
+            requestAnimationFrame(stick);
+            requestAnimationFrame(() => requestAnimationFrame(stick));
+        }
+        setTimeout(stick, 80);
+        setTimeout(stick, 250);
+        setTimeout(stick, 600);
+        if (chatBox) {
+            chatBox.querySelectorAll("img, video").forEach((m) => {
+                const isImg = m.tagName === "IMG";
+                const settled = isImg
+                    ? m.complete && m.naturalWidth > 0
+                    : m.readyState >= 1;
+                if (settled) return;
+                m.addEventListener("load", stick, { once: true });
+                m.addEventListener("loadedmetadata", stick, { once: true });
+                m.addEventListener("error", stick, { once: true });
+            });
+        }
     }
 
     function _bumpInitialLoadTimer() {
-        if (!_chatInitialLoad) return;
-        if (_chatInitialLoadTimer) clearTimeout(_chatInitialLoadTimer);
-        _chatInitialLoadTimer = setTimeout(() => { _revealChatMessages(); }, 300);
+        _scheduleRevealAfterInitialLoad();
+    }
+
+    function normalizeChatParticipantId(raw) {
+        return String(raw == null ? "" : raw).trim();
+    }
+
+    /** Sender uid on RTDB payloads (handles legacy field names). */
+    function messageSenderUid(message) {
+        if (!message) return "";
+        const direct = normalizeChatParticipantId(
+            message.senderId ??
+                message.sender_id ??
+                message.from ??
+                message.from_user_id ??
+                message.fromUser ??
+                ""
+        );
+        if (direct) return direct;
+        // Legacy outgoing rows stored sender only on `id` (not the push key).
+        const legacyId = normalizeChatParticipantId(message.id);
+        if (legacyId && legacyId.indexOf("-") < 0) return legacyId;
+        return "";
+    }
+
+    function messageRecipientUid(message) {
+        if (!message) return "";
+        return normalizeChatParticipantId(
+            message.recipientId ??
+                message.receiver_id ??
+                message.to ??
+                message.to_user_id ??
+                message.toUser ??
+                ""
+        );
+    }
+
+    /** Coerce legacy RTDB rows (date-only, push-key id, string attachmentType) for display + dedupe. */
+    function normalizeChatMessageFields(message, messageKey) {
+        if (!message || typeof message !== "object") return message;
+        const out = { ...message, key: messageKey || message.key };
+        if (!out.timestamp) {
+            const raw = out.date ?? out.created_at ?? out.createdAt;
+            if (raw != null) {
+                const n =
+                    typeof raw === "number"
+                        ? raw
+                        : parseInt(String(raw), 10);
+                if (Number.isFinite(n) && n > 0) out.timestamp = n;
+            }
+        }
+        const sender = messageSenderUid(out);
+        if (sender && !out.senderId) out.senderId = sender;
+        const recipient = messageRecipientUid(out);
+        if (recipient && !out.recipientId) out.recipientId = recipient;
+        const at = parseInt(out.attachmentType, 10);
+        if (Number.isFinite(at)) {
+            out.attachmentType = at;
+        } else if (out.body != null && out.body !== "") {
+            out.attachmentType = 6;
+        }
+        return out;
+    }
+
+    function chatMessageTimestamp(message) {
+        if (!message) return 0;
+        const t = message.timestamp ?? message.date;
+        const n = typeof t === "number" ? t : parseInt(String(t || ""), 10);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+
+    function chatMessageAttachmentType(message) {
+        const t = parseInt(message?.attachmentType, 10);
+        return Number.isFinite(t) ? t : 6;
+    }
+
+    function chatParticipantIdSet(meId, peerId) {
+        const ids = new Set();
+        [meId, peerId].forEach((raw) => {
+            const v = normalizeChatParticipantId(raw);
+            if (v) ids.add(v);
+        });
+        const lu =
+            typeof window !== "undefined" && window.LARAVEL_USER
+                ? window.LARAVEL_USER
+                : null;
+        if (lu) {
+            const laravelId = normalizeChatParticipantId(lu.id);
+            if (laravelId) ids.add(laravelId);
+            const fb = normalizeChatParticipantId(
+                lu.firebase_uid || lu.uid || lu.firebaseUid
+            );
+            if (fb) ids.add(fb);
+        }
+        if (typeof auth !== "undefined" && auth && auth.currentUser) {
+            const au = normalizeChatParticipantId(auth.currentUser.uid);
+            if (au) ids.add(au);
+        }
+        if (currentUserId) {
+            const cu = normalizeChatParticipantId(currentUserId);
+            if (cu) ids.add(cu);
+        }
+        return ids;
+    }
+
+    function viewerIdentityIds(viewerUid) {
+        return chatParticipantIdSet(viewerUid, null);
+    }
+
+    function isMessageFromViewer(message, viewerUid) {
+        const sender = messageSenderUid(message);
+        if (!sender) return false;
+        return viewerIdentityIds(viewerUid).has(sender);
+    }
+
+    function messageBelongsToPeer(msg, fromUserId, toUserId) {
+        if (!msg) return false;
+        const sender = messageSenderUid(msg);
+        if (!sender) return false;
+        const ids = chatParticipantIdSet(fromUserId, toUserId);
+        if (!ids.has(sender)) return false;
+        const recipient = messageRecipientUid(msg);
+        if (!recipient) return true;
+        if (sender === recipient) return false;
+        return ids.has(recipient);
+    }
+
+    function getAllChatRoomPathsForPeers(meId, peerId) {
+        const paths = new Set();
+        const me = normalizeChatParticipantId(meId);
+        const peer = normalizeChatParticipantId(peerId);
+        if (!me || !peer) return [];
+        const canonical = getDeterministicChatRoomId(me, peer);
+        if (canonical) paths.add(canonical);
+        const mirror = canonical
+            ? chatMirrorRoomId(canonical, me, peer)
+            : null;
+        if (mirror) paths.add(mirror);
+        paths.add(`${me}-${peer}`);
+        paths.add(`${peer}-${me}`);
+        return Array.from(paths);
+    }
+
+    function ingestChatMessagesFromSnapshot(snap, fromUserId, toUserId, byKey) {
+        if (!snap || !snap.exists() || !byKey) return;
+        snap.forEach((child) => {
+            const messageKey = child.key;
+            const message = normalizeChatMessageFields(
+                child.val(),
+                messageKey
+            );
+            if (!messageKey || !messageBelongsToPeer(message, fromUserId, toUserId)) {
+                return;
+            }
+            if (!byKey.has(messageKey)) {
+                byKey.set(messageKey, message);
+            }
+        });
+    }
+
+    function queueIncomingChatMessage(msg, mirrorRoomId, canonicalRoomId, opts) {
+        opts = opts || {};
+        const messageKey = msg.key;
+        const notifyLive = !opts.trackInitialRender;
+        return get(ref(database, `data/chats/${mirrorRoomId}/${messageKey}`))
+            .then((otherSnap) => {
+                if (otherSnap.exists()) {
+                    const ov = otherSnap.val();
+                    msg.deletedFor = mergeFirebaseUidLists(
+                        msg.deletedFor,
+                        ov.deletedFor
+                    );
+                    msg.clearedFor = mergeFirebaseUidLists(
+                        msg.clearedFor,
+                        ov.clearedFor
+                    );
+                }
+                return displayMessage(msg, 0, opts);
+            })
+            .catch(() => displayMessage(msg, 0, opts))
+            .finally(() => {
+                if (opts.trackInitialRender) {
+                    _onInitialMessageRenderDone();
+                }
+                const viewerUid =
+                    (currentUser && currentUser.uid) || currentUserId || "";
+                if (
+                    notifyLive &&
+                    !msg.seen &&
+                    messageRecipientUid(msg) ===
+                        normalizeChatParticipantId(viewerUid)
+                ) {
+                    playMessageReceivedSound();
+                    markMessageAsSeen(canonicalRoomId, messageKey);
+                }
+            });
     }
 
     function listenForMessages(fromUserId, toUserId, chatRoomId) {
@@ -5758,13 +6093,17 @@ initializeFirebase(function (app, auth, database, storage) {
         }
 
         const messageRef = ref(database, `data/chats/${canonicalRoomId}`);
+        const mirrorRef = ref(database, `data/chats/${mirrorRoomId}`);
 
         // Function to handle new messages
         const handleNewMessage = (snapshot) => {
             const message = snapshot.val();
             const messageKey = snapshot.key;
 
-            if (message.senderId === currentUser.uid && message.tempKey) {
+            if (
+                isMessageFromViewer(message, currentUser.uid) &&
+                message.tempKey
+            ) {
                 if (pendingOptimisticKeys.has(message.tempKey)) {
                     pendingOptimisticKeys.delete(message.tempKey);
                     displayedMessages.add(messageKey);
@@ -5783,46 +6122,10 @@ initializeFirebase(function (app, auth, database, storage) {
 
             if (!displayedMessages.has(messageKey)) {
                 displayedMessages.add(messageKey);
-                const msg = { ...message, key: messageKey };
+                const msg = normalizeChatMessageFields(message, messageKey);
 
-                if (
-                    (msg.senderId === fromUserId &&
-                        msg.recipientId === toUserId) ||
-                    (msg.senderId === toUserId &&
-                        msg.recipientId === fromUserId)
-                ) {
-                    get(
-                        ref(
-                            database,
-                            `data/chats/${mirrorRoomId}/${messageKey}`
-                        )
-                    )
-                        .then((otherSnap) => {
-                            if (otherSnap.exists()) {
-                                const ov = otherSnap.val();
-                                msg.deletedFor = mergeFirebaseUidLists(
-                                    msg.deletedFor,
-                                    ov.deletedFor
-                                );
-                                msg.clearedFor = mergeFirebaseUidLists(
-                                    msg.clearedFor,
-                                    ov.clearedFor
-                                );
-                            }
-                            displayMessage(msg);
-
-                            if (!msg.seen && msg.recipientId === currentUser.uid) {
-                                playMessageReceivedSound();
-                                markMessageAsSeen(canonicalRoomId, messageKey);
-                            }
-                        })
-                        .catch(() => {
-                            displayMessage(msg);
-                            if (!msg.seen && msg.recipientId === currentUser.uid) {
-                                playMessageReceivedSound();
-                                markMessageAsSeen(canonicalRoomId, messageKey);
-                            }
-                        });
+                if (messageBelongsToPeer(msg, fromUserId, toUserId)) {
+                    queueIncomingChatMessage(msg, mirrorRoomId, canonicalRoomId);
                 }
             }
         };
@@ -5890,20 +6193,70 @@ initializeFirebase(function (app, auth, database, storage) {
             }
         };
 
-        const listenerAdded = onChildAdded(messageRef, (snapshot) => {
-            handleNewMessage(snapshot);
+        function loadInitialChatMessages() {
+            const roomPaths = getAllChatRoomPathsForPeers(
+                fromUserId,
+                toUserId
+            );
+            return Promise.all(
+                roomPaths.map((roomId) =>
+                    get(ref(database, `data/chats/${roomId}`)).catch(() => null)
+                )
+            ).then((snaps) => {
+                    const byKey = new Map();
+                    snaps.forEach((snap) => {
+                        ingestChatMessagesFromSnapshot(
+                            snap,
+                            fromUserId,
+                            toUserId,
+                            byKey
+                        );
+                    });
+                    const rows = Array.from(byKey.values()).sort(
+                        (a, b) =>
+                            chatMessageTimestamp(a) - chatMessageTimestamp(b)
+                    );
+                    rows.forEach((msg) => {
+                        if (msg.key) displayedMessages.add(msg.key);
+                    });
+                    if (rows.length === 0) {
+                        _scheduleRevealAfterInitialLoad();
+                        return;
+                    }
+                    _chatInitialPendingRenders = rows.length;
+                    rows.forEach((msg) => {
+                        queueIncomingChatMessage(msg, mirrorRoomId, canonicalRoomId, {
+                            trackInitialRender: true,
+                        });
+                    });
+                })
+                .catch(() => {
+                    _scheduleRevealAfterInitialLoad();
+                });
+        }
+
+        loadInitialChatMessages().finally(() => {
+            const listenerAdded = onChildAdded(messageRef, (snapshot) => {
+                handleNewMessage(snapshot);
+            });
+            const mirrorListenerAdded = onChildAdded(mirrorRef, (snapshot) => {
+                handleNewMessage(snapshot);
+            });
+
+            const updateListener = onChildChanged(messageRef, (snapshot) => {
+                handleMessageUpdate(snapshot);
+            });
+            const mirrorUpdateListener = onChildChanged(mirrorRef, (snapshot) => {
+                handleMessageUpdate(snapshot);
+            });
+
+            messageListener = () => {
+                listenerAdded();
+                mirrorListenerAdded();
+                updateListener();
+                mirrorUpdateListener();
+            };
         });
-
-        const updateListener = onChildChanged(messageRef, (snapshot) => {
-            handleMessageUpdate(snapshot);
-        });
-
-        _bumpInitialLoadTimer();
-
-        messageListener = () => {
-            listenerAdded();
-            updateListener();
-        };
     }
 
     function markMessageAsSeen(chatRoomId, messageId) {

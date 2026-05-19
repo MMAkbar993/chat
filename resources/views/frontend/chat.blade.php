@@ -159,10 +159,11 @@
                     </div>
                     <div class="chat-body chat-page-group" id="chat-area">
                         <div id="chat-loading-spinner"
-                            style="display:none;position:absolute;inset:0;z-index:5;background:inherit;justify-content:center;align-items:center;">
-                            <div class="spinner-border text-primary" role="status" style="width:2rem;height:2rem;">
-                                <span class="visually-hidden">Loading...</span>
+                            style="display:none;position:absolute;inset:0;z-index:5;background:inherit;flex-direction:column;justify-content:center;align-items:center;gap:0.75rem;">
+                            <div class="spinner-border text-primary" role="status" style="width:2.5rem;height:2.5rem;">
+                                <span class="visually-hidden">Loading messages</span>
                             </div>
+                            <p class="text-muted small mb-0">Loading messages...</p>
                         </div>
                         <div class="messages" id="chat-box">
 

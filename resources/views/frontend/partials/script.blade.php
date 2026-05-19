@@ -131,6 +131,7 @@ try { $loadAgora = true; } catch (\Throwable $e) { $loadAgora = false; }
             }
             $laravelUserJson = json_encode([
                 'id' => $u->id,
+                'firebase_uid' => $u->firebase_uid ?? null,
                 'firstName' => $u->first_name,
                 'lastName' => $u->last_name,
                 'full_name' => $u->full_name,

@@ -469,39 +469,179 @@ initializeFirebase(function (app, auth, database, storage) {
         });
     }
 
-    function loadContactsFromLaravel(searchTerm) {
-        return fetch("/contacts", {
+    function laravelContactToListRow(c) {
+        if (!c || typeof c !== "object") return null;
+        let peerUid = String(c.firebase_uid || "").trim();
+        if (!peerUid) {
+            const laravelId = String(c.user_id || c.uid || "").trim();
+            if (laravelId) peerUid = "pending_" + laravelId;
+        }
+        if (!peerUid) return null;
+        return {
+            uid: peerUid,
+            firstName: c.firstName || "",
+            lastName: c.lastName || "",
+            userName: c.userName || "",
+            image: resolveProfileImageUrl(c.image || ""),
+            _needsLaravelAvatar: !(c.image && String(c.image).trim()),
+            primaryRole: c.primary_role_label || c.primary_role || "",
+            mobile_number: c.mobile_number || "",
+            email: c.email || "",
+        };
+    }
+
+    async function mergeFirebaseOnlyContactsIntoList(usersArray, loggedInUid) {
+        const merged = Array.isArray(usersArray) ? usersArray.slice() : [];
+        const seen = new Set(merged.map(function (u) { return u && u.uid; }).filter(Boolean));
+        if (!loggedInUid) return merged;
+        try {
+            const snap = await get(ref(database, `data/contacts/${loggedInUid}`));
+            if (!snap.exists()) return merged;
+            const contacts = snap.val() || {};
+            const extras = await Promise.all(
+                Object.keys(contacts).map(async function (userId) {
+                    if (!userId || userId === loggedInUid || seen.has(userId)) return null;
+                    const contact = contacts[userId] || {};
+                    let userData = {};
+                    try {
+                        const userSnap = await get(ref(database, `data/users/${userId}`));
+                        if (userSnap.exists()) userData = userSnap.val() || {};
+                    } catch (e) { /* ignore */ }
+                    const rawAvatar =
+                        contact.profile_image ||
+                        userData.profile_image ||
+                        userData.image ||
+                        userData.profileImage ||
+                        userData.photoURL ||
+                        userData.avatar ||
+                        "";
+                    const prKey =
+                        (contact.primary_role && String(contact.primary_role).trim()) ||
+                        (userData.primary_role && String(userData.primary_role).trim()) ||
+                        "";
+                    const prCustom =
+                        (contact.other_role_text && String(contact.other_role_text).trim()) ||
+                        (userData.other_role_text && String(userData.other_role_text).trim()) ||
+                        "";
+                    const PRmap = typeof PRIMARY_ROLES !== "undefined" ? PRIMARY_ROLES : {};
+                    let prLocal = "";
+                    if (prKey) {
+                        if (prKey === "other") prLocal = prCustom || PRmap.other || prKey;
+                        else prLocal = PRmap[prKey] || prKey;
+                    }
+                    return {
+                        uid: userId,
+                        firstName: contact.firstName || userData.firstName || "",
+                        lastName: contact.lastName || userData.lastName || "",
+                        userName:
+                            userData.username ||
+                            userData.userName ||
+                            userData.profileName ||
+                            contact.user_name ||
+                            "",
+                        image: resolveProfileImageUrl(rawAvatar),
+                        _needsLaravelAvatar: !rawAvatar,
+                        primaryRole: prLocal,
+                        mobile_number: contact.mobile_number || userData.mobile_number || "",
+                        email: contact.email || userData.email || "",
+                    };
+                })
+            );
+            extras.filter(Boolean).forEach(function (row) {
+                if (!seen.has(row.uid)) {
+                    seen.add(row.uid);
+                    merged.push(row);
+                }
+            });
+        } catch (e) {
+            /* ignore */
+        }
+        return merged;
+    }
+
+    async function loadContactsFromLaravel(searchTerm) {
+        const uid = currentUserId || (typeof getCurrentFirebaseUid === "function" ? getCurrentFirebaseUid() : null);
+        const r = await fetch("/contacts", {
             method: "GET",
             credentials: "same-origin",
             headers: { Accept: "application/json" },
-        })
-            .then(function (r) {
-                return r.json().catch(function () { return []; }).then(function (data) {
-                    return { ok: r.ok, data: Array.isArray(data) ? data : [] };
-                });
+        });
+        const data = await r.json().catch(function () { return []; });
+        if (!r.ok) throw new Error("LARAVEL_CONTACTS_FETCH_FAILED");
+        const rows = Array.isArray(data) ? data : [];
+        let usersArray = rows.map(laravelContactToListRow).filter(function (u) { return !!u; });
+        usersArray = await mergeFirebaseOnlyContactsIntoList(usersArray, uid);
+        await enrichContactListAvatarsFromLaravel(usersArray);
+        renderContactsList(usersArray, {}, searchTerm);
+    }
+
+    async function loadContactsFromFirebaseOnly(searchTerm, loggedInUid) {
+        const snap = await get(ref(database, `data/contacts/${loggedInUid}`));
+        if (!snap.exists()) {
+            const msg = '<p id="no-message">No Contacts Found!</p>';
+            getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
+            return;
+        }
+        const contacts = snap.val() || {};
+        const contactIds = Object.keys(contacts);
+        if (contactIds.length === 0) {
+            const msg = '<p id="no-message">No Contacts Found!</p>';
+            getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
+            return;
+        }
+        const usersArrayRaw = await Promise.all(
+            contactIds.map(async function (userId) {
+                const contact = contacts[userId] || {};
+                try {
+                    const userSnap = await get(ref(database, `data/users/${userId}`));
+                    const userData = userSnap.exists() ? userSnap.val() : {};
+                    const rawAvatar =
+                        contact.profile_image ||
+                        userData.profile_image ||
+                        userData.image ||
+                        userData.profileImage ||
+                        userData.photoURL ||
+                        userData.avatar ||
+                        "";
+                    const prKey =
+                        (contact.primary_role && String(contact.primary_role).trim()) ||
+                        (userData.primary_role && String(userData.primary_role).trim()) ||
+                        "";
+                    const prCustom =
+                        (contact.other_role_text && String(contact.other_role_text).trim()) ||
+                        (userData.other_role_text && String(userData.other_role_text).trim()) ||
+                        "";
+                    const PRmap = typeof PRIMARY_ROLES !== "undefined" ? PRIMARY_ROLES : {};
+                    let prLocal = "";
+                    if (prKey) {
+                        if (prKey === "other") prLocal = prCustom || PRmap.other || prKey;
+                        else prLocal = PRmap[prKey] || prKey;
+                    }
+                    return {
+                        uid: userId,
+                        firstName: contact.firstName || userData.firstName || "",
+                        lastName: contact.lastName || userData.lastName || "",
+                        userName:
+                            userData.username ||
+                            userData.userName ||
+                            userData.profileName ||
+                            contact.user_name ||
+                            "",
+                        image: resolveProfileImageUrl(rawAvatar),
+                        _needsLaravelAvatar: !rawAvatar,
+                        primaryRole: prLocal,
+                        mobile_number: contact.mobile_number || userData.mobile_number || "",
+                        email: contact.email || userData.email || "",
+                    };
+                } catch (error) {
+                    console.error(`Error fetching user data for ${userId}:`, error);
+                    return null;
+                }
             })
-            .then(async function (result) {
-                if (!result.ok) throw new Error("LARAVEL_CONTACTS_FETCH_FAILED");
-                const usersArray = result.data
-                    .map(function (c) {
-                        const uid = String(c.firebase_uid || c.uid || c.user_id || "").trim();
-                        if (!uid) return null;
-                        return {
-                            uid: uid,
-                            firstName: c.firstName || "",
-                            lastName: c.lastName || "",
-                            userName: c.userName || "",
-                            image: resolveProfileImageUrl(c.image || ""),
-                            _needsLaravelAvatar: !(c.image && String(c.image).trim()),
-                            primaryRole: c.primary_role_label || c.primary_role || "",
-                            mobile_number: c.mobile_number || "",
-                            email: c.email || "",
-                        };
-                    })
-                    .filter(function (u) { return !!u; });
-                await enrichContactListAvatarsFromLaravel(usersArray);
-                renderContactsList(usersArray, {}, searchTerm);
-            });
+        );
+        let usersArray = usersArrayRaw.filter(function (user) { return user != null; });
+        await enrichContactListAvatarsFromLaravel(usersArray);
+        renderContactsList(usersArray, contacts, searchTerm);
     }
 
     function displayUsers(searchTerm = '', retriedAfterRestore = false) {
@@ -510,111 +650,36 @@ initializeFirebase(function (app, auth, database, storage) {
         const uid = currentUserId || (typeof getCurrentFirebaseUid === 'function' ? getCurrentFirebaseUid() : null);
         if (!uid) return;
         displayUsersInFlight = true;
-        const contactsRef = ref(database, `data/contacts/${uid}`);
-        get(contactsRef).then(async snapshot => {
-            let listedFromFirebase = false;
-            if (snapshot.exists()) {
-                const contacts = snapshot.val(); // Get all contacts
-                const contactIds = Object.keys(contacts); // Get the contact user IDs
-
-                if (contactIds.length > 0) {
-                    const usersArrayRaw = await Promise.all(
-                        contactIds.map(async (userId) => {
-                            const contact = contacts[userId] || {}; // Get contact data safely
-                            try {
-                                const userRef = ref(database, `data/users/${userId}`); // Correct Firebase reference
-                                const snapshot = await get(userRef); // Fetch user details
-                                let userData = {};
-                                if (snapshot.exists()) {
-                                    userData = snapshot.val(); // Get user details
-                                }
-                                const rawAvatar =
-                                    contact.profile_image ||
-                                    userData.profile_image ||
-                                    userData.image ||
-                                    userData.profileImage ||
-                                    userData.photoURL ||
-                                    userData.avatar ||
-                                    "";
-                                const prKey =
-                                    (contact.primary_role && String(contact.primary_role).trim()) ||
-                                    (userData.primary_role && String(userData.primary_role).trim()) ||
-                                    "";
-                                const prCustom =
-                                    (contact.other_role_text && String(contact.other_role_text).trim()) ||
-                                    (userData.other_role_text && String(userData.other_role_text).trim()) ||
-                                    "";
-                                const PRmap = typeof PRIMARY_ROLES !== "undefined" ? PRIMARY_ROLES : {};
-                                let prLocal = "";
-                                if (prKey) {
-                                    if (prKey === "other") prLocal = prCustom || PRmap.other || prKey;
-                                    else prLocal = PRmap[prKey] || prKey;
-                                }
-                                return {
-                                    uid: userId,
-                                    firstName: contact.firstName || userData.firstName || "",
-                                    lastName: contact.lastName || userData.lastName || "",
-                                    userName: userData.username || userData.userName || userData.profileName || contact.user_name || "",
-                                    image: resolveProfileImageUrl(rawAvatar),
-                                    _needsLaravelAvatar: !rawAvatar,
-                                    primaryRole: prLocal,
-                                    mobile_number: contact.mobile_number || userData.mobile_number || "",
-                                    email: contact.email || userData.email || "",
-                                };
-                            } catch (error) {
-                                console.error(`Error fetching user data for ${userId}:`, error);
-                                return null;
-                            }
+        loadContactsFromLaravel(searchTerm)
+            .catch(function (error) {
+                if (hasPermissionDeniedError(error) && !retriedAfterRestore) {
+                    displayUsersPermissionCooldownUntil = Date.now() + 2000;
+                    return tryRestoreChatSessionToken()
+                        .then(function () {
+                            setTimeout(function () {
+                                displayUsersPermissionCooldownUntil = 0;
+                                displayUsers(searchTerm, true);
+                            }, 700);
                         })
-                    );
-                    let usersArray = usersArrayRaw.filter(function (user) { return user != null; });
-                    await enrichContactListAvatarsFromLaravel(usersArray);
-                    if (usersArray.length > 0) {
-                        renderContactsList(usersArray, contacts, searchTerm);
-                        listedFromFirebase = true;
-                    }
+                        .catch(function () {
+                            showChatSessionInactiveMessage();
+                        });
                 }
-            }
-            if (!listedFromFirebase) {
-                try {
-                    await loadContactsFromLaravel(searchTerm);
-                } catch (e) {
+                if (hasPermissionDeniedError(error) && retriedAfterRestore) {
+                    return loadContactsFromLaravel(searchTerm).catch(function () {
+                        const msg = '<p id="no-message">Contacts are temporarily unavailable.</p>';
+                        getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
+                    });
+                }
+                return loadContactsFromFirebaseOnly(searchTerm, uid).catch(function (fbErr) {
+                    console.error("Error fetching contacts:", error || fbErr);
                     const msg = '<p id="no-message">No Contacts Found!</p>';
                     getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
-                }
-            }
-        }).catch(error => {
-            if (hasPermissionDeniedError(error) && !retriedAfterRestore) {
-                displayUsersPermissionCooldownUntil = Date.now() + 2000;
-                tryRestoreChatSessionToken()
-                    .then(function () {
-                        setTimeout(function () {
-                            displayUsersPermissionCooldownUntil = 0;
-                            displayUsers(searchTerm, true);
-                        }, 700);
-                    })
-                    .catch(function () {
-                        showChatSessionInactiveMessage();
-                    });
-                return;
-            }
-            if (hasPermissionDeniedError(error) && retriedAfterRestore) {
-                loadContactsFromLaravel(searchTerm).catch(function () {
-                    const msg = '<p id="no-message">Contacts are temporarily unavailable.</p>';
-                    try {
-                        getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
-                    } catch (e) { /* ignore */ }
                 });
-                return;
-            }
-            console.error("Error fetching contacts: ", error);
-            const msg = '<p id="no-message">No Contacts Found!</p>';
-            try {
-                getContactListContainers().forEach(function (el) { el.innerHTML = msg; });
-            } catch (e) { console.error(e); }
-        }).finally(function () {
-            displayUsersInFlight = false;
-        });
+            })
+            .finally(function () {
+                displayUsersInFlight = false;
+            });
     }
 
     function getContactListContainers() {
@@ -716,7 +781,7 @@ initializeFirebase(function (app, auth, database, storage) {
             .then(function (r) { return r.json().catch(function () { return []; }); })
             .then(function (rows) {
                 if (fetchGen !== contactDetailFetchGeneration) return;
-                if (!Array.isArray(rows)) return;
+                if (!Array.isArray(rows)) return false;
                 const target = rows.find(function (c) {
                     return (
                         String(c.firebase_uid || "").trim() === String(uid || "").trim() ||
@@ -724,7 +789,7 @@ initializeFirebase(function (app, auth, database, storage) {
                         String(c.user_id || "").trim() === String(uid || "").trim()
                     );
                 });
-                if (!target) return;
+                if (!target) return false;
                 const detailModal = getContactDetailsModalEl();
                 const modalInput = detailModal?.querySelector('input[id="contact-detail-user-id"]');
                 if (modalInput) modalInput.value = String(uid || "");
@@ -814,8 +879,9 @@ initializeFirebase(function (app, auth, database, storage) {
                         .then(applyPubProfile)
                         .catch(function () { });
                 }
+                return true;
             })
-            .catch(function () { });
+            .catch(function () { return false; });
     }
 
     // Fetch user data from Firebase using user ID and display it in the modal
@@ -835,13 +901,17 @@ initializeFirebase(function (app, auth, database, storage) {
         get(contactRef).then(async contactEntrySnap => {
             if (gen !== contactDetailFetchGeneration) return;
             if (!contactEntrySnap.exists()) {
-                hideContactDetailsModalAndCleanupBackdrop();
-                Swal.fire({
-                    title: "",
-                    width: 400,
-                    text: "Contact details not found.",
-                    icon: "error",
-                });
+                const loadedFromLaravel = await loadContactDetailFromLaravel(uid, gen);
+                if (gen !== contactDetailFetchGeneration) return;
+                if (!loadedFromLaravel) {
+                    hideContactDetailsModalAndCleanupBackdrop();
+                    Swal.fire({
+                        title: "",
+                        width: 400,
+                        text: "Contact details not found.",
+                        icon: "error",
+                    });
+                }
                 return;
             }
 
@@ -1798,6 +1868,15 @@ initializeFirebase(function (app, auth, database, storage) {
             inst.hide();
         }
     }
+    function refreshContactListAfterAdd() {
+        loadContactsFromLaravel("").catch(function () {
+            try {
+                displayUsers();
+            } catch (e) {
+                /* ignore */
+            }
+        });
+    }
 
     /** Add a contact when we have no Firebase UID (pending contact). They appear in the list; chat works once they sign in. */
     function addPendingContact(email, username, displayName, profileImageUrl, primaryRole, retriedAfterRestore) {
@@ -1869,11 +1948,13 @@ initializeFirebase(function (app, auth, database, storage) {
             const message = (result.data && (result.data.message || result.data.error)) || "";
             if (result.ok) {
                 closeAddContactModalAndClearSearch();
+                refreshContactListAfterAdd();
                 Swal.fire({ text: "Contact added!", icon: "success", width: 400 });
                 return;
             }
             if (result.status === 422 && /already/i.test(String(message))) {
                 closeAddContactModalAndClearSearch();
+                refreshContactListAfterAdd();
                 Swal.fire({ text: String(message), icon: "info", width: 400 });
                 return;
             }
