@@ -104,13 +104,20 @@ initializeFirebase(function (app, auth, database, storage) {
         payload,
         expectedUid
     ) {
+        // Run the primary + mirror writes in parallel. They used to be
+        // sequential (`await set(primaryRef); await set(mirrorRef);`), which
+        // doubled the perceived send latency. The mirror is best-effort and
+        // its failure is intentionally swallowed; the primary still resolves
+        // the moment RTDB acks the canonical room.
         const writePair = async () => {
-            await set(primaryRef, payload);
             const mirrorRef = ref(
                 database,
                 `data/chats/${mirrorRoomId}/${messageKey}`
             );
-            await set(mirrorRef, payload).catch(() => { });
+            await Promise.all([
+                set(primaryRef, payload),
+                set(mirrorRef, payload).catch(() => {}),
+            ]);
         };
         try {
             await ensureFirebaseUserForRtdbWrite(expectedUid, false);
@@ -285,6 +292,11 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (user) {
                     currentUser = user;
                     currentUserId = user.uid;
+                    try {
+                        attachDreamChatCallListeners(user.uid);
+                    } catch (e) {
+                        /* ignore */
+                    }
                     if (window.location.pathname === "/login") {
                         // Redirect to chat if they try to visit the login page while logged in
                         window.location.href = "/chat";
@@ -292,6 +304,11 @@ initializeFirebase(function (app, auth, database, storage) {
                     // Paint shimmer placeholders right away so the user sees structure
                     // instead of an empty pane while Firebase resolves the chat list.
                     renderChatListSkeletons();
+                    try {
+                        paintSidebarFromUsersMapCache(user.uid);
+                    } catch (e) {
+                        /* ignore */
+                    }
                     // fetchUsers creates the usersMap asynchronously.
                     // We need to wait for it before calling selectUser.
                     // NOTE: populateUsersMap no longer calls fillUsersMapFromFirebase independently.
@@ -438,6 +455,11 @@ initializeFirebase(function (app, auth, database, storage) {
                     currentUser = null;
                     currentUserId = null;
                     firebaseChatSidebarListenersAttached = false;
+                    try {
+                        detachDreamChatCallListeners();
+                    } catch (e) {
+                        /* ignore */
+                    }
                     if (window.location.pathname !== "/login") {
                         // Redirect to login if trying to access any other route
                         // window.location.href = "/login";
@@ -557,6 +579,258 @@ initializeFirebase(function (app, auth, database, storage) {
     let usersMap = {};
     /** Avoid duplicate onValue listeners if onAuthStateChanged fires more than once. */
     let firebaseChatSidebarListenersAttached = false;
+
+    const USERS_MAP_CACHE_VERSION = 1;
+    const USERS_MAP_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+    const SIDEBAR_LAST_MSG_QUERY_LIMIT = 1;
+    const SIDEBAR_ROOM_PREVIEW_LIMIT = 50;
+    const INITIAL_CHAT_LOAD_LIMIT = 50;
+
+    function usersMapCacheStorageKey(uid) {
+        return `dreamchat_users_map_v${USERS_MAP_CACHE_VERSION}_${uid}`;
+    }
+    function recentChatPeersStorageKey(uid) {
+        return `dreamchat_recent_peers_v${USERS_MAP_CACHE_VERSION}_${uid}`;
+    }
+    function loadUsersMapFromLocalCache(uid) {
+        if (!uid) return null;
+        try {
+            const raw = localStorage.getItem(usersMapCacheStorageKey(uid));
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (
+                !parsed ||
+                parsed.v !== USERS_MAP_CACHE_VERSION ||
+                !parsed.map ||
+                Date.now() - Number(parsed.ts || 0) > USERS_MAP_CACHE_TTL_MS
+            ) {
+                return null;
+            }
+            return parsed.map;
+        } catch (e) {
+            return null;
+        }
+    }
+    function saveUsersMapToLocalCache(uid, map) {
+        if (!uid || !map) return;
+        try {
+            localStorage.setItem(
+                usersMapCacheStorageKey(uid),
+                JSON.stringify({
+                    v: USERS_MAP_CACHE_VERSION,
+                    ts: Date.now(),
+                    map,
+                })
+            );
+        } catch (e) {
+            /* quota */
+        }
+    }
+    function loadRecentChatPeerIds(uid) {
+        if (!uid) return [];
+        try {
+            const raw = localStorage.getItem(recentChatPeersStorageKey(uid));
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed)
+                ? parsed.filter((id) => id && String(id).trim())
+                : [];
+        } catch (e) {
+            return [];
+        }
+    }
+    function saveRecentChatPeerIds(uid, peerIds) {
+        if (!uid || !peerIds) return;
+        try {
+            const merged = [
+                ...new Set(
+                    peerIds
+                        .filter((id) => id && String(id).trim())
+                        .map((id) => String(id).trim())
+                ),
+            ].slice(0, 500);
+            localStorage.setItem(
+                recentChatPeersStorageKey(uid),
+                JSON.stringify(merged)
+            );
+        } catch (e) {
+            /* ignore */
+        }
+    }
+    function paintSidebarFromUsersMapCache(uid) {
+        const cached = loadUsersMapFromLocalCache(uid);
+        if (!cached || !Object.keys(cached).length) return false;
+        usersMap = cached;
+        try {
+            displayUsers(usersMap);
+        } catch (e) {
+            return false;
+        }
+        return true;
+    }
+    async function batchFetchFirebaseUserRecords(peerIds) {
+        const out = {};
+        const ids = [...new Set((peerIds || []).filter(Boolean))];
+        for (let i = 0; i < ids.length; i += 25) {
+            const chunk = ids.slice(i, i + 25);
+            await Promise.all(
+                chunk.map(async (peerId) => {
+                    try {
+                        const snap = await get(
+                            ref(database, `data/users/${peerId}`)
+                        );
+                        if (snap.exists()) out[peerId] = snap.val() || {};
+                    } catch (e) {
+                        /* ignore */
+                    }
+                })
+            );
+        }
+        return out;
+    }
+    function buildUsersMapEntryFromUserAndContact(userId, userData, contactData) {
+        const u = userData || {};
+        const c = contactData || {};
+        const nm =
+            `${u.firstName || ""} ${u.lastName || ""}`.trim() ||
+            `${c.firstName || ""} ${c.lastName || ""}`.trim();
+        const raw = rawAvatarFromFirebaseAndContact(u, contactData);
+        const fallbackName = String(
+            c.userName ||
+                c.user_name ||
+                c.mobile_number ||
+                c.email ||
+                u.userName ||
+                u.username ||
+                u.mobile_number ||
+                u.email ||
+                userId
+        ).trim();
+        return {
+            uid: userId,
+            userName: nm || fallbackName,
+            profileImage: resolveCallProfileImageUrl(raw || ""),
+        };
+    }
+    function mergeContactOnlyPeersIntoUsersMap(contactsByPeer, loggedInUserId) {
+        Object.keys(contactsByPeer || {}).forEach((peerId) => {
+            if (
+                !peerId ||
+                peerId === loggedInUserId ||
+                usersMap[peerId]
+            ) {
+                return;
+            }
+            const contactData = contactsByPeer[peerId];
+            if (!contactData || typeof contactData !== "object") return;
+            usersMap[peerId] = buildUsersMapEntryFromUserAndContact(
+                peerId,
+                {},
+                contactData
+            );
+        });
+    }
+    function readLatestTimestampFromSnapshot(snapshot) {
+        let latest = 0;
+        if (snapshot && snapshot.exists()) {
+            snapshot.forEach((childSnapshot) => {
+                const message = childSnapshot.val();
+                latest = Math.max(latest, (message && message.timestamp) || 0);
+            });
+        }
+        return latest;
+    }
+    function fetchLatestRoomTimestamp(viewerUid, peerId) {
+        const canonicalRoomId = getDeterministicChatRoomId(viewerUid, peerId);
+        if (!canonicalRoomId) return Promise.resolve(0);
+        const mirrorRoomId = chatMirrorRoomId(
+            canonicalRoomId,
+            viewerUid,
+            peerId
+        );
+        const roomRef = (roomId) =>
+            query(
+                ref(database, `data/chats/${roomId}`),
+                orderByChild("timestamp"),
+                limitToLast(SIDEBAR_LAST_MSG_QUERY_LIMIT)
+            );
+        return get(roomRef(canonicalRoomId))
+            .then((snap) => {
+                const t = readLatestTimestampFromSnapshot(snap);
+                if (t > 0) return t;
+                return get(roomRef(mirrorRoomId))
+                    .then(readLatestTimestampFromSnapshot)
+                    .catch(() => 0);
+            })
+            .catch(() =>
+                get(roomRef(mirrorRoomId))
+                    .then(readLatestTimestampFromSnapshot)
+                    .catch(() => 0)
+            );
+    }
+    function teardownSidebarRow(userDiv) {
+        if (!userDiv || !userDiv._sidebarUnsubs) return;
+        userDiv._sidebarUnsubs.forEach((unsub) => {
+            try {
+                if (typeof unsub === "function") unsub();
+            } catch (e) {
+                /* ignore */
+            }
+        });
+        userDiv._sidebarUnsubs = [];
+    }
+    function trackSidebarRowUnsub(userDiv, unsub) {
+        if (!userDiv || typeof unsub !== "function") return;
+        if (!userDiv._sidebarUnsubs) userDiv._sidebarUnsubs = [];
+        userDiv._sidebarUnsubs.push(unsub);
+    }
+    function updateExistingSidebarRow(row, user) {
+        if (!row || !user) return;
+        const nameEl = row.querySelector(".chat-user-msg h6");
+        if (nameEl && user.userName && String(user.userName).trim()) {
+            nameEl.textContent = String(user.userName).trim();
+        }
+        const av =
+            row.querySelector(".avatar.avatar-lg") || row.querySelector(".avatar");
+        if (av) {
+            const raw =
+                hasProfileImageSource(user.profileImage) &&
+                !isPlaceholderProfileImageUrl(user.profileImage)
+                    ? user.profileImage
+                    : "";
+            setAvatarDivImageOrContactIcon(av, raw);
+        }
+    }
+    function mountOrderedSidebarRows(usersList, validUsers) {
+        if (!usersList) return;
+        const desiredSet = new Set(
+            validUsers.map((v) => String(v.userId))
+        );
+        usersList.querySelectorAll(".chat-list[data-user-id]").forEach((row) => {
+            const id = row.getAttribute("data-user-id");
+            if (!desiredSet.has(String(id))) {
+                teardownSidebarRow(row);
+                row.remove();
+            }
+        });
+        const frag = document.createDocumentFragment();
+        validUsers.forEach(({ userId, user }) => {
+            const escId =
+                typeof CSS !== "undefined" && typeof CSS.escape === "function"
+                    ? CSS.escape(String(userId))
+                    : String(userId).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+            let row = usersList.querySelector(
+                `.chat-list[data-user-id="${escId}"]`
+            );
+            if (!row) {
+                row = createUserElement(user, userId, { skipAppend: true });
+            } else {
+                updateExistingSidebarRow(row, user);
+            }
+            frag.appendChild(row);
+        });
+        usersList.appendChild(frag);
+    }
 
     const inviteFormChatEl = document.getElementById("inviteFormChat");
     if (inviteFormChatEl) {
@@ -816,67 +1090,21 @@ initializeFirebase(function (app, auth, database, storage) {
                         return null;
                     }
 
-                    // Load latest message timestamp per peer. We use a plain `get` on the
-                    // room (no orderByChild) so rules do not require a `.indexOn` on every
-                    // `data/chats/{roomId}` path — ordered queries can fail silently in the
-                    // client until indexes exist, which produced an empty sidebar on first login.
-                    const canonicalRoomId = getDeterministicChatRoomId(
-                        viewerUid,
-                        userId
-                    );
-                    const mirrorRoomId = canonicalRoomId
-                        ? chatMirrorRoomId(canonicalRoomId, viewerUid, userId)
-                        : `${userId}-${viewerUid}`;
-
-                    const readLastTimestamp = (snapshot) => {
-                        let latest = 0;
-                        if (snapshot && snapshot.exists()) {
-                            snapshot.forEach((childSnapshot) => {
-                                const message = childSnapshot.val();
-                                latest = Math.max(
-                                    latest,
-                                    (message && message.timestamp) || 0
-                                );
-                            });
-                        }
-                        return latest;
-                    };
-
-                    const chatRoomRef = (roomId) =>
-                        ref(database, `data/chats/${roomId}`);
-
-                    const canonicalPath =
-                        canonicalRoomId || `${viewerUid}-${userId}`;
-
-                    return get(chatRoomRef(canonicalPath))
-                        .then((snap) => {
-                            const t = readLastTimestamp(snap);
-                            if (t > 0) {
-                                return t;
-                            }
-                            // Canonical empty — try the mirror for legacy data.
-                            return get(chatRoomRef(mirrorRoomId))
-                                .then(readLastTimestamp)
-                                .catch(() => 0);
-                        })
-                        .catch(() =>
-                            // Canonical errored (rules / network) — still try the mirror so
-                            // we don't accidentally drop a real conversation from the list.
-                            get(chatRoomRef(mirrorRoomId))
-                                .then(readLastTimestamp)
-                                .catch(() => 0)
-                        )
-                        .then((lastMessageTimestamp) => {
-                            // Chat sidebar: only peers with at least one message (sent or received).
+                    // Only fetch the latest message timestamp (limitToLast(1)), not the whole room.
+                    return fetchLatestRoomTimestamp(viewerUid, userId).then(
+                        (lastMessageTimestamp) => {
                             if (Number(lastMessageTimestamp) > 0) {
                                 return {
                                     userId,
                                     user,
-                                    lastMessageTimestamp: Number(lastMessageTimestamp),
+                                    lastMessageTimestamp: Number(
+                                        lastMessageTimestamp
+                                    ),
                                 };
                             }
                             return null;
-                        });
+                        }
+                    );
                 });
 
                 return Promise.all(fetchUserPromises).then((fetchedUsers) => {
@@ -915,20 +1143,17 @@ initializeFirebase(function (app, auth, database, storage) {
                                 b.lastMessageTimestamp - a.lastMessageTimestamp
                         );
 
-                        // Build all rows off-DOM first to avoid the "flash empty,
-                        // then fill in" flicker that the previous innerHTML="" + per-row
-                        // appendChild caused. We swap the prepared fragment into the live
-                        // list in a single mutation, then trigger the staggered fade-in.
-                        const newRowsFragment = document.createDocumentFragment();
-                        const builtRows = [];
-                        validUsers.forEach(({ userId, user }) => {
-                            const newUserDiv = createUserElement(user, userId);
-                            newRowsFragment.appendChild(newUserDiv);
-                            builtRows.push({ userId, user });
-                        });
-
-                        usersList.innerHTML = "";
-                        usersList.appendChild(newRowsFragment);
+                        // Diff-mount: reuse existing rows (and their RTDB listeners) instead
+                        // of `innerHTML=""`, which tore down every row on each refresh/send.
+                        const builtRows = validUsers.map(({ userId, user }) => ({
+                            userId,
+                            user,
+                        }));
+                        mountOrderedSidebarRows(usersList, validUsers);
+                        saveRecentChatPeerIds(
+                            viewerUid,
+                            validUsers.map((v) => v.userId)
+                        );
 
                         // Recent-chats carousel: rebuild after status resolves per user.
                         swiperList.innerHTML = "";
@@ -1355,344 +1580,43 @@ initializeFirebase(function (app, auth, database, storage) {
         markSeenInChat(chatRef2);
     }
 
-    function updateUserUI(userDiv, user, userId) {
-        const userNameElement = userDiv.querySelector("h6");
-        const userMessageElement = userDiv.querySelector("p");
-        const userStatusElement = userDiv.querySelector(".avatar");
-
-        function applySidebarPreviewRow(text) {
-            if (!userMessageElement) return;
-            userMessageElement.dataset.lastPreview = text;
-            if (userMessageElement.getAttribute("data-typing-peer") !== "1") {
-                userMessageElement.textContent = text;
-            }
-        }
-
-        // Update the user's name
-        const contactsRef = ref(
-            database,
-            `data/contacts/${currentUser.uid}/${userId}`
-        );
-        onValue(contactsRef, (contactSnapshot) => {
-            const contactData = contactSnapshot.val();
-            const displayName = contactData?.firstName
-                ? `${contactData.firstName} ${contactData.lastName}`
-                : `${contactData.mobile_number}`;
-
-            userNameElement.textContent = displayName;
-        });
-
-        // Update the user's status
-        const userStatusRef = ref(database, `data/users/${userId}/status`);
-        onValue(userStatusRef, (snapshot) => {
-            const status = snapshot.val() || "offline";
-            if (status === "online") {
-                userStatusElement.classList.add("online");
-            } else {
-                userStatusElement.classList.remove("online");
-            }
-        });
-
-        const chatsRef = ref(database, "data/chats");
-
-        let lastMessage = null;
-        let unseenMessageCount = 0;
-        let chatMessages = [];
-        onChildAdded(chatsRef, async (snapshot) => {
-            const chat = snapshot.val();
-            chatMessages.push(chat);
-
-            // Sort all messages in the chat by timestamp
-            const sortedMessages = Object.values(chat).sort(
-                (a, b) => b.timestamp - a.timestamp
-            ); // Sort by timestamp descending
-            const lastMessage = sortedMessages[0]; // Get the most recent message
-            // Increment unseen message count if the message is unseen
-            if (
-                lastMessage &&
-                lastMessage.recipientId === currentUser.uid &&
-                !lastMessage.seen
-            ) {
-                unseenMessageCount++;
-            }
-
-            const roomId = snapshot.key;
-            const [fromUserId, toUserId] = roomId.split("-");
-            if (
-                (fromUserId === currentUser.uid && toUserId === userId) ||
-                (fromUserId === userId && toUserId === currentUser.uid)
-            ) {
-                let displayMessage = "No messages";
-
-                // Determine message type and process it
-                const messageType = lastMessage.attachmentType || "unknown";
-                if (messageType === 6) {
-                    const originalMessage = await decryptlibsodiumMessage(
-                        lastMessage.body
-                    );
-                    displayMessage = originalMessage || "No messages";
-                } else if (messageType === 5) {
-                    displayMessage = "File sent";
-                } else if (messageType === 2) {
-                    displayMessage = "Image sent";
-                } else if (messageType === 6) {
-                    displayMessage = "Emoji";
-                } else if (messageType === 1) {
-                    displayMessage = "Video sent";
-                } else if (messageType === 3) {
-                    displayMessage = "Audio sent";
-                } else if (messageType === 8) {
-                    displayMessage = "Audio Record sent";
-                } else {
-                    displayMessage = "Unknown message type";
-                }
-
-                // Update the displayed last message and time
-                applySidebarPreviewRow(displayMessage);
-                const lastMessageTimestamp = lastMessage?.timestamp;
-
-                timeElement.textContent = lastMessageTimestamp
-                    ? moment(lastMessageTimestamp).calendar(null, {
-                        sameDay: "h:mm A", // Today
-                        lastDay: "[Yesterday]", // Yesterday
-                        lastWeek: "MM/D/YYYY", // Last week
-                        sameElse: "MM/D/YYYY", // Older dates
-                    })
-                    : "No time";
-                // messageCountSpan.textContent = unseenMessageCount > 0 ? unseenMessageCount.toString() : "";
-
-                userLink.onclick = () => {
-                    selectUser(userId);
-
-                    if (
-                        lastMessage &&
-                        lastMessage.recipientId === currentUserId &&
-                        !lastMessage.seen
-                    ) {
-                        unseenMessageCount++;
-                    }
-
-                    const messageCountSpan =
-                        userDiv.querySelector(".count-message");
-                    if (userId === currentUserId) {
-                        messageCountSpan.style.display =
-                            unseenMessageCount > 0 ? "block" : "none";
-                        messageCountSpan.textContent =
-                            unseenMessageCount.toString();
-                    } else {
-                        messageCountSpan.style.display = "none"; // Hide for the sender
-                        messageCountSpan.textContent = "";
-                    }
-
-                    // Update the database to mark messages as seen
-                    const chatRef1 = ref(
-                        database,
-                        `data/chats/${currentUserId}-${userId}`
-                    );
-                    const chatRef2 = ref(
-                        database,
-                        `data/chats/${userId}-${currentUserId}`
-                    );
-
-                    [chatRef1, chatRef2].forEach((chatRef) => {
-                        get(chatRef).then((snapshot) => {
-                            if (snapshot.exists()) {
-                                snapshot.forEach((childSnapshot) => {
-                                    const message = childSnapshot.val();
-                                    if (
-                                        message.recipientId ===
-                                        currentUser.uid &&
-                                        !message.seen
-                                    ) {
-                                        update(
-                                            child(chatRef, childSnapshot.key),
-                                            {
-                                                seen: true,
-                                            }
-                                        ).catch(() => { });
-                                    }
-                                });
-                            }
-                        });
-                    });
-                };
-
-                // Update message status (check marks)
-                if (message.senderId === currentUserId) {
-                    if (!message.delivered && !message.readMsg) {
-                        statusIcon.innerHTML = `<i class="ti ti-check"></i>`; // Sent (single tick)
-                    } else if (message.delivered && !message.readMsg) {
-                        statusIcon.innerHTML = `<i class="ti ti-checks"></i>`; // Delivered (double ticks)
-                    } else if (message.delivered && message.readMsg) {
-                        statusIcon.innerHTML = `<i class="ti ti-checks text-success">dfv</i>`; // Read (green double ticks)
-                    }
-                }
-            }
-        });
-        onChildChanged(chatsRef, async (snapshot) => {
-            const chat = snapshot.val();
-            const roomId = snapshot.key;
-            const [fromUserId, toUserId] = roomId.split("-");
-            let displayMessage = "No messages";
-            if (
-                (fromUserId === currentUser.uid && toUserId === userId) ||
-                (fromUserId === userId && toUserId === currentUser.uid)
-            ) {
-                const lastMessage = chat[Object.keys(chat).pop()]; // Last message in chat
-                if (lastMessage) {
-                    const pinnedIcon = document.querySelector(
-                        `[data-user-id="${userId}"] .pinned-icon`
-                    );
-
-                    if (pinnedIcon) {
-                        const pinnedChatsRef = ref(
-                            database,
-                            `data/users/${currentUserId}/pinnedUserId`
-                        );
-
-                        get(pinnedChatsRef)
-                            .then((snapshot) => {
-                                const pinnedChats = snapshot.val() || []; // Ensure pinnedChats is an array
-
-                                // Check if the userId is in the pinnedChats array
-                                const isPinned = pinnedChats.includes(userId);
-
-                                // If the user is pinned, show the pin icon
-                                if (isPinned) {
-                                    pinnedIcon.innerHTML =
-                                        '<i class="ti ti-pin"></i>'; // Show pin icon
-                                } else {
-                                    pinnedIcon.innerHTML = ""; // Clear the pin icon if not pinned
-                                }
-                            })
-                            .catch((error) => {
-                                console.error(
-                                    "Error fetching pinned chats:",
-                                    error
-                                );
-                            });
-                    }
-
-                    // Determine the correct status icon based on the message's status
-                    const statusIcon = document.querySelector(
-                        `[data-user-id="${userId}"] .status-icon`
-                    );
-
-                    if (lastMessage.senderId === currentUserId) {
-                        if (statusIcon) {
-                            if (
-                                !lastMessage.delivered &&
-                                !lastMessage.readMsg
-                            ) {
-                                statusIcon.innerHTML = `<i class="ti ti-check"></i>`; // Single tick
-                            } else if (
-                                lastMessage.delivered &&
-                                !lastMessage.readMsg
-                            ) {
-                                statusIcon.innerHTML = `<i class="ti ti-checks"></i>`; // Double ticks (delivered)
-                            } else if (
-                                lastMessage.delivered &&
-                                lastMessage.readMsg
-                            ) {
-                                statusIcon.innerHTML = `<i class="ti ti-checks text-success">2</i>`; // Double ticks (read)
-                            }
-
-                            statusIcon.innerHTML = '<i class="ti ti-pin"></i>';
-                        }
-                    } else {
-                        statusIcon.innerHTML = ""; // Hide checkmarks for the receiver
-                    }
-                }
-
-                if (lastMessage) {
-                    // Read the canonical `attachmentType` (the legacy lookup against
-                    // `lastMessage.type` always evaluated to "unknown", which silently overwrote
-                    // every voice/image/video preview with "Unknown message type" any time the
-                    // delivered / readMsg flag flipped). Also drop the gate on `lastMessage.text`,
-                    // which is intentionally null for attachment messages now.
-                    const messageType = lastMessage.attachmentType;
-                    if (messageType === 6) {
-                        const originalMessage = await decryptlibsodiumMessage(
-                            lastMessage.body
-                        );
-                        displayMessage = originalMessage || "No messages";
-                    } else if (messageType === 5) {
-                        displayMessage = "File sent";
-                    } else if (messageType === 2) {
-                        displayMessage = "Image sent";
-                    } else if (messageType === 3) {
-                        displayMessage = "Audio sent";
-                    } else if (messageType === 8) {
-                        displayMessage = "Audio Record sent";
-                    } else if (messageType === 1) {
-                        displayMessage = "Video sent";
-                    } else if (messageType === 4) {
-                        displayMessage = "Location sent";
-                    } else {
-                        displayMessage = "No messages";
-                    }
-                    applySidebarPreviewRow(displayMessage);
-                }
-            }
-        });
-        // Fetch last message from both paths
-        const chatRefs = [
-            ref(database, `data/chats/${currentUserId}-${userId}`),
-            ref(database, `data/chats/${userId}-${currentUserId}`),
-        ];
-
-        const chatPromises = chatRefs.map((chatRef) =>
-            get(query(chatRef, orderByChild("timestamp"), limitToLast(1)))
-        );
-
-        const peerTypingListRef = ref(database, `data/users/${userId}/typing`);
-        onValue(peerTypingListRef, (snap) => {
-            if (!userMessageElement) return;
-            const v = snap.val();
-            if (v === currentUser.uid) {
-                userMessageElement.setAttribute("data-typing-peer", "1");
-                userMessageElement.textContent = "Typing...";
-            } else {
-                userMessageElement.removeAttribute("data-typing-peer");
-                userMessageElement.textContent =
-                    userMessageElement.dataset.lastPreview || "No messages";
-            }
-        });
-
-        Promise.all(chatPromises).then((snapshots) => {
-            let lastMessage = null;
-            let latestTimestamp = 0;
-
-            snapshots.forEach((snapshot) => {
-                if (snapshot.exists()) {
-                    snapshot.forEach((childSnapshot) => {
-                        const message = childSnapshot.val();
-                        if (message.timestamp > latestTimestamp) {
-                            lastMessage = message;
-                            latestTimestamp = message.timestamp;
-                        }
-                    });
-                }
-            });
-
-            if (lastMessage) {
-                const displayMessage =
-                    lastMessage.attachmentType === 6
-                        ? decryptMessage(lastMessage.body)
-                        : lastMessage.attachmentType === 2
-                            ? "Image sent"
-                            : lastMessage.attachmentType === 5
-                                ? "File sent"
-                                : "Unknown message type";
-
-                applySidebarPreviewRow(displayMessage);
-            } else {
-                applySidebarPreviewRow("No messages");
-            }
-        });
+    /**
+     * `updateUserUI` is intentionally a no-op stub.
+     *
+     * The previous implementation attached two listeners on the entire `data/chats`
+     * subtree (onChildAdded + onChildChanged) for every sidebar row built. That
+     * caused several visible bugs:
+     *   - The All-Chats list flashed on every outgoing message (every row's
+     *     listener fired and raced to write the same preview).
+     *   - At login each row's onChildAdded fired once per existing room, so the
+     *     work was O(rows × rooms). With more than a handful of conversations
+     *     this was the primary cause of "page refresh is very slow".
+     *   - None of the listeners were ever unsubscribed when displayUsers()
+     *     repainted the sidebar, so memory + RTDB bandwidth grew over the
+     *     session.
+     *
+     * Nothing in the file actually calls this function; the per-row
+     * onValue(chatRoomRef) inside createUserElement() already does the right
+     * thing scoped to one room. Keeping the symbol so any external reference
+     * (none found in the bundle) stays callable while doing nothing.
+     */
+    function updateUserUI(/* userDiv, user, userId */) {
+        // Intentional no-op. The original body attached onChildAdded /
+        // onChildChanged listeners on the ENTIRE data/chats subtree for every
+        // sidebar row. With more than a handful of conversations that O(rows x
+        // rooms) fanout was the dominant cause of:
+        //   - the All-Chats list flashing on every outgoing message,
+        //   - the page-refresh stall,
+        //   - listener / memory growth across an SPA session.
+        // The per-row onValue(chatRoomRef) inside createUserElement() already
+        // delivers the same preview/badge updates scoped to one room. Nothing
+        // in the bundle calls this function; the empty stub keeps any future
+        // call sites safe.
+        return;
     }
 
-    function createUserElement(user, userId) {
+    function createUserElement(user, userId, options) {
+        const opts = options || {};
         const usersList = document.getElementById("chat-users-wrap");
         const userDiv = document.createElement("div");
         userDiv.classList.add("chat-list");
@@ -1885,14 +1809,18 @@ initializeFirebase(function (app, auth, database, storage) {
 
         chatDropdown.appendChild(dropdownMenu);
         userDiv.appendChild(chatDropdown);
-        usersList.appendChild(userDiv);
+        if (!opts.skipAppend && usersList) {
+            usersList.appendChild(userDiv);
+        }
 
         // Fetch first name and last name
         const contactsRef = ref(
             database,
             `data/contacts/${currentUser.uid}/${userId}`
         );
-        onValue(contactsRef, (snapshot) => {
+        trackSidebarRowUnsub(
+            userDiv,
+            onValue(contactsRef, (snapshot) => {
             userDiv._sidebarPeerNameSeq = (userDiv._sidebarPeerNameSeq || 0) + 1;
             const mySeq = userDiv._sidebarPeerNameSeq;
             const contactData = snapshot.val();
@@ -1916,14 +1844,19 @@ initializeFirebase(function (app, auth, database, storage) {
                         String(userId);
                 }
             })();
-        });
+        })
+        );
 
         const roomIdForRow = getDeterministicChatRoomId(
             currentUserId,
             userId
         );
         const chatRoomRef = roomIdForRow
-            ? ref(database, `data/chats/${roomIdForRow}`)
+            ? query(
+                  ref(database, `data/chats/${roomIdForRow}`),
+                  orderByChild("timestamp"),
+                  limitToLast(SIDEBAR_ROOM_PREVIEW_LIMIT)
+              )
             : null;
         const markedUnreadRef = ref(
             database,
@@ -1954,16 +1887,21 @@ initializeFirebase(function (app, auth, database, storage) {
 
         userDiv._applySidebarUnreadBadge = applyUnreadBadge;
 
-        onValue(markedUnreadRef, (snap) => {
-            markedUnreadActive = snap.exists();
-            applyUnreadBadge();
-        });
+        trackSidebarRowUnsub(
+            userDiv,
+            onValue(markedUnreadRef, (snap) => {
+                markedUnreadActive = snap.exists();
+                applyUnreadBadge();
+            })
+        );
 
         const pinnedListRef = ref(
             database,
             `data/users/${currentUserId}/pinnedUserId`
         );
-        onValue(pinnedListRef, (snap) => {
+        trackSidebarRowUnsub(
+            userDiv,
+            onValue(pinnedListRef, (snap) => {
             const pinned = snap.val() || [];
             const arr = Array.isArray(pinned) ? pinned : [];
             rowIsPinned = arr.includes(userId);
@@ -1971,13 +1909,16 @@ initializeFirebase(function (app, auth, database, storage) {
                 ? '<i class="ti ti-pin"></i>'
                 : "";
             updateFavPinMenuItems();
-        });
+        })
+        );
 
         const favouriteChatsListRef = ref(
             database,
             `data/users/${currentUserId}/favourite_chats`
         );
-        onValue(favouriteChatsListRef, (snap) => {
+        trackSidebarRowUnsub(
+            userDiv,
+            onValue(favouriteChatsListRef, (snap) => {
             rowIsFavourite = false;
             if (snap.exists()) {
                 const favs = snap.val();
@@ -1990,12 +1931,16 @@ initializeFirebase(function (app, auth, database, storage) {
                 }
             }
             updateFavPinMenuItems();
-        });
+        })
+        );
 
         /** Avoids stale sidebar text/time when an older onValue async pass finishes after a newer one. */
         let lastSidebarPreviewAppliedTs = 0;
 
-        if (chatRoomRef) onValue(chatRoomRef, async (snapshot) => {
+        if (chatRoomRef) {
+            trackSidebarRowUnsub(
+                userDiv,
+                onValue(chatRoomRef, async (snapshot) => {
             const viewerUid = currentUser?.uid || currentUserId;
 
             if (!snapshot.exists()) {
@@ -2108,7 +2053,9 @@ initializeFirebase(function (app, auth, database, storage) {
             }
 
             applyUnreadBadge();
-        });
+        })
+            );
+        }
 
         userLink.onclick = (e) => {
             e.preventDefault();
@@ -2118,7 +2065,11 @@ initializeFirebase(function (app, auth, database, storage) {
             messageCountSpan.textContent = "";
 
             if (!roomIdForRow) return;
-            const chatRef = ref(database, `data/chats/${roomIdForRow}`);
+            const chatRef = query(
+                ref(database, `data/chats/${roomIdForRow}`),
+                orderByChild("timestamp"),
+                limitToLast(SIDEBAR_ROOM_PREVIEW_LIMIT)
+            );
             get(chatRef).then((snap) => {
                 if (!snap.exists()) return;
                 snap.forEach((childSnapshot) => {
@@ -2136,17 +2087,20 @@ initializeFirebase(function (app, auth, database, storage) {
         };
 
         const peerTypingRowRef = ref(database, `data/users/${userId}/typing`);
-        onValue(peerTypingRowRef, (snap) => {
-            const v = snap.val();
-            if (v === currentUser.uid) {
-                userMessage.setAttribute("data-typing-peer", "1");
-                userMessage.textContent = "Typing...";
-            } else {
-                userMessage.removeAttribute("data-typing-peer");
-                userMessage.textContent =
-                    userMessage.dataset.lastPreview || "No messages";
-            }
-        });
+        trackSidebarRowUnsub(
+            userDiv,
+            onValue(peerTypingRowRef, (snap) => {
+                const v = snap.val();
+                if (v === currentUser.uid) {
+                    userMessage.setAttribute("data-typing-peer", "1");
+                    userMessage.textContent = "Typing...";
+                } else {
+                    userMessage.removeAttribute("data-typing-peer");
+                    userMessage.textContent =
+                        userMessage.dataset.lastPreview || "No messages";
+                }
+            })
+        );
 
         return userDiv;
     }
@@ -2837,7 +2791,8 @@ initializeFirebase(function (app, auth, database, storage) {
         messageType = "text",
         fileUrl = null,
         tempKey = null,
-        replyToOverride = null
+        replyToOverride = null,
+        plaintextPreview = null
     ) {
         // Callers that close the reply UI before awaiting (e.g. optimistic text/location sends)
         // null out the module-level `replyToMessage` before we get here, so always prefer an
@@ -2856,9 +2811,14 @@ initializeFirebase(function (app, auth, database, storage) {
             return;
         }
 
-        // Check if the user is blocked
-        isUserBlocked(auth.currentUser.uid, toUserId).then((isBlocked) => {
-            if (isBlocked) {
+        // Parallelize both blocked-checks instead of chaining them sequentially. Cuts one
+        // RTDB round-trip off the critical path before every message persists.
+        const meUid = auth.currentUser.uid;
+        Promise.all([
+            isUserBlocked(meUid, toUserId),
+            isUserBlocked(toUserId, meUid),
+        ]).then(async ([blockedByMe, blockedByThem]) => {
+            if (blockedByMe) {
                 Toastify({
                     text: "You have blocked this user. Unblock to send a message.",
                     duration: 3000,
@@ -2867,22 +2827,24 @@ initializeFirebase(function (app, auth, database, storage) {
                     backgroundColor: "#ff3d00",
                     stopOnFocus: true,
                 }).showToast();
-                return; // Exit the function if the user is blocked
+                return;
             }
-            isUserBlocked(toUserId, auth.currentUser.uid).then(async (isBlocked) => {
-                if (isBlocked) {
-                    Toastify({
-                        text: "You have blocked by this user. Unable to send a message",
-                        duration: 3000,
-                        gravity: "top",
-                        position: "right",
-                        backgroundColor: "#ff3d00",
-                        stopOnFocus: true,
-                    }).showToast();
-                    return; // Exit the function if the user is blocked
-                }
-
-                const me = auth.currentUser.uid;
+            if (blockedByThem) {
+                Toastify({
+                    text: "You have blocked by this user. Unable to send a message",
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "#ff3d00",
+                    stopOnFocus: true,
+                }).showToast();
+                return;
+            }
+            // Single try/catch block replaces the previously-nested .then chain so the original
+            // multi-level indentation below stays intact — the rest of this branch keeps using
+            // `me` (now `meUid`) without disrupting the heavy code below.
+            const me = meUid;
+            {
                 if (!me || !toUserId) {
                     Toastify({
                         text: "Cannot send: not signed in or no recipient selected.",
@@ -3055,21 +3017,17 @@ initializeFirebase(function (app, auth, database, storage) {
                         ...message, // Spread the original message properties
                         id: newKey, // Add the generated key as the id
                     };
-                    // Only type 6 stores libsodium ciphertext in `body`. Attachments use `attachment`;
-                    // calling /decrypt with undefined or a non-ciphertext string causes HTTP 400.
+
+                    // Build the notification preview without hitting /decrypt. Type 6 stores
+                    // libsodium ciphertext on `body`, but the caller already has the plaintext
+                    // (`plaintextPreview`) — using it directly removes a full HTTP round-trip
+                    // from the critical path before the recipient sees the message bubble.
                     let msg = "New message";
-                    if (
-                        messageType == 6 &&
-                        message.body &&
-                        typeof message.body === "string"
-                    ) {
-                        const plain = await decryptlibsodiumMessage(
-                            message.body
-                        );
-                        if (plain) {
-                            msg = String(plain);
+                    if (messageType == 6) {
+                        if (plaintextPreview && String(plaintextPreview).trim()) {
+                            msg = String(plaintextPreview);
                         }
-                    } else if (messageType != 6) {
+                    } else {
                         const labels = {
                             1: "Sent a video",
                             2: "Sent a photo",
@@ -3078,20 +3036,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             5: "Sent a file",
                             8: "Sent a voice message",
                         };
-                        msg =
-                            labels[messageType] || "Sent an attachment";
-                    }
-                    // Own profile only (message.id becomes the message push key after persist).
-                    let senderPhoneForNotify = "";
-                    try {
-                        const selfProfileSnap = await get(
-                            ref(database, `data/users/${me}/mobile_number`)
-                        );
-                        if (selfProfileSnap.exists() && selfProfileSnap.val() != null) {
-                            senderPhoneForNotify = String(selfProfileSnap.val());
-                        }
-                    } catch (e) {
-                        /* ignore — do not block send on read/notification helper */
+                        msg = labels[messageType] || "Sent an attachment";
                     }
 
                     try {
@@ -3108,31 +3053,57 @@ initializeFirebase(function (app, auth, database, storage) {
                         return;
                     }
 
-                    sendCallNotification(
-                        message.recipientId,
-                        msg,
-                        senderPhoneForNotify,
-                        message.senderId,
-                        message.senderId,
-                        ""
-                    )
-
-                    persistChatMessagePairWithRetry(
+                    // Fire the persist now; the receiver sees the bubble the moment this lands.
+                    const persistPromise = persistChatMessagePairWithRetry(
                         newMessageRef,
                         mirrorChatRoomId,
                         newKey,
                         messageWithId,
                         me
+                    );
+
+                    // Notification metadata is read in parallel with the persist (not before),
+                    // so the recipient is not waiting on a `get(mobile_number)` round-trip.
+                    const senderPhonePromise = get(
+                        ref(database, `data/users/${me}/mobile_number`)
                     )
+                        .then((snap) =>
+                            snap.exists() && snap.val() != null
+                                ? String(snap.val())
+                                : ""
+                        )
+                        .catch(() => "");
+
+                    persistPromise
                         .then(() => afterOutgoingMessagePersisted(toUserId))
                         .then(() => {
-                            document.getElementById("message-input").value = "";
+                            const input = document.getElementById("message-input");
+                            if (input) input.value = "";
                         })
                         .catch((error) => {
                             console.error("Error sending message:", error);
                         });
+
+                    // Fire the push notification after the message has actually persisted so
+                    // the receiver's RTDB row arrives before (or with) the notification.
+                    Promise.all([persistPromise, senderPhonePromise])
+                        .then(([, senderPhoneForNotify]) => {
+                            try {
+                                sendCallNotification(
+                                    message.recipientId,
+                                    msg,
+                                    senderPhoneForNotify,
+                                    message.senderId,
+                                    message.senderId,
+                                    ""
+                                );
+                            } catch (e) {
+                                /* notification is best-effort; never block the send flow */
+                            }
+                        })
+                        .catch(() => { /* persist failure already logged above */ });
                 }
-            });
+            }
         });
     }
 
@@ -3231,6 +3202,8 @@ initializeFirebase(function (app, auth, database, storage) {
         img.src = resolveCallProfileImageUrl(rawSource || "");
         img.classList.add("rounded-circle");
         img.alt = "";
+        img.loading = "lazy";
+        img.decoding = "async";
         avatarDiv.appendChild(img);
     }
 
@@ -3249,7 +3222,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 .replace(/"/g, "&quot;")
                 .replace(/</g, "&lt;");
         const url = resolveCallProfileImageUrl(rawOrResolvedUrl || "");
-        return `<img src="${esc(url)}" class="rounded-circle" alt="" />`;
+        return `<img src="${esc(url)}" class="rounded-circle" alt="" loading="lazy" decoding="async" />`;
     }
 
     function applyChatHeaderAvatarFromUrl(resolvedUrl) {
@@ -3297,70 +3270,42 @@ initializeFirebase(function (app, auth, database, storage) {
         ).trim();
     }
 
-    /** Build usersMap from data/users + data/contacts/{me} so chat list matches Contacts (profile_image on contacts). */
+    /**
+     * Build usersMap from data/contacts/{me} + batched data/users/{peerId} reads.
+     * Avoids downloading the entire data/users tree (O(all registered users)).
+     */
     function fillUsersMapFromFirebase(loggedInUserId) {
-        const usersRef = ref(database, "data/users");
-        const contactsPromise = loggedInUserId
-            ? get(ref(database, `data/contacts/${loggedInUserId}`))
-            : Promise.resolve(null);
-        return Promise.all([get(usersRef), contactsPromise])
-            .then(([userSnapshot, contactSnapshot]) => {
+        if (!loggedInUserId) return Promise.resolve();
+        return get(ref(database, `data/contacts/${loggedInUserId}`)).then(
+            async (contactSnapshot) => {
                 const contactsByPeer =
                     contactSnapshot && contactSnapshot.exists()
                         ? contactSnapshot.val()
                         : {};
-                /** Pending / invite contacts often exist only under data/contacts, not data/users — sidebar must still list their chats. */
-                function mergeContactOnlyPeersIntoUsersMap() {
-                    Object.keys(contactsByPeer).forEach((peerId) => {
-                        if (
-                            !peerId ||
-                            peerId === loggedInUserId ||
-                            usersMap[peerId]
-                        ) {
-                            return;
-                        }
-                        const contactData = contactsByPeer[peerId];
-                        if (!contactData || typeof contactData !== "object") return;
-                        const nm = `${contactData.firstName || ""} ${contactData.lastName || ""}`.trim();
-                        const raw = rawAvatarFromFirebaseAndContact(
-                            {},
-                            contactData
-                        );
-                        const fallbackName = String(
-                            contactData.userName ||
-                            contactData.user_name ||
-                            contactData.mobile_number ||
-                            contactData.email ||
-                            peerId
-                        ).trim();
-                        usersMap[peerId] = {
-                            uid: peerId,
-                            userName: nm || fallbackName,
-                            profileImage: resolveCallProfileImageUrl(raw || ""),
-                        };
-                    });
-                }
-                if (!userSnapshot.exists()) {
-                    usersMap = {};
-                    mergeContactOnlyPeersIntoUsersMap();
-                    return;
-                }
-                const users = userSnapshot.val();
                 usersMap = {};
-                Object.keys(users).forEach((userId) => {
-                    const u = users[userId];
-                    if (!u) return;
-                    const contactData = contactsByPeer[userId] || null;
-                    const nm = `${u.firstName || ""} ${u.lastName || ""}`.trim();
-                    const raw = rawAvatarFromFirebaseAndContact(u, contactData);
-                    usersMap[userId] = {
-                        uid: userId,
-                        userName: nm || "",
-                        profileImage: resolveCallProfileImageUrl(raw || ""),
-                    };
+                const peerIds = new Set();
+                Object.keys(contactsByPeer).forEach((id) => {
+                    if (id && id !== loggedInUserId) peerIds.add(id);
                 });
-                mergeContactOnlyPeersIntoUsersMap();
-            });
+                loadRecentChatPeerIds(loggedInUserId).forEach((id) => {
+                    if (id && id !== loggedInUserId) peerIds.add(id);
+                });
+                const userRecords = await batchFetchFirebaseUserRecords([
+                    ...peerIds,
+                ]);
+                Object.keys(userRecords).forEach((userId) => {
+                    usersMap[userId] = buildUsersMapEntryFromUserAndContact(
+                        userId,
+                        userRecords[userId],
+                        contactsByPeer[userId] || null
+                    );
+                });
+                mergeContactOnlyPeersIntoUsersMap(
+                    contactsByPeer,
+                    loggedInUserId
+                );
+            }
+        );
     }
 
     /**
@@ -3425,6 +3370,7 @@ initializeFirebase(function (app, auth, database, storage) {
                 if (!usersMap[pid]) continue;
                 if (picked.avatarUrl && String(picked.avatarUrl).trim()) {
                     usersMap[pid].profileImage = picked.avatarUrl;
+                    messageBubbleAvatarCache.delete(pid);
                 }
                 if (picked.displayName && String(picked.displayName).trim()) {
                     usersMap[pid].userName = picked.displayName.trim();
@@ -3492,6 +3438,7 @@ initializeFirebase(function (app, auth, database, storage) {
                             usersMap[uid].profileImage = resolveCallProfileImageUrl(
                                 String(picked.avatarUrl).trim()
                             );
+                            messageBubbleAvatarCache.delete(uid);
                         }
                         if (picked.displayName && String(picked.displayName).trim()) {
                             usersMap[uid].userName = String(picked.displayName).trim();
@@ -3878,9 +3825,15 @@ initializeFirebase(function (app, auth, database, storage) {
             return;
         }
         fetchUsersInFlight = true;
+        try {
+            paintSidebarFromUsersMapCache(loggedInUserId);
+        } catch (e) {
+            /* ignore */
+        }
         fillUsersMapFromFirebase(loggedInUserId)
             .then(() => enrichChatListUsersMapFromLaravel())
             .then(() => {
+                saveUsersMapToLocalCache(loggedInUserId, usersMap);
                 const usersList = document.getElementById("chat-users-wrap");
                 const swiperList = document.querySelector(".swiper-wrapper");
                 const n = Object.keys(usersMap).length;
@@ -4141,23 +4094,52 @@ initializeFirebase(function (app, auth, database, storage) {
                 const userData = userSnapshot.exists()
                     ? userSnapshot.val()
                     : null;
-                let raw = rawAvatarFromFirebaseAndContact(userData, contactData);
-                if (
-                    isMessageFromViewer(message, myUid) &&
-                    typeof window !== "undefined" &&
-                    window.LARAVEL_USER
-                ) {
-                    const lu =
-                        window.LARAVEL_USER.profile_image ||
-                        window.LARAVEL_USER.image;
-                    if (lu && String(lu).trim()) raw = String(lu).trim();
-                }
-                profileImage = resolveCallProfileImageUrl(raw || "");
-                if (userData) {
-                    if (!senderName) {
+
+                profileImage = await resolveMessageBubbleAvatar(
+                    userId,
+                    userData,
+                    contactData,
+                    message,
+                    myUid
+                );
+
+                if (!senderName) {
+                    if (userData) {
                         const userFirstName = userData.mobile_number || "";
-                        senderName = `${userFirstName}`; // Combine first and last name
+                        senderName = `${userFirstName}`.trim();
                     }
+                }
+                senderName = callDisplayNameFromUsersMap(userId, senderName);
+                if (
+                    !senderName ||
+                    senderName === "Unknown User" ||
+                    senderName === String(userId)
+                ) {
+                    try {
+                        const resolved = await resolveCallUserAvatarAndDisplayName(
+                            userId,
+                            userData,
+                            contactData,
+                            { includeLaravelDisplayName: true }
+                        );
+                        if (
+                            resolved.displayName &&
+                            String(resolved.displayName).trim()
+                        ) {
+                            senderName = String(resolved.displayName).trim();
+                        }
+                    } catch (e) {
+                        /* ignore */
+                    }
+                    senderName = callDisplayNameFromUsersMap(userId, senderName);
+                }
+                if (isMessageFromViewer(message, myUid)) {
+                    senderName = "You";
+                } else if (!senderName || !String(senderName).trim()) {
+                    senderName = callDisplayNameFromUsersMap(
+                        userId,
+                        selectedUserId === userId ? userId : senderName
+                    );
                 }
 
                 let originalMessageChat;
@@ -4677,7 +4659,12 @@ initializeFirebase(function (app, auth, database, storage) {
                 getActiveReplyElements();
 
             if (replyDiv && replyContentElement && replyUserElement) {
-                replyDiv.style.display = "flex";
+                // Use setProperty(..., "important") to defend against any CSS
+                // rule (theme overrides, .reply-chat default of `display:none`)
+                // that would otherwise win against the inline style and leave
+                // the user unable to reopen the reply UI after a previous close.
+                replyDiv.style.setProperty("display", "flex", "important");
+                replyDiv.classList.remove("d-none");
                 replyUserElement.innerText = replyUser;
 
                 // Use innerHTML for media types, innerText for text
@@ -4695,31 +4682,82 @@ initializeFirebase(function (app, auth, database, storage) {
                 );
             }
 
-            // Store the replied message with necessary details
+            // Store the replied message with necessary details, including the
+            // exact DOM element we just opened. closeReplyBox() falls back to
+            // this node first so we always hide the right reply box even when
+            // the chat and group-chat partials each render their own
+            // `#reply-div` after SPA navigation.
             replyToMessage = {
                 key: messageElement.dataset.messageKey,
                 body: replyContent,
                 senderId: replyUser,
                 attachmentType: replyType,
                 media: mediaUrl,
+                _replyDivEl: replyDiv || null,
             };
 
             // console.log(replyToMessage); // Debugging output
         }
     });
 
-    const { closeReplyBtn } = getActiveReplyElements();
-    if (closeReplyBtn) {
-        closeReplyBtn.onclick = () => {
-            closeReplyBox();
-        };
-    }
+    // Delegate the close-reply click on document so the handler survives SPA navigations
+    // that replace the chat blade subtree (the old `closeReplyBtn.onclick` binding pointed
+    // at the original `#closeReply` element which is detached after re-injection, leaving
+    // the X visually present but unresponsive). We also stop propagation so the click
+    // never bubbles up into the surrounding <form id="message-form">, which would otherwise
+    // race with the form's submit handler on browsers that interpret `<a href="#">` clicks
+    // inside a form as implicit submits before our preventDefault runs.
+    document.addEventListener("click", (e) => {
+        const closeBtn = e.target.closest("#closeReply, .close-replay");
+        if (!closeBtn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        closeReplyBox();
+    });
 
     // Close Reply Box
+    //
+    // The chat blade (`/chat`) and the group-chat blade (`/group-chat`) each
+    // ship an element with id="reply-div" + id="closeReply". After SPA
+    // navigation the partial that lost focus can leave a stale node behind,
+    // and getElementById returns the first match in document order — which may
+    // not be the node that's actually visible. The previous implementation
+    // only hid one of them, which is why users saw "Reply to message cannot
+    // exit" after switching between chat types.
+    //
+    // We now:
+    //   1. Hide the exact node we opened (tracked on replyToMessage._replyDivEl).
+    //   2. Defensively hide every `.reply-div` / `#reply-div` in the document
+    //      and clear their content.
+    //   3. Set display:none with `!important` AND add `.d-none` so no CSS
+    //      override can leave the reply UI on screen.
     function closeReplyBox() {
-        replyToMessage = null; // Reset the replied message
-        const { replyDiv } = getActiveReplyElements();
-        if (replyDiv) replyDiv.style.display = "none";
+        const openedNode =
+            replyToMessage && replyToMessage._replyDivEl
+                ? replyToMessage._replyDivEl
+                : null;
+        replyToMessage = null;
+
+        const hide = (el) => {
+            if (!el) return;
+            el.style.setProperty("display", "none", "important");
+            el.classList.add("d-none");
+            const content = el.querySelector(
+                "#replyContent, .replyContent, .message-content"
+            );
+            if (content) content.innerHTML = "";
+            const user = el.querySelector("#replyUser, .replyUser");
+            if (user) user.innerText = "";
+        };
+
+        hide(openedNode);
+
+        // Sweep the whole document — covers both the canonical reply box from
+        // getActiveReplyElements() and any leftover sibling from a prior SPA
+        // partial.
+        document
+            .querySelectorAll("#reply-div, .reply-div")
+            .forEach(hide);
     }
 
     let forwardContent = null;
@@ -5727,6 +5765,85 @@ initializeFirebase(function (app, auth, database, storage) {
     let messageListener = null;
     const displayedMessages = new Set(); // Keep track of displayed message keys
     const pendingOptimisticKeys = new Set(); // Track tempKeys before DOM insertion
+    /** Per-sender avatar URL cache so each bubble does not re-hit Laravel/Firebase. */
+    const messageBubbleAvatarCache = new Map();
+
+    /**
+     * Resolve the avatar shown beside a message bubble (same sources as chat header:
+     * usersMap, contact node, user node, then /api/users/contact-avatars).
+     */
+    async function resolveMessageBubbleAvatar(
+        senderUid,
+        userData,
+        contactData,
+        message,
+        myUid
+    ) {
+        const uid = String(senderUid || "").trim();
+        if (!uid) return resolveCallProfileImageUrl("");
+
+        if (messageBubbleAvatarCache.has(uid)) {
+            return messageBubbleAvatarCache.get(uid);
+        }
+
+        if (isMessageFromViewer(message, myUid)) {
+            let raw = "";
+            if (typeof window !== "undefined" && window.LARAVEL_USER) {
+                raw =
+                    window.LARAVEL_USER.profile_image ||
+                    window.LARAVEL_USER.image ||
+                    "";
+            }
+            if (!raw && usersMap[uid] && usersMap[uid].profileImage) {
+                raw = usersMap[uid].profileImage;
+            }
+            const url = resolveCallProfileImageUrl(String(raw || "").trim());
+            if (!isPlaceholderProfileImageUrl(url)) {
+                messageBubbleAvatarCache.set(uid, url);
+            }
+            return url;
+        }
+
+        const mapEntry =
+            (usersMap && usersMap[uid]) ||
+            (selectedUserId &&
+            String(selectedUserId) === uid &&
+            usersMap[selectedUserId]
+                ? usersMap[selectedUserId]
+                : null);
+        if (
+            mapEntry &&
+            mapEntry.profileImage &&
+            hasProfileImageSource(mapEntry.profileImage) &&
+            !isPlaceholderProfileImageUrl(mapEntry.profileImage)
+        ) {
+            const url = resolveCallProfileImageUrl(mapEntry.profileImage);
+            if (!isPlaceholderProfileImageUrl(url)) {
+                messageBubbleAvatarCache.set(uid, url);
+            }
+            return url;
+        }
+
+        let url = "";
+        try {
+            url = await resolveCallUserAvatarUrl(uid, userData, contactData);
+        } catch (e) {
+            url = resolveCallProfileImageUrl(
+                rawAvatarFromFirebaseAndContact(userData, contactData) || ""
+            );
+        }
+        if (
+            isPlaceholderProfileImageUrl(url) &&
+            mapEntry &&
+            mapEntry.profileImage
+        ) {
+            url = resolveCallProfileImageUrl(mapEntry.profileImage);
+        }
+        if (!isPlaceholderProfileImageUrl(url)) {
+            messageBubbleAvatarCache.set(uid, url);
+        }
+        return url;
+    }
 
     let _chatInitialLoad = false;
     let _chatInitialLoadTimer = null;
@@ -6200,7 +6317,13 @@ initializeFirebase(function (app, auth, database, storage) {
             );
             return Promise.all(
                 roomPaths.map((roomId) =>
-                    get(ref(database, `data/chats/${roomId}`)).catch(() => null)
+                    get(
+                        query(
+                            ref(database, `data/chats/${roomId}`),
+                            orderByChild("timestamp"),
+                            limitToLast(INITIAL_CHAT_LOAD_LIMIT)
+                        )
+                    ).catch(() => null)
                 )
             ).then((snaps) => {
                     const byKey = new Map();
@@ -6791,18 +6914,20 @@ initializeFirebase(function (app, auth, database, storage) {
                 closeReplyBox();
                 clearChatTyping();
 
-                // 5. Encrypt and send the real message in the background
+                // 5. Encrypt and send the real message in the background. We pass the
+                // plaintext through as the 7th arg so sendMessage can build the notification
+                // preview without an extra /decrypt round-trip on the critical path.
                 try {
                     const ciphertext = await encryptMessage(messageText);
                     if (ciphertext) {
-                        // Pass the tempKey + captured reply context to sendMessage
                         sendMessage(
                             resolvedRecipientId,
                             ciphertext,
                             6,
                             null,
                             tempKey,
-                            replyContextSnapshot
+                            replyContextSnapshot,
+                            messageText
                         );
                     } else {
                         console.error("Failed to encrypt message.");
@@ -7698,16 +7823,19 @@ initializeFirebase(function (app, auth, database, storage) {
         ]).then(() => { });
     }
 
-    /** Delete-chat keeps rows under delete_chats; displayUsers skips those peers until removed. */
+    /** Delete-chat keeps rows under delete_chats; displayUsers skips those peers until removed.
+     *  Returns true when at least one row was actually unhidden — callers can use this to decide
+     *  whether a sidebar rebuild is necessary (the common case: nothing was hidden, no rebuild needed).
+     */
     function unhidePeerFromDeletedChatsIfAny(peerUserId) {
         const me = currentUser?.uid || currentUserId;
         if (!me || !peerUserId) {
-            return Promise.resolve();
+            return Promise.resolve(false);
         }
         const delRef = ref(database, `data/users/${me}/delete_chats`);
         return get(delRef)
             .then((snap) => {
-                if (!snap.exists()) return;
+                if (!snap.exists()) return false;
                 const v = snap.val();
                 const tasks = [];
                 Object.keys(v).forEach((key) => {
@@ -7727,14 +7855,23 @@ initializeFirebase(function (app, auth, database, storage) {
                         );
                     }
                 });
-                if (tasks.length === 0) return;
-                return Promise.all(tasks);
+                if (tasks.length === 0) return false;
+                return Promise.all(tasks).then(() => true);
             })
-            .catch(() => { });
+            .catch(() => false);
     }
 
+    /**
+     * Per-send hook. Previously this unconditionally called `fetchUsers()` which wiped and
+     * rebuilt the entire sidebar + recent-chats carousel on every outgoing message — visible
+     * as a list-wide flash and a hot N×RTDB-read churn (the latter is the main blocker for
+     * scaling beyond a handful of conversations). The per-room sidebar listeners already
+     * update the affected row's preview/timestamp on every message, so the only case that
+     * genuinely needs a rebuild is when this send made a previously-deleted thread reappear.
+     */
     function afterOutgoingMessagePersisted(peerUserId) {
-        return unhidePeerFromDeletedChatsIfAny(peerUserId).then(() => {
+        return unhidePeerFromDeletedChatsIfAny(peerUserId).then((didUnhide) => {
+            if (!didUnhide) return; // common case: nothing changed in visibility, leave the list alone
             try {
                 fetchUsers();
             } catch (e) {
@@ -13068,10 +13205,48 @@ initializeFirebase(function (app, auth, database, storage) {
         }).showToast();
     }
 
-    onValue(ref(database, `data/calls`), (snapshot) => {
-        const allCalls = snapshot.val();
+    let dreamchatAudioCallsUnsub = null;
+    let dreamchatVideoCallsUnsub = null;
+    let dreamchatCallListenersUid = null;
+
+    function detachDreamChatCallListeners() {
+        if (dreamchatAudioCallsUnsub) {
+            try {
+                dreamchatAudioCallsUnsub();
+            } catch (e) {
+                /* ignore */
+            }
+            dreamchatAudioCallsUnsub = null;
+        }
+        if (dreamchatVideoCallsUnsub) {
+            try {
+                dreamchatVideoCallsUnsub();
+            } catch (e) {
+                /* ignore */
+            }
+            dreamchatVideoCallsUnsub = null;
+        }
+        dreamchatCallListenersUid = null;
+    }
+
+    function attachDreamChatCallListeners(uid) {
+        if (!uid || dreamchatCallListenersUid === uid) return;
+        detachDreamChatCallListeners();
+        dreamchatCallListenersUid = uid;
+        dreamchatAudioCallsUnsub = onValue(
+            ref(database, `data/calls/${uid}`),
+            handleDreamChatAudioCallsSnapshot
+        );
+        dreamchatVideoCallsUnsub = onValue(
+            ref(database, `data/calls/${uid}`),
+            handleDreamChatVideoCallsSnapshot
+        );
+    }
+
+    function handleDreamChatAudioCallsSnapshot(snapshot) {
+        const userCalls = snapshot.val();
         const currentUser = auth.currentUser;
-        if (!currentUser || !allCalls) {
+        if (!currentUser) {
             cleanUpLocalState();
             return;
         }
@@ -13082,9 +13257,9 @@ initializeFirebase(function (app, auth, database, storage) {
         let userAudioRingingCount = 0;
         let userAudioConnectedCount = 0;
 
-        if (allCalls[currentUser.uid]) {
-            for (const callId in allCalls[currentUser.uid]) {
-                const call = allCalls[currentUser.uid][callId];
+        if (userCalls) {
+            for (const callId in userCalls) {
+                const call = userCalls[callId];
                 if (!call || call.type === "group") continue;
                 if (call && call.video == false) {
                     userAudioCallTotal++;
@@ -13176,21 +13351,60 @@ initializeFirebase(function (app, auth, database, storage) {
                 ensureIncomingCallRing(ringingCall.id);
             }
         }
-        else if (currentCallId) {
-            const myCallRow = allCalls[currentUser.uid] && allCalls[currentUser.uid][currentCallId];
-            if (
-                myCallRow &&
-                myCallRow.video == false &&
-                myCallRow.duration === "Declined" &&
-                myCallRow.inOrOut === "OUT" &&
-                lastAudioCallerDeclineToastId !== currentCallId
-            ) {
-                lastAudioCallerDeclineToastId = currentCallId;
+        else {
+            /*
+             * No active and no live ringing audio call found for this user.
+             *
+             * Previously this branch was gated on `if (currentCallId)`, which
+             * caused a race on the caller side: if the receiver declined the
+             * call before the caller's listener had time to observe the
+             * initial "Ringing" snapshot, currentCallId was never set on the
+             * caller side, this branch was skipped, and the optimistic
+             * outgoing-ring modal stayed on screen until the caller manually
+             * refreshed the page. Symptom reported in the field as
+             * "Call Declined but not ending on the other user's side".
+             *
+             * We now clean up whenever ANY audio call modal is still visible
+             * on this device but the snapshot no longer has a live audio call
+             * for us. We also scan the snapshot for the most recent OUT row
+             * resolved to Declined so we can still surface the toast on a
+             * one-shot basis.
+             */
+            const audioModalOpen =
+                dreamchatAudioCallRingModalIsOpen() ||
+                document
+                    .getElementById("voice-attend-new")
+                    ?.classList.contains("show");
+            // Look for the most recent OUT audio row that resolved to Declined
+            // since we last toasted, so we don't replay the same toast over
+            // every snapshot tick.
+            let declinedOutAudio = null;
+            if (userCalls) {
+                for (const callId in userCalls) {
+                    const c = userCalls[callId];
+                    if (!c || c.type === "group") continue;
+                    if (c.video !== false) continue;
+                    if (c.inOrOut !== "OUT") continue;
+                    if (c.duration !== "Declined") continue;
+                    if (lastAudioCallerDeclineToastId === c.id) continue;
+                    if (
+                        !declinedOutAudio ||
+                        Number(c.currentMills || 0) >
+                            Number(declinedOutAudio.currentMills || 0)
+                    ) {
+                        declinedOutAudio = c;
+                    }
+                }
+            }
+            if (declinedOutAudio) {
+                lastAudioCallerDeclineToastId = declinedOutAudio.id;
                 notifyOutgoingCallDeclined();
             }
-            cleanUpLocalState();
+            if (currentCallId || audioModalOpen || declinedOutAudio) {
+                cleanUpLocalState();
+            }
         }
-    });
+    }
 
     // =================================================================
     // AGORA VIDEO CALL IMPLEMENTATION (REVISED)
@@ -13969,16 +14183,15 @@ initializeFirebase(function (app, auth, database, storage) {
     // =================================================================
     // REALTIME DATABASE LISTENER - THE CORE LOGIC (CORRECTED)
     // =================================================================
-    onValue(ref(database, 'data/calls'), (snapshot) => {
-        const allCalls = snapshot.val();
+    function handleDreamChatVideoCallsSnapshot(snapshot) {
+        const userCalls = snapshot.val();
         const currentUser = auth.currentUser;
 
-        if (!currentUser || !allCalls) {
+        if (!currentUser) {
             if (currentVideoCallId) cleanUpVideoLocalState();
             return;
         }
 
-        const userCalls = allCalls[currentUser.uid];
         let callToProcess = null;
 
         if (userCalls) {
@@ -14051,29 +14264,65 @@ initializeFirebase(function (app, auth, database, storage) {
         } else {
             // --- STATE 3: No Active Call Found ---
             // No call is "Ringing" or has the "00:00:00" trigger.
-            // This means the call was ended (duration is now a timestamp like "00:02:15") or declined.
-            // If we previously had a `currentVideoCallId`, it's time to clean up.
-            if (currentVideoCallId && userCalls && userCalls[currentVideoCallId]) {
-                const row = userCalls[currentVideoCallId];
-                if (
-                    row.video &&
-                    row.duration === "Declined" &&
-                    row.inOrOut === "OUT" &&
-                    lastVideoCallerDeclineToastId !== currentVideoCallId
-                ) {
-                    lastVideoCallerDeclineToastId = currentVideoCallId;
-                    notifyOutgoingCallDeclined();
+            // Either the call was ended/declined/cancelled, or the receiver
+            // declined faster than our own listener observed the initial
+            // "Ringing" snapshot. The previous implementation only cleaned up
+            // when currentVideoCallId was already set on this side, which left
+            // the optimistic outgoing modal on screen forever when the decline
+            // beat us to the first snapshot — same root cause as the audio
+            // branch. Scan the snapshot and clean up whenever any video modal
+            // is still visible.
+            const videoModalOpen =
+                dreamchatVideoCallRingModalIsOpen() ||
+                document
+                    .getElementById("start-video-call-container")
+                    ?.classList.contains("show");
+            let declinedOutVideo = null;
+            if (userCalls) {
+                for (const callId in userCalls) {
+                    const c = userCalls[callId];
+                    if (!c || c.type === "group") continue;
+                    if (!c.video) continue;
+                    if (c.inOrOut !== "OUT") continue;
+                    if (c.duration !== "Declined") continue;
+                    if (lastVideoCallerDeclineToastId === c.id) continue;
+                    if (
+                        !declinedOutVideo ||
+                        Number(c.currentMills || 0) >
+                            Number(declinedOutVideo.currentMills || 0)
+                    ) {
+                        declinedOutVideo = c;
+                    }
                 }
             }
-            if (currentVideoCallId) {
+            if (declinedOutVideo) {
+                lastVideoCallerDeclineToastId = declinedOutVideo.id;
+                notifyOutgoingCallDeclined();
+            }
+            if (currentVideoCallId || videoModalOpen || declinedOutVideo) {
                 cleanUpVideoLocalState();
             }
         }
-    });
+    }
 
     // Ensure welcome panel is visible on all SPA pages when no chat is selected
+    function isChatShellSpaPath(pathname) {
+        const path = String(pathname || window.location.pathname || "")
+            .replace(/\/+$/, "")
+            .toLowerCase() || "/";
+        return (
+            path === "/chat" ||
+            path === "/index" ||
+            path === "/group-chat" ||
+            path.endsWith("/chat") ||
+            path.endsWith("/index") ||
+            path.endsWith("/group-chat")
+        );
+    }
+
     function ensureChatPageVisible() {
         const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
+        if (!isChatShellSpaPath(path)) return;
         let welcomeEl = document.getElementById("welcome-container");
         const middleEl = getMiddlePanelElement();
         const spaContent = document.getElementById("spa-page-content");
@@ -14291,8 +14540,6 @@ initializeFirebase(function (app, auth, database, storage) {
         }, intervalMs);
     }
     window.addEventListener("spa-page-applied", function (e) {
-        // Reset selected user on every SPA navigation so the welcome screen shows fresh.
-        selectedUserId = null;
         rebindContactProfileDockLayout();
         if (typeof wireContactInfoPanelActions === "function") {
             wireContactInfoPanelActions();
@@ -14303,11 +14550,18 @@ initializeFirebase(function (app, auth, database, storage) {
                     ? String(e.detail.pathname)
                     : "";
             const norm = raw.replace(/\/+$/, "").toLowerCase();
+            const isChatShell = isChatShellSpaPath(norm);
+            if (!isChatShell) return;
+
+            // Reset peer selection only when returning to 1:1 chat home (not group-chat).
             const isChatHome =
                 norm === "/chat" ||
                 norm === "/index" ||
                 norm.endsWith("/chat") ||
                 norm.endsWith("/index");
+            if (isChatHome) {
+                selectedUserId = null;
+            }
             if (isChatHome && typeof window.jQuery !== "undefined") {
                 window.jQuery("#spa-page-content .close-btn-chat")
                     .off("click.spaChatSearch")
@@ -14318,11 +14572,13 @@ initializeFirebase(function (app, auth, database, storage) {
                         }
                     });
             }
+            [0, 120, 450].forEach(function (ms) {
+                setTimeout(ensureChatPageVisible, ms);
+            });
+            startWelcomeGuard(12, 250);
         } catch (_err) {
             /* ignore */
         }
-        [0, 120, 450].forEach(function (ms) { setTimeout(ensureChatPageVisible, ms); });
-        startWelcomeGuard(12, 250);
     });
     var initialPath = (window.location.pathname || "").replace(/\/+$/, "") || "/";
     {

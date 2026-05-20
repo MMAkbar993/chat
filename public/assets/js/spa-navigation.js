@@ -19,7 +19,10 @@
     var isNavigating = false;
     var loadedModules = {};
     var prefetchCache = {};
+    /** HTML kept after first visit so revisiting a tab does not wait on AJAX again. */
+    var pageCache = {};
     var lastPluginInitAt = 0;
+    var warmedAllRoutes = false;
 
     function getPathname(url) {
         try {
@@ -92,44 +95,53 @@
 
 
 
-    function reinitPlugins() {
+    function reinitPlugins(deferHeavy) {
         var now = Date.now();
         if (now - lastPluginInitAt < 150) return;
         lastPluginInitAt = now;
 
-        if ($.fn.slimScroll) {
-            var $scrolls = $('#spa-page-content .slimscroll');
-            if ($scrolls.length > 0) {
-                $scrolls.slimScroll({
-                    height: 'auto',
-                    width: '100%',
-                    position: 'right',
-                    size: '7px',
-                    color: '#ccc',
-                    wheelStep: 10,
-                    touchScrollStep: 100
-                });
-                var wHeight = $(window).height();
-                $scrolls.height(wHeight);
+        function runCore() {
+            if ($.fn.slimScroll) {
+                var $scrolls = $('#spa-page-content .slimscroll');
+                if ($scrolls.length > 0) {
+                    $scrolls.slimScroll({
+                        height: 'auto',
+                        width: '100%',
+                        position: 'right',
+                        size: '7px',
+                        color: '#ccc',
+                        wheelStep: 10,
+                        touchScrollStep: 100
+                    });
+                    var wHeight = $(window).height();
+                    $scrolls.height(wHeight);
+                }
+            }
+            rebindDomHandlers();
+        }
+
+        function runHeavy() {
+            $('#spa-page-content [data-bs-toggle="tooltip"]').each(function () {
+                var existing = bootstrap.Tooltip.getInstance(this);
+                if (!existing) {
+                    new bootstrap.Tooltip(this);
+                }
+            });
+            if ($.fn.datetimepicker) {
+                $('#spa-page-content .datetimepicker').datetimepicker({ format: 'DD-MM-YYYY' });
+            }
+            if ($.fn.select2) {
+                $('#spa-page-content select.select2').select2();
             }
         }
 
-        $('#spa-page-content [data-bs-toggle="tooltip"]').each(function () {
-            var existing = bootstrap.Tooltip.getInstance(this);
-            if (!existing) {
-                new bootstrap.Tooltip(this);
-            }
-        });
-
-        if ($.fn.datetimepicker) {
-            $('#spa-page-content .datetimepicker').datetimepicker({ format: 'DD-MM-YYYY' });
+        runCore();
+        if (deferHeavy) {
+            var idle = window.requestIdleCallback || function (cb) { setTimeout(cb, 1); };
+            idle(runHeavy);
+        } else {
+            runHeavy();
         }
-
-        if ($.fn.select2) {
-            $('#spa-page-content select.select2').select2();
-        }
-
-        rebindDomHandlers();
     }
 
     function rebindDomHandlers() {
@@ -266,8 +278,20 @@
         }
     }
 
+    function fetchSpaPage(url, pathname, onSuccess, onError) {
+        $.ajax({
+            url: url,
+            type: 'GET',
+            headers: { 'X-SPA-Request': '1' },
+            success: function (html) {
+                pageCache[pathname] = html;
+                onSuccess(html);
+            },
+            error: onError
+        });
+    }
+
     function navigateTo(url, pushState) {
-        if (isNavigating) return;
         if (typeof pushState === 'undefined') pushState = true;
 
         var pathname = getPathname(url);
@@ -275,36 +299,30 @@
 
         if (getPathname(window.location.href) === pathname) return;
 
-        isNavigating = true;
-        showLoadingIndicator();
-
         dismissOpenModals();
         switchSidebarTab(pathname);
 
-        var cachedHtml = prefetchCache[pathname];
+        var cachedHtml = pageCache[pathname] || prefetchCache[pathname];
         if (cachedHtml) {
             delete prefetchCache[pathname];
-            applyPageContent(cachedHtml, url, pushState);
+            applyPageContent(cachedHtml, url, pushState, true);
             return;
         }
 
-        $.ajax({
-            url: url,
-            type: 'GET',
-            headers: { 'X-SPA-Request': '1' },
-            success: function (html) {
-                applyPageContent(html, url, pushState);
-            },
-            error: function () {
-                hideLoadingIndicator();
-                console.warn('SPA: AJAX failed, falling back to full navigation');
-                window.location.href = url;
-                isNavigating = false;
-            }
+        isNavigating = true;
+        showLoadingIndicator();
+
+        fetchSpaPage(url, pathname, function (html) {
+            applyPageContent(html, url, pushState, false);
+        }, function () {
+            hideLoadingIndicator();
+            console.warn('SPA: AJAX failed, falling back to full navigation');
+            window.location.href = url;
+            isNavigating = false;
         });
     }
 
-    function applyPageContent(html, url, pushState) {
+    function applyPageContent(html, url, pushState, fromCache) {
         var applyStart = (window.performance && performance.now) ? performance.now() : Date.now();
         var parser = new DOMParser();
         var doc = parser.parseFromString(html, 'text/html');
@@ -328,7 +346,7 @@
             loadModuleScripts(newPageModals);
         }
 
-        reinitPlugins();
+        reinitPlugins(!!fromCache);
         hideLoadingIndicator();
 
         if (pushState) {
@@ -379,12 +397,13 @@
         var capturedHref = href;
         var capturedPath = pathname;
         prefetchTimer = setTimeout(function () {
-            $.ajax({
-                url: capturedHref,
-                type: 'GET',
-                headers: { 'X-SPA-Request': '1' },
-                success: function (html) { prefetchCache[capturedPath] = html; }
-            });
+            if (pageCache[capturedPath]) {
+                prefetchCache[capturedPath] = pageCache[capturedPath];
+                return;
+            }
+            fetchSpaPage(capturedHref, capturedPath, function (html) {
+                prefetchCache[capturedPath] = html;
+            }, function () {});
         }, 150);
     });
 
@@ -401,12 +420,13 @@
         var capturedHref = href;
         var capturedPath = pathname;
         logoPrefetchTimer = setTimeout(function () {
-            $.ajax({
-                url: capturedHref,
-                type: 'GET',
-                headers: { 'X-SPA-Request': '1' },
-                success: function (html) { prefetchCache[capturedPath] = html; }
-            });
+            if (pageCache[capturedPath]) {
+                prefetchCache[capturedPath] = pageCache[capturedPath];
+                return;
+            }
+            fetchSpaPage(capturedHref, capturedPath, function (html) {
+                prefetchCache[capturedPath] = html;
+            }, function () {});
         }, 150);
     });
     $(document).on('mouseleave', '.sidebar-menu .logo a[href]', function () {
@@ -426,6 +446,17 @@
     try {
         var initialPath = getPathname(window.location.href);
         if (initialPath && isSpaRoute(window.location.href)) {
+            var initialContent = document.getElementById('spa-page-content');
+            var initialModals = document.getElementById('spa-page-modals');
+            if (initialContent) {
+                pageCache[initialPath] =
+                    '<!DOCTYPE html><html><body>' +
+                    '<div id="spa-page-content">' + initialContent.innerHTML + '</div>' +
+                    (initialModals
+                        ? '<div id="spa-page-modals">' + initialModals.innerHTML + '</div>'
+                        : '') +
+                    '</body></html>';
+            }
             setTimeout(function () {
                 var tid = ROUTE_TAB_MAP[initialPath];
                 if (tid) refreshSidebarPaneSlimscroll(tid);
@@ -439,5 +470,35 @@
         var key = resolved.split('?')[0];
         loadedModules[key] = true;
     });
+
+    /** Warm other SPA routes in the background so the first click is not blocked on AJAX. */
+    function warmSpaRoutesInBackground() {
+        if (warmedAllRoutes) return;
+        warmedAllRoutes = true;
+        var current = getPathname(window.location.href);
+        var delay = 0;
+        SPA_ROUTES.forEach(function (routePath) {
+            if (routePath === current || routePath === '/index') return;
+            if (pageCache[routePath]) return;
+            delay += 400;
+            setTimeout(function () {
+                if (pageCache[routePath]) return;
+                var link = document.querySelector(
+                    '.sidebar-menu .main-menu .nav li a[href*="' + routePath + '"]'
+                );
+                var href = link ? link.getAttribute('href') : routePath;
+                if (!href || !isSpaRoute(href)) return;
+                fetchSpaPage(href, routePath, function () {}, function () {});
+            }, delay);
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(warmSpaRoutesInBackground, 2500);
+        });
+    } else {
+        setTimeout(warmSpaRoutesInBackground, 2500);
+    }
 
 })(jQuery);

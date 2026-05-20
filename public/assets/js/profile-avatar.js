@@ -104,7 +104,7 @@
             escapeAttr(resolved) +
             '" alt="" class="' +
             escapeAttr(imgClass) +
-            '" onerror="if(window.DreamChatProfileAvatar)window.DreamChatProfileAvatar.onAvatarImgError(this)" />'
+            '" loading="lazy" decoding="async" onerror="if(window.DreamChatProfileAvatar)window.DreamChatProfileAvatar.onAvatarImgError(this)" />'
         );
     }
 
@@ -156,6 +156,8 @@
         img.src = resolved;
         img.classList.add("rounded-circle");
         img.alt = "";
+        img.loading = "lazy";
+        img.decoding = "async";
         img.addEventListener(
             "error",
             function onImgErr() {
