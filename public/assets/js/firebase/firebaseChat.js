@@ -12242,7 +12242,9 @@ initializeFirebase(function (app, auth, database, storage) {
     let localAudioTrack = null;
     let callTimerInterval = null;
     let currentCallId = null; // Keep track of the active call
-    let lastAudioCallerDeclineToastId = null;
+    /** Decline toasts already shown (Firebase push keys) — avoids replaying history on every snapshot. */
+    const dreamchatDeclineToastSeenKeys = new Set();
+    let dreamchatLastDeclineToastAt = 0;
 
     // Firebase references
     const callRef = ref(database, 'data/calls');
@@ -13205,6 +13207,59 @@ initializeFirebase(function (app, auth, database, storage) {
         }).showToast();
     }
 
+    function dreamchatCallLogKey(callId, row) {
+        const id =
+            row && row.id != null && String(row.id).trim() !== ""
+                ? row.id
+                : callId;
+        return String(id || "").trim();
+    }
+
+    /** Only treat declines as actionable shortly after they happen (not old call log rows). */
+    function dreamchatCallRowIsFresh(row, maxAgeMs) {
+        const windowMs = maxAgeMs == null ? 120000 : maxAgeMs;
+        const ts = Number(row && row.currentMills);
+        if (!ts || !Number.isFinite(ts)) return false;
+        return Date.now() - ts <= windowMs;
+    }
+
+    /**
+     * Most recent outbound declined call that is still "fresh" and not yet toasted.
+     * @param {boolean} video true = video calls, false = audio
+     */
+    function dreamchatFindFreshDeclinedOutbound(userCalls, video) {
+        let best = null;
+        let bestKey = "";
+        if (!userCalls) return null;
+        for (const callId in userCalls) {
+            const c = userCalls[callId];
+            if (!c || c.type === "group") continue;
+            const isVideo = c.video === true || c.video === "true";
+            if (video ? !isVideo : isVideo) continue;
+            if (c.inOrOut !== "OUT") continue;
+            if (c.duration !== "Declined") continue;
+            if (!dreamchatCallRowIsFresh(c)) continue;
+            const key = dreamchatCallLogKey(callId, c);
+            if (!key || dreamchatDeclineToastSeenKeys.has(key)) continue;
+            if (
+                !best ||
+                Number(c.currentMills || 0) > Number(best.currentMills || 0)
+            ) {
+                best = c;
+                bestKey = key;
+            }
+        }
+        return best ? { row: best, key: bestKey } : null;
+    }
+
+    function notifyOutgoingCallDeclinedOnce(seenKey) {
+        if (seenKey) dreamchatDeclineToastSeenKeys.add(seenKey);
+        const now = Date.now();
+        if (now - dreamchatLastDeclineToastAt < 5000) return;
+        dreamchatLastDeclineToastAt = now;
+        notifyOutgoingCallDeclined();
+    }
+
     let dreamchatAudioCallsUnsub = null;
     let dreamchatVideoCallsUnsub = null;
     let dreamchatCallListenersUid = null;
@@ -13375,32 +13430,14 @@ initializeFirebase(function (app, auth, database, storage) {
                 document
                     .getElementById("voice-attend-new")
                     ?.classList.contains("show");
-            // Look for the most recent OUT audio row that resolved to Declined
-            // since we last toasted, so we don't replay the same toast over
-            // every snapshot tick.
-            let declinedOutAudio = null;
-            if (userCalls) {
-                for (const callId in userCalls) {
-                    const c = userCalls[callId];
-                    if (!c || c.type === "group") continue;
-                    if (c.video !== false) continue;
-                    if (c.inOrOut !== "OUT") continue;
-                    if (c.duration !== "Declined") continue;
-                    if (lastAudioCallerDeclineToastId === c.id) continue;
-                    if (
-                        !declinedOutAudio ||
-                        Number(c.currentMills || 0) >
-                            Number(declinedOutAudio.currentMills || 0)
-                    ) {
-                        declinedOutAudio = c;
-                    }
-                }
+            const freshDeclineAudio = dreamchatFindFreshDeclinedOutbound(
+                userCalls,
+                false
+            );
+            if (freshDeclineAudio) {
+                notifyOutgoingCallDeclinedOnce(freshDeclineAudio.key);
             }
-            if (declinedOutAudio) {
-                lastAudioCallerDeclineToastId = declinedOutAudio.id;
-                notifyOutgoingCallDeclined();
-            }
-            if (currentCallId || audioModalOpen || declinedOutAudio) {
+            if (currentCallId || audioModalOpen || freshDeclineAudio) {
                 cleanUpLocalState();
             }
         }
@@ -13416,7 +13453,6 @@ initializeFirebase(function (app, auth, database, storage) {
     let localAudioTrackForVideo = null;
     let videoCallTimerInterval = null;
     let currentVideoCallId = null;
-    let lastVideoCallerDeclineToastId = null;
 
     // Video call UI elements
     const joinVideoCallButton = document.getElementById("join-video-call");
@@ -14277,29 +14313,14 @@ initializeFirebase(function (app, auth, database, storage) {
                 document
                     .getElementById("start-video-call-container")
                     ?.classList.contains("show");
-            let declinedOutVideo = null;
-            if (userCalls) {
-                for (const callId in userCalls) {
-                    const c = userCalls[callId];
-                    if (!c || c.type === "group") continue;
-                    if (!c.video) continue;
-                    if (c.inOrOut !== "OUT") continue;
-                    if (c.duration !== "Declined") continue;
-                    if (lastVideoCallerDeclineToastId === c.id) continue;
-                    if (
-                        !declinedOutVideo ||
-                        Number(c.currentMills || 0) >
-                            Number(declinedOutVideo.currentMills || 0)
-                    ) {
-                        declinedOutVideo = c;
-                    }
-                }
+            const freshDeclineVideo = dreamchatFindFreshDeclinedOutbound(
+                userCalls,
+                true
+            );
+            if (freshDeclineVideo) {
+                notifyOutgoingCallDeclinedOnce(freshDeclineVideo.key);
             }
-            if (declinedOutVideo) {
-                lastVideoCallerDeclineToastId = declinedOutVideo.id;
-                notifyOutgoingCallDeclined();
-            }
-            if (currentVideoCallId || videoModalOpen || declinedOutVideo) {
+            if (currentVideoCallId || videoModalOpen || freshDeclineVideo) {
                 cleanUpVideoLocalState();
             }
         }
